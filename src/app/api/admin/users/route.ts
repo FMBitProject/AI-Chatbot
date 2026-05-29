@@ -27,10 +27,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name, email, password } = await req.json() as {
+  const { name, email, password, department } = await req.json() as {
     name: string;
     email: string;
     password: string;
+    department?: string;
   };
 
   const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (created) {
     await db.update(users)
-      .set({ companyId: dbUser.companyId, role: "employee" })
+      .set({ companyId: dbUser.companyId, role: "employee", department: department || null })
       .where(eq(users.id, created.id));
 
     const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);

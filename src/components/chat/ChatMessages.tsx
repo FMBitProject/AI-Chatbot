@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CitationsAccordion } from "./CitationsAccordion";
-import { BrainCircuit } from "lucide-react";
+import { BrainCircuit, ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 
@@ -16,15 +16,17 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   citations?: Citation[];
+  feedback?: "up" | "down";
 }
 
 interface ChatMessagesProps {
   messages: Message[];
   isLoading: boolean;
   userName?: string;
+  onFeedback?: (messageId: string, feedback: "up" | "down") => void;
 }
 
-export function ChatMessages({ messages, isLoading, userName }: ChatMessagesProps) {
+export function ChatMessages({ messages, isLoading, userName, onFeedback }: ChatMessagesProps) {
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center gap-3 text-gray-400">
@@ -53,14 +55,12 @@ export function ChatMessages({ messages, isLoading, userName }: ChatMessagesProp
             )}
           </Avatar>
           <div className={cn("max-w-[75%]", msg.role === "user" && "items-end")}>
-            <div
-              className={cn(
-                "rounded-2xl px-4 py-3 text-sm leading-relaxed",
-                msg.role === "user"
-                  ? "bg-blue-600 text-white rounded-tr-sm"
-                  : "bg-gray-100 text-gray-800 rounded-tl-sm"
-              )}
-            >
+            <div className={cn(
+              "rounded-2xl px-4 py-3 text-sm leading-relaxed",
+              msg.role === "user"
+                ? "bg-blue-600 text-white rounded-tr-sm"
+                : "bg-gray-100 text-gray-800 rounded-tl-sm"
+            )}>
               {msg.role === "user" ? msg.content : (
                 <ReactMarkdown
                   components={{
@@ -75,8 +75,38 @@ export function ChatMessages({ messages, isLoading, userName }: ChatMessagesProp
                 </ReactMarkdown>
               )}
             </div>
-            {msg.role === "assistant" && msg.citations && (
-              <CitationsAccordion citations={msg.citations} />
+            {msg.role === "assistant" && (
+              <>
+                {msg.citations && <CitationsAccordion citations={msg.citations} />}
+                {onFeedback && msg.content && (
+                  <div className="flex gap-1 mt-1 ml-1">
+                    <button
+                      onClick={() => onFeedback(msg.id, "up")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-colors",
+                        msg.feedback === "up"
+                          ? "text-green-600 bg-green-50"
+                          : "text-gray-400 hover:text-green-600 hover:bg-green-50"
+                      )}
+                      title="Jawaban membantu"
+                    >
+                      <ThumbsUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => onFeedback(msg.id, "down")}
+                      className={cn(
+                        "p-1.5 rounded-md transition-colors",
+                        msg.feedback === "down"
+                          ? "text-red-500 bg-red-50"
+                          : "text-gray-400 hover:text-red-500 hover:bg-red-50"
+                      )}
+                      title="Jawaban tidak membantu"
+                    >
+                      <ThumbsDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

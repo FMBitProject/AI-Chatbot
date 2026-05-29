@@ -14,6 +14,7 @@ export const users = pgTable("users", {
   image: text("image"),
   companyId: text("company_id").references(() => companies.id),
   role: text("role").$type<"admin" | "employee">().default("employee").notNull(),
+  department: text("department"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -58,6 +59,7 @@ export const documents = pgTable("documents", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
+  department: text("department"),
   status: text("status").$type<"processing" | "success" | "failed">().default("processing").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -76,5 +78,15 @@ export const chatSessions = pgTable("chat_sessions", {
   userId: text("user_id").references(() => users.id).notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   title: text("title").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const chatMessages = pgTable("chat_messages", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").references(() => chatSessions.id, { onDelete: "cascade" }).notNull(),
+  role: text("role").$type<"user" | "assistant">().notNull(),
+  content: text("content").notNull(),
+  citationsJson: text("citations_json"),
+  feedback: text("feedback").$type<"up" | "down">(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

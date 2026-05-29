@@ -26,7 +26,7 @@ interface UsersTabProps {
 export function UsersTab({ employees, onAddEmployee }: UsersTabProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", department: "" });
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -35,7 +35,7 @@ export function UsersTab({ employees, onAddEmployee }: UsersTabProps) {
       await onAddEmployee(form);
       toast({ title: "Karyawan ditambahkan!", description: `${form.name} berhasil didaftarkan.` });
       setOpen(false);
-      setForm({ name: "", email: "", password: "" });
+      setForm({ name: "", email: "", password: "", department: "" });
     } catch (err) {
       toast({ variant: "destructive", title: "Gagal menambahkan karyawan.", description: (err as Error).message });
     } finally {
@@ -113,6 +113,10 @@ export function UsersTab({ employees, onAddEmployee }: UsersTabProps) {
             <div className="space-y-2">
               <Label htmlFor="emp-email">Email</Label>
               <Input id="emp-email" type="email" placeholder="budi@perusahaan.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="emp-dept">Departemen (opsional)</Label>
+              <Input id="emp-dept" placeholder="Contoh: HR, IT, Legal" value={form.department ?? ""} onChange={(e) => setForm({ ...form, department: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emp-password">Password Sementara</Label>

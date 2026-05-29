@@ -1,14 +1,15 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentsTab, type Document } from "@/components/admin/DocumentsTab";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
+import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { BrainCircuit, FileText, Users, LogOut, MessageSquare } from "lucide-react";
-import Link from "next/link";
+import { BrainCircuit, FileText, Users, LogOut, MessageSquare, BarChart2 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -17,17 +18,31 @@ export default function AdminPage() {
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    fetch("/api/admin/documents")
-      .then((r) => r.json())
-      .then((data: Document[]) => setDocuments(data))
-      .catch(() => {});
-    fetch("/api/admin/users")
-      .then((r) => r.json())
-      .then((data: Employee[]) => setEmployees(data))
-      .catch(() => {});
+    loadDocuments();
+    fetch("/api/admin/users").then((r) => r.json()).then((data: Employee[]) => setEmployees(data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const hasProcessing = documents.some((d) => d.status === "processing");
+    if (hasProcessing && !pollingRef.current) {
+      pollingRef.current = setInterval(loadDocuments, 3000);
+    } else if (!hasProcessing && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [documents]);
+
+  async function loadDocuments() {
+    const res = await fetch("/api/admin/documents").catch(() => null);
+    if (res?.ok) {
+      const data = await res.json() as Document[];
+      setDocuments(data);
+    }
+  }
 
   async function handleUpload(files: File[]) {
     const formData = new FormData();
@@ -44,7 +59,7 @@ export default function AdminPage() {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
   }
 
-  async function handleAddEmployee(data: { name: string; email: string; password: string }) {
+  async function handleAddEmployee(data: { name: string; email: string; password: string; department?: string }) {
     const res = await fetch("/api/admin/users", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -98,12 +113,19 @@ export default function AdminPage() {
               <Users className="h-4 w-4" />
               Kelola Karyawan
             </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart2 className="h-4 w-4" />
+              Analitik
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
             <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="users">
             <UsersTab employees={employees} onAddEmployee={handleAddEmployee} />
+          </TabsContent>
+          <TabsContent value="analytics">
+            <AnalyticsTab />
           </TabsContent>
         </Tabs>
       </main>

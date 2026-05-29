@@ -21,9 +21,7 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    loadSessions();
-  }, []);
+  useEffect(() => { loadSessions(); }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -40,6 +38,21 @@ export default function ChatPage() {
     } catch {}
   }
 
+  async function loadMessages(sessionId: string) {
+    try {
+      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
+      if (!res.ok) return;
+      const data = await res.json() as { id: string; role: string; content: string; citationsJson?: string; feedback?: string }[];
+      setMessages(data.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        citations: m.citationsJson ? JSON.parse(m.citationsJson) as Citation[] : undefined,
+        feedback: m.feedback as "up" | "down" | undefined,
+      })));
+    } catch {}
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -52,7 +65,6 @@ export default function ChatPage() {
 
     const controller = new AbortController();
     abortRef.current = controller;
-
     const assistantMsgId = (Date.now() + 1).toString();
     setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
 
@@ -70,49 +82,56 @@ export default function ChatPage() {
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
       let citations: Citation[] = [];
+      let realMsgId = assistantMsgId;
+      let newSessionId: string | null = null;
       let fullContent = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
+        const lines = decoder.decode(value, { stream: true }).split("\n");
         for (const line of lines) {
           if (line.startsWith("0:")) {
             try {
               const text = JSON.parse(line.slice(2)) as string;
               fullContent += text;
-              setMessages((prev) =>
-                prev.map((m) => m.id === assistantMsgId ? { ...m, content: fullContent } : m)
-              );
+              setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: fullContent } : m));
             } catch {}
           } else if (line.startsWith("2:")) {
             try {
-              citations = JSON.parse(line.slice(2)) as Citation[];
+              const meta = JSON.parse(line.slice(2)) as { citations: Citation[]; messageId: string; sessionId: string };
+              citations = meta.citations;
+              realMsgId = meta.messageId;
+              newSessionId = meta.sessionId;
             } catch {}
           }
         }
       }
 
-      setMessages((prev) =>
-        prev.map((m) => m.id === assistantMsgId ? { ...m, citations } : m)
-      );
+      setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, id: realMsgId, citations } : m));
 
-      await loadSessions();
+      if (newSessionId && !activeSessionId) {
+        setActiveSessionId(newSessionId);
+        await loadSessions();
+      }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId
-              ? { ...m, content: "Maaf, terjadi kesalahan. Silakan coba lagi." }
-              : m
-          )
-        );
+        setMessages((prev) => prev.map((m) => m.id === assistantMsgId
+          ? { ...m, content: "Maaf, terjadi kesalahan. Silakan coba lagi." } : m));
       }
     } finally {
       setIsLoading(false);
       abortRef.current = null;
     }
+  }
+
+  async function handleFeedback(messageId: string, feedback: "up" | "down") {
+    await fetch("/api/chat/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, feedback }),
+    });
+    setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback } : m));
   }
 
   function handleNewChat() {
@@ -121,10 +140,11 @@ export default function ChatPage() {
     setMessages([]);
   }
 
-  function handleSelectSession(id: string) {
+  async function handleSelectSession(id: string) {
     abortRef.current?.abort();
     setActiveSessionId(id);
     setMessages([]);
+    await loadMessages(id);
   }
 
   return (
@@ -140,15 +160,13 @@ export default function ChatPage() {
         isAdmin={user?.role === "admin"}
       />
       <div className="flex-1 flex flex-col bg-white">
-        <div className="border-b px-6 py-3 flex items-center">
+        <div className="border-b px-6 py-3">
           <h1 className="font-semibold text-gray-800">
-            {activeSessionId
-              ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat"
-              : "Chat Baru"}
+            {activeSessionId ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat" : "Chat Baru"}
           </h1>
         </div>
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-          <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} />
+          <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} onFeedback={handleFeedback} />
         </div>
         <div className="border-t px-6 py-4">
           <form onSubmit={handleSubmit} className="flex gap-3 max-w-3xl mx-auto">
