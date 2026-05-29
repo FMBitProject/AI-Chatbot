@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { FileDropzone } from "./FileDropzone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -87,8 +87,8 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
                   const s = STATUS_MAP[doc.status];
                   const isExpanded = expandedSummary === doc.id;
                   return (
-                    <>
-                      <TableRow key={doc.id}>
+                    <Fragment key={doc.id}>
+                      <TableRow>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-gray-400 shrink-0" />
@@ -124,7 +124,7 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
                         </TableCell>
                       </TableRow>
                       {isExpanded && doc.summary && (
-                        <TableRow key={`${doc.id}-summary`}>
+                        <TableRow>
                           <TableCell colSpan={4} className="bg-blue-50 border-t-0">
                             <div className="flex items-start gap-2 py-1">
                               <Sparkles className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
@@ -133,7 +133,7 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
