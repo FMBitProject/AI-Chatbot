@@ -4,14 +4,14 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 function getGoogle() {
   return createGoogleGenerativeAI({
     apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-    baseURL: "https://generativelanguage.googleapis.com/v1",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta",
   });
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
   const google = getGoogle();
   const { embedding } = await embed({
-    model: google.textEmbeddingModel("text-embedding-004"),
+    model: google.textEmbeddingModel("gemini-embedding-001"),
     value: text.replace(/\n/g, " "),
   });
   return embedding;
