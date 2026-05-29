@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, FileText, Users, TrendingUp, Mail, Download, Sheet } from "lucide-react";
+import { MessageSquare, FileText, Users, TrendingUp, Download, Sheet } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 interface Analytics {
@@ -23,19 +23,6 @@ export function AnalyticsTab() {
       .catch(() => {});
   }, []);
 
-  async function handleSendDigest() {
-    try {
-      const res = await fetch("/api/admin/weekly-digest", { method: "POST" });
-      if (!res.ok) {
-        const d = await res.json() as { error?: string };
-        toast({ variant: "destructive", title: "Gagal mengirim digest.", description: d.error });
-      } else {
-        toast({ title: "Weekly digest berhasil dikirim!" });
-      }
-    } catch {
-      toast({ variant: "destructive", title: "Gagal mengirim digest." });
-    }
-  }
 
   async function handleExportExcel() {
     if (!data) return;
@@ -188,10 +175,6 @@ export function AnalyticsTab() {
         <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2">
           <Download className="h-4 w-4 text-red-500" />
           Export PDF
-        </Button>
-        <Button variant="outline" size="sm" onClick={handleSendDigest} className="gap-2">
-          <Mail className="h-4 w-4" />
-          Kirim Weekly Digest
         </Button>
       </div>
 
