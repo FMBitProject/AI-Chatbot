@@ -7,7 +7,7 @@ import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 
-const SYSTEM_PROMPT = `Anda adalah asisten AI internal perusahaan. Jawab HANYA berdasarkan dokumen internal yang diberikan. Jika tidak ada informasi relevan, jawab: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Gunakan bahasa yang sama dengan pengguna. Jawaban harus singkat dan langsung (max 3 paragraf).`;
+const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
 
 async function runRAG(question: string, companyId: string): Promise<string> {
   const queryEmbedding = await getEmbedding(question);
