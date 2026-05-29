@@ -20,10 +20,11 @@ export interface Employee {
 
 interface UsersTabProps {
   employees: Employee[];
+  companyName?: string;
   onAddEmployee: (data: { name: string; email: string; password: string }) => Promise<void>;
 }
 
-export function UsersTab({ employees, onAddEmployee }: UsersTabProps) {
+export function UsersTab({ employees, companyName, onAddEmployee }: UsersTabProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", department: "" });
@@ -47,8 +48,15 @@ export function UsersTab({ employees, onAddEmployee }: UsersTabProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold">Kelola Karyawan</h2>
-          <p className="text-sm text-gray-500">{employees.length} karyawan terdaftar</p>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Kelola Karyawan</h2>
+            {companyName && (
+              <span className="text-xs font-medium bg-gray-100 text-gray-600 rounded-full px-2.5 py-0.5 border">
+                🏢 {companyName}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-500 mt-0.5">{employees.length} karyawan terdaftar</p>
         </div>
         <Button onClick={() => setOpen(true)}>
           <UserPlus className="h-4 w-4" />

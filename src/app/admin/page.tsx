@@ -19,11 +19,13 @@ export default function AdminPage() {
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [companyName, setCompanyName] = useState<string>("");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadDocuments();
     fetch("/api/admin/users").then((r) => r.json()).then((data: Employee[]) => setEmployees(data)).catch(() => {});
+    fetch("/api/admin/company").then((r) => r.json()).then((data: { name: string }) => setCompanyName(data?.name ?? "")).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -86,6 +88,12 @@ export default function AdminPage() {
         <div className="flex items-center gap-3">
           <LogoFull size="sm" />
           <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
+          {companyName && (
+            <span className="hidden sm:inline text-sm text-gray-400">·</span>
+          )}
+          {companyName && (
+            <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>
@@ -122,7 +130,7 @@ export default function AdminPage() {
             <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} />
           </TabsContent>
           <TabsContent value="users">
-            <UsersTab employees={employees} onAddEmployee={handleAddEmployee} />
+            <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} />
           </TabsContent>
           <TabsContent value="analytics">
             <AnalyticsTab />
