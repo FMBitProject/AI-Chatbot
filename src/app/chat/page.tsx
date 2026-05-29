@@ -1,0 +1,169 @@
+"use client";
+import { useState, useRef, useEffect } from "react";
+import { ChatSidebar, type ChatSession } from "@/components/chat/ChatSidebar";
+import { ChatMessages, type Message, type Citation } from "@/components/chat/ChatMessages";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Toaster } from "@/components/ui/toaster";
+import { Send } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
+
+export default function ChatPage() {
+  const { data: session } = authClient.useSession();
+  const user = session?.user as { name?: string; email?: string } | undefined;
+
+  const [dbSessions, setDbSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isLoading]);
+
+  async function loadSessions() {
+    try {
+      const res = await fetch("/api/chat/sessions");
+      if (!res.ok) return;
+      const data = await res.json() as { id: string; title: string; createdAt: string }[];
+      setDbSessions(data.map((s) => ({ id: s.id, title: s.title, createdAt: s.createdAt })));
+    } catch {}
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: "user", content: input };
+    const currentInput = input;
+    setInput("");
+    setMessages((prev) => [...prev, userMsg]);
+    setIsLoading(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const assistantMsgId = (Date.now() + 1).toString();
+    setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
+
+    try {
+      const apiMessages = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error("Chat API error");
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let citations: Citation[] = [];
+      let fullContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("0:")) {
+            try {
+              const text = JSON.parse(line.slice(2)) as string;
+              fullContent += text;
+              setMessages((prev) =>
+                prev.map((m) => m.id === assistantMsgId ? { ...m, content: fullContent } : m)
+              );
+            } catch {}
+          } else if (line.startsWith("2:")) {
+            try {
+              citations = JSON.parse(line.slice(2)) as Citation[];
+            } catch {}
+          }
+        }
+      }
+
+      setMessages((prev) =>
+        prev.map((m) => m.id === assistantMsgId ? { ...m, citations } : m)
+      );
+
+      await loadSessions();
+    } catch (err) {
+      if ((err as Error).name !== "AbortError") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantMsgId
+              ? { ...m, content: "Maaf, terjadi kesalahan. Silakan coba lagi." }
+              : m
+          )
+        );
+      }
+    } finally {
+      setIsLoading(false);
+      abortRef.current = null;
+    }
+  }
+
+  function handleNewChat() {
+    abortRef.current?.abort();
+    setActiveSessionId(null);
+    setMessages([]);
+  }
+
+  function handleSelectSession(id: string) {
+    abortRef.current?.abort();
+    setActiveSessionId(id);
+    setMessages([]);
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Toaster />
+      <ChatSidebar
+        sessions={dbSessions}
+        activeSessionId={activeSessionId}
+        onNewChat={handleNewChat}
+        onSelectSession={handleSelectSession}
+        userName={user?.name}
+        userEmail={user?.email}
+      />
+      <div className="flex-1 flex flex-col bg-white">
+        <div className="border-b px-6 py-3 flex items-center">
+          <h1 className="font-semibold text-gray-800">
+            {activeSessionId
+              ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat"
+              : "Chat Baru"}
+          </h1>
+        </div>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
+          <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} />
+        </div>
+        <div className="border-t px-6 py-4">
+          <form onSubmit={handleSubmit} className="flex gap-3 max-w-3xl mx-auto">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Tanyakan sesuatu tentang kebijakan perusahaan..."
+              disabled={isLoading}
+              className="flex-1"
+            />
+            <Button type="submit" disabled={isLoading || !input.trim()} size="icon">
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
