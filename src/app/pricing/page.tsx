@@ -71,7 +71,7 @@ const PLANS = [
       { label: "Prioritas dukungan 24/7", ok: true },
     ],
     cta: "Hubungi Sales",
-    ctaHref: "mailto:sales@tanyainternal.com",
+    ctaHref: "mailto:sales@intellibase.ai",
     ctaVariant: "outline" as const,
   },
 ];
@@ -209,7 +209,7 @@ export default function PricingPage() {
       <footer className="border-t py-8 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
-          <p className="text-gray-400 text-sm">© 2026 TanyaInternal AI. All rights reserved.</p>
+          <p className="text-gray-400 text-sm">© 2026 IntelliBase. All rights reserved.</p>
           <div className="flex gap-4 text-sm text-gray-400">
             <Link href="/login" className="hover:text-gray-600">Login</Link>
             <Link href="/register" className="hover:text-gray-600">Daftar</Link>

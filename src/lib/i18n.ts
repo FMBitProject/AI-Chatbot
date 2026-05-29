@@ -41,7 +41,7 @@ export const t = {
     b3: "Dukungan PDF & DOCX",
     b4: "Isolasi data penuh antar perusahaan",
     tip: "💡 Tahukah Anda?",
-    tipDesc: "Rata-rata karyawan menghabiskan 2,5 jam/hari mencari informasi internal. TanyaInternal AI memangkas waktu itu hingga 90%.",
+    tipDesc: "Rata-rata karyawan menghabiskan 2,5 jam/hari mencari informasi internal. IntelliBase memangkas waktu itu hingga 90%.",
     registerFailed: "Registrasi Gagal",
   },
   en: {
@@ -84,7 +84,7 @@ export const t = {
     b3: "PDF & DOCX support",
     b4: "Full data isolation between companies",
     tip: "💡 Did you know?",
-    tipDesc: "The average employee spends 2.5 hours/day searching for internal information. TanyaInternal AI cuts that time by 90%.",
+    tipDesc: "The average employee spends 2.5 hours/day searching for internal information. IntelliBase cuts that time by 90%.",
     registerFailed: "Registration Failed",
   },
 } as const;

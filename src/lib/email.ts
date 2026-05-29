@@ -21,13 +21,13 @@ export async function sendNewDocumentNotification({
   if (!process.env.RESEND_API_KEY || to.length === 0) return;
 
   await getResend().emails.send({
-    from: `TanyaInternal AI <noreply@${process.env.EMAIL_DOMAIN ?? "tanyainternal.com"}>`,
+    from: `IntelliBase <noreply@${process.env.EMAIL_DOMAIN ?? "intellibase.ai"}>`,
     to,
     subject: `[${companyName}] Dokumen baru tersedia: ${documentName}`,
     html: `
       <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
         <div style="display:flex; align-items:center; gap:8px; margin-bottom:24px;">
-          <span style="font-size:20px; font-weight:bold; color:#1d4ed8;">TanyaInternal AI</span>
+          <span style="font-size:20px; font-weight:bold; color:#1d4ed8;">IntelliBase</span>
         </div>
         <h2 style="color:#111827; margin-bottom:8px;">Dokumen Baru Tersedia</h2>
         <p style="color:#6b7280; margin-bottom:16px;">

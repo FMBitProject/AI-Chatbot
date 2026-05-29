@@ -64,7 +64,7 @@ export default function RegisterPage() {
             <p className="text-blue-100 text-xs">{T.tipDesc}</p>
           </div>
         </div>
-        <p className="text-blue-200 text-sm">© 2026 TanyaInternal AI</p>
+        <p className="text-blue-200 text-sm">© 2026 IntelliBase</p>
       </div>
 
       {/* Right panel */}

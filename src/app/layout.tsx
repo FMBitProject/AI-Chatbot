@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TanyaInternal AI",
+  title: "IntelliBase",
   description: "Platform pengetahuan internal perusahaan berbasis AI",
 };
 

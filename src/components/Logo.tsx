@@ -45,7 +45,7 @@ export function LogoFull({ className, size = "md", variant = "default" }: LogoPr
       <div>
         <span className={cn("font-bold tracking-tight leading-none", textSizes[size],
           variant === "white" ? "text-white" : "text-gray-900")}>
-          TanyaInternal
+          IntelliBase
         </span>
         <span className={cn("font-bold tracking-tight leading-none", textSizes[size],
           variant === "white" ? "text-blue-200" : "text-blue-600")}> AI</span>

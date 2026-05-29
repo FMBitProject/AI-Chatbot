@@ -45,7 +45,7 @@ export function ChatSidebar({
     <div className="w-64 flex flex-col h-full bg-gray-900 text-white">
       <div className="p-4 flex items-center gap-2">
         <LogoIcon size="sm" variant="white" />
-        <span className="font-bold text-lg text-white">TanyaInternal <span className="text-blue-300">AI</span></span>
+        <span className="font-bold text-lg text-white">IntelliBase <span className="text-blue-300">AI</span></span>
       </div>
       <div className="px-3 pb-3">
         <Button onClick={onNewChat} variant="outline" className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">

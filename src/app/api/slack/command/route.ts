@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
   if (!dbUser?.companyId) {
     return NextResponse.json({
       response_type: "ephemeral",
-      text: "❌ Akun Slack Anda belum terhubung ke TanyaInternal. Hubungi admin perusahaan.",
+      text: "❌ Akun Slack Anda belum terhubung ke IntelliBase. Hubungi admin perusahaan.",
     });
   }
 

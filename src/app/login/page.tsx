@@ -66,7 +66,7 @@ export default function LoginPage() {
             ))}
           </div>
         </div>
-        <p className="text-blue-200 text-sm">© 2026 TanyaInternal AI · B2B Knowledge Management Platform</p>
+        <p className="text-blue-200 text-sm">© 2026 IntelliBase · B2B Knowledge Management Platform</p>
       </div>
 
       {/* Right panel */}

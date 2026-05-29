@@ -33,7 +33,7 @@ export function ChatMessages({ messages, isLoading, userName, onFeedback }: Chat
       <div className="flex flex-col items-center justify-center h-full text-center gap-3 text-gray-400">
         <LogoIcon size="lg" />
         <div>
-          <p className="font-medium text-gray-500">Selamat datang di TanyaInternal AI</p>
+          <p className="font-medium text-gray-500">Selamat datang di IntelliBase</p>
           <p className="text-sm">Tanyakan apa saja seputar kebijakan &amp; SOP perusahaan Anda</p>
         </div>
       </div>

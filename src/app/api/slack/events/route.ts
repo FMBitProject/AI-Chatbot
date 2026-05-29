@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       await getSlackClient().chat.postMessage({
         channel,
         thread_ts: event.ts,
-        text: "❌ Akun Slack Anda belum terhubung ke TanyaInternal. Hubungi admin perusahaan.",
+        text: "❌ Akun Slack Anda belum terhubung ke IntelliBase. Hubungi admin perusahaan.",
       });
       return NextResponse.json({ ok: true });
     }
