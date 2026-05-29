@@ -7,6 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";
 import { Send } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
+
+type ResponseLang = "id" | "en";
 
 export default function ChatPage() {
   const { data: session } = authClient.useSession();
@@ -17,17 +20,27 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [responseLang, setResponseLang] = useState<ResponseLang>("id");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => { loadSessions(); }, []);
+  useEffect(() => {
+    loadSessions();
+    const saved = localStorage.getItem("responseLang") as ResponseLang | null;
+    if (saved === "id" || saved === "en") setResponseLang(saved);
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isLoading]);
+
+  function handleSetLang(lang: ResponseLang) {
+    setResponseLang(lang);
+    localStorage.setItem("responseLang", lang);
+  }
 
   async function loadSessions() {
     try {
@@ -44,11 +57,7 @@ export default function ChatPage() {
       if (!res.ok) return;
       const data = await res.json() as { id: string; role: string; content: string; citationsJson?: string; feedback?: string }[];
       if (data.length === 0) {
-        setMessages([{
-          id: "no-history",
-          role: "assistant",
-          content: "Riwayat percakapan ini tidak tersedia (dibuat sebelum fitur history ditambahkan). Silakan mulai percakapan baru.",
-        }]);
+        setMessages([{ id: "no-history", role: "assistant", content: "Riwayat percakapan ini tidak tersedia. Silakan mulai percakapan baru." }]);
       } else {
         setMessages(data.map((m) => ({
           id: m.id,
@@ -61,12 +70,11 @@ export default function ChatPage() {
     } catch {}
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: input };
-    const currentInput = input;
     setInput("");
     setMessages((prev) => [...prev, userMsg]);
     setIsLoading(true);
@@ -81,7 +89,7 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId }),
+        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId, responseLang }),
         signal: controller.signal,
       });
 
@@ -117,7 +125,6 @@ export default function ChatPage() {
       }
 
       setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, id: realMsgId, citations } : m));
-
       if (newSessionId && !activeSessionId) {
         setActiveSessionId(newSessionId);
         await loadSessions();
@@ -168,20 +175,52 @@ export default function ChatPage() {
         isAdmin={user?.role === "admin"}
       />
       <div className="flex-1 flex flex-col bg-white">
-        <div className="border-b px-6 py-3">
+        {/* Header */}
+        <div className="border-b px-6 py-3 flex items-center justify-between">
           <h1 className="font-semibold text-gray-800">
             {activeSessionId ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat" : "Chat Baru"}
           </h1>
+
+          {/* Response language toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-400">Bahasa respons:</span>
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => handleSetLang("id")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  responseLang === "id"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                🇮🇩 Indonesia
+              </button>
+              <button
+                onClick={() => handleSetLang("en")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  responseLang === "en"
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                🇬🇧 English
+              </button>
+            </div>
+          </div>
         </div>
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
           <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} onFeedback={handleFeedback} />
         </div>
+
         <div className="border-t px-6 py-4">
           <form onSubmit={handleSubmit} className="flex gap-3 max-w-3xl mx-auto">
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Tanyakan sesuatu tentang kebijakan perusahaan..."
+              placeholder={responseLang === "id" ? "Tanyakan sesuatu tentang kebijakan perusahaan..." : "Ask anything about company policies..."}
               disabled={isLoading}
               className="flex-1"
             />

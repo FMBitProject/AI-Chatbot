@@ -4,7 +4,7 @@ import { groq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documentChunks, users, chatSessions, chatMessages, documents } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
 import { randomUUID } from "crypto";
 
@@ -31,9 +31,10 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "User tidak ditemukan." }), { status: 403 });
   }
 
-  const { messages, sessionId } = await req.json() as {
+  const { messages, sessionId, responseLang } = await req.json() as {
     messages: { role: string; content: string }[];
     sessionId?: string;
+    responseLang?: "id" | "en";
   };
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
@@ -73,7 +74,11 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
 
-  const systemPromptWithContext = `${SYSTEM_PROMPT}\n\n---\nKONTEKS DOKUMEN INTERNAL:\n${contextText}\n---`;
+  const langInstruction = responseLang === "en"
+    ? "IMPORTANT: You MUST respond in English regardless of the language used in the question."
+    : "PENTING: Anda HARUS merespons dalam Bahasa Indonesia yang baik dan benar, terlepas dari bahasa yang digunakan dalam pertanyaan.";
+
+  const systemPromptWithContext = `${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---`;
 
   let activeSessionId = sessionId;
   if (!activeSessionId) {
