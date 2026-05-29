@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
       : "Tidak ada dokumen tersedia.";
 
     const { text: answer } = await generateText({
-      model: groq("llama-3.1-8b-instant"),
+      model: groq("llama-3.3-70b-versatile"),
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
       prompt: text,
     });

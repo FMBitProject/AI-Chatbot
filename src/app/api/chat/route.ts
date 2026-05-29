@@ -109,10 +109,20 @@ Tidak ada pengecualian untuk aturan ini.`;
   const citations = scored.map((c) => ({ id: c.id, text: c.text }));
   const assistantMsgId = randomUUID();
 
+  const langSuffix = responseLang === "en"
+    ? "\n\n[SYSTEM: Your response MUST be written entirely in English. No Indonesian allowed.]"
+    : "\n\n[SISTEM: Respons Anda HARUS ditulis seluruhnya dalam Bahasa Indonesia. Tidak ada bahasa Inggris kecuali istilah teknis.]";
+
+  const messagesWithLang = (messages as { role: "user" | "assistant"; content: string }[]).map(
+    (m, i) => i === messages.length - 1 && m.role === "user"
+      ? { ...m, content: m.content + langSuffix }
+      : m
+  );
+
   const result = streamText({
-    model: groq("llama-3.1-8b-instant"),
+    model: groq("llama-3.3-70b-versatile"),
     system: systemPromptWithContext,
-    messages: messages as { role: "user" | "assistant"; content: string }[],
+    messages: messagesWithLang,
     onFinish: async ({ text }) => {
       await db.insert(chatMessages).values({
         id: assistantMsgId,
