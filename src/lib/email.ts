@@ -12,8 +12,12 @@ export async function sendWeeklyDigest({
 }) {
   if (!process.env.RESEND_API_KEY || to.length === 0) return;
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const domain = process.env.EMAIL_DOMAIN ?? "resend.dev";
+  const fromAddress = domain === "resend.dev"
+    ? "IntelliBase <onboarding@resend.dev>"
+    : `IntelliBase <noreply@${domain}>`;
   await resend.emails.send({
-    from: `IntelliBase <noreply@${process.env.EMAIL_DOMAIN ?? "intellibase.ai"}>`,
+    from: fromAddress,
     to,
     subject: `📊 Weekly Digest IntelliBase — ${companyName}`,
     html: `
@@ -61,8 +65,12 @@ export async function sendNewDocumentNotification({
 }) {
   if (!process.env.RESEND_API_KEY || to.length === 0) return;
 
+  const domain2 = process.env.EMAIL_DOMAIN ?? "resend.dev";
+  const fromAddress2 = domain2 === "resend.dev"
+    ? "IntelliBase <onboarding@resend.dev>"
+    : `IntelliBase <noreply@${domain2}>`;
   await getResend().emails.send({
-    from: `IntelliBase <noreply@${process.env.EMAIL_DOMAIN ?? "intellibase.ai"}>`,
+    from: fromAddress2,
     to,
     subject: `[${companyName}] Dokumen baru tersedia: ${documentName}`,
     html: `

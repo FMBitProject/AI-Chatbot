@@ -32,14 +32,19 @@ export async function POST(req: NextRequest) {
     .where(eq(users.companyId, dbUser.companyId))
     .then((rows) => rows.filter(() => true)); // sent to all company users; filter by role if needed
 
-  await sendWeeklyDigest({
-    to: admins.map((a) => a.email),
-    companyName: company?.name ?? "Perusahaan",
-    totalChats: totalSessions.count,
-    topQuestions: recentSessions.map((s) => s.title),
-    totalDocuments: totalDocs.count,
-    appUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
-  });
+  try {
+    await sendWeeklyDigest({
+      to: admins.map((a) => a.email),
+      companyName: company?.name ?? "Perusahaan",
+      totalChats: totalSessions.count,
+      topQuestions: recentSessions.map((s) => s.title),
+      totalDocuments: totalDocs.count,
+      appUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    });
+  } catch (err) {
+    console.error("[weekly-digest] Error:", err);
+    return NextResponse.json({ error: "Gagal mengirim email." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true });
 }

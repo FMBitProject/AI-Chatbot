@@ -25,8 +25,13 @@ export function AnalyticsTab() {
 
   async function handleSendDigest() {
     try {
-      await fetch("/api/admin/weekly-digest", { method: "POST" });
-      toast({ title: "Weekly digest berhasil dikirim ke semua admin!" });
+      const res = await fetch("/api/admin/weekly-digest", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        toast({ variant: "destructive", title: "Gagal mengirim digest.", description: data.error });
+      } else {
+        toast({ title: "Weekly digest berhasil dikirim!" });
+      }
     } catch {
       toast({ variant: "destructive", title: "Gagal mengirim digest." });
     }
