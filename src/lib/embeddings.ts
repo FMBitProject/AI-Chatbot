@@ -10,7 +10,7 @@ function getClient() {
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const model = getClient().getGenerativeModel({ model: "text-embedding-004" });
+  const model = getClient().getGenerativeModel({ model: "embedding-001" });
   const result = await model.embedContent(text.replace(/\n/g, " "));
   return result.embedding.values;
 }
