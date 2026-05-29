@@ -24,11 +24,15 @@ export default function ChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const responseLangRef = useRef<ResponseLang>("id");
 
   useEffect(() => {
     loadSessions();
     const saved = localStorage.getItem("responseLang") as ResponseLang | null;
-    if (saved === "id" || saved === "en") setResponseLang(saved);
+    if (saved === "id" || saved === "en") {
+      setResponseLang(saved);
+      responseLangRef.current = saved;
+    }
   }, []);
 
   useEffect(() => {
@@ -39,6 +43,7 @@ export default function ChatPage() {
 
   function handleSetLang(lang: ResponseLang) {
     setResponseLang(lang);
+    responseLangRef.current = lang;
     localStorage.setItem("responseLang", lang);
   }
 
@@ -89,7 +94,7 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId, responseLang }),
+        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId, responseLang: responseLangRef.current }),
         signal: controller.signal,
       });
 

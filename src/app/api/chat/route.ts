@@ -75,10 +75,17 @@ export async function POST(req: NextRequest) {
       : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
 
   const langInstruction = responseLang === "en"
-    ? "IMPORTANT: You MUST respond in English regardless of the language used in the question."
-    : "PENTING: Anda HARUS merespons dalam Bahasa Indonesia yang baik dan benar, terlepas dari bahasa yang digunakan dalam pertanyaan.";
+    ? `CRITICAL LANGUAGE RULE — THIS OVERRIDES EVERYTHING ELSE:
+You MUST write your ENTIRE response in ENGLISH only.
+Do NOT use any Indonesian words. Do NOT mix languages.
+Even if the user writes in Indonesian, your response must be 100% in English.
+Violation of this rule is not acceptable.`
+    : `ATURAN BAHASA MUTLAK — INI MENGGANTIKAN SEMUA ATURAN LAIN:
+Anda WAJIB menulis SELURUH respons dalam Bahasa Indonesia yang baik dan benar.
+JANGAN gunakan kata-kata dalam bahasa Inggris kecuali istilah teknis dari dokumen.
+Tidak ada pengecualian untuk aturan ini.`;
 
-  const systemPromptWithContext = `${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---`;
+  const systemPromptWithContext = `${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${responseLang === "en" ? "Remember: respond in ENGLISH only." : "Ingat: respons dalam BAHASA INDONESIA saja."}`;
 
   let activeSessionId = sessionId;
   if (!activeSessionId) {
