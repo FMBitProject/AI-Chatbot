@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CitationsAccordion } from "./CitationsAccordion";
 import { BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import ReactMarkdown from "react-markdown";
 
 export interface Citation {
   id: string;
@@ -60,7 +61,19 @@ export function ChatMessages({ messages, isLoading, userName }: ChatMessagesProp
                   : "bg-gray-100 text-gray-800 rounded-tl-sm"
               )}
             >
-              {msg.content}
+              {msg.role === "user" ? msg.content : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                    ul: ({ children }) => <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>,
+                    ol: ({ children }) => <ol className="list-decimal pl-4 mb-2 space-y-1">{children}</ol>,
+                    li: ({ children }) => <li>{children}</li>,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
             </div>
             {msg.role === "assistant" && msg.citations && (
               <CitationsAccordion citations={msg.citations} />

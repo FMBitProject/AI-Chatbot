@@ -10,7 +10,7 @@ import { authClient } from "@/lib/auth-client";
 
 export default function ChatPage() {
   const { data: session } = authClient.useSession();
-  const user = session?.user as { name?: string; email?: string } | undefined;
+  const user = session?.user as { name?: string; email?: string; role?: string } | undefined;
 
   const [dbSessions, setDbSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -137,6 +137,7 @@ export default function ChatPage() {
         onSelectSession={handleSelectSession}
         userName={user?.name}
         userEmail={user?.email}
+        isAdmin={user?.role === "admin"}
       />
       <div className="flex-1 flex flex-col bg-white">
         <div className="border-b px-6 py-3 flex items-center">

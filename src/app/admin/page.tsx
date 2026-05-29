@@ -5,7 +5,8 @@ import { DocumentsTab, type Document } from "@/components/admin/DocumentsTab";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { BrainCircuit, FileText, Users, LogOut } from "lucide-react";
+import { BrainCircuit, FileText, Users, LogOut, MessageSquare } from "lucide-react";
+import Link from "next/link";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 
@@ -73,6 +74,12 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>
+          <Link href="/chat">
+            <Button variant="outline" size="sm">
+              <MessageSquare className="h-4 w-4" />
+              Buka Chat
+            </Button>
+          </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
             Keluar

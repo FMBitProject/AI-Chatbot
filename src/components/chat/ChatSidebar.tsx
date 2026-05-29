@@ -3,7 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, MessageSquare, LogOut, BrainCircuit } from "lucide-react";
+import { PlusCircle, MessageSquare, LogOut, BrainCircuit, LayoutDashboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -19,6 +19,7 @@ interface ChatSidebarProps {
   activeSessionId: string | null;
   onNewChat: () => void;
   onSelectSession: (id: string) => void;
+  isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
 }
@@ -30,6 +31,7 @@ export function ChatSidebar({
   onSelectSession,
   userName,
   userEmail,
+  isAdmin,
 }: ChatSidebarProps) {
   const router = useRouter();
 
@@ -84,6 +86,11 @@ export function ChatSidebar({
           <p className="text-sm font-medium truncate">{userName ?? "User"}</p>
           <p className="text-xs text-gray-400 truncate">{userEmail ?? ""}</p>
         </div>
+        {isAdmin && (
+          <Button variant="ghost" size="icon" onClick={() => router.push("/admin")} className="text-gray-400 hover:text-white hover:bg-gray-700 shrink-0" title="Dashboard Admin">
+            <LayoutDashboard className="h-4 w-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" onClick={handleLogout} className="text-gray-400 hover:text-white hover:bg-gray-700 shrink-0">
           <LogOut className="h-4 w-4" />
         </Button>
