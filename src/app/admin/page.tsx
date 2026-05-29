@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
 import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -94,6 +95,7 @@ export default function AdminPage() {
           {companyName && <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>}
         </div>
         <div className="flex items-center gap-3">
+          <LanguageSwitcher />
           <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>
           <Link href="/chat">
             <Button variant="outline" size="sm">
