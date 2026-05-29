@@ -6,10 +6,9 @@ import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { PersonaTab } from "@/components/admin/PersonaTab";
 import { AuditTab } from "@/components/admin/AuditTab";
-import { ApiKeysTab } from "@/components/admin/ApiKeysTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, Key } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -91,12 +90,8 @@ export default function AdminPage() {
         <div className="flex items-center gap-3">
           <LogoFull size="sm" />
           <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
-          {companyName && (
-            <span className="hidden sm:inline text-sm text-gray-400">·</span>
-          )}
-          {companyName && (
-            <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>
-          )}
+          {companyName && <span className="hidden sm:inline text-sm text-gray-400">·</span>}
+          {companyName && <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>}
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>
@@ -136,10 +131,6 @@ export default function AdminPage() {
               <ClipboardList className="h-4 w-4" />
               Audit Log
             </TabsTrigger>
-            <TabsTrigger value="apikeys" className="flex items-center gap-2">
-              <Key className="h-4 w-4" />
-              API Access
-            </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
             <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} />
@@ -155,9 +146,6 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="audit">
             <AuditTab />
-          </TabsContent>
-          <TabsContent value="apikeys">
-            <ApiKeysTab />
           </TabsContent>
         </Tabs>
       </main>
