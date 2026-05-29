@@ -1,20 +1,18 @@
-import OpenAI from "openai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-let _client: OpenAI | null = null;
+let _client: GoogleGenerativeAI | null = null;
 
 function getClient() {
   if (!_client) {
-    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    _client = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
   }
   return _client;
 }
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const response = await getClient().embeddings.create({
-    model: "text-embedding-3-small",
-    input: text.replace(/\n/g, " "),
-  });
-  return response.data[0].embedding;
+  const model = getClient().getGenerativeModel({ model: "text-embedding-004" });
+  const result = await model.embedContent(text.replace(/\n/g, " "));
+  return result.embedding.values;
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

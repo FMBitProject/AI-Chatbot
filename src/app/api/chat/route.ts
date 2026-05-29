@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText } from "ai";
-import { openai } from "@ai-sdk/openai";
+import { groq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documentChunks, users, chatSessions } from "@/lib/db/schema";
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
   const citations = scored.map((c) => ({ id: c.id, text: c.text }));
 
   const result = streamText({
-    model: openai("gpt-4o-mini"),
+    model: groq("llama-3.1-8b-instant"),
     system: systemPromptWithContext,
     messages: messages as { role: "user" | "assistant"; content: string }[],
   });
