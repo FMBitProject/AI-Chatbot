@@ -109,15 +109,22 @@ Tidak ada pengecualian untuk aturan ini.`;
   const citations = scored.map((c) => ({ id: c.id, text: c.text }));
   const assistantMsgId = randomUUID();
 
-  const langSuffix = responseLang === "en"
-    ? "\n\n[SYSTEM: Your response MUST be written entirely in English. No Indonesian allowed.]"
-    : "\n\n[SISTEM: Respons Anda HARUS ditulis seluruhnya dalam Bahasa Indonesia. Tidak ada bahasa Inggris kecuali istilah teknis.]";
+  const typedMessages = messages as { role: "user" | "assistant"; content: string }[];
+  const lastMsg = typedMessages[typedMessages.length - 1];
+  const prevMsgs = typedMessages.slice(0, -1);
 
-  const messagesWithLang = (messages as { role: "user" | "assistant"; content: string }[]).map(
-    (m, i) => i === messages.length - 1 && m.role === "user"
-      ? { ...m, content: m.content + langSuffix }
-      : m
-  );
+  const langDemo =
+    responseLang === "en"
+      ? [
+          { role: "user" as const, content: "What language will you use to answer me?" },
+          { role: "assistant" as const, content: "I will answer entirely in English, regardless of the language of the documents or your question. This is my strict rule for this session." },
+        ]
+      : [
+          { role: "user" as const, content: "Bahasa apa yang akan kamu gunakan untuk menjawab saya?" },
+          { role: "assistant" as const, content: "Saya akan menjawab seluruhnya dalam Bahasa Indonesia yang baik dan benar, terlepas dari bahasa dokumen atau pertanyaan. Ini adalah aturan sesi ini." },
+        ];
+
+  const messagesWithLang = [...prevMsgs, ...langDemo, lastMsg];
 
   const result = streamText({
     model: groq("llama-3.3-70b-versatile"),
