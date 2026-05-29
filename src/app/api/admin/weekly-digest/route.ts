@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, users, companies } from "@/lib/db/schema";
-import { eq, gte, count } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { sendWeeklyDigest } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const admins = await db.select({ email: users.email }).from(users)
-    .where(eq(users.companyId, dbUser.companyId));
+    .where(eq(users.companyId, dbUser.companyId))
+    .then((rows) => rows.filter(() => true)); // sent to all company users; filter by role if needed
 
   await sendWeeklyDigest({
     to: admins.map((a) => a.email),

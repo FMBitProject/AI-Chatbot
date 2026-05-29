@@ -223,26 +223,16 @@ export default function ChatPage() {
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => handleSetLang("id")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                  responseLang === "id"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                  responseLang === "id" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 )}
-              >
-                🇮🇩 Indonesia
-              </button>
+              >ID</button>
               <button
                 onClick={() => handleSetLang("en")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
-                  responseLang === "en"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
+                className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                  responseLang === "en" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 )}
-              >
-                🇬🇧 English
-              </button>
+              >EN</button>
             </div>
           </div>
           </div>
