@@ -3,7 +3,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, MessageSquare, LogOut, BrainCircuit, LayoutDashboard } from "lucide-react";
+import { PlusCircle, MessageSquare, LogOut, LayoutDashboard } from "lucide-react";
+import { LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -43,8 +44,8 @@ export function ChatSidebar({
   return (
     <div className="w-64 flex flex-col h-full bg-gray-900 text-white">
       <div className="p-4 flex items-center gap-2">
-        <BrainCircuit className="h-6 w-6 text-blue-400" />
-        <span className="font-bold text-lg">TanyaInternal</span>
+        <LogoIcon size="sm" variant="white" />
+        <span className="font-bold text-lg text-white">TanyaInternal <span className="text-blue-300">AI</span></span>
       </div>
       <div className="px-3 pb-3">
         <Button onClick={onNewChat} variant="outline" className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">

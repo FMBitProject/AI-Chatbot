@@ -6,7 +6,8 @@ import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { BrainCircuit, FileText, Users, LogOut, MessageSquare, BarChart2 } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2 } from "lucide-react";
+import { LogoFull } from "@/components/Logo";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -82,10 +83,9 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       <Toaster />
       <header className="bg-white border-b px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <BrainCircuit className="h-6 w-6 text-blue-600" />
-          <span className="font-bold text-lg">TanyaInternal AI</span>
-          <span className="ml-2 text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
+        <div className="flex items-center gap-3">
+          <LogoFull size="sm" />
+          <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>

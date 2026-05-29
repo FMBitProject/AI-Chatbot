@@ -1,9 +1,10 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CitationsAccordion } from "./CitationsAccordion";
-import { BrainCircuit, ThumbsUp, ThumbsDown } from "lucide-react";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
+import { LogoIcon } from "@/components/Logo";
 
 export interface Citation {
   id: string;
@@ -30,7 +31,7 @@ export function ChatMessages({ messages, isLoading, userName, onFeedback }: Chat
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center gap-3 text-gray-400">
-        <BrainCircuit className="h-12 w-12 text-blue-200" />
+        <LogoIcon size="lg" />
         <div>
           <p className="font-medium text-gray-500">Selamat datang di TanyaInternal AI</p>
           <p className="text-sm">Tanyakan apa saja seputar kebijakan &amp; SOP perusahaan Anda</p>
@@ -45,8 +46,8 @@ export function ChatMessages({ messages, isLoading, userName, onFeedback }: Chat
         <div key={msg.id} className={cn("flex gap-3", msg.role === "user" && "flex-row-reverse")}>
           <Avatar className="h-8 w-8 shrink-0 mt-1">
             {msg.role === "assistant" ? (
-              <AvatarFallback className="bg-blue-600 text-white text-xs">
-                <BrainCircuit className="h-4 w-4" />
+              <AvatarFallback className="bg-gradient-to-br from-blue-600 to-violet-600 p-0 overflow-hidden">
+                <LogoIcon size="sm" />
               </AvatarFallback>
             ) : (
               <AvatarFallback className="bg-gray-200 text-gray-700 text-xs font-semibold">
@@ -114,8 +115,8 @@ export function ChatMessages({ messages, isLoading, userName, onFeedback }: Chat
       {isLoading && (
         <div className="flex gap-3">
           <Avatar className="h-8 w-8 shrink-0 mt-1">
-            <AvatarFallback className="bg-blue-600 text-white text-xs">
-              <BrainCircuit className="h-4 w-4" />
+            <AvatarFallback className="bg-gradient-to-br from-blue-600 to-violet-600 text-white text-xs p-0 overflow-hidden">
+              <LogoIcon size="sm" />
             </AvatarFallback>
           </Avatar>
           <div className="space-y-2 pt-2 max-w-[60%]">
