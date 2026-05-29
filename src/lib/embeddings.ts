@@ -1,18 +1,12 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-let _client: GoogleGenerativeAI | null = null;
-
-function getClient() {
-  if (!_client) {
-    _client = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-  }
-  return _client;
-}
+import { embed } from "ai";
+import { google } from "@ai-sdk/google";
 
 export async function getEmbedding(text: string): Promise<number[]> {
-  const model = getClient().getGenerativeModel({ model: "embedding-001" });
-  const result = await model.embedContent(text.replace(/\n/g, " "));
-  return result.embedding.values;
+  const { embedding } = await embed({
+    model: google.textEmbeddingModel("text-embedding-004"),
+    value: text.replace(/\n/g, " "),
+  });
+  return embedding;
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {
