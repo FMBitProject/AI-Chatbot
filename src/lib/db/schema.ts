@@ -3,6 +3,9 @@ import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core"
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  aiName: text("ai_name").default("IntelliBase AI").notNull(),
+  aiGreeting: text("ai_greeting"),
+  aiPersonality: text("ai_personality"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -61,6 +64,8 @@ export const documents = pgTable("documents", {
   companyId: text("company_id").references(() => companies.id).notNull(),
   department: text("department"),
   status: text("status").$type<"processing" | "success" | "failed">().default("processing").notNull(),
+  summary: text("summary"),
+  expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -79,6 +84,15 @@ export const chatSessions = pgTable("chat_sessions", {
   companyId: text("company_id").references(() => companies.id).notNull(),
   title: text("title").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const apiKeys = pgTable("api_keys", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  name: text("name").notNull(),
+  companyId: text("company_id").references(() => companies.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastUsedAt: timestamp("last_used_at"),
 });
 
 export const chatMessages = pgTable("chat_messages", {

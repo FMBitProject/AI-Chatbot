@@ -3,7 +3,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, MessageSquare, LogOut, LayoutDashboard } from "lucide-react";
+import { PlusCircle, MessageSquare, LogOut, LayoutDashboard, Search } from "lucide-react";
+import Link from "next/link";
 import { LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
@@ -47,11 +48,17 @@ export function ChatSidebar({
         <LogoIcon size="sm" variant="white" />
         <span className="font-bold text-lg text-white">IntelliBase <span className="text-blue-300">AI</span></span>
       </div>
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-3 space-y-2">
         <Button onClick={onNewChat} variant="outline" className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
           <PlusCircle className="h-4 w-4" />
           New Chat
         </Button>
+        <Link href="/search">
+          <Button variant="ghost" className="w-full text-gray-400 hover:text-white hover:bg-gray-800 justify-start gap-2 text-sm">
+            <Search className="h-4 w-4" />
+            Cari Dokumen
+          </Button>
+        </Link>
       </div>
       <Separator className="bg-gray-800" />
       <ScrollArea className="flex-1 px-3 py-3">

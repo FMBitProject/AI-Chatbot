@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { streamText } from "ai";
+import { streamText, generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { documentChunks, users, chatSessions, chatMessages, documents } from "@/lib/db/schema";
+import { documentChunks, users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
 import { randomUUID } from "crypto";
@@ -74,6 +74,10 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
 
+  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const aiName = company?.aiName ?? "IntelliBase AI";
+  const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
+
   const langInstruction = responseLang === "en"
     ? `CRITICAL LANGUAGE RULE — THIS OVERRIDES EVERYTHING ELSE:
 You MUST write your ENTIRE response in ENGLISH only.
@@ -85,7 +89,7 @@ Anda WAJIB menulis SELURUH respons dalam Bahasa Indonesia yang baik dan benar.
 JANGAN gunakan kata-kata dalam bahasa Inggris kecuali istilah teknis dari dokumen.
 Tidak ada pengecualian untuk aturan ini.`;
 
-  const systemPromptWithContext = `${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${responseLang === "en" ? "Remember: respond in ENGLISH only." : "Ingat: respons dalam BAHASA INDONESIA saja."}`;
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${responseLang === "en" ? "Remember: respond in ENGLISH only." : "Ingat: respons dalam BAHASA INDONESIA saja."}`;
 
   let activeSessionId = sessionId;
   if (!activeSessionId) {
@@ -148,9 +152,32 @@ Tidak ada pengecualian untuk aturan ini.`;
   (async () => {
     try {
       await writer.write(encoder.encode(`2:${JSON.stringify({ citations, messageId: assistantMsgId, sessionId: activeSessionId })}\n`));
+
+      let fullText = "";
       for await (const chunk of result.textStream) {
+        fullText += chunk;
         await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
       }
+
+      // Generate suggested follow-up questions
+      const suggestLang = responseLang === "en" ? "English" : "Bahasa Indonesia";
+      const { text: suggestionsRaw } = await generateText({
+        model: groq("llama-3.3-70b-versatile"),
+        prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
+
+Question: ${lastUserMessage.content}
+Answer: ${fullText.slice(0, 500)}
+
+Return format: ["question 1", "question 2", "question 3"]`,
+      });
+
+      try {
+        const match = suggestionsRaw.match(/\[[\s\S]*\]/);
+        if (match) {
+          const suggestions = JSON.parse(match[0]) as string[];
+          await writer.write(encoder.encode(`3:${JSON.stringify(suggestions.slice(0, 3))}\n`));
+        }
+      } catch {}
     } finally {
       await writer.close();
     }

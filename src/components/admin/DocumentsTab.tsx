@@ -4,13 +4,15 @@ import { FileDropzone } from "./FileDropzone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText } from "lucide-react";
+import { Trash2, FileText, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 export interface Document {
   id: string;
   name: string;
   status: "processing" | "success" | "failed";
+  summary?: string | null;
+  expiresAt?: string | null;
   createdAt: string;
 }
 
@@ -29,6 +31,7 @@ const STATUS_MAP = {
 export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedSummary, setExpandedSummary] = useState<string | null>(null);
 
   async function handleUpload(files: File[]) {
     setIsUploading(true);
@@ -82,30 +85,55 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
               <TableBody>
                 {documents.map((doc) => {
                   const s = STATUS_MAP[doc.status];
+                  const isExpanded = expandedSummary === doc.id;
                   return (
-                    <TableRow key={doc.id}>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-gray-400 shrink-0" />
-                        {doc.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={s.variant}>{s.label}</Badge>
-                      </TableCell>
-                      <TableCell className="text-gray-500 text-sm">
-                        {new Date(doc.createdAt).toLocaleDateString("id-ID")}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-gray-400 hover:text-red-500"
-                          onClick={() => handleDelete(doc.id)}
-                          disabled={deletingId === doc.id}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
+                    <>
+                      <TableRow key={doc.id}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-gray-400 shrink-0" />
+                            <span>{doc.name}</span>
+                            {doc.summary && (
+                              <button
+                                onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
+                                className="ml-1 flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                Ringkasan AI
+                                {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              </button>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={s.variant}>{s.label}</Badge>
+                        </TableCell>
+                        <TableCell className="text-gray-500 text-sm">
+                          {new Date(doc.createdAt).toLocaleDateString("id-ID")}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-gray-400 hover:text-red-500"
+                            onClick={() => handleDelete(doc.id)}
+                            disabled={deletingId === doc.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                      {isExpanded && doc.summary && (
+                        <TableRow key={`${doc.id}-summary`}>
+                          <TableCell colSpan={4} className="bg-blue-50 border-t-0">
+                            <div className="flex items-start gap-2 py-1">
+                              <Sparkles className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                              <div className="text-sm text-gray-700 whitespace-pre-line">{doc.summary}</div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
                   );
                 })}
               </TableBody>

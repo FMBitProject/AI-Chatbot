@@ -1,5 +1,46 @@
 import { Resend } from "resend";
 
+export async function sendWeeklyDigest({
+  to, companyName, totalChats, topQuestions, totalDocuments, appUrl,
+}: {
+  to: string[];
+  companyName: string;
+  totalChats: number;
+  topQuestions: string[];
+  totalDocuments: number;
+  appUrl: string;
+}) {
+  if (!process.env.RESEND_API_KEY || to.length === 0) return;
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  await resend.emails.send({
+    from: `IntelliBase <noreply@${process.env.EMAIL_DOMAIN ?? "intellibase.ai"}>`,
+    to,
+    subject: `📊 Weekly Digest IntelliBase — ${companyName}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; padding: 24px;">
+        <h2 style="color:#1d4ed8;">📊 Weekly Digest — ${companyName}</h2>
+        <p style="color:#6b7280;">Ringkasan aktivitas IntelliBase minggu ini:</p>
+        <div style="display:flex; gap:16px; margin:20px 0;">
+          <div style="flex:1; background:#eff6ff; border-radius:8px; padding:16px; text-align:center;">
+            <p style="font-size:28px; font-weight:bold; color:#2563eb; margin:0;">${totalChats}</p>
+            <p style="font-size:12px; color:#6b7280; margin:4px 0 0;">Total Sesi Chat</p>
+          </div>
+          <div style="flex:1; background:#f0fdf4; border-radius:8px; padding:16px; text-align:center;">
+            <p style="font-size:28px; font-weight:bold; color:#16a34a; margin:0;">${totalDocuments}</p>
+            <p style="font-size:12px; color:#6b7280; margin:4px 0 0;">Total Dokumen</p>
+          </div>
+        </div>
+        <h3 style="color:#111827; font-size:14px;">💬 Pertanyaan Terbaru Karyawan:</h3>
+        <ul style="padding-left:20px; color:#374151;">
+          ${topQuestions.map((q) => `<li style="margin-bottom:4px; font-size:13px;">${q}</li>`).join("")}
+        </ul>
+        <a href="${appUrl}/admin" style="display:inline-block; background:#2563eb; color:white; padding:10px 20px; border-radius:8px; text-decoration:none; margin-top:16px; font-size:13px;">Buka Dashboard Admin →</a>
+        <p style="color:#9ca3af; font-size:11px; margin-top:24px;">IntelliBase AI · Weekly Digest otomatis</p>
+      </div>
+    `,
+  });
+}
+
 let _resend: Resend | null = null;
 
 function getResend() {

@@ -5,7 +5,7 @@ import { ChatMessages, type Message, type Citation } from "@/components/chat/Cha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";
-import { Send } from "lucide-react";
+import { Send, Download } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [responseLang, setResponseLang] = useState<ResponseLang>("id");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -87,6 +88,7 @@ export default function ChatPage() {
     const controller = new AbortController();
     abortRef.current = controller;
     const assistantMsgId = (Date.now() + 1).toString();
+    setSuggestions([]);
     setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
 
     try {
@@ -125,6 +127,11 @@ export default function ChatPage() {
               realMsgId = meta.messageId;
               newSessionId = meta.sessionId;
             } catch {}
+          } else if (line.startsWith("3:")) {
+            try {
+              const s = JSON.parse(line.slice(2)) as string[];
+              setSuggestions(s);
+            } catch {}
           }
         }
       }
@@ -143,6 +150,11 @@ export default function ChatPage() {
       setIsLoading(false);
       abortRef.current = null;
     }
+  }
+
+  function handleSuggestionClick(q: string) {
+    setInput(q);
+    setSuggestions([]);
   }
 
   async function handleFeedback(messageId: string, feedback: "up" | "down") {
@@ -186,6 +198,25 @@ export default function ChatPage() {
             {activeSessionId ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat" : "Chat Baru"}
           </h1>
 
+          <div className="flex items-center gap-3">
+          {/* Export PDF */}
+          {messages.length > 0 && !isLoading && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-gray-400 hover:text-gray-700 gap-1.5"
+              onClick={async () => {
+                const { exportChatToPDF } = await import("@/lib/export-pdf");
+                const title = activeSessionId
+                  ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat"
+                  : "Chat Baru";
+                await exportChatToPDF(messages, title);
+              }}
+            >
+              <Download className="h-4 w-4" />
+              <span className="text-xs">Export PDF</span>
+            </Button>
+          )}
           {/* Response language toggle */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-400">Bahasa respons:</span>
@@ -214,13 +245,32 @@ export default function ChatPage() {
               </button>
             </div>
           </div>
+          </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
           <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} onFeedback={handleFeedback} />
         </div>
 
-        <div className="border-t px-6 py-4">
+        <div className="border-t px-6 py-4 space-y-3">
+          {suggestions.length > 0 && !isLoading && (
+            <div className="max-w-3xl mx-auto">
+              <p className="text-xs text-gray-400 mb-2">
+                {responseLang === "id" ? "💡 Pertanyaan lanjutan:" : "💡 Suggested follow-ups:"}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSuggestionClick(s)}
+                    className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-3 py-1.5 transition-colors text-left"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="flex gap-3 max-w-3xl mx-auto">
             <Input
               value={input}

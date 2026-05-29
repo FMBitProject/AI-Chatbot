@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MessageSquare, FileText, Users, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { MessageSquare, FileText, Users, TrendingUp, Mail } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 interface Analytics {
   totalSessions: number;
@@ -21,6 +23,15 @@ export function AnalyticsTab() {
       .catch(() => {});
   }, []);
 
+  async function handleSendDigest() {
+    try {
+      await fetch("/api/admin/weekly-digest", { method: "POST" });
+      toast({ title: "Weekly digest berhasil dikirim ke semua admin!" });
+    } catch {
+      toast({ variant: "destructive", title: "Gagal mengirim digest." });
+    }
+  }
+
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat data...</div>;
 
   const stats = [
@@ -32,6 +43,12 @@ export function AnalyticsTab() {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="outline" size="sm" onClick={handleSendDigest} className="gap-2">
+          <Mail className="h-4 w-4" />
+          Kirim Weekly Digest
+        </Button>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {stats.map((s) => (
           <Card key={s.label}>

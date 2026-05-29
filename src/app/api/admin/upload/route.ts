@@ -6,6 +6,8 @@ import { eq } from "drizzle-orm";
 import { chunkText } from "@/lib/chunker";
 import { getEmbedding } from "@/lib/embeddings";
 import { sendNewDocumentNotification } from "@/lib/email";
+import { generateText } from "ai";
+import { groq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
 
 async function extractText(file: File): Promise<string> {
@@ -81,7 +83,18 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      await db.update(documents).set({ status: "success" }).where(eq(documents.id, docId));
+      // Auto-generate document summary
+      const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
+      let summary: string | null = null;
+      try {
+        const { text } = await generateText({
+          model: groq("llama-3.3-70b-versatile"),
+          prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${file.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
+        });
+        summary = text.trim();
+      } catch {}
+
+      await db.update(documents).set({ status: "success", summary }).where(eq(documents.id, docId));
       results.push({ id: docId, name: file.name, status: "success", createdAt: new Date().toISOString() });
 
       const employees = await db.select({ email: users.email }).from(users)

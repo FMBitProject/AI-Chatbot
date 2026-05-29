@@ -4,9 +4,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentsTab, type Document } from "@/components/admin/DocumentsTab";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
+import { PersonaTab } from "@/components/admin/PersonaTab";
+import { AuditTab } from "@/components/admin/AuditTab";
+import { ApiKeysTab } from "@/components/admin/ApiKeysTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2 } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, Key } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -125,6 +128,18 @@ export default function AdminPage() {
               <BarChart2 className="h-4 w-4" />
               Analitik
             </TabsTrigger>
+            <TabsTrigger value="persona" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI Persona
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Audit Log
+            </TabsTrigger>
+            <TabsTrigger value="apikeys" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              API Access
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
             <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} />
@@ -134,6 +149,15 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="analytics">
             <AnalyticsTab />
+          </TabsContent>
+          <TabsContent value="persona">
+            <PersonaTab />
+          </TabsContent>
+          <TabsContent value="audit">
+            <AuditTab />
+          </TabsContent>
+          <TabsContent value="apikeys">
+            <ApiKeysTab />
           </TabsContent>
         </Tabs>
       </main>
