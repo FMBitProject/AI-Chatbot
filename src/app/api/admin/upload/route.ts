@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { documents, documentChunks, users } from "@/lib/db/schema";
+import { documents, documentChunks, users, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { chunkText } from "@/lib/chunker";
 import { getEmbedding } from "@/lib/embeddings";
+import { sendNewDocumentNotification } from "@/lib/email";
 import { randomUUID } from "crypto";
 
 async function extractText(file: File): Promise<string> {
@@ -82,6 +83,20 @@ export async function POST(req: NextRequest) {
 
       await db.update(documents).set({ status: "success" }).where(eq(documents.id, docId));
       results.push({ id: docId, name: file.name, status: "success", createdAt: new Date().toISOString() });
+
+      const employees = await db.select({ email: users.email }).from(users)
+        .where(eq(users.companyId, companyId));
+      const [company] = await db.select({ name: companies.name }).from(companies)
+        .where(eq(companies.id, companyId)).limit(1);
+      const employeeEmails = employees.map((e) => e.email).filter((e) => e !== dbUser.email);
+      if (employeeEmails.length > 0 && company) {
+        sendNewDocumentNotification({
+          to: employeeEmails,
+          documentName: file.name,
+          companyName: company.name,
+          appUrl: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+        }).catch(console.error);
+      }
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
       await db.update(documents).set({ status: "failed" }).where(eq(documents.id, docId));

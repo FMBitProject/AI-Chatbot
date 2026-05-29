@@ -1,0 +1,115 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { documentChunks, users, documents } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { getSlackClient, verifySlackSignature } from "@/lib/slack";
+import { generateText } from "ai";
+import { groq } from "@ai-sdk/groq";
+
+const SYSTEM_PROMPT = `Anda adalah asisten AI internal perusahaan. Jawab HANYA berdasarkan dokumen internal yang diberikan. Jika tidak ada informasi relevan, jawab: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Gunakan bahasa yang sama dengan pengguna. Jawaban harus singkat dan langsung (max 3 paragraf).`;
+
+async function runRAG(question: string, companyId: string): Promise<string> {
+  const queryEmbedding = await getEmbedding(question);
+
+  const allChunks = await db
+    .select({ id: documentChunks.id, text: documentChunks.text, embeddingJson: documentChunks.embeddingJson })
+    .from(documentChunks)
+    .innerJoin(documents, eq(documentChunks.documentId, documents.id))
+    .where(eq(documentChunks.companyId, companyId));
+
+  const scored = allChunks
+    .filter((c) => c.embeddingJson)
+    .map((c) => ({ ...c, score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]) }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  const context = scored.length > 0
+    ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
+    : "Tidak ada dokumen tersedia.";
+
+  const { text } = await generateText({
+    model: groq("llama-3.1-8b-instant"),
+    system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
+    prompt: question,
+  });
+
+  return text;
+}
+
+export async function POST(req: NextRequest) {
+  const rawBody = await req.text();
+  const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
+  const signature = req.headers.get("x-slack-signature") ?? "";
+  const signingSecret = process.env.SLACK_SIGNING_SECRET ?? "";
+
+  if (signingSecret && !verifySlackSignature(signingSecret, signature, timestamp, rawBody)) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+
+  const body = JSON.parse(rawBody) as {
+    type: string;
+    challenge?: string;
+    event?: {
+      type: string;
+      text?: string;
+      user?: string;
+      channel?: string;
+      ts?: string;
+      bot_id?: string;
+    };
+  };
+
+  if (body.type === "url_verification") {
+    return NextResponse.json({ challenge: body.challenge });
+  }
+
+  if (body.type === "event_callback" && body.event) {
+    const event = body.event;
+    if (event.bot_id || event.type !== "app_mention") {
+      return NextResponse.json({ ok: true });
+    }
+
+    const slackUserId = event.user ?? "";
+    const channel = event.channel ?? "";
+    const question = (event.text ?? "").replace(/<@[^>]+>/g, "").trim();
+
+    if (!question) return NextResponse.json({ ok: true });
+
+    const [dbUser] = await db.select().from(users)
+      .where(eq(users.email, `slack:${slackUserId}`)).limit(1)
+      .catch(() => [null]);
+
+    const companyId = dbUser?.companyId;
+    if (!companyId) {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: "❌ Akun Slack Anda belum terhubung ke TanyaInternal. Hubungi admin perusahaan.",
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    getSlackClient().chat.postMessage({
+      channel,
+      thread_ts: event.ts,
+      text: "⏳ Sedang mencari jawaban dari dokumen internal...",
+    }).catch(() => {});
+
+    runRAG(question, companyId).then(async (answer) => {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: answer,
+      });
+    }).catch(async () => {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: "❌ Terjadi kesalahan. Silakan coba lagi.",
+      });
+    });
+  }
+
+  return NextResponse.json({ ok: true });
+}
