@@ -13,7 +13,16 @@ export async function GET(req: NextRequest) {
   if (!dbUser || !dbUser.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  const history = await db.select().from(transactions)
+  const history = await db.select({
+    id: transactions.id,
+    orderId: transactions.orderId,
+    plan: transactions.plan,
+    amount: transactions.amount,
+    status: transactions.status,
+    snapToken: transactions.snapToken,
+    createdAt: transactions.createdAt,
+    paidAt: transactions.paidAt,
+  }).from(transactions)
     .where(eq(transactions.companyId, dbUser.companyId))
     .orderBy(desc(transactions.createdAt))
     .limit(10);
