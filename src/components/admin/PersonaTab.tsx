@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "@/components/ui/use-toast";
 import { Sparkles, Bot, Save } from "lucide-react";
 import { LogoIcon } from "@/components/Logo";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 
 interface PersonaData {
   aiName: string;
@@ -14,7 +16,8 @@ interface PersonaData {
   aiPersonality: string;
 }
 
-export function PersonaTab() {
+export function PersonaTab({ lang = "id" }: { lang?: Lang }) {
+  const T = adminT[lang];
   const [form, setForm] = useState<PersonaData>({ aiName: "IntelliBase AI", aiGreeting: "", aiPersonality: "" });
   const [saving, setSaving] = useState(false);
 
@@ -44,8 +47,8 @@ export function PersonaTab() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Custom AI Persona</h2>
-        <p className="text-sm text-gray-500">Sesuaikan identitas dan kepribadian asisten AI Anda agar terasa seperti asisten milik perusahaan sendiri.</p>
+        <h2 className="text-lg font-semibold mb-1">{T.personaTitle}</h2>
+        <p className="text-sm text-gray-500">{T.personaDesc}</p>
       </div>
 
       {/* Preview */}
@@ -72,7 +75,7 @@ export function PersonaTab() {
 
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Nama Asisten AI</Label>
+          <Label>{T.aiName}</Label>
           <Input
             placeholder="Contoh: Ava, Max, Aria, atau nama kustom"
             value={form.aiName}
@@ -82,7 +85,7 @@ export function PersonaTab() {
         </div>
 
         <div className="space-y-2">
-          <Label>Greeting / Pesan Sambutan</Label>
+          <Label>{T.greeting}</Label>
           <textarea
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
             placeholder="Contoh: Halo! Saya Ava, asisten AI PT Maju Bersama. Ada yang bisa saya bantu?"
@@ -93,7 +96,7 @@ export function PersonaTab() {
 
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-blue-500" /> Instruksi Kepribadian (opsional)
+            <Sparkles className="h-3.5 w-3.5 text-blue-500" /> {T.personality}
           </Label>
           <textarea
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
@@ -106,7 +109,7 @@ export function PersonaTab() {
 
         <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">
           <Save className="h-4 w-4" />
-          {saving ? "Menyimpan..." : "Simpan Persona"}
+          {saving ? T.savingPersona : T.savePersona}
         </Button>
       </div>
     </div>

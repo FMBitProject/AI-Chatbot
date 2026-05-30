@@ -1,5 +1,7 @@
 "use client";
 import { useState, Fragment } from "react";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { FileDropzone } from "./FileDropzone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +22,7 @@ interface DocumentsTabProps {
   documents: Document[];
   onUpload: (files: File[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  lang?: Lang;
 }
 
 const STATUS_MAP = {
@@ -28,7 +31,9 @@ const STATUS_MAP = {
   failed: { label: "Gagal", variant: "destructive" as const },
 };
 
-export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProps) {
+export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: DocumentsTabProps) {
+  const T = adminT[lang];
+  const STATUS_LABELS = { success: T.statusSuccess, processing: T.statusProcessing, failed: T.statusFailed };
   const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedSummary, setExpandedSummary] = useState<string | null>(null);
@@ -60,31 +65,31 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Upload Dokumen</h2>
-        <p className="text-sm text-gray-500 mb-4">Upload SOP, regulasi HR, atau panduan IT dalam format PDF/DOCX.</p>
+        <h2 className="text-lg font-semibold mb-1">{T.uploadTitle}</h2>
+        <p className="text-sm text-gray-500 mb-4">{T.uploadDesc}</p>
         <FileDropzone onUpload={handleUpload} isUploading={isUploading} />
       </div>
       <div>
-        <h2 className="text-lg font-semibold mb-3">Daftar Dokumen</h2>
+        <h2 className="text-lg font-semibold mb-3">{T.docList}</h2>
         {documents.length === 0 ? (
           <div className="text-center py-10 text-gray-400 border rounded-xl">
             <FileText className="h-8 w-8 mx-auto mb-2" />
-            <p className="text-sm">Belum ada dokumen yang diupload</p>
+            <p className="text-sm">{T.noDoc}</p>
           </div>
         ) : (
           <div className="rounded-xl border overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nama File</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead className="w-16">Aksi</TableHead>
+                  <TableHead>{T.colName}</TableHead>
+                  <TableHead>{T.colStatus}</TableHead>
+                  <TableHead>{T.colDate}</TableHead>
+                  <TableHead className="w-16">{T.colAction}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {documents.map((doc) => {
-                  const s = STATUS_MAP[doc.status];
+                  const s = { ...STATUS_MAP[doc.status], label: STATUS_LABELS[doc.status] };
                   const isExpanded = expandedSummary === doc.id;
                   return (
                     <Fragment key={doc.id}>
@@ -99,7 +104,7 @@ export function DocumentsTab({ documents, onUpload, onDelete }: DocumentsTabProp
                                 className="ml-1 flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
                               >
                                 <Sparkles className="h-3 w-3" />
-                                Ringkasan AI
+                                {T.aiSummary}
                                 {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                               </button>
                             )}

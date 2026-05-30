@@ -11,6 +11,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useLang } from "@/lib/language-context";
+import { admin as adminT } from "@/lib/i18n";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -19,6 +21,8 @@ export default function AdminPage() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user as { name?: string } | undefined;
+  const { lang } = useLang();
+  const T = adminT[lang];
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -100,54 +104,54 @@ export default function AdminPage() {
           <Link href="/chat">
             <Button variant="outline" size="sm">
               <MessageSquare className="h-4 w-4" />
-              Buka Chat
+              {T.openChat}
             </Button>
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="h-4 w-4" />
-            Keluar
+            {T.logout}
           </Button>
         </div>
       </header>
       <main className="max-w-5xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6 text-gray-900">Dashboard Admin</h1>
+        <h1 className="text-2xl font-bold mb-6 text-gray-900">{T.title}</h1>
         <Tabs defaultValue="documents">
           <TabsList className="mb-6">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              Kelola Dokumen
+              {T.tabs.documents}
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Kelola Karyawan
+              {T.tabs.users}
             </TabsTrigger>
             <TabsTrigger value="analytics" className="flex items-center gap-2">
               <BarChart2 className="h-4 w-4" />
-              Analitik
+              {T.tabs.analytics}
             </TabsTrigger>
             <TabsTrigger value="persona" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
-              AI Persona
+              {T.tabs.persona}
             </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
-              Audit Log
+              {T.tabs.audit}
             </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
-            <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} />
+            <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} lang={lang} />
           </TabsContent>
           <TabsContent value="users">
-            <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} />
+            <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />
           </TabsContent>
           <TabsContent value="analytics">
-            <AnalyticsTab />
+            <AnalyticsTab lang={lang} />
           </TabsContent>
           <TabsContent value="persona">
-            <PersonaTab />
+            <PersonaTab lang={lang} />
           </TabsContent>
           <TabsContent value="audit">
-            <AuditTab />
+            <AuditTab lang={lang} />
           </TabsContent>
         </Tabs>
       </main>

@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Search, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
@@ -15,7 +17,8 @@ interface AuditLog {
   userEmail: string;
 }
 
-export function AuditTab() {
+export function AuditTab({ lang = "id" }: { lang?: Lang }) {
+  const T = adminT[lang];
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState("");
 
@@ -36,21 +39,21 @@ export function AuditTab() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold mb-1">Audit Log</h2>
-        <p className="text-sm text-gray-500">Pantau siapa bertanya apa dan kapan.</p>
+        <h2 className="text-lg font-semibold mb-1">{T.auditTitle}</h2>
+        <p className="text-sm text-gray-500">{T.auditDesc}</p>
       </div>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           className="pl-9"
-          placeholder="Cari pertanyaan atau nama karyawan..."
+          placeholder={T.searchAudit}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
       </div>
       <div className="space-y-2">
         {filtered.length === 0 && (
-          <p className="text-center text-gray-400 text-sm py-8">Belum ada data audit</p>
+          <p className="text-center text-gray-400 text-sm py-8">{T.noAudit}</p>
         )}
         {filtered.map((log) => {
           const nextLog = logs[logs.indexOf(log) - 1];

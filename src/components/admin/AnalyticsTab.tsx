@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, FileText, Users, TrendingUp, Download, Sheet } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 
 interface Analytics {
   totalSessions: number;
@@ -13,7 +15,8 @@ interface Analytics {
   recentQuestions: { title: string; createdAt: string }[];
 }
 
-export function AnalyticsTab() {
+export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
+  const T = adminT[lang];
   const [data, setData] = useState<Analytics | null>(null);
 
   useEffect(() => {
@@ -159,10 +162,10 @@ export function AnalyticsTab() {
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat data...</div>;
 
   const stats = [
-    { label: "Total Sesi Chat", value: data.totalSessions, icon: MessageSquare, color: "text-blue-600 bg-blue-50" },
-    { label: "Total Pertanyaan", value: data.totalMessages, icon: TrendingUp, color: "text-purple-600 bg-purple-50" },
-    { label: "Total Dokumen", value: data.totalDocuments, icon: FileText, color: "text-green-600 bg-green-50" },
-    { label: "Total Karyawan", value: data.totalEmployees, icon: Users, color: "text-orange-600 bg-orange-50" },
+    { label: T.totalChat, value: data.totalSessions, icon: MessageSquare, color: "text-blue-600 bg-blue-50" },
+    { label: T.totalQuestion, value: data.totalMessages, icon: TrendingUp, color: "text-purple-600 bg-purple-50" },
+    { label: T.totalDoc, value: data.totalDocuments, icon: FileText, color: "text-green-600 bg-green-50" },
+    { label: T.totalEmployee, value: data.totalEmployees, icon: Users, color: "text-orange-600 bg-orange-50" },
   ];
 
   return (
@@ -170,11 +173,11 @@ export function AnalyticsTab() {
       <div className="flex justify-end gap-2">
         <Button variant="outline" size="sm" onClick={handleExportExcel} className="gap-2">
           <Sheet className="h-4 w-4 text-green-600" />
-          Export Excel
+          {T.exportExcel}
         </Button>
         <Button variant="outline" size="sm" onClick={handleExportPDF} className="gap-2">
           <Download className="h-4 w-4 text-red-500" />
-          Export PDF
+          {T.exportPDF}
         </Button>
       </div>
 
@@ -198,11 +201,11 @@ export function AnalyticsTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Pertanyaan Terbaru</CardTitle>
+          <CardTitle className="text-base">{T.recentQ}</CardTitle>
         </CardHeader>
         <CardContent>
           {data.recentQuestions.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">Belum ada pertanyaan</p>
+            <p className="text-sm text-gray-400 text-center py-4">{T.noQuestion}</p>
           ) : (
             <ul className="space-y-2">
               {data.recentQuestions.map((q, i) => (

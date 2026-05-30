@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +24,11 @@ interface UsersTabProps {
   employees: Employee[];
   companyName?: string;
   onAddEmployee: (data: { name: string; email: string; password: string }) => Promise<void>;
+  lang?: Lang;
 }
 
-export function UsersTab({ employees, companyName, onAddEmployee }: UsersTabProps) {
+export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }: UsersTabProps) {
+  const T = adminT[lang];
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", department: "" });
@@ -56,27 +60,27 @@ export function UsersTab({ employees, companyName, onAddEmployee }: UsersTabProp
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500 mt-0.5">{employees.length} karyawan terdaftar</p>
+          <p className="text-sm text-gray-500 mt-0.5">{employees.length} {T.employees}</p>
         </div>
         <Button onClick={() => setOpen(true)}>
           <UserPlus className="h-4 w-4" />
-          Tambah Karyawan
+          {T.addEmployee}
         </Button>
       </div>
       {employees.length === 0 ? (
         <div className="text-center py-10 text-gray-400 border rounded-xl">
           <Users className="h-8 w-8 mx-auto mb-2" />
-          <p className="text-sm">Belum ada karyawan terdaftar</p>
+          <p className="text-sm">{T.noEmployee}</p>
         </div>
       ) : (
         <div className="rounded-xl border overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nama</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Bergabung</TableHead>
+                <TableHead>{T.colName2}</TableHead>
+                <TableHead>{T.colEmail}</TableHead>
+                <TableHead>{T.colRole}</TableHead>
+                <TableHead>{T.colJoin}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -110,7 +114,7 @@ export function UsersTab({ employees, companyName, onAddEmployee }: UsersTabProp
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Tambah Karyawan Baru</DialogTitle>
+            <DialogTitle>{T.addEmployee} Baru</DialogTitle>
             <DialogDescription>Karyawan akan dapat login menggunakan email dan password yang dibuat.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4 mt-2">
@@ -131,7 +135,7 @@ export function UsersTab({ employees, companyName, onAddEmployee }: UsersTabProp
               <Input id="emp-password" type="password" placeholder="Minimal 8 karakter" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Menambahkan..." : "Tambah Karyawan"}
+              {loading ? "Menambahkan..." : "{T.addEmployee}"}
             </Button>
           </form>
         </DialogContent>
