@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
-import { getLimits } from "@/lib/plan-limits";
+import { getLimits, isUnderLimit } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
 
 export async function GET(req: NextRequest) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const limits = getLimits(company?.plan ?? "starter");
   const [{ count: empCount }] = await db.select({ count: count() }).from(users).where(eq(users.companyId, dbUser.companyId));
-  if (empCount >= limits.maxEmployees) {
+  if (!isUnderLimit(empCount, limits.maxEmployees)) {
     return NextResponse.json({
       error: `Batas karyawan paket ${company?.plan ?? "Starter"} sudah tercapai (${limits.maxEmployees} karyawan). Upgrade paket untuk menambah lebih banyak.`,
     }, { status: 403 });
