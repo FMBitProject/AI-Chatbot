@@ -27,12 +27,16 @@ export default function AdminPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyName, setCompanyName] = useState<string>("");
+  const [plan, setPlan] = useState<"starter" | "professional" | "enterprise">("starter");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     loadDocuments();
     fetch("/api/admin/users").then((r) => r.json()).then((data: Employee[]) => setEmployees(data)).catch(() => {});
-    fetch("/api/admin/company").then((r) => r.json()).then((data: { name: string }) => setCompanyName(data?.name ?? "")).catch(() => {});
+    fetch("/api/admin/company").then((r) => r.json()).then((data: { name: string; plan: "starter" | "professional" | "enterprise" }) => {
+      setCompanyName(data?.name ?? "");
+      if (data?.plan) setPlan(data.plan);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -97,6 +101,13 @@ export default function AdminPage() {
           <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
           {companyName && <span className="hidden sm:inline text-sm text-gray-400">·</span>}
           {companyName && <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>}
+          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+            plan === "enterprise" ? "bg-violet-100 text-violet-700 border-violet-200" :
+            plan === "professional" ? "bg-blue-100 text-blue-700 border-blue-200" :
+            "bg-gray-100 text-gray-500 border-gray-200"
+          }`}>
+            {plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Professional" : "Free"}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           <LanguageSwitcher />

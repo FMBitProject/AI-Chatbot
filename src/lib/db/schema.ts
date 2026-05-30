@@ -3,6 +3,7 @@ import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core"
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  plan: text("plan").$type<"starter" | "professional" | "enterprise">().default("starter").notNull(),
   aiName: text("ai_name").default("IntelliBase AI").notNull(),
   aiGreeting: text("ai_greeting"),
   aiPersonality: text("ai_personality"),
