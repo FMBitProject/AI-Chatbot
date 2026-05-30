@@ -72,7 +72,10 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
 
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;
 
-  const inf = (v: number | null) => (!v || v === -1) ? (lang === "en" ? "Unlimited" : "∞ Tak Terbatas") : v;
+  const inf = (v: number | null | undefined) => {
+    if (v === null || v === undefined || v < 0) return lang === "en" ? "Unlimited" : "∞ Tak Terbatas";
+    return v;
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
