@@ -76,7 +76,7 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">Kelola Karyawan</h2>
+            <h2 className="text-lg font-semibold">{lang === "en" ? "Manage Employees" : "Kelola Karyawan"}</h2>
             {companyName && (
               <span className="text-xs font-medium bg-gray-100 text-gray-600 rounded-full px-2.5 py-0.5 border">
                 🏢 {companyName}
@@ -143,28 +143,28 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{T.addEmployee} Baru</DialogTitle>
-            <DialogDescription>Karyawan akan dapat login menggunakan email dan password yang dibuat.</DialogDescription>
+            <DialogTitle>{lang === "en" ? "Add New Employee" : "Tambah Karyawan Baru"}</DialogTitle>
+            <DialogDescription>{lang === "en" ? "Employees can log in using the email and password you create." : "Karyawan akan dapat login menggunakan email dan password yang dibuat."}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdd} className="space-y-4 mt-2">
             <div className="space-y-2">
-              <Label htmlFor="emp-name">Nama Lengkap</Label>
-              <Input id="emp-name" placeholder="Budi Santoso" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+              <Label htmlFor="emp-name">{lang === "en" ? "Full Name" : "Nama Lengkap"}</Label>
+              <Input id="emp-name" placeholder={lang === "en" ? "John Doe" : "Budi Santoso"} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="emp-email">Email</Label>
-              <Input id="emp-email" type="email" placeholder="budi@perusahaan.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+              <Input id="emp-email" type="email" placeholder={lang === "en" ? "john@company.com" : "budi@perusahaan.com"} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="emp-dept">Departemen (opsional)</Label>
-              <Input id="emp-dept" placeholder="Contoh: HR, IT, Legal" value={form.department ?? ""} onChange={(e) => setForm({ ...form, department: e.target.value })} />
+              <Label htmlFor="emp-dept">{lang === "en" ? "Department (optional)" : "Departemen (opsional)"}</Label>
+              <Input id="emp-dept" placeholder={lang === "en" ? "e.g. HR, IT, Legal" : "Contoh: HR, IT, Legal"} value={form.department ?? ""} onChange={(e) => setForm({ ...form, department: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="emp-password">Password Sementara</Label>
-              <Input id="emp-password" type="password" placeholder="Minimal 8 karakter" minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+              <Label htmlFor="emp-password">{lang === "en" ? "Temporary Password" : "Password Sementara"}</Label>
+              <Input id="emp-password" type="password" placeholder={lang === "en" ? "Min. 8 characters" : "Minimal 8 karakter"} minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Menambahkan..." : "{T.addEmployee}"}
+            <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
+              {loading ? (lang === "en" ? "Adding..." : "Menambahkan...") : T.addEmployee}
             </Button>
           </form>
         </DialogContent>
