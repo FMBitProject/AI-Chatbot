@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, QrCode } from "lucide-react";
+import { ArrowRight, Loader2, QrCode, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
 interface SubData {
@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warni
 export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const [data, setData] = useState<SubData | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/subscription").then((r) => r.json()).then((d: SubData) => setData(d)).catch(() => {});
@@ -53,6 +54,20 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
     } catch {
       setResuming(null);
     }
+  }
+
+  async function handleVerify(plan: string) {
+    setVerifying(true);
+    try {
+      const res = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const d = await res.json() as { upgraded?: boolean };
+      if (d.upgraded) window.location.reload();
+    } catch {}
+    finally { setVerifying(false); }
   }
 
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;
@@ -113,19 +128,21 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                     <p className="text-xs text-gray-400">{tx.orderId} · {new Date(tx.createdAt).toLocaleDateString("id-ID")}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {tx.status === "pending" && tx.snapToken && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
-                        onClick={() => handleResume(tx.snapToken!, tx.plan)}
-                        disabled={resuming === tx.snapToken}
-                      >
-                        {resuming === tx.snapToken
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <QrCode className="h-3 w-3" />}
-                        {lang === "en" ? "Continue Payment" : "Lanjutkan Bayar"}
-                      </Button>
+                    {tx.status === "pending" && (
+                      <div className="flex gap-1.5">
+                        {tx.snapToken && (
+                          <Button size="sm" variant="outline" className="text-xs gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                            onClick={() => handleResume(tx.snapToken!, tx.plan)} disabled={resuming === tx.snapToken}>
+                            {resuming === tx.snapToken ? <Loader2 className="h-3 w-3 animate-spin" /> : <QrCode className="h-3 w-3" />}
+                            {lang === "en" ? "Pay" : "Bayar"}
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" className="text-xs gap-1.5 text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={() => handleVerify(tx.plan)} disabled={verifying}>
+                          {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          {lang === "en" ? "Check" : "Cek Status"}
+                        </Button>
+                      </div>
                     )}
                     <Badge variant={s.variant}>{s.label}</Badge>
                   </div>
