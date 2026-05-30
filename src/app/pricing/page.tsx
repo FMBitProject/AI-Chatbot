@@ -1,12 +1,14 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
-import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2 } from "lucide-react";
+import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
 
 const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
 const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
@@ -17,8 +19,49 @@ const HAS_PROMO = [false, true, true];
 export default function PricingPage() {
   const { lang } = useLang();
   const T = pricing[lang];
+  const { data: session } = authClient.useSession();
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
   const ctaLabels = [T.startFree, T.trialFree, T.contactSales];
+
+  async function handlePay(plan: "professional" | "enterprise") {
+    if (!session) { window.location.href = "/register"; return; }
+    setLoadingPlan(plan);
+    try {
+      const res = await fetch("/api/payment/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json() as { token: string };
+      if (!data.token) throw new Error("No token");
+
+      // Load Midtrans Snap script dynamically
+      const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
+      if (!document.getElementById("midtrans-snap")) {
+        await new Promise<void>((resolve) => {
+          const script = document.createElement("script");
+          script.id = "midtrans-snap";
+          script.src = process.env.NEXT_PUBLIC_MIDTRANS_ENV === "production"
+            ? "https://app.midtrans.com/snap/snap.js"
+            : "https://app.sandbox.midtrans.com/snap/snap.js";
+          script.setAttribute("data-client-key", clientKey);
+          script.onload = () => resolve();
+          document.body.appendChild(script);
+        });
+      }
+
+      (window as unknown as { snap: { pay: (token: string, opts: object) => void } }).snap.pay(data.token, {
+        onSuccess: () => { window.location.href = `/payment/success?plan=${plan}`; },
+        onPending: () => { window.location.href = "/payment/pending"; },
+        onError: () => { window.location.href = "/payment/failed"; },
+        onClose: () => setLoadingPlan(null),
+      });
+    } catch {
+      setLoadingPlan(null);
+      alert("Gagal memulai pembayaran. Silakan coba lagi.");
+    }
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -101,12 +144,30 @@ export default function PricingPage() {
                   </li>
                 ))}
               </ul>
-              <Link href={CTA_HREFS[idx]}>
-                <Button variant={idx === 1 ? "default" : "outline"}
-                  className={cn("w-full gap-2", idx === 1 && "bg-blue-600 hover:bg-blue-700")}>
-                  {ctaLabels[idx]} <ArrowRight className="h-4 w-4" />
+              {idx === 0 ? (
+                <Link href="/register">
+                  <Button variant="outline" className="w-full gap-2">
+                    {T.startFree} <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              ) : idx === 2 ? (
+                <a href="mailto:sales@intellibase.ai">
+                  <Button variant="outline" className="w-full gap-2">
+                    {T.contactSales} <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </a>
+              ) : (
+                <Button
+                  className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                  onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
+                  disabled={loadingPlan !== null}
+                >
+                  {loadingPlan === (idx === 1 ? "professional" : "enterprise")
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
+                    : <>{T.trialFree} <ArrowRight className="h-4 w-4" /></>
+                  }
                 </Button>
-              </Link>
+              )}
             </div>
           ))}
         </div>

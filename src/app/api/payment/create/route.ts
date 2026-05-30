@@ -1,0 +1,64 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { users, companies, transactions } from "@/lib/db/schema";
+import { eq } from "drizzle-orm";
+import { getSnap, PLAN_PRICES, PLAN_NAMES } from "@/lib/midtrans";
+import { randomUUID } from "crypto";
+
+export async function POST(req: NextRequest) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
+  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { plan } = await req.json() as { plan: "professional" | "enterprise" };
+  if (!plan || !PLAN_PRICES[plan]) {
+    return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  }
+
+  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+  const orderId = `IB-${plan.toUpperCase()}-${Date.now()}`;
+  const amount = PLAN_PRICES[plan];
+
+  const parameter = {
+    transaction_details: {
+      order_id: orderId,
+      gross_amount: amount,
+    },
+    item_details: [{
+      id: plan,
+      price: amount,
+      quantity: 1,
+      name: PLAN_NAMES[plan],
+    }],
+    customer_details: {
+      first_name: dbUser.name,
+      email: dbUser.email,
+    },
+    callbacks: {
+      finish: `${process.env.BETTER_AUTH_URL}/payment/success?plan=${plan}`,
+      error: `${process.env.BETTER_AUTH_URL}/payment/failed`,
+      pending: `${process.env.BETTER_AUTH_URL}/payment/pending`,
+    },
+  };
+
+  const snapResponse = await getSnap().createTransaction(parameter) as { token: string; redirect_url: string };
+
+  await db.insert(transactions).values({
+    id: randomUUID(),
+    companyId: dbUser.companyId,
+    orderId,
+    plan,
+    amount: String(amount),
+    status: "pending",
+    snapToken: snapResponse.token,
+  });
+
+  return NextResponse.json({ token: snapResponse.token, orderId });
+}

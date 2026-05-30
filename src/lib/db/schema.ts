@@ -87,6 +87,18 @@ export const chatSessions = pgTable("chat_sessions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const transactions = pgTable("transactions", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").references(() => companies.id).notNull(),
+  orderId: text("order_id").notNull().unique(),
+  plan: text("plan").$type<"professional" | "enterprise">().notNull(),
+  amount: text("amount").notNull(),
+  status: text("status").$type<"pending" | "paid" | "failed" | "expired">().default("pending").notNull(),
+  snapToken: text("snap_token"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  paidAt: timestamp("paid_at"),
+});
+
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
   key: text("key").notNull().unique(),
