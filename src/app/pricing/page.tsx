@@ -150,21 +150,15 @@ export default function PricingPage() {
                     {T.startFree} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-              ) : idx === 2 ? (
-                <a href="mailto:sales@intellibase.ai">
-                  <Button variant="outline" className="w-full gap-2">
-                    {T.contactSales} <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </a>
               ) : (
                 <Button
-                  className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                  className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}
                   onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
                   disabled={loadingPlan !== null}
                 >
                   {loadingPlan === (idx === 1 ? "professional" : "enterprise")
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
-                    : <>{T.trialFree} <ArrowRight className="h-4 w-4" /></>
+                    : <>{idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" /></>
                   }
                 </Button>
               )}
