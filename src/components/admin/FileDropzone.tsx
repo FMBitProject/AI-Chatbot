@@ -4,15 +4,19 @@ import { useDropzone } from "react-dropzone";
 import { UploadCloud, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { admin as adminT } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 interface FileDropzoneProps {
   onUpload: (files: File[]) => void;
   isUploading: boolean;
+  lang?: Lang;
 }
 
-export function FileDropzone({ onUpload, isUploading }: FileDropzoneProps) {
+export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzoneProps) {
+  const T = adminT[lang];
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const onDrop = useCallback(
@@ -21,36 +25,22 @@ export function FileDropzone({ onUpload, isUploading }: FileDropzoneProps) {
         rejectedFiles.forEach(({ file, errors }) => {
           const isTooLarge = errors.some((e) => e.message.includes("large") || e.message.includes("size"));
           if (isTooLarge || file.size > MAX_FILE_SIZE) {
-            toast({
-              variant: "destructive",
-              title: "File terlalu besar",
-              description: `"${file.name}" melebihi batas 10 MB. Upload dibatalkan.`,
-            });
+            toast({ variant: "destructive", title: T.fileTooLarge, description: `"${file.name}" ${T.fileTooLargeDesc}` });
           } else {
-            toast({
-              variant: "destructive",
-              title: "Format tidak didukung",
-              description: `"${file.name}" bukan file PDF atau DOCX.`,
-            });
+            toast({ variant: "destructive", title: T.formatNotSupported, description: `"${file.name}" ${T.formatNotSupportedDesc}` });
           }
         });
       }
       const validFiles = acceptedFiles.filter((f) => {
         if (f.size > MAX_FILE_SIZE) {
-          toast({
-            variant: "destructive",
-            title: "File terlalu besar",
-            description: `"${f.name}" melebihi batas maksimum 10 MB. Upload dibatalkan.`,
-          });
+          toast({ variant: "destructive", title: T.fileTooLarge, description: `"${f.name}" ${T.fileTooLargeDesc}` });
           return false;
         }
         return true;
       });
-      if (validFiles.length > 0) {
-        setPendingFiles(validFiles);
-      }
+      if (validFiles.length > 0) setPendingFiles(validFiles);
     },
-    []
+    [T]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -86,9 +76,9 @@ export function FileDropzone({ onUpload, isUploading }: FileDropzoneProps) {
         <input {...getInputProps()} />
         <UploadCloud className={cn("mx-auto h-10 w-10 mb-3", isDragActive ? "text-blue-500" : "text-gray-300")} />
         <p className="text-sm font-medium text-gray-600">
-          {isDragActive ? "Lepaskan file di sini..." : "Seret & lepas file ke sini, atau klik untuk memilih"}
+          {isDragActive ? T.dropzoneActive : T.dropzone}
         </p>
-        <p className="text-xs text-gray-400 mt-1">PDF, DOCX · Maks. 10 MB per file</p>
+        <p className="text-xs text-gray-400 mt-1">{T.dropzoneHint}</p>
       </div>
       {pendingFiles.length > 0 && (
         <div className="space-y-2">
@@ -108,7 +98,7 @@ export function FileDropzone({ onUpload, isUploading }: FileDropzoneProps) {
             disabled={isUploading}
             className="w-full bg-blue-600 text-white text-sm rounded-lg py-2 font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {isUploading ? "Mengupload..." : `Upload ${pendingFiles.length} File`}
+            {isUploading ? T.uploading : `${T.uploadBtn} ${pendingFiles.length} File`}
           </button>
         </div>
       )}

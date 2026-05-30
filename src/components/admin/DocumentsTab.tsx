@@ -67,7 +67,7 @@ export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: Doc
       <div>
         <h2 className="text-lg font-semibold mb-1">{T.uploadTitle}</h2>
         <p className="text-sm text-gray-500 mb-4">{T.uploadDesc}</p>
-        <FileDropzone onUpload={handleUpload} isUploading={isUploading} />
+        <FileDropzone onUpload={handleUpload} isUploading={isUploading} lang={lang} />
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-3">{T.docList}</h2>
