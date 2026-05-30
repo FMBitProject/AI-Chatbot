@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UserPlus, Users } from "lucide-react";
+import { UserPlus, Users, KeyRound } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 export interface Employee {
@@ -32,6 +32,9 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", department: "" });
+  const [resetTarget, setResetTarget] = useState<Employee | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -45,6 +48,26 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
       toast({ variant: "destructive", title: "Gagal menambahkan karyawan.", description: (err as Error).message });
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!resetTarget || newPassword.length < 8) return;
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/admin/users/${resetTarget.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: lang === "en" ? "Password reset successfully." : "Password berhasil direset." });
+      setResetTarget(null);
+      setNewPassword("");
+    } catch {
+      toast({ variant: "destructive", title: lang === "en" ? "Failed to reset password." : "Gagal mereset password." });
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -81,6 +104,7 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
                 <TableHead>{T.colEmail}</TableHead>
                 <TableHead>{T.colRole}</TableHead>
                 <TableHead>{T.colJoin}</TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -104,6 +128,11 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
                   </TableCell>
                   <TableCell className="text-gray-500 text-sm">
                     {new Date(emp.createdAt).toLocaleDateString("id-ID")}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="text-gray-400 hover:text-blue-600" title={lang === "en" ? "Reset Password" : "Reset Password"} onClick={() => { setResetTarget(emp); setNewPassword(""); }}>
+                      <KeyRound className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -138,6 +167,35 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
               {loading ? "Menambahkan..." : "{T.addEmployee}"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(o) => !o && setResetTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{lang === "en" ? "Reset Password" : "Reset Password"}</DialogTitle>
+            <DialogDescription>
+              {lang === "en"
+                ? `Set a new password for ${resetTarget?.name ?? "this employee"}.`
+                : `Set password baru untuk ${resetTarget?.name ?? "karyawan ini"}.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="space-y-2">
+              <Label>{lang === "en" ? "New Password" : "Password Baru"}</Label>
+              <Input
+                type="password"
+                placeholder={lang === "en" ? "Min. 8 characters" : "Minimal 8 karakter"}
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleResetPassword} disabled={resetting || newPassword.length < 8}>
+              {resetting ? (lang === "en" ? "Resetting..." : "Mereset...") : (lang === "en" ? "Reset Password" : "Reset Password")}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

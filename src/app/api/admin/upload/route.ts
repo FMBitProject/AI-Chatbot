@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { documents, documentChunks, users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { documents, documentChunks, users, companies } from "@/lib/db/schema";
+import { eq, count } from "drizzle-orm";
+import { getLimits } from "@/lib/plan-limits";
 import { chunkText } from "@/lib/chunker";
 import { getEmbedding } from "@/lib/embeddings";
 import { generateText } from "ai";
@@ -40,6 +41,17 @@ export async function POST(req: NextRequest) {
   }
 
   const companyId = dbUser.companyId;
+
+  // Enforce plan limits
+  const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
+  const limits = getLimits(company?.plan ?? "starter");
+  const [{ count: docCount }] = await db.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId));
+  if (docCount >= limits.maxDocuments) {
+    return NextResponse.json({
+      error: `Batas dokumen paket ${company?.plan ?? "Starter"} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`,
+    }, { status: 403 });
+  }
+
   const formData = await req.formData();
   const files = formData.getAll("files") as File[];
 

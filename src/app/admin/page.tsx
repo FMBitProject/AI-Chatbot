@@ -6,9 +6,11 @@ import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { PersonaTab } from "@/components/admin/PersonaTab";
 import { AuditTab } from "@/components/admin/AuditTab";
+import { OnboardingBanner } from "@/components/admin/OnboardingBanner";
+import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
@@ -125,7 +127,8 @@ export default function AdminPage() {
         </div>
       </header>
       <main className="max-w-5xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6 text-gray-900">{T.title}</h1>
+        <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
+        <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
         <Tabs defaultValue="documents">
           <TabsList className="mb-6">
             <TabsTrigger value="documents" className="flex items-center gap-2">
@@ -148,6 +151,10 @@ export default function AdminPage() {
               <ClipboardList className="h-4 w-4" />
               {T.tabs.audit}
             </TabsTrigger>
+            <TabsTrigger value="subscription" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              {lang === "en" ? "Subscription" : "Langganan"}
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
             <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} lang={lang} />
@@ -163,6 +170,9 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="audit">
             <AuditTab lang={lang} />
+          </TabsContent>
+          <TabsContent value="subscription">
+            <SubscriptionTab lang={lang} />
           </TabsContent>
         </Tabs>
       </main>

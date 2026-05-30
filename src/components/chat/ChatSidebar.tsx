@@ -3,11 +3,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, MessageSquare, LogOut, LayoutDashboard, Search } from "lucide-react";
+import { PlusCircle, MessageSquare, LogOut, LayoutDashboard, Search, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { useState } from "react";
+import { ChangePasswordDialog } from "./ChangePasswordDialog";
 import { useRouter } from "next/navigation";
 
 export interface ChatSession {
@@ -36,6 +38,7 @@ export function ChatSidebar({
   isAdmin,
 }: ChatSidebarProps) {
   const router = useRouter();
+  const [changePwOpen, setChangePwOpen] = useState(false);
 
   async function handleLogout() {
     await authClient.signOut();
@@ -94,6 +97,9 @@ export function ChatSidebar({
           <p className="text-sm font-medium truncate">{userName ?? "User"}</p>
           <p className="text-xs text-gray-400 truncate">{userEmail ?? ""}</p>
         </div>
+        <Button variant="ghost" size="icon" onClick={() => setChangePwOpen(true)} className="text-gray-400 hover:text-white hover:bg-gray-700 shrink-0" title="Ganti Password">
+          <KeyRound className="h-4 w-4" />
+        </Button>
         {isAdmin && (
           <Button variant="ghost" size="icon" onClick={() => router.push("/admin")} className="text-gray-400 hover:text-white hover:bg-gray-700 shrink-0" title="Dashboard Admin">
             <LayoutDashboard className="h-4 w-4" />
@@ -102,6 +108,7 @@ export function ChatSidebar({
         <Button variant="ghost" size="icon" onClick={handleLogout} className="text-gray-400 hover:text-white hover:bg-gray-700 shrink-0">
           <LogOut className="h-4 w-4" />
         </Button>
+      <ChangePasswordDialog open={changePwOpen} onClose={() => setChangePwOpen(false)} />
       </div>
     </div>
   );
