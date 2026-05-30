@@ -8,10 +8,11 @@ import { pricing } from "@/lib/i18n";
 import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const PRICES = ["Gratis", "Rp 299.000", "Rp 799.000"];
-const PERIODS_ID = ["Selamanya", "per bulan", "per bulan"];
+const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
+const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
 const CTA_HREFS = ["/register", "/register?plan=pro", "mailto:sales@intellibase.ai"];
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
+const HAS_PROMO = [false, true, true];
 
 export default function PricingPage() {
   const { lang } = useLang();
@@ -37,6 +38,11 @@ export default function PricingPage() {
         </div>
       </nav>
 
+      {/* Promo Banner */}
+      <div className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-center py-2.5 px-4 text-sm font-medium">
+        {T.promoBanner} &nbsp;·&nbsp; <span className="underline">{T.promoEnds}</span>
+      </div>
+
       {/* Hero */}
       <section className="text-center py-16 px-6 bg-gradient-to-b from-blue-50 to-white">
         <span className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
@@ -61,16 +67,29 @@ export default function PricingPage() {
                 </div>
               )}
               <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-                <p className="text-gray-500 text-sm mb-4">{plan.desc}</p>
-                <div className="flex items-end gap-1">
-                  <span className="text-3xl font-bold text-gray-900">
-                    {idx === 0 ? T.free : PRICES[idx]}
-                  </span>
-                  <span className="text-gray-400 text-sm pb-1">
-                    / {idx === 0 ? T.forever : T.perMonth}
-                  </span>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
+                  {HAS_PROMO[idx] && (
+                    <span className="text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200 rounded-full px-2 py-0.5">
+                      {T.discountBadge}
+                    </span>
+                  )}
                 </div>
+                <p className="text-gray-500 text-sm mb-3">{plan.desc}</p>
+                {HAS_PROMO[idx] ? (
+                  <div>
+                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[idx]}</span>
+                    <div className="flex items-end gap-1 mt-0.5">
+                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[idx]}</span>
+                      <span className="text-gray-400 text-sm pb-1">/ {T.perMonth}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-bold text-gray-900">{idx === 0 ? T.free : ORIGINAL_PRICES[idx]}</span>
+                    <span className="text-gray-400 text-sm pb-1">/ {idx === 0 ? T.forever : T.perMonth}</span>
+                  </div>
+                )}
               </div>
               <ul className="space-y-3 flex-1 mb-8">
                 {T.features[idx].map((f, fi) => (
