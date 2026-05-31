@@ -61,15 +61,27 @@ export default function AdminPage() {
   }
 
   async function handleUpload(files: File[]) {
-    const formData = new FormData();
-    files.forEach((f) => formData.append("files", f));
-    const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null) as { error?: string } | null;
-      throw new Error(body?.error ?? "Upload gagal");
+    const allDocs: Document[] = [];
+    for (const file of files) {
+      const formData = new FormData();
+      formData.append("files", file);
+      const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? "Upload gagal");
+      }
+      const data = await res.json() as { documents: Document[] };
+      allDocs.push(...data.documents);
+      setDocuments((prev) => [...data.documents, ...prev]);
     }
-    const data = await res.json() as { documents: Document[] };
-    setDocuments((prev) => [...data.documents, ...prev]);
+    const failedCount = allDocs.filter((d) => d.status === "failed").length;
+    if (failedCount > 0) {
+      throw new Error(
+        failedCount === allDocs.length
+          ? "Dokumen gagal diproses. Pastikan format file didukung."
+          : `${failedCount} dari ${allDocs.length} dokumen gagal diproses.`
+      );
+    }
   }
 
   async function handleDelete(id: string) {

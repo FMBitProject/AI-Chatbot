@@ -42,7 +42,7 @@ export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: Doc
     setIsUploading(true);
     try {
       await onUpload(files);
-      toast({ title: "Berhasil!", description: `${files.length} dokumen sedang diproses.` });
+      toast({ title: "Berhasil!", description: `${files.length} dokumen berhasil diupload.` });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat mengupload.";
       toast({ variant: "destructive", title: "Upload Gagal", description: msg });
