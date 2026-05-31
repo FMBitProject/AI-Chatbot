@@ -15,7 +15,9 @@ async function extractText(file: File): Promise<string> {
   const name = file.name.toLowerCase();
 
   if (name.endsWith(".pdf")) {
-    const pdfParse = (await import("pdf-parse")).default as (buf: Buffer) => Promise<{ text: string }>;
+    // import from the internal lib to avoid pdf-parse's debug code that reads
+    // a test file at module load time (breaks in Turbopack/production builds)
+    const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default as (buf: Buffer) => Promise<{ text: string }>;
     const data = await pdfParse(buffer);
     return data.text;
   }
