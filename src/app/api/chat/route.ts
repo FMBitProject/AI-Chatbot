@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       text: documentChunks.text,
       embeddingJson: documentChunks.embeddingJson,
       documentId: documentChunks.documentId,
+      documentName: documents.name,
       department: documents.department,
     })
     .from(documentChunks)
@@ -67,12 +68,26 @@ export async function POST(req: NextRequest) {
       score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
     }))
     .sort((a, b) => b.score - a.score)
-    .filter((c) => c.score > 0.35)
-    .slice(0, 20);
+    .filter((c) => c.score > 0.3)
+    .slice(0, 40);
+
+  // Group chunks by document so the AI sees them as coherent sections
+  const byDoc = new Map<string, typeof scored>();
+  for (const c of scored) {
+    const key = c.documentId;
+    if (!byDoc.has(key)) byDoc.set(key, []);
+    byDoc.get(key)!.push(c);
+  }
 
   const contextText =
     scored.length > 0
-      ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
+      ? Array.from(byDoc.entries())
+          .map(([, chunks]) => {
+            const docName = chunks[0].documentName;
+            const body = chunks.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
+            return `=== ${docName} ===\n${body}`;
+          })
+          .join("\n\n")
       : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
