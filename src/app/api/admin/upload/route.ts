@@ -5,7 +5,7 @@ import { documents, documentChunks, users, companies } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { getLimits, isUnderLimit } from "@/lib/plan-limits";
 import { chunkText } from "@/lib/chunker";
-import { getEmbedding } from "@/lib/embeddings";
+import { getEmbeddings } from "@/lib/embeddings";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
@@ -82,17 +82,19 @@ export async function POST(req: NextRequest) {
       const rawText = await extractText(file);
       const chunks = chunkText(rawText);
 
-      for (let i = 0; i < chunks.length; i++) {
-        const embedding = await getEmbedding(chunks[i]);
-        await db.insert(documentChunks).values({
+      // Batch embed all chunks in one API call instead of N sequential calls
+      const embeddings = await getEmbeddings(chunks);
+
+      await db.insert(documentChunks).values(
+        chunks.map((text, i) => ({
           id: randomUUID(),
           documentId: docId,
           companyId,
-          text: chunks[i],
-          embeddingJson: JSON.stringify(embedding),
+          text,
+          embeddingJson: JSON.stringify(embeddings[i]),
           chunkIndex: i,
-        });
-      }
+        }))
+      );
 
       // Auto-generate document summary
       const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
