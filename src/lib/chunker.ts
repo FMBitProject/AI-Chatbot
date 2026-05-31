@@ -1,5 +1,5 @@
-const CHUNK_SIZE = 1000;
-const CHUNK_OVERLAP = 200;
+const CHUNK_SIZE = 1500;
+const CHUNK_OVERLAP = 300;
 
 export function chunkText(text: string): string[] {
   const chunks: string[] = [];

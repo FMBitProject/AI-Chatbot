@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
       score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
     }))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
+    .filter((c) => c.score > 0.4)
+    .slice(0, 12);
 
   const contextText =
     scored.length > 0
