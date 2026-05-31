@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+
+// Allow up to 5 minutes — needed when waiting for Gemini 429 retry delays
+export const maxDuration = 300;
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documents, documentChunks, users, companies } from "@/lib/db/schema";
