@@ -61,15 +61,28 @@ export async function POST(req: NextRequest) {
     ? chunksQuery.then((rows) => rows.filter((r) => !r.department || r.department === dbUser.department))
     : chunksQuery);
 
-  const scored = allChunks
+  // ~4 chars per token; reserve ~3000 tokens for system prompt + messages + output
+  // Groq free tier: 12,000 TPM → safe context budget ≈ 9,000 tokens ≈ 36,000 chars
+  // Groq Dev/paid tier: 100,000+ TPM → can raise this significantly
+  const MAX_CONTEXT_CHARS = 36_000;
+
+  const rankedChunks = allChunks
     .filter((c) => c.embeddingJson)
     .map((c) => ({
       ...c,
       score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
     }))
     .sort((a, b) => b.score - a.score)
-    .filter((c) => c.score > 0.3)
-    .slice(0, 40);
+    .filter((c) => c.score > 0.3);
+
+  // Take as many top-scored chunks as fit within the token budget
+  const scored: typeof rankedChunks = [];
+  let totalChars = 0;
+  for (const c of rankedChunks) {
+    if (totalChars + c.text.length > MAX_CONTEXT_CHARS) break;
+    scored.push(c);
+    totalChars += c.text.length;
+  }
 
   // Group chunks by document so the AI sees them as coherent sections
   const byDoc = new Map<string, typeof scored>();
