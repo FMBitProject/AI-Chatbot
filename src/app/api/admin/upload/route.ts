@@ -42,7 +42,7 @@ async function extractText(file: File): Promise<string> {
 
   if (name.endsWith(".pptx")) {
     const { parseOffice } = await import("officeparser");
-    const ast = await parseOffice(buffer);
+    const ast = await parseOffice(buffer, { fileType: "pptx" });
     const { value: text } = await ast.to("text");
     return text as string;
   }
