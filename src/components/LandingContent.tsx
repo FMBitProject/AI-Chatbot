@@ -192,24 +192,6 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-20 px-6 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14"><h2 className="text-3xl font-bold text-gray-900 mb-3">{T.testiTitle}</h2></div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {T.testimonials.map((t) => (
-              <div key={t.name} className="bg-white rounded-2xl border p-6">
-                <div className="flex gap-1 mb-3">{[...Array(5)].map((_, i) => <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />)}</div>
-                <p className="text-gray-700 text-sm leading-relaxed mb-4">"{t.text}"</p>
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{t.name}</p>
-                  <p className="text-gray-400 text-xs">{t.role} · {t.company}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Pricing teaser */}
       <section className="py-20 px-6">
