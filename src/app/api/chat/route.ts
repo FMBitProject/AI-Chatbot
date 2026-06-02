@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { groq, createGroq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documentChunks, users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(lastUserMessage.content);
+    queryEmbedding = await getEmbedding(lastUserMessage.content, company?.geminiApiKey);
   } catch (err) {
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
@@ -197,8 +197,10 @@ Tidak ada pengecualian untuk aturan ini.`;
 
   const messagesWithLang = [...prevMsgs, ...langDemo, lastMsg];
 
+  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+
   const result = streamText({
-    model: groq("llama-3.3-70b-versatile"),
+    model: groqClient("llama-3.3-70b-versatile"),
     system: systemPromptWithContext,
     messages: messagesWithLang,
     onFinish: async ({ text }) => {
@@ -237,7 +239,7 @@ Tidak ada pengecualian untuk aturan ini.`;
       try {
         const suggestLang = responseLang === "en" ? "English" : "Bahasa Indonesia";
         const { text: suggestionsRaw } = await generateText({
-          model: groq("llama-3.3-70b-versatile"),
+          model: groqClient("llama-3.3-70b-versatile"),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
 Question: ${lastUserMessage.content}

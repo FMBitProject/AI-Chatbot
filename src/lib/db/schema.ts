@@ -7,6 +7,8 @@ export const companies = pgTable("companies", {
   aiName: text("ai_name").default("IntelliBase AI").notNull(),
   aiGreeting: text("ai_greeting"),
   aiPersonality: text("ai_personality"),
+  groqApiKey: text("groq_api_key"),
+  geminiApiKey: text("gemini_api_key"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

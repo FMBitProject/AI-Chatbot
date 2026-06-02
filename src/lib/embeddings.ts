@@ -1,17 +1,17 @@
 import { embed, embedMany } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
-function getGoogle() {
+function getGoogle(apiKey?: string | null) {
   return createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    apiKey: apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     baseURL: "https://generativelanguage.googleapis.com/v1beta",
   });
 }
 
-export async function getEmbedding(text: string): Promise<number[]> {
-  const google = getGoogle();
+export async function getEmbedding(text: string, apiKey?: string | null): Promise<number[]> {
+  const google = getGoogle(apiKey);
   const { embedding } = await embed({
-    model: google.textEmbeddingModel("gemini-embedding-001"),
+    model: google.embedding("gemini-embedding-001"),
     value: text.replace(/\n/g, " "),
   });
   return embedding;
@@ -39,7 +39,7 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         const { embeddings } = await embedMany({
-          model: google.textEmbeddingModel("gemini-embedding-001"),
+          model: google.embedding("gemini-embedding-001"),
           values: batch,
           maxRetries: 0, // we handle retries ourselves
         });

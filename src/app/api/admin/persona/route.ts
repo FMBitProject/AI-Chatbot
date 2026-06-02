@@ -12,7 +12,13 @@ export async function GET(req: NextRequest) {
   if (!dbUser?.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  return NextResponse.json({ aiName: company?.aiName, aiGreeting: company?.aiGreeting, aiPersonality: company?.aiPersonality });
+  return NextResponse.json({
+    aiName: company?.aiName,
+    aiGreeting: company?.aiGreeting,
+    aiPersonality: company?.aiPersonality,
+    hasGroqApiKey: !!company?.groqApiKey,
+    hasGeminiApiKey: !!company?.geminiApiKey,
+  });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -24,15 +30,24 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { aiName, aiGreeting, aiPersonality } = await req.json() as {
+  const { aiName, aiGreeting, aiPersonality, groqApiKey, geminiApiKey } = await req.json() as {
     aiName?: string;
     aiGreeting?: string;
     aiPersonality?: string;
+    groqApiKey?: string;
+    geminiApiKey?: string;
   };
 
-  await db.update(companies)
-    .set({ aiName: aiName || "IntelliBase AI", aiGreeting: aiGreeting || null, aiPersonality: aiPersonality || null })
-    .where(eq(companies.id, dbUser.companyId));
+  const updateData: Partial<typeof companies.$inferInsert> = {
+    aiName: aiName || "IntelliBase AI",
+    aiGreeting: aiGreeting || null,
+    aiPersonality: aiPersonality || null,
+  };
+  // Only update keys if a new non-empty value is provided; empty string clears the key
+  if (groqApiKey !== undefined) updateData.groqApiKey = groqApiKey || null;
+  if (geminiApiKey !== undefined) updateData.geminiApiKey = geminiApiKey || null;
+
+  await db.update(companies).set(updateData).where(eq(companies.id, dbUser.companyId));
 
   return NextResponse.json({ ok: true });
 }
