@@ -103,10 +103,15 @@ export default function ChatPage() {
       if (!res.ok) {
         const langCode = responseLangRef.current;
         if (res.status === 429) {
-          const data = await res.json().catch(() => ({ limit: 100 })) as { error: string; limit: number };
+          const data = await res.json().catch(() => ({ limit: 0, period: "daily" })) as { error: string; limit: number; period: "daily" | "monthly" };
+          const isDaily = data.period === "daily";
           const quotaMsg = langCode === "en"
-            ? `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nPlease contact the developer to upgrade your subscription plan.\n\n📧 Contact: renfael6@gmail.com`
-            : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nSilakan hubungi developer untuk upgrade paket langganan Anda.\n\n📧 Kontak: renfael6@gmail.com`;
+            ? isDaily
+              ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Contact the developer to upgrade your plan.\n\n📧 Contact: renfael6@gmail.com`
+              : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Contact the developer to upgrade your plan.\n\n📧 Contact: renfael6@gmail.com`
+            : isDaily
+              ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda akan reset besok. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: renfael6@gmail.com`
+              : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda akan reset bulan depan. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: renfael6@gmail.com`;
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
           return;
         }

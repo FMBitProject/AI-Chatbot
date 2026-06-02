@@ -43,30 +43,46 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Tidak ada pesan." }), { status: 400 });
   }
 
-  // Fetch company and check monthly quota before doing any heavy processing
+  // Fetch company and check quotas before doing any heavy processing
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  const { maxQuestionsPerMonth } = getLimits(company?.plan ?? "starter");
+  const { maxQuestionsPerMonth, maxQuestionsPerDay } = getLimits(company?.plan ?? "starter");
+
+  const companyId = dbUser.companyId!;
+
+  // Helper to count user messages for this company since a given date
+  async function countMessages(since: Date): Promise<number> {
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(chatMessages)
+      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+      .where(and(
+        eq(chatSessions.companyId, companyId),
+        eq(chatMessages.role, "user"),
+        gte(chatMessages.createdAt, since)
+      ));
+    return total;
+  }
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const dailyCount = await countMessages(startOfToday);
+  if (dailyCount >= maxQuestionsPerDay) {
+    return new Response(
+      JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }),
+      { status: 429 }
+    );
+  }
 
   if (maxQuestionsPerMonth !== -1) {
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const [{ total }] = await db
-      .select({ total: count() })
-      .from(chatMessages)
-      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-      .where(
-        and(
-          eq(chatSessions.companyId, dbUser.companyId),
-          eq(chatMessages.role, "user"),
-          gte(chatMessages.createdAt, startOfMonth)
-        )
-      );
-
-    if (total >= maxQuestionsPerMonth) {
+    const monthlyCount = await countMessages(startOfMonth);
+    if (monthlyCount >= maxQuestionsPerMonth) {
       return new Response(
-        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth }),
+        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth, period: "monthly" }),
         { status: 429 }
       );
     }
