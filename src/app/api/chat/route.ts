@@ -4,8 +4,9 @@ import { groq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documentChunks, users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, count, and, gte } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { getLimits } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
 
 const SYSTEM_PROMPT = `You are an internal AI assistant for a company, helping employees find accurate information from official internal documents such as SOPs, HR regulations, and IT guidelines.
@@ -42,7 +43,45 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Tidak ada pesan." }), { status: 400 });
   }
 
-  const queryEmbedding = await getEmbedding(lastUserMessage.content);
+  // Fetch company and check monthly quota before doing any heavy processing
+  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const { maxQuestionsPerMonth } = getLimits(company?.plan ?? "starter");
+
+  if (maxQuestionsPerMonth !== -1) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [{ total }] = await db
+      .select({ total: count() })
+      .from(chatMessages)
+      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+      .where(
+        and(
+          eq(chatSessions.companyId, dbUser.companyId),
+          eq(chatMessages.role, "user"),
+          gte(chatMessages.createdAt, startOfMonth)
+        )
+      );
+
+    if (total >= maxQuestionsPerMonth) {
+      return new Response(
+        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth }),
+        { status: 429 }
+      );
+    }
+  }
+
+  let queryEmbedding: number[];
+  try {
+    queryEmbedding = await getEmbedding(lastUserMessage.content);
+  } catch (err) {
+    const is429 = err instanceof Error && err.message.includes("429");
+    return new Response(
+      JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" }),
+      { status: 503 }
+    );
+  }
 
   const chunksQuery = db
     .select({
@@ -103,7 +142,6 @@ export async function POST(req: NextRequest) {
           .join("\n\n")
       : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
 
-  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
 
@@ -183,24 +221,31 @@ Tidak ada pengecualian untuk aturan ini.`;
       await writer.write(encoder.encode(`2:${JSON.stringify({ citations, messageId: assistantMsgId, sessionId: activeSessionId })}\n`));
 
       let fullText = "";
-      for await (const chunk of result.textStream) {
-        fullText += chunk;
-        await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
+      try {
+        for await (const chunk of result.textStream) {
+          fullText += chunk;
+          await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const is429 = msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota");
+        await writer.write(encoder.encode(`1:${JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" })}\n`));
+        return;
       }
 
-      // Generate suggested follow-up questions
-      const suggestLang = responseLang === "en" ? "English" : "Bahasa Indonesia";
-      const { text: suggestionsRaw } = await generateText({
-        model: groq("llama-3.3-70b-versatile"),
-        prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
+      // Generate suggested follow-up questions — silently skip if this fails
+      try {
+        const suggestLang = responseLang === "en" ? "English" : "Bahasa Indonesia";
+        const { text: suggestionsRaw } = await generateText({
+          model: groq("llama-3.3-70b-versatile"),
+          prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
 Question: ${lastUserMessage.content}
 Answer: ${fullText.slice(0, 500)}
 
 Return format: ["question 1", "question 2", "question 3"]`,
-      });
+        });
 
-      try {
         const match = suggestionsRaw.match(/\[[\s\S]*\]/);
         if (match) {
           const suggestions = JSON.parse(match[0]) as string[];

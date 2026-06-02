@@ -100,7 +100,31 @@ export default function ChatPage() {
         signal: controller.signal,
       });
 
-      if (!res.ok) throw new Error("Chat API error");
+      if (!res.ok) {
+        const langCode = responseLangRef.current;
+        if (res.status === 429) {
+          const data = await res.json().catch(() => ({ limit: 100 })) as { error: string; limit: number };
+          const quotaMsg = langCode === "en"
+            ? `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nPlease contact the developer to upgrade your subscription plan.\n\n📧 Contact: renfael6@gmail.com`
+            : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nSilakan hubungi developer untuk upgrade paket langganan Anda.\n\n📧 Kontak: renfael6@gmail.com`;
+          setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
+          return;
+        }
+        if (res.status === 503) {
+          const data = await res.json().catch(() => ({ error: "AI_ERROR" })) as { error: string; provider: string };
+          const isRateLimit = data.error === "AI_RATE_LIMIT";
+          const errMsg = langCode === "en"
+            ? isRateLimit
+              ? `⚠️ **AI service is currently busy** (rate limit reached).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+              : `⚠️ **AI service is temporarily unavailable.**\n\nPlease try again in a moment. If the problem persists, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+            : isRateLimit
+              ? `⚠️ **Layanan AI sedang sibuk** (rate limit tercapai).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`
+              : `⚠️ **Layanan AI sedang tidak tersedia.**\n\nSilakan coba lagi sebentar. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`;
+          setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: errMsg } : m));
+          return;
+        }
+        throw new Error("Chat API error");
+      }
 
       const reader = res.body!.getReader();
       const decoder = new TextDecoder();
@@ -119,6 +143,20 @@ export default function ChatPage() {
               const text = JSON.parse(line.slice(2)) as string;
               fullContent += text;
               setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: fullContent } : m));
+            } catch {}
+          } else if (line.startsWith("1:")) {
+            try {
+              const { error, provider } = JSON.parse(line.slice(2)) as { error: string; provider: string };
+              const langCode = responseLangRef.current;
+              const isRateLimit = error === "AI_RATE_LIMIT";
+              const errMsg = langCode === "en"
+                ? isRateLimit
+                  ? `⚠️ **AI service is currently busy** (${provider} rate limit).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+                  : `⚠️ **AI service encountered an error** (${provider}).\n\nPlease try again. If the problem persists, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+                : isRateLimit
+                  ? `⚠️ **Layanan AI sedang sibuk** (${provider} rate limit).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`
+                  : `⚠️ **Layanan AI mengalami gangguan** (${provider}).\n\nSilakan coba lagi. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`;
+              setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: errMsg } : m));
             } catch {}
           } else if (line.startsWith("2:")) {
             try {
@@ -273,6 +311,11 @@ export default function ChatPage() {
               <Send className="h-4 w-4" />
             </Button>
           </form>
+          <p className="text-xs text-gray-400 text-center max-w-3xl mx-auto">
+            {responseLang === "id"
+              ? "IntelliBase AI dapat membuat kesalahan. Selalu verifikasi informasi penting dengan dokumen resmi atau atasan Anda."
+              : "IntelliBase AI can make mistakes. Always verify important information with official documents or your supervisor."}
+          </p>
         </div>
       </div>
     </div>
