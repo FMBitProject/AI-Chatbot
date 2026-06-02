@@ -29,6 +29,24 @@ async function extractText(file: File): Promise<string> {
     return result.value;
   }
 
+  if (name.endsWith(".xlsx")) {
+    const XLSX = await import("xlsx");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const lines: string[] = [];
+    for (const sheetName of workbook.SheetNames) {
+      lines.push(`=== ${sheetName} ===`);
+      lines.push(XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]));
+    }
+    return lines.join("\n");
+  }
+
+  if (name.endsWith(".pptx")) {
+    const { parseOffice } = await import("officeparser");
+    const ast = await parseOffice(buffer);
+    const { value: text } = await ast.to("text");
+    return text as string;
+  }
+
   throw new Error(`Format file tidak didukung: ${file.name}`);
 }
 

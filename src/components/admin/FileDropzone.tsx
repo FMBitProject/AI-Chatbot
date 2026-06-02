@@ -48,6 +48,8 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
     accept: {
       "application/pdf": [".pdf"],
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
     },
     maxSize: MAX_FILE_SIZE,
     disabled: isUploading,
