@@ -6,7 +6,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
-import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Key, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
 
@@ -135,14 +135,21 @@ export default function PricingPage() {
                 )}
               </div>
               <ul className="space-y-3 flex-1 mb-8">
-                {T.features[idx].map((f, fi) => (
-                  <li key={fi} className="flex items-center gap-2.5 text-sm">
-                    {fi < (idx === 0 ? 5 : idx === 1 ? 9 : 10)
-                      ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                      : <XCircle className="h-4 w-4 text-gray-200 shrink-0" />}
-                    <span className={fi >= (idx === 0 ? 5 : 10) ? "text-gray-300" : "text-gray-700"}>{f}</span>
-                  </li>
-                ))}
+                {T.features[idx].map((f, fi) => {
+                  const hasCheck = fi < (idx === 0 ? 5 : idx === 1 ? 9 : 11);
+                  const isGray = fi >= (idx === 0 ? 5 : idx === 1 ? 10 : 11);
+                  const isByok = fi === T.features[idx].length - 1;
+                  return (
+                    <li key={fi} className="flex items-center gap-2.5 text-sm">
+                      {isByok && hasCheck
+                        ? <Key className="h-4 w-4 text-violet-500 shrink-0" />
+                        : hasCheck
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                        : <XCircle className="h-4 w-4 text-gray-200 shrink-0" />}
+                      <span className={isGray ? "text-gray-300" : isByok && hasCheck ? "text-violet-700 font-medium" : "text-gray-700"}>{f}</span>
+                    </li>
+                  );
+                })}
               </ul>
               {idx === 0 ? (
                 <Link href="/register">
@@ -166,6 +173,12 @@ export default function PricingPage() {
           ))}
         </div>
       </section>
+
+      {/* Fair use footnote */}
+      <div className="max-w-6xl mx-auto px-6 pb-6 flex items-start gap-1.5">
+        <Info className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
+        <p className="text-xs text-gray-400">{T.fairUseNote}</p>
+      </div>
 
       {/* Feature grid */}
       <section className="bg-gray-50 py-16 px-6">
