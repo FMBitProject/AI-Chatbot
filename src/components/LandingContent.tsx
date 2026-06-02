@@ -20,7 +20,7 @@ const CONTENT = {
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
     steps: [
-      { n: "1", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, atau panduan IT dalam format PDF/DOCX. AI langsung mengindeks.", icon: FileText },
+      { n: "1", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, atau panduan IT dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
       { n: "2", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
       { n: "3", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan.", icon: MessageSquare },
     ],
@@ -28,7 +28,7 @@ const CONTENT = {
     featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
     features: [
       { icon: MessageSquare, t: "Chat AI Berbasis RAG", d: "Jawaban akurat dari dokumen internal Anda — bukan dari internet umum." },
-      { icon: FileText, t: "Upload PDF & DOCX", d: "Upload SOP, regulasi HR, panduan IT. AI langsung mengindeks dan siap menjawab." },
+      { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT. AI langsung mengindeks dan siap menjawab." },
       { icon: ShieldCheck, t: "Isolasi Data Multi-Tenant", d: "Data tiap perusahaan terisolasi penuh. Tidak ada kebocoran ke tenant lain." },
       { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Pantau pertanyaan terpopuler dan siapa bertanya apa untuk insight bisnis." },
@@ -68,7 +68,7 @@ const CONTENT = {
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
     steps: [
-      { n: "1", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, or IT guidelines in PDF/DOCX format. AI indexes immediately.", icon: FileText },
+      { n: "1", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, or IT guidelines in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
       { n: "2", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
       { n: "3", t: "Ask & Get Answers", d: "Employees type questions in chat. AI answers based on official company documents.", icon: MessageSquare },
     ],
@@ -76,7 +76,7 @@ const CONTENT = {
     featDesc: "A complete platform for internal company knowledge management",
     features: [
       { icon: MessageSquare, t: "RAG-based AI Chat", d: "Accurate answers from your internal documents — not from the general internet." },
-      { icon: FileText, t: "PDF & DOCX Upload", d: "Upload SOPs, HR regulations, IT guidelines. AI indexes instantly and is ready to answer." },
+      { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines. AI indexes instantly and is ready to answer." },
       { icon: ShieldCheck, t: "Multi-Tenant Data Isolation", d: "Each company's data is fully isolated. No leaks to other tenants." },
       { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Monitor top questions and who asked what for business insights." },
@@ -218,7 +218,7 @@ export function LandingContent() {
         <p className="text-blue-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register"><Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
-          <Link href="/pricing"><Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
+          <Link href="/pricing"><Button size="lg" variant="outline" className="border-white !text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
         </div>
       </section>
 
