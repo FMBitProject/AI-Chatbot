@@ -218,7 +218,7 @@ export function LandingContent() {
         <p className="text-blue-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register"><Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
-          <Link href="/pricing"><Button size="lg" variant="outline" className="border-white !text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
+          <Link href="/pricing"><Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
         </div>
       </section>
 
