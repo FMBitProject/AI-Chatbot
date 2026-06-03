@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 type ResponseLang = "id" | "en";
 
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "sales@intellibase.ai";
+
 export default function ChatPage() {
   const { data: session } = authClient.useSession();
   const user = session?.user as { name?: string; email?: string; role?: string } | undefined;
@@ -107,11 +109,11 @@ export default function ChatPage() {
           const isDaily = data.period === "daily";
           const quotaMsg = langCode === "en"
             ? isDaily
-              ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Contact the developer to upgrade your plan.\n\n📧 Contact: renfael6@gmail.com`
-              : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Contact the developer to upgrade your plan.\n\n📧 Contact: renfael6@gmail.com`
+              ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
+              : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
             : isDaily
-              ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda akan reset besok. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: renfael6@gmail.com`
-              : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda akan reset bulan depan. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: renfael6@gmail.com`;
+              ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda akan reset besok. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`
+              : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda akan reset bulan depan. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
           return;
         }
@@ -120,11 +122,11 @@ export default function ChatPage() {
           const isRateLimit = data.error === "AI_RATE_LIMIT";
           const errMsg = langCode === "en"
             ? isRateLimit
-              ? `⚠️ **AI service is currently busy** (rate limit reached).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
-              : `⚠️ **AI service is temporarily unavailable.**\n\nPlease try again in a moment. If the problem persists, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+              ? `⚠️ **AI service is currently busy** (rate limit reached).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: ${SUPPORT_EMAIL}`
+              : `⚠️ **AI service is temporarily unavailable.**\n\nPlease try again in a moment. If the problem persists, contact the developer.\n\n📧 Contact: ${SUPPORT_EMAIL}`
             : isRateLimit
-              ? `⚠️ **Layanan AI sedang sibuk** (rate limit tercapai).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`
-              : `⚠️ **Layanan AI sedang tidak tersedia.**\n\nSilakan coba lagi sebentar. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`;
+              ? `⚠️ **Layanan AI sedang sibuk** (rate limit tercapai).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: ${SUPPORT_EMAIL}`
+              : `⚠️ **Layanan AI sedang tidak tersedia.**\n\nSilakan coba lagi sebentar. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: errMsg } : m));
           return;
         }
@@ -156,11 +158,11 @@ export default function ChatPage() {
               const isRateLimit = error === "AI_RATE_LIMIT";
               const errMsg = langCode === "en"
                 ? isRateLimit
-                  ? `⚠️ **AI service is currently busy** (${provider} rate limit).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
-                  : `⚠️ **AI service encountered an error** (${provider}).\n\nPlease try again. If the problem persists, contact the developer.\n\n📧 Contact: renfael6@gmail.com`
+                  ? `⚠️ **AI service is currently busy** (${provider} rate limit).\n\nPlease wait a few minutes and try again. If this keeps happening, contact the developer.\n\n📧 Contact: ${SUPPORT_EMAIL}`
+                  : `⚠️ **AI service encountered an error** (${provider}).\n\nPlease try again. If the problem persists, contact the developer.\n\n📧 Contact: ${SUPPORT_EMAIL}`
                 : isRateLimit
-                  ? `⚠️ **Layanan AI sedang sibuk** (${provider} rate limit).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`
-                  : `⚠️ **Layanan AI mengalami gangguan** (${provider}).\n\nSilakan coba lagi. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: renfael6@gmail.com`;
+                  ? `⚠️ **Layanan AI sedang sibuk** (${provider} rate limit).\n\nTunggu beberapa menit lalu coba lagi. Jika terus terjadi, hubungi developer.\n\n📧 Kontak: ${SUPPORT_EMAIL}`
+                  : `⚠️ **Layanan AI mengalami gangguan** (${provider}).\n\nSilakan coba lagi. Jika masalah berlanjut, hubungi developer.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
               setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: errMsg } : m));
             } catch {}
           } else if (line.startsWith("2:")) {

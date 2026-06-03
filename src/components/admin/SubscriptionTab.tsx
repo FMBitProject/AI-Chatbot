@@ -10,7 +10,7 @@ import Link from "next/link";
 
 interface SubData {
   plan: string;
-  limits: { maxDocuments: number; maxEmployees: number; maxQuestionsPerMonth: number };
+  limits: { maxDocuments: number; maxEmployees: number; maxQuestionsPerMonth: number; maxQuestionsPerDay: number };
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
 
@@ -147,6 +147,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
             {[
               { label: lang === "en" ? "Documents" : "Dokumen", value: inf(data.limits.maxDocuments) },
               { label: lang === "en" ? "Employees" : "Karyawan", value: inf(data.limits.maxEmployees) },
+              { label: lang === "en" ? "Questions/day" : "Pertanyaan/hari", value: inf(data.limits.maxQuestionsPerDay) },
               { label: lang === "en" ? "Questions/month" : "Pertanyaan/bulan", value: inf(data.limits.maxQuestionsPerMonth) },
             ].map((l) => (
               <div key={l.label} className="text-center p-3 bg-gray-50 rounded-lg">

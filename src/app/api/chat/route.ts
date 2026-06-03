@@ -66,8 +66,8 @@ export async function POST(req: NextRequest) {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
-  const dailyCount = await countMessages(startOfToday);
-  if (dailyCount >= maxQuestionsPerDay) {
+  const dailyCount = maxQuestionsPerDay !== -1 ? await countMessages(startOfToday) : 0;
+  if (maxQuestionsPerDay !== -1 && dailyCount >= maxQuestionsPerDay) {
     return new Response(
       JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }),
       { status: 429 }
@@ -235,6 +235,9 @@ Tidak ada pengecualian untuk aturan ini.`;
   const writer = writable.getWriter();
 
   (async () => {
+    let closed = false;
+    const closeWriter = async () => { if (!closed) { closed = true; await writer.close(); } };
+
     try {
       await writer.write(encoder.encode(`2:${JSON.stringify({ citations, messageId: assistantMsgId, sessionId: activeSessionId })}\n`));
 
@@ -248,6 +251,7 @@ Tidak ada pengecualian untuk aturan ini.`;
         const msg = err instanceof Error ? err.message : String(err);
         const is429 = msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota");
         await writer.write(encoder.encode(`1:${JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" })}\n`));
+        await closeWriter();
         return;
       }
 
@@ -271,7 +275,7 @@ Return format: ["question 1", "question 2", "question 3"]`,
         }
       } catch {}
     } finally {
-      await writer.close();
+      await closeWriter();
     }
   })();
 
