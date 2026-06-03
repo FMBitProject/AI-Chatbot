@@ -42,7 +42,7 @@ export function ChatSidebar({
 
   async function handleLogout() {
     await authClient.signOut();
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   return (

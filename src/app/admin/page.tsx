@@ -106,7 +106,7 @@ export default function AdminPage() {
 
   async function handleLogout() {
     await authClient.signOut();
-    router.push("/login");
+    window.location.href = "/login";
   }
 
   return (
