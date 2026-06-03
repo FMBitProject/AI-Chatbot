@@ -154,7 +154,7 @@ export default function PricingPage() {
                     {T.startFree} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-              ) : (
+              ) : session?.user ? (
                 <Button
                   className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}
                   onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
@@ -165,6 +165,12 @@ export default function PricingPage() {
                     : <>{idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" /></>
                   }
                 </Button>
+              ) : (
+                <Link href={`/register?plan=${idx === 1 ? "professional" : "enterprise"}`}>
+                  <Button className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}>
+                    {idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
               )}
             </div>
           ))}
