@@ -71,12 +71,22 @@ export default function PricingPage() {
           <LogoFull size="sm" />
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            <Link href="/login">
-              <Button variant="ghost" size="sm">{T.signin}</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.startFree}</Button>
-            </Link>
+            {session?.user ? (
+              <Link href="/chat">
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                  {lang === "en" ? "Go to Dashboard" : "Buka Dashboard"}
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">{T.signin}</Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.startFree}</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
