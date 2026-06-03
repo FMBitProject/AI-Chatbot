@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 type ResponseLang = "id" | "en";
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "intellibaseai@gmail.com";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "intellibaseaisupport@gmail.com";
 
 export default function ChatPage() {
   const { data: session } = authClient.useSession();

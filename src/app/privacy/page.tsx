@@ -20,11 +20,11 @@ export default function PrivacyPage() {
             { title: "2. Cara Kami Menggunakan Data", body: "Data Anda digunakan untuk: menyediakan layanan AI chat, mengindeks dokumen perusahaan Anda, meningkatkan akurasi pencarian, dan memproses pembayaran. Kami tidak menjual data Anda kepada pihak ketiga." },
             { title: "3. Penyimpanan dan Keamanan Data", body: "Data disimpan di Neon PostgreSQL (server berbasis cloud). Semua koneksi dienkripsi dengan TLS. Dokumen Anda diindeks dalam ruang terisolasi per perusahaan menggunakan embedding vektor." },
             { title: "4. Berbagi Data dengan Pihak Ketiga", body: "Kami berbagi data dengan pihak ketiga terbatas berikut: Groq Inc. (pemrosesan teks AI, data tidak disimpan permanen), Google LLC (embedding teks via Gemini API, data tidak disimpan permanen), Midtrans (pemrosesan pembayaran, berlisensi Bank Indonesia), Neon Inc. (penyimpanan database terenkripsi). Kami tidak berbagi data dengan pihak lain tanpa persetujuan eksplisit Anda." },
-            { title: "5. Hak Anda (sesuai UU PDP No. 27/2022)", body: "Anda berhak: mengakses data Anda, mengoreksi data yang tidak akurat, menghapus akun dan seluruh data, menarik persetujuan pemrosesan data, mengajukan keberatan atas pemrosesan data. Untuk permintaan tersebut, hubungi: intellibaseai@gmail.com" },
+            { title: "5. Hak Anda (sesuai UU PDP No. 27/2022)", body: "Anda berhak: mengakses data Anda, mengoreksi data yang tidak akurat, menghapus akun dan seluruh data, menarik persetujuan pemrosesan data, mengajukan keberatan atas pemrosesan data. Untuk permintaan tersebut, hubungi: intellibaseaisupport@gmail.com" },
             { title: "6. Cookie", body: "Kami menggunakan cookie session untuk autentikasi (wajib) dan cookie preferensi untuk menyimpan pilihan bahasa (opsional). Anda dapat menolak cookie non-esensial melalui banner consent." },
             { title: "7. Retensi Data", body: "Data akun disimpan selama akun aktif. Setelah penghapusan akun, data dihapus dalam 30 hari. Log sistem disimpan maksimal 90 hari." },
             { title: "8. Perubahan Kebijakan", body: "Perubahan material pada kebijakan ini akan diberitahukan melalui notifikasi dalam aplikasi. Penggunaan berkelanjutan dianggap sebagai penerimaan kebijakan yang diperbarui." },
-            { title: "9. Kontak", body: "Pertanyaan tentang privasi dan perlindungan data: intellibaseai@gmail.com" },
+            { title: "9. Kontak", body: "Pertanyaan tentang privasi dan perlindungan data: intellibaseaisupport@gmail.com" },
           ].map((s) => (
             <div key={s.title}>
               <h2 className="font-semibold text-gray-900 text-base mb-2">{s.title}</h2>
