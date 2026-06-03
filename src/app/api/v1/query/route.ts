@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiKeys, documentChunks, documents, companies, chatMessages, chatSessions } from "@/lib/db/schema";
-import { eq, count, and, gte } from "drizzle-orm";
+import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
 import { getLimits } from "@/lib/plan-limits";
 import { generateText } from "ai";
@@ -24,14 +24,23 @@ export async function POST(req: NextRequest) {
   // Enforce same daily/monthly quota as the chat UI
   const [company] = await db.select().from(companies).where(eq(companies.id, apiKey.companyId)).limit(1);
   const { maxQuestionsPerDay, maxQuestionsPerMonth } = getLimits(company?.plan ?? "starter");
+  const today = new Date().toISOString().split("T")[0];
 
-  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-  const [{ total: dailyCount }] = await db
-    .select({ total: count() }).from(chatMessages)
-    .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-    .where(and(eq(chatSessions.companyId, apiKey.companyId), eq(chatMessages.role, "user"), gte(chatMessages.createdAt, startOfToday)));
-  if (maxQuestionsPerDay !== -1 && dailyCount >= maxQuestionsPerDay) {
-    return NextResponse.json({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }, { status: 429 });
+  if (maxQuestionsPerDay !== -1) {
+    const updated = await db.update(companies)
+      .set({
+        dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN daily_question_count + 1 ELSE 1 END`,
+        dailyQuestionDate: today,
+      })
+      .where(and(
+        eq(companies.id, apiKey.companyId),
+        or(isNull(companies.dailyQuestionDate), sql`daily_question_date != ${today}`, lt(companies.dailyQuestionCount, maxQuestionsPerDay))
+      ))
+      .returning({ id: companies.id });
+
+    if (updated.length === 0) {
+      return NextResponse.json({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }, { status: 429 });
+    }
   }
 
   if (maxQuestionsPerMonth !== -1) {

@@ -9,6 +9,8 @@ export const companies = pgTable("companies", {
   aiPersonality: text("ai_personality"),
   groqApiKey: text("groq_api_key"),
   geminiApiKey: text("gemini_api_key"),
+  dailyQuestionCount: integer("daily_question_count").default(0).notNull(),
+  dailyQuestionDate: text("daily_question_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

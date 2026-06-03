@@ -4,7 +4,7 @@ import { groq, createGroq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { documentChunks, users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq, count, and, gte } from "drizzle-orm";
+import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
 import { getLimits } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
@@ -48,38 +48,50 @@ export async function POST(req: NextRequest) {
   const { maxQuestionsPerMonth, maxQuestionsPerDay } = getLimits(company?.plan ?? "starter");
 
   const companyId = dbUser.companyId!;
+  const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
 
-  // Helper to count user messages for this company since a given date
-  async function countMessages(since: Date): Promise<number> {
-    const [{ total }] = await db
+  // Daily quota: atomic check-and-increment in one UPDATE query.
+  // PostgreSQL executes this atomically — no race condition possible.
+  if (maxQuestionsPerDay !== -1) {
+    const updated = await db.update(companies)
+      .set({
+        dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN daily_question_count + 1 ELSE 1 END`,
+        dailyQuestionDate: today,
+      })
+      .where(and(
+        eq(companies.id, companyId),
+        or(
+          isNull(companies.dailyQuestionDate),
+          sql`daily_question_date != ${today}`,
+          lt(companies.dailyQuestionCount, maxQuestionsPerDay)
+        )
+      ))
+      .returning({ id: companies.id });
+
+    if (updated.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }),
+        { status: 429 }
+      );
+    }
+  }
+
+  // Monthly quota: count-based check (race window is large enough to be negligible)
+  if (maxQuestionsPerMonth !== -1) {
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [{ total: monthlyCount }] = await db
       .select({ total: count() })
       .from(chatMessages)
       .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
       .where(and(
         eq(chatSessions.companyId, companyId),
         eq(chatMessages.role, "user"),
-        gte(chatMessages.createdAt, since)
+        gte(chatMessages.createdAt, startOfMonth)
       ));
-    return total;
-  }
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-
-  const dailyCount = maxQuestionsPerDay !== -1 ? await countMessages(startOfToday) : 0;
-  if (maxQuestionsPerDay !== -1 && dailyCount >= maxQuestionsPerDay) {
-    return new Response(
-      JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }),
-      { status: 429 }
-    );
-  }
-
-  if (maxQuestionsPerMonth !== -1) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const monthlyCount = await countMessages(startOfMonth);
     if (monthlyCount >= maxQuestionsPerMonth) {
       return new Response(
         JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth, period: "monthly" }),
