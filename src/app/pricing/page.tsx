@@ -9,6 +9,7 @@ import { pricing } from "@/lib/i18n";
 import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
 const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
@@ -239,17 +240,7 @@ export default function PricingPage() {
         </Link>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-8 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <LogoFull size="sm" />
-          <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
-          <div className="flex gap-4 text-sm text-gray-400">
-            <Link href="/login" className="hover:text-gray-600">{T.signin}</Link>
-            <Link href="/register" className="hover:text-gray-600">{T.startFree}</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter lang={lang} />
     </div>
   );
 }

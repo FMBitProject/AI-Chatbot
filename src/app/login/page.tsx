@@ -13,6 +13,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { Loader2, ShieldCheck, Zap, BookOpen } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function LoginPage() {
   ];
 
   return (
+    <>
     <div className="min-h-screen flex">
       <Toaster />
 
@@ -115,5 +117,7 @@ export default function LoginPage() {
         <div className="mt-auto" />
       </div>
     </div>
+    <SiteFooter lang={lang} />
+    </>
   );
 }

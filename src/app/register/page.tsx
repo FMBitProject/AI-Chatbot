@@ -13,6 +13,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { Loader2, CheckCircle2 } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function RegisterPage() {
   const BENEFITS = [T.b1, T.b2, T.b3, T.b4];
 
   return (
+    <>
     <div className="min-h-screen flex">
       <Toaster />
 
@@ -121,5 +123,7 @@ export default function RegisterPage() {
         <div className="mt-auto" />
       </div>
     </div>
+    <SiteFooter lang={lang} />
+    </>
   );
 }

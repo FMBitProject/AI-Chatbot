@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoFull } from "@/components/Logo";
+import { SiteFooter } from "@/components/SiteFooter";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Syarat & Ketentuan — IntelliBase AI" };
@@ -36,9 +37,7 @@ export default function TermsPage() {
           ))}
         </div>
       </main>
-      <footer className="border-t py-6 px-6 text-center text-gray-400 text-xs">
-        © 2026 IntelliBase AI · <Link href="/privacy" className="hover:text-gray-600">Kebijakan Privasi</Link>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

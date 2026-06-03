@@ -224,7 +224,7 @@ export function LandingContent() {
 
       {/* Footer */}
       <footer className="border-t py-10 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pr-24">
           <LogoFull size="sm" />
           <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
           <div className="flex gap-6 text-sm text-gray-400">
