@@ -12,7 +12,7 @@ import { authClient } from "@/lib/auth-client";
 
 const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
 const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
-const CTA_HREFS = ["/register", "/register?plan=pro", "mailto:sales@intellibase.ai"];
+const CTA_HREFS = ["/register", "/register?plan=pro", "mailto:intellibaseai@gmail.com"];
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
 const HAS_PROMO = [false, true, true];
 
