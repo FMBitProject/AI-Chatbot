@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, QrCode, RefreshCw } from "lucide-react";
+import { ArrowRight, Loader2, QrCode, RefreshCw, Key, CheckCircle2, Eye, EyeOff, Trash2, ExternalLink } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
 interface SubData {
@@ -20,14 +22,59 @@ const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warni
   expired: { label: "Kedaluwarsa", variant: "secondary" },
 };
 
+interface ByokState {
+  hasGroqKey: boolean;
+  hasGeminiKey: boolean;
+  groqInput: string;
+  geminiInput: string;
+  showGroq: boolean;
+  showGemini: boolean;
+  saving: boolean;
+}
+
 export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const [data, setData] = useState<SubData | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [byok, setByok] = useState<ByokState>({
+    hasGroqKey: false, hasGeminiKey: false,
+    groqInput: "", geminiInput: "",
+    showGroq: false, showGemini: false, saving: false,
+  });
 
   useEffect(() => {
     fetch("/api/admin/subscription").then((r) => r.json()).then((d: SubData) => setData(d)).catch(() => {});
+    fetch("/api/admin/company").then((r) => r.json()).then((d: { hasGroqKey: boolean; hasGeminiKey: boolean }) => {
+      if (d) setByok((p) => ({ ...p, hasGroqKey: !!d.hasGroqKey, hasGeminiKey: !!d.hasGeminiKey }));
+    }).catch(() => {});
   }, []);
+
+  async function saveByokKey(provider: "groq" | "gemini", value: string | null) {
+    setByok((p) => ({ ...p, saving: true }));
+    try {
+      const res = await fetch("/api/admin/company", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(provider === "groq" ? { groqApiKey: value } : { geminiApiKey: value }),
+      });
+      if (!res.ok) {
+        const err = await res.json() as { error: string };
+        toast({ variant: "destructive", title: "Gagal", description: err.error });
+        return;
+      }
+      const updated = await res.json() as { hasGroqKey: boolean; hasGeminiKey: boolean };
+      setByok((p) => ({
+        ...p,
+        hasGroqKey: updated.hasGroqKey, hasGeminiKey: updated.hasGeminiKey,
+        groqInput: provider === "groq" ? "" : p.groqInput,
+        geminiInput: provider === "gemini" ? "" : p.geminiInput,
+      }));
+      const label = provider === "groq" ? "Groq" : "Gemini";
+      toast({ title: value ? `${label} API Key disimpan.` : `${label} API Key dihapus.` });
+    } finally {
+      setByok((p) => ({ ...p, saving: false }));
+    }
+  }
 
   async function handleResume(snapToken: string, plan: string) {
     setResuming(snapToken);
@@ -116,6 +163,86 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           )}
         </CardContent>
       </Card>
+
+      {/* BYOK — Enterprise only */}
+      {data.plan === "enterprise" && (
+        <Card className="border-violet-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-violet-100 rounded-lg"><Key className="h-4 w-4 text-violet-600" /></div>
+              <div>
+                <CardTitle className="text-base">
+                  {lang === "en" ? "Dedicated AI Capacity" : "Kapasitas AI Dedicated"}
+                </CardTitle>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {lang === "en"
+                    ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity."
+                    : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas."}
+                </p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(["groq", "gemini"] as const).map((provider) => {
+              const isGroq = provider === "groq";
+              const hasKey = isGroq ? byok.hasGroqKey : byok.hasGeminiKey;
+              const input = isGroq ? byok.groqInput : byok.geminiInput;
+              const show = isGroq ? byok.showGroq : byok.showGemini;
+              const href = isGroq ? "https://console.groq.com/keys" : "https://aistudio.google.com/apikey";
+              const placeholder = isGroq ? "gsk_..." : "AIza...";
+              const label = isGroq ? "Groq" : "Gemini";
+              return (
+                <div key={provider} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-800">{label} API Key</span>
+                      {hasKey && (
+                        <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">
+                          <CheckCircle2 className="h-3 w-3" />{lang === "en" ? "Active" : "Aktif"}
+                        </span>
+                      )}
+                    </div>
+                    <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                      {lang === "en" ? "Get key" : "Dapatkan key"} <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={show ? "text" : "password"}
+                        placeholder={hasKey ? (lang === "en" ? "Enter new key to replace…" : "Masukkan key baru untuk mengganti…") : placeholder}
+                        value={input}
+                        onChange={(e) => setByok((p) => ({ ...p, [`${provider}Input`]: e.target.value }))}
+                        className="pr-10 text-sm font-mono"
+                      />
+                      <button type="button"
+                        onClick={() => setByok((p) => ({ ...p, [isGroq ? "showGroq" : "showGemini"]: !show }))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <Button size="sm" disabled={!input || byok.saving} onClick={() => saveByokKey(provider, input)}
+                      className="bg-violet-600 hover:bg-violet-700 shrink-0">
+                      {byok.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === "en" ? "Save" : "Simpan")}
+                    </Button>
+                    {hasKey && (
+                      <Button size="sm" variant="outline" disabled={byok.saving} onClick={() => saveByokKey(provider, null)}
+                        className="text-red-500 border-red-200 hover:bg-red-50 shrink-0">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            <p className="text-xs text-gray-400 pt-1">
+              {lang === "en"
+                ? "Keys are stored securely and never shown again. If not set, platform shared capacity is used."
+                : "Key disimpan secara aman dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan."}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div>
         <h3 className="font-semibold text-gray-900 mb-3 text-sm">{lang === "en" ? "Billing History" : "Riwayat Pembayaran"}</h3>
