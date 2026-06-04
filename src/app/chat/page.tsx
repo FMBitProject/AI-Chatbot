@@ -22,6 +22,7 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [responseLang, setResponseLang] = useState<ResponseLang>("id");
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
@@ -60,9 +61,10 @@ export default function ChatPage() {
   }
 
   async function loadMessages(sessionId: string) {
+    setIsHistoryLoading(true);
     try {
       const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
-      if (!res.ok) return;
+      if (!res.ok) { setIsHistoryLoading(false); return; }
       const data = await res.json() as { id: string; role: string; content: string; citationsJson?: string; feedback?: string }[];
       if (data.length === 0) {
         setActiveSessionId(null);
@@ -77,6 +79,7 @@ export default function ChatPage() {
         feedback: m.feedback as "up" | "down" | undefined,
       })));
     } catch {}
+    finally { setIsHistoryLoading(false); }
   }
 
   async function handleSubmit(e: React.SyntheticEvent) {
@@ -285,7 +288,21 @@ export default function ChatPage() {
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-          <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} onFeedback={handleFeedback} />
+          {isHistoryLoading ? (
+            <div className="space-y-6 max-w-3xl mx-auto">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex gap-3">
+                  <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-3/4" />
+                    <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ChatMessages messages={messages} isLoading={isLoading} userName={user?.name} onFeedback={handleFeedback} />
+          )}
         </div>
 
         <div className="border-t px-6 py-4 space-y-3">
