@@ -48,7 +48,7 @@ export default function LoginPage() {
 
       {/* Left panel */}
       <div className="hidden lg:flex flex-col w-[55%] bg-gradient-to-br from-blue-700 via-blue-600 to-violet-700 p-12 justify-between">
-        <LogoFull size="md" variant="white" />
+        <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-8">
           <div>
             <h1 className="text-4xl font-bold text-white leading-tight mb-4 whitespace-pre-line">{T.hero1}</h1>
