@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, users } from "@/lib/db/schema";
-import { eq, count, desc } from "drizzle-orm";
+import { eq, count, desc, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 
   const feedbackUp = await db.select({ count: count() }).from(chatMessages)
     .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-    .where(eq(chatSessions.companyId, dbUser.companyId));
+    .where(and(eq(chatSessions.companyId, dbUser.companyId), eq(chatMessages.feedback, "up")));
 
   return NextResponse.json({
     totalSessions: totalSessions.count,
