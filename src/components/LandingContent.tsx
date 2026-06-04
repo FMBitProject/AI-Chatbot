@@ -135,7 +135,7 @@ export function LandingContent() {
           <p className="text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">{T.heroDesc}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register"><Button size="lg" className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
-            <Link href="/pricing"><Button size="lg" className="bg-white hover:bg-gray-50 text-gray-800 border-2 border-gray-200 hover:border-blue-300 gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4 text-blue-500" /></Button></Link>
+            <Link href="/pricing"><Button size="lg" className="bg-gray-900 hover:bg-gray-700 text-white gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4" /></Button></Link>
           </div>
           <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
         </div>
