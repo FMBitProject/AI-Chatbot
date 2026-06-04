@@ -24,6 +24,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [agreed, setAgreed] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "" });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -130,11 +131,34 @@ export default function RegisterPage() {
                   onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                 <PasswordRequirements password={form.password} lang={lang} />
               </div>
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 h-11" disabled={loading}>
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="agree"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-blue-600 cursor-pointer shrink-0"
+                />
+                <label htmlFor="agree" className="text-xs text-gray-500 leading-relaxed cursor-pointer">
+                  {lang === "en" ? (
+                    <>I agree to the{" "}
+                      <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Terms & Conditions</Link>
+                      {" "}and{" "}
+                      <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Privacy Policy</Link>
+                    </>
+                  ) : (
+                    <>Saya menyetujui{" "}
+                      <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Syarat & Ketentuan</Link>
+                      {" "}dan{" "}
+                      <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Kebijakan Privasi</Link>
+                    </>
+                  )}
+                </label>
+              </div>
+              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 h-11" disabled={loading || !agreed}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.registerBtn}
               </Button>
-              <p className="text-xs text-center text-gray-400">{T.terms}</p>
             </form>
             <p className="text-sm text-center text-gray-500">
               {T.hasAccount}{" "}
