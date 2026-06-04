@@ -56,7 +56,7 @@ export default function RegisterPage() {
 
       {/* Left panel */}
       <div className="hidden lg:flex flex-col w-[45%] bg-gradient-to-br from-violet-700 via-blue-600 to-blue-700 p-12 justify-between">
-        <LogoFull size="md" variant="white" />
+        <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-white leading-tight mb-3 whitespace-pre-line">{T.heroRegister}</h1>
