@@ -69,6 +69,7 @@ export default function ChatPage() {
       if (data.length === 0) {
         setActiveSessionId(null);
         setMessages([]);
+        setDbSessions((prev) => prev.filter((s) => s.id !== sessionId));
         return;
       }
       setMessages(data.map((m) => ({
