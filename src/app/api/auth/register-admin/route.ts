@@ -23,6 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
     }
 
+    const existingCompany = await db.select().from(companies).where(eq(companies.name, companyName)).limit(1);
+    if (existingCompany.length > 0) {
+      return NextResponse.json({ error: "Nama perusahaan sudah terdaftar." }, { status: 409 });
+    }
+
     const companyId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: companyName });
 
