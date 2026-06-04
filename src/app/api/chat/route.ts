@@ -205,7 +205,7 @@ Tidak ada pengecualian untuk aturan ini.`;
     content: lastUserMessage.content,
   });
 
-  const citations = scored.map((c) => ({ id: c.id, text: c.text }));
+  const citations = scored.map((c) => ({ id: c.id, text: c.text, documentName: c.documentName }));
   const assistantMsgId = randomUUID();
 
   const typedMessages = messages as { role: "user" | "assistant"; content: string }[];
