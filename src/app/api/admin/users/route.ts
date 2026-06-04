@@ -50,12 +50,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
   }
 
-  await auth.api.signUpEmail({ body: { name, email, password } });
+  if (password.length < 8) {
+    return NextResponse.json({ error: "Password minimal 8 karakter." }, { status: 400 });
+  }
+
+  try {
+    await auth.api.signUpEmail({ body: { name, email, password } });
+  } catch (err) {
+    const msg = (err as Error)?.message ?? "";
+    if (msg.toLowerCase().includes("email") && msg.toLowerCase().includes("exist")) {
+      return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Gagal membuat akun karyawan. Coba lagi." }, { status: 500 });
+  }
 
   const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (created) {
     await db.update(users)
-      .set({ companyId: dbUser.companyId, role: "employee", department: department || null })
+      .set({ companyId: dbUser.companyId, role: "employee", department: department || null, emailVerified: true })
       .where(eq(users.id, created.id));
 
     const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);

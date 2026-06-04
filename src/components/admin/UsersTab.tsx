@@ -45,7 +45,11 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
       setOpen(false);
       setForm({ name: "", email: "", password: "", department: "" });
     } catch (err) {
-      toast({ variant: "destructive", title: "Gagal menambahkan karyawan.", description: (err as Error).message });
+      const msg = (err as Error).message;
+      toast({
+        variant: "destructive",
+        title: msg || (lang === "en" ? "Failed to add employee." : "Gagal menambahkan karyawan."),
+      });
     } finally {
       setLoading(false);
     }
