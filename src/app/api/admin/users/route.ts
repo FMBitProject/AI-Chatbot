@@ -56,23 +56,19 @@ export async function POST(req: NextRequest) {
 
   try {
     await auth.api.signUpEmail({ body: { name, email, password } });
-  } catch (err) {
-    const msg = (err as Error)?.message ?? "";
-    if (msg.toLowerCase().includes("email") && msg.toLowerCase().includes("exist")) {
-      return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
-    }
-    return NextResponse.json({ error: "Gagal membuat akun karyawan. Coba lagi." }, { status: 500 });
+  } catch {
+    // signUpEmail may throw if email sending fails — check if user was created anyway
   }
 
   const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (created) {
-    await db.update(users)
-      .set({ companyId: dbUser.companyId, role: "employee", department: department || null, emailVerified: true })
-      .where(eq(users.id, created.id));
-
-    const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);
-    return NextResponse.json(updated);
+  if (!created) {
+    return NextResponse.json({ error: "Email tidak valid atau tidak dapat digunakan." }, { status: 400 });
   }
 
-  return NextResponse.json({ error: "Gagal membuat user." }, { status: 500 });
+  await db.update(users)
+    .set({ companyId: dbUser.companyId, role: "employee", department: department || null, emailVerified: true })
+    .where(eq(users.id, created.id));
+
+  const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);
+  return NextResponse.json(updated);
 }
