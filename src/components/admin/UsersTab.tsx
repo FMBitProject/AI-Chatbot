@@ -166,6 +166,11 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
             <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
               {loading ? (lang === "en" ? "Adding..." : "Menambahkan...") : T.addEmployee}
             </Button>
+            <p className="text-xs text-gray-400 text-center leading-relaxed">
+              {lang === "en"
+                ? "By adding this employee, you as admin are responsible for the accuracy of the data entered."
+                : "Dengan menambahkan karyawan ini, Anda sebagai admin bertanggung jawab atas kebenaran data yang dimasukkan."}
+            </p>
           </form>
         </DialogContent>
       </Dialog>
