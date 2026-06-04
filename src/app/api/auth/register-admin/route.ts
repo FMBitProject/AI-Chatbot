@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     await db.insert(companies).values({ id: companyId, name: companyName });
 
     await auth.api.signUpEmail({
-      body: { name, email, password },
+      body: { name, email, password, callbackURL: "/admin" },
     });
 
     const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);

@@ -43,6 +43,9 @@ export const t = {
     tip: "💡 Tahukah Anda?",
     tipDesc: "Rata-rata karyawan menghabiskan 2,5 jam/hari mencari informasi internal. IntelliBase memangkas waktu itu hingga 90%.",
     registerFailed: "Registrasi Gagal",
+    checkEmail: "Cek Email Anda",
+    checkEmailDesc: "Kami telah mengirim link verifikasi ke",
+    checkEmailNote: "Klik link di email tersebut untuk mengaktifkan akun Anda. Cek folder Spam jika tidak muncul.",
   },
   en: {
     welcome: "Welcome back",
@@ -86,6 +89,9 @@ export const t = {
     tip: "💡 Did you know?",
     tipDesc: "The average employee spends 2.5 hours/day searching for internal information. IntelliBase cuts that time by 90%.",
     registerFailed: "Registration Failed",
+    checkEmail: "Check Your Email",
+    checkEmailDesc: "We've sent a verification link to",
+    checkEmailNote: "Click the link in the email to activate your account. Check your Spam folder if you don't see it.",
   },
 } as const;
 

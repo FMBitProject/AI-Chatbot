@@ -11,7 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
-import { Loader2, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2, Mail } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { SiteFooter } from "@/components/SiteFooter";
 
@@ -20,6 +20,8 @@ export default function RegisterPage() {
   const { lang } = useLang();
   const T = t[lang];
   const [loading, setLoading] = useState(false);
+  const [registered, setRegistered] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
   const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "" });
 
   async function handleSubmit(e: React.FormEvent) {
@@ -31,8 +33,8 @@ export default function RegisterPage() {
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { toast({ variant: "destructive", title: T.registerFailed, description: data.error }); return; }
-      await authClient.signIn.email({ email: form.email, password: form.password });
-      router.push("/admin");
+      setRegisteredEmail(form.email);
+      setRegistered(true);
     } catch {
       toast({ variant: "destructive", title: "Error", description: T.error });
     } finally { setLoading(false); }
@@ -82,6 +84,20 @@ export default function RegisterPage() {
             <div className="lg:hidden mb-2 flex justify-center">
               <LogoFull size="md" />
             </div>
+
+            {registered ? (
+              <div className="text-center space-y-4 py-8">
+                <div className="flex justify-center">
+                  <div className="bg-blue-100 rounded-full p-4">
+                    <Mail className="h-10 w-10 text-blue-600" />
+                  </div>
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">{T.checkEmail}</h2>
+                <p className="text-gray-600 text-sm">{T.checkEmailDesc}</p>
+                <p className="font-semibold text-gray-900">{registeredEmail}</p>
+                <p className="text-gray-500 text-sm leading-relaxed">{T.checkEmailNote}</p>
+              </div>
+            ) : (<>
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{T.registerTitle}</h2>
               <p className="text-gray-500 text-sm mt-1">{T.registerSubtitle}</p>
@@ -117,6 +133,7 @@ export default function RegisterPage() {
               {T.hasAccount}{" "}
               <Link href="/login" className="text-blue-600 hover:underline font-medium">{T.loginHere}</Link>
             </p>
+            </>)}
           </div>
         </div>
 
