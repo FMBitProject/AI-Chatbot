@@ -168,8 +168,8 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
             </Button>
             <p className="text-xs text-gray-400 text-center leading-relaxed">
               {lang === "en"
-                ? "By adding this employee, you as admin are responsible for the accuracy of the data entered."
-                : "Dengan menambahkan karyawan ini, Anda sebagai admin bertanggung jawab atas kebenaran data yang dimasukkan."}
+                ? "By adding this employee, you as admin are responsible for ensuring this person is an authorized member of your organization."
+                : "Dengan menambahkan karyawan ini, Anda sebagai admin bertanggung jawab memastikan orang ini adalah anggota resmi organisasi Anda."}
             </p>
           </form>
         </DialogContent>
