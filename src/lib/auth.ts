@@ -29,7 +29,7 @@ export const auth = betterAuth({
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
       await resend.emails.send({
-        from: "noreply@intellibaseaisupport.com",
+        from: "onboarding@resend.dev",
         to: user.email,
         subject: "Verifikasi Email Anda — IntelliBase AI",
         html: `
