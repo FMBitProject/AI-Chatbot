@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Users, KeyRound } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { PasswordRequirements } from "@/components/ui/PasswordRequirements";
+import { isPasswordValid } from "@/lib/password";
 
 export interface Employee {
   id: string;
@@ -38,6 +40,10 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+    if (!isPasswordValid(form.password)) {
+      toast({ variant: "destructive", title: lang === "en" ? "Password does not meet requirements." : "Password tidak memenuhi persyaratan." });
+      return;
+    }
     setLoading(true);
     try {
       await onAddEmployee(form);
@@ -56,7 +62,10 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
   }
 
   async function handleResetPassword() {
-    if (!resetTarget || newPassword.length < 8) return;
+    if (!resetTarget || !isPasswordValid(newPassword)) {
+      toast({ variant: "destructive", title: lang === "en" ? "Password does not meet requirements." : "Password tidak memenuhi persyaratan." });
+      return;
+    }
     setResetting(true);
     try {
       const res = await fetch(`/api/admin/users/${resetTarget.id}/reset-password`, {
@@ -165,7 +174,8 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
             </div>
             <div className="space-y-2">
               <Label htmlFor="emp-password">{lang === "en" ? "Temporary Password" : "Password Sementara"}</Label>
-              <Input id="emp-password" type="password" placeholder={lang === "en" ? "Min. 8 characters" : "Minimal 8 karakter"} minLength={8} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+              <Input id="emp-password" type="password" placeholder={lang === "en" ? "Min. 8 characters" : "Minimal 8 karakter"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+              <PasswordRequirements password={form.password} lang={lang} />
             </div>
             <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
               {loading ? (lang === "en" ? "Adding..." : "Menambahkan...") : T.addEmployee}
@@ -199,12 +209,12 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
               <Input
                 type="password"
                 placeholder={lang === "en" ? "Min. 8 characters" : "Minimal 8 karakter"}
-                minLength={8}
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
+              <PasswordRequirements password={newPassword} lang={lang} />
             </div>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleResetPassword} disabled={resetting || newPassword.length < 8}>
+            <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={handleResetPassword} disabled={resetting || !isPasswordValid(newPassword)}>
               {resetting ? (lang === "en" ? "Resetting..." : "Mereset...") : (lang === "en" ? "Reset Password" : "Reset Password")}
             </Button>
           </div>

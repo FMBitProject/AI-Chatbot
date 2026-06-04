@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
 import { KeyRound } from "lucide-react";
+import { PasswordRequirements } from "@/components/ui/PasswordRequirements";
+import { isPasswordValid } from "@/lib/password";
 
 interface ChangePasswordDialogProps {
   open: boolean;
@@ -18,6 +20,10 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!isPasswordValid(form.next)) {
+      toast({ variant: "destructive", title: "Password tidak memenuhi persyaratan." });
+      return;
+    }
     if (form.next !== form.confirm) {
       toast({ variant: "destructive", title: "Password tidak cocok." });
       return;
@@ -60,7 +66,8 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
           </div>
           <div className="space-y-2">
             <Label>Password Baru</Label>
-            <Input type="password" placeholder="Minimal 8 karakter" minLength={8} value={form.next} onChange={(e) => setForm({ ...form, next: e.target.value })} required />
+            <Input type="password" placeholder="Minimal 8 karakter" value={form.next} onChange={(e) => setForm({ ...form, next: e.target.value })} required />
+            <PasswordRequirements password={form.next} />
           </div>
           <div className="space-y-2">
             <Label>Konfirmasi Password Baru</Label>

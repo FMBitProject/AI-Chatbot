@@ -13,6 +13,8 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { Loader2, CheckCircle2, Mail } from "lucide-react";
 import { t } from "@/lib/i18n";
+import { PasswordRequirements } from "@/components/ui/PasswordRequirements";
+import { isPasswordValid } from "@/lib/password";
 import { SiteFooter } from "@/components/SiteFooter";
 
 export default function RegisterPage() {
@@ -31,6 +33,10 @@ export default function RegisterPage() {
       const res = await fetch("/api/auth/register-admin", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
       });
+      if (!isPasswordValid(form.password)) {
+        toast({ variant: "destructive", title: T.registerFailed, description: lang === "en" ? "Password does not meet requirements." : "Password tidak memenuhi persyaratan." });
+        return;
+      }
       const data = await res.json() as { error?: string };
       if (!res.ok) { toast({ variant: "destructive", title: T.registerFailed, description: data.error }); return; }
       setRegisteredEmail(form.email);
@@ -120,8 +126,9 @@ export default function RegisterPage() {
               </div>
               <div className="space-y-2">
                 <Label>{T.password}</Label>
-                <Input type="password" placeholder={T.passwordMin} minLength={8} value={form.password}
+                <Input type="password" placeholder={T.passwordMin} value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                <PasswordRequirements password={form.password} lang={lang} />
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 h-11" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
