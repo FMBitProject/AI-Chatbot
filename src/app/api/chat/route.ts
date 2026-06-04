@@ -159,16 +159,44 @@ export async function POST(req: NextRequest) {
     byDoc.get(key)!.push(c);
   }
 
-  const contextText =
-    scored.length > 0
-      ? Array.from(byDoc.entries())
-          .map(([, chunks]) => {
-            const docName = chunks[0].documentName;
-            const body = chunks.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
-            return `=== ${docName} ===\n${body}`;
-          })
-          .join("\n\n")
-      : "Tidak ada dokumen yang ditemukan dalam basis pengetahuan perusahaan.";
+  let activeSessionId = sessionId;
+  if (!activeSessionId) {
+    activeSessionId = randomUUID();
+    await db.insert(chatSessions).values({
+      id: activeSessionId,
+      userId: dbUser.id,
+      companyId: dbUser.companyId,
+      title: lastUserMessage.content.slice(0, 60),
+    });
+  }
+
+  if (scored.length === 0) {
+    const noDocMsg = responseLang === "en"
+      ? "Sorry, the information could not be found in the company's internal documents."
+      : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
+
+    const noDocMsgId = randomUUID();
+    await db.insert(chatMessages).values({ id: randomUUID(), sessionId: activeSessionId, role: "user", content: lastUserMessage.content });
+    await db.insert(chatMessages).values({ id: noDocMsgId, sessionId: activeSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
+
+    const encoder2 = new TextEncoder();
+    const { readable: r2, writable: w2 } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer2 = w2.getWriter();
+    (async () => {
+      await writer2.write(encoder2.encode(`2:${JSON.stringify({ citations: [], messageId: noDocMsgId, sessionId: activeSessionId })}\n`));
+      await writer2.write(encoder2.encode(`0:${JSON.stringify(noDocMsg)}\n`));
+      await writer2.close();
+    })();
+    return new Response(r2, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+  }
+
+  const contextText = Array.from(byDoc.entries())
+    .map(([, chunks]) => {
+      const docName = chunks[0].documentName;
+      const body = chunks.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
+      return `=== ${docName} ===\n${body}`;
+    })
+    .join("\n\n");
 
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
@@ -185,17 +213,6 @@ JANGAN gunakan kata-kata dalam bahasa Inggris kecuali istilah teknis dari dokume
 Tidak ada pengecualian untuk aturan ini.`;
 
   const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${responseLang === "en" ? "Remember: respond in ENGLISH only." : "Ingat: respons dalam BAHASA INDONESIA saja."}`;
-
-  let activeSessionId = sessionId;
-  if (!activeSessionId) {
-    activeSessionId = randomUUID();
-    await db.insert(chatSessions).values({
-      id: activeSessionId,
-      userId: dbUser.id,
-      companyId: dbUser.companyId,
-      title: lastUserMessage.content.slice(0, 60),
-    });
-  }
 
   const userMsgId = randomUUID();
   await db.insert(chatMessages).values({

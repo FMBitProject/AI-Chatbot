@@ -65,16 +65,17 @@ export default function ChatPage() {
       if (!res.ok) return;
       const data = await res.json() as { id: string; role: string; content: string; citationsJson?: string; feedback?: string }[];
       if (data.length === 0) {
-        setMessages([{ id: "no-history", role: "assistant", content: "Riwayat percakapan ini tidak tersedia. Silakan mulai percakapan baru." }]);
-      } else {
-        setMessages(data.map((m) => ({
-          id: m.id,
-          role: m.role as "user" | "assistant",
-          content: m.content,
-          citations: m.citationsJson ? JSON.parse(m.citationsJson) as Citation[] : undefined,
-          feedback: m.feedback as "up" | "down" | undefined,
-        })));
+        setActiveSessionId(null);
+        setMessages([]);
+        return;
       }
+      setMessages(data.map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        citations: m.citationsJson ? JSON.parse(m.citationsJson) as Citation[] : undefined,
+        feedback: m.feedback as "up" | "down" | undefined,
+      })));
     } catch {}
   }
 
