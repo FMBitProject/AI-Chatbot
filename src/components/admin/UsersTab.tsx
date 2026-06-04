@@ -166,11 +166,14 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
             <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
               {loading ? (lang === "en" ? "Adding..." : "Menambahkan...") : T.addEmployee}
             </Button>
-            <p className="text-xs text-gray-400 text-center leading-relaxed">
-              {lang === "en"
-                ? "By adding this employee, you as admin are responsible for ensuring this person is an authorized member of your organization."
-                : "Dengan menambahkan karyawan ini, Anda sebagai admin bertanggung jawab memastikan orang ini adalah anggota resmi organisasi Anda."}
-            </p>
+            <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <span className="text-amber-500 text-sm mt-0.5">⚠️</span>
+              <p className="text-xs text-amber-700 leading-relaxed">
+                {lang === "en"
+                  ? "By adding this employee, you as admin are responsible for ensuring this person is an authorized member of your organization."
+                  : "Dengan menambahkan karyawan ini, Anda sebagai admin bertanggung jawab memastikan orang ini adalah anggota resmi organisasi Anda."}
+              </p>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
