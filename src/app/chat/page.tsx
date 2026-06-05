@@ -9,12 +9,12 @@ import { Send, Download } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
-type ResponseLang = "id" | "en";
+type ResponseLang = "auto" | "id" | "en";
 
 function getStoredResponseLang(): ResponseLang {
-  if (typeof window === "undefined") return "id";
+  if (typeof window === "undefined") return "auto";
   const saved = localStorage.getItem("responseLang") as ResponseLang | null;
-  return (saved === "id" || saved === "en") ? saved : "id";
+  return (saved === "auto" || saved === "id" || saved === "en") ? saved : "auto";
 }
 
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "intellibaseaisupport@gmail.com";
@@ -273,6 +273,12 @@ export default function ChatPage() {
             <span className="text-xs text-gray-400">Bahasa respons:</span>
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               <button
+                onClick={() => handleSetLang("auto")}
+                className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
+                  responseLang === "auto" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                )}
+              >Auto</button>
+              <button
                 onClick={() => handleSetLang("id")}
                 className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
                   responseLang === "id" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
@@ -311,7 +317,7 @@ export default function ChatPage() {
           {suggestions.length > 0 && !isLoading && (
             <div className="max-w-3xl mx-auto">
               <p className="text-xs text-gray-400 mb-2">
-                {responseLang === "id" ? "💡 Pertanyaan lanjutan:" : "💡 Suggested follow-ups:"}
+                {responseLang === "en" ? "💡 Suggested follow-ups:" : "💡 Pertanyaan lanjutan:"}
               </p>
               <div className="flex flex-wrap gap-2">
                 {suggestions.map((s, i) => (
@@ -330,7 +336,7 @@ export default function ChatPage() {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={responseLang === "id" ? "Tanyakan sesuatu tentang kebijakan perusahaan..." : "Ask anything about company policies..."}
+              placeholder={responseLang === "en" ? "Ask anything about company policies..." : "Tanyakan sesuatu tentang kebijakan perusahaan..."}
               disabled={isLoading}
               className="flex-1"
             />
@@ -339,9 +345,9 @@ export default function ChatPage() {
             </Button>
           </form>
           <p className="text-xs text-gray-400 text-center max-w-3xl mx-auto">
-            {responseLang === "id"
-              ? "IntelliBase AI dapat membuat kesalahan. Selalu verifikasi informasi penting dengan dokumen resmi atau atasan Anda."
-              : "IntelliBase AI can make mistakes. Always verify important information with official documents or your supervisor."}
+            {responseLang === "en"
+              ? "IntelliBase AI can make mistakes. Always verify important information with official documents or your supervisor."
+              : "IntelliBase AI dapat membuat kesalahan. Selalu verifikasi informasi penting dengan dokumen resmi atau atasan Anda."}
           </p>
         </div>
       </div>

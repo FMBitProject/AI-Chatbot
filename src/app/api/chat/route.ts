@@ -9,17 +9,21 @@ import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
 import { getLimits } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
 
+function detectLang(text: string): "id" | "en" {
+  const idPattern = /\b(apa|bagaimana|jelaskan|saya|yang|adalah|dan|dengan|untuk|ini|itu|tidak|bisa|cara|tolong|mohon|sebutkan|berikan|apakah|mengapa|kapan|siapa|dimana|berapa|boleh|perlu|harus|bisa|ingin|mau)\b/i;
+  return idPattern.test(text) ? "id" : "en";
+}
+
 const SYSTEM_PROMPT = `You are an internal AI assistant for a company, helping employees find accurate information from official internal documents such as SOPs, HR regulations, and IT guidelines.
 
 MANDATORY RULES:
 1. Answer ONLY based on the document context provided below. Do not add information from outside the context.
-2. If the answer cannot be validated from the provided context, respond with exactly: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." (if user asks in Indonesian) or "Sorry, the information could not be found in the company's internal documents." (if user asks in English).
+2. If the answer cannot be validated from the provided context, use the exact "not found" message specified in the LANGUAGE RULE below.
 3. Never fabricate, guess, or extrapolate answers beyond what is explicitly stated in the context.
-4. LANGUAGE: Detect the language of the user's question and respond in the SAME language.
-5. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
-6. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
-7. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
-8. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.`;
+4. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
+5. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
+6. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
+7. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.`;
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -35,7 +39,7 @@ export async function POST(req: NextRequest) {
   const { messages, sessionId, responseLang } = await req.json() as {
     messages: { role: string; content: string }[];
     sessionId?: string;
-    responseLang?: "id" | "en";
+    responseLang?: "auto" | "id" | "en";
   };
 
   const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
@@ -171,7 +175,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (scored.length === 0) {
-    const noDocMsg = responseLang === "en"
+    const effectiveLang = responseLang === "auto" ? detectLang(lastUserMessage.content) : (responseLang ?? "id");
+    const noDocMsg = effectiveLang === "en"
       ? "Sorry, the information could not be found in the company's internal documents."
       : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
 
@@ -202,17 +207,34 @@ export async function POST(req: NextRequest) {
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
 
   const langInstruction = responseLang === "en"
-    ? `CRITICAL LANGUAGE RULE — THIS OVERRIDES EVERYTHING ELSE:
+    ? `LANGUAGE RULE (ABSOLUTE — OVERRIDES ALL OTHER RULES):
 You MUST write your ENTIRE response in ENGLISH only.
 Do NOT use any Indonesian words. Do NOT mix languages.
-Even if the user writes in Indonesian, your response must be 100% in English.
-Violation of this rule is not acceptable.`
-    : `ATURAN BAHASA MUTLAK — INI MENGGANTIKAN SEMUA ATURAN LAIN:
+Even if the user writes in Indonesian, your response MUST be 100% in English.
+If no relevant information is found in the documents, respond with exactly: "Sorry, the information could not be found in the company's internal documents."
+Violation of this rule is not acceptable under any circumstance.`
+    : responseLang === "id"
+    ? `ATURAN BAHASA (MUTLAK — MENGGANTIKAN SEMUA ATURAN LAIN):
 Anda WAJIB menulis SELURUH respons dalam Bahasa Indonesia yang baik dan benar.
 JANGAN gunakan kata-kata dalam bahasa Inggris kecuali istilah teknis dari dokumen.
-Tidak ada pengecualian untuk aturan ini.`;
+Jika informasi tidak ditemukan dalam dokumen, balas dengan: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan."
+Tidak ada pengecualian untuk aturan ini.`
+    : `LANGUAGE RULE (AUTO-DETECT):
+Detect the language of the user's question and respond in that SAME language.
+- User writes in Indonesian → respond entirely in Indonesian.
+- User writes in English → respond entirely in English.
+- Do NOT mix languages in a single response.
+If no relevant information is found:
+- Indonesian question → "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan."
+- English question → "Sorry, the information could not be found in the company's internal documents."`;
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${responseLang === "en" ? "Remember: respond in ENGLISH only." : "Ingat: respons dalam BAHASA INDONESIA saja."}`;
+  const langReminder = responseLang === "en"
+    ? "Remember: respond in ENGLISH only, regardless of the question language."
+    : responseLang === "id"
+    ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
+    : "Remember: detect the user's question language and respond in that same language.";
+
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${langReminder}`;
 
   const userMsgId = randomUUID();
   await db.insert(chatMessages).values({
@@ -235,9 +257,14 @@ Tidak ada pengecualian untuk aturan ini.`;
           { role: "user" as const, content: "What language will you use to answer me?" },
           { role: "assistant" as const, content: "I will answer entirely in English, regardless of the language of the documents or your question. This is my strict rule for this session." },
         ]
-      : [
+      : responseLang === "id"
+      ? [
           { role: "user" as const, content: "Bahasa apa yang akan kamu gunakan untuk menjawab saya?" },
           { role: "assistant" as const, content: "Saya akan menjawab seluruhnya dalam Bahasa Indonesia yang baik dan benar, terlepas dari bahasa dokumen atau pertanyaan. Ini adalah aturan sesi ini." },
+        ]
+      : [
+          { role: "user" as const, content: "What language will you use?" },
+          { role: "assistant" as const, content: "I will automatically detect the language of your question and respond in that same language. Ask in Indonesian and I will answer in Indonesian; ask in English and I will answer in English." },
         ];
 
   const messagesWithLang = [...prevMsgs, ...langDemo, lastMsg];
@@ -286,7 +313,8 @@ Tidak ada pengecualian untuk aturan ini.`;
 
       // Generate suggested follow-up questions — silently skip if this fails
       try {
-        const suggestLang = responseLang === "en" ? "English" : "Bahasa Indonesia";
+        const effectiveSuggestLang = responseLang === "auto" ? detectLang(lastUserMessage.content) : (responseLang ?? "id");
+        const suggestLang = effectiveSuggestLang === "en" ? "English" : "Bahasa Indonesia";
         const { text: suggestionsRaw } = await generateText({
           model: groqClient("llama-3.3-70b-versatile"),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
