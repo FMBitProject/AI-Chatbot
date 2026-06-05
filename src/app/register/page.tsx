@@ -1,11 +1,9 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authClient } from "@/lib/auth-client";
 import { toast } from "@/components/ui/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { LogoFull } from "@/components/Logo";
@@ -18,7 +16,6 @@ import { isPasswordValid } from "@/lib/password";
 import { SiteFooter } from "@/components/SiteFooter";
 
 export default function RegisterPage() {
-  const router = useRouter();
   const { lang } = useLang();
   const T = t[lang];
   const [loading, setLoading] = useState(false);

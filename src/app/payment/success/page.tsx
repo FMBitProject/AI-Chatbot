@@ -1,5 +1,5 @@
 "use client";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -8,7 +8,6 @@ import { Suspense, useEffect, useState } from "react";
 
 function SuccessContent() {
   const params = useSearchParams();
-  const router = useRouter();
   const plan = params.get("plan") ?? "professional";
   const planName = plan === "enterprise" ? "Enterprise" : "Professional";
   const [verifying, setVerifying] = useState(true);
@@ -57,7 +56,7 @@ function SuccessContent() {
             <p className="text-blue-600 font-bold text-lg mb-6">✦ {planName}</p>
             {!upgraded && (
               <p className="text-xs text-gray-400 mb-4">
-                Jika belum terupgrade dalam beberapa menit, klik "Cek Status" di dashboard.
+                Jika belum terupgrade dalam beberapa menit, klik &ldquo;Cek Status&rdquo; di dashboard.
               </p>
             )}
             <Link href="/admin">

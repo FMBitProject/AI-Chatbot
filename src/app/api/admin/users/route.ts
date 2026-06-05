@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { users, companies } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { getLimits, isUnderLimit } from "@/lib/plan-limits";
-import { randomUUID } from "crypto";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });

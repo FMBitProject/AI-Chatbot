@@ -16,11 +16,9 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
 import { authClient } from "@/lib/auth-client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function AdminPage() {
-  const router = useRouter();
   const { data: session } = authClient.useSession();
   const user = session?.user as { name?: string } | undefined;
   const { lang } = useLang();
@@ -32,8 +30,18 @@ export default function AdminPage() {
   const [plan, setPlan] = useState<"starter" | "professional" | "enterprise">("starter");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  async function loadDocuments() {
+    const res = await fetch("/api/admin/documents").catch(() => null);
+    if (res?.ok) {
+      const data = await res.json() as Document[];
+      setDocuments(data);
+    }
+  }
+
   useEffect(() => {
-    loadDocuments();
+    fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
+      if (data) setDocuments(data);
+    }).catch(() => {});
     fetch("/api/admin/users").then((r) => r.json()).then((data: Employee[]) => setEmployees(data)).catch(() => {});
     fetch("/api/admin/company").then((r) => r.json()).then((data: { name: string; plan: "starter" | "professional" | "enterprise" }) => {
       setCompanyName(data?.name ?? "");
@@ -51,14 +59,6 @@ export default function AdminPage() {
     }
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [documents]);
-
-  async function loadDocuments() {
-    const res = await fetch("/api/admin/documents").catch(() => null);
-    if (res?.ok) {
-      const data = await res.json() as Document[];
-      setDocuments(data);
-    }
-  }
 
   async function handleUpload(files: File[]) {
     const allDocs: Document[] = [];

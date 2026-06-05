@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { users, apiKeys } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { createHash } from "crypto";
 
 function generateApiKey(): string {
   const raw = randomUUID().replace(/-/g, "");

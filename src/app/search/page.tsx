@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
@@ -105,13 +105,13 @@ export default function SearchPage() {
 
         {searched && !loading && results.length === 0 && (
           <div className="text-center text-gray-400 mt-16">
-            <p className="text-sm">Tidak ditemukan hasil untuk <strong>"{query}"</strong></p>
+            <p className="text-sm">Tidak ditemukan hasil untuk <strong>&ldquo;{query}&rdquo;</strong></p>
           </div>
         )}
 
         {results.length > 0 && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">{results.length} hasil ditemukan untuk <strong>"{query}"</strong></p>
+            <p className="text-sm text-gray-500">{results.length} hasil ditemukan untuk <strong>&ldquo;{query}&rdquo;</strong></p>
             {results.map((r) => (
               <div key={r.id} className="bg-white rounded-xl border p-5 hover:border-blue-300 transition-colors">
                 <div className="flex items-center gap-2 mb-2">

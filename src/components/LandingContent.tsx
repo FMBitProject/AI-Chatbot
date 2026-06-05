@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Star } from "lucide-react";
+import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare } from "lucide-react";
 
 const CONTENT = {
   id: {

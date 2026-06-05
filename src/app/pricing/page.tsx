@@ -13,7 +13,6 @@ import { SiteFooter } from "@/components/SiteFooter";
 
 const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
 const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
-const CTA_HREFS = ["/register", "/register?plan=pro", "mailto:intellibaseaisupport@gmail.com"];
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
 const HAS_PROMO = [false, true, true];
 
@@ -22,8 +21,6 @@ export default function PricingPage() {
   const T = pricing[lang];
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
-
-  const ctaLabels = [T.startFree, T.trialFree, T.contactSales];
 
   async function handlePay(plan: "professional" | "enterprise") {
     if (!session) { window.location.href = "/register"; return; }

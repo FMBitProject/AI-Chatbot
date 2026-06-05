@@ -11,6 +11,12 @@ import { cn } from "@/lib/utils";
 
 type ResponseLang = "id" | "en";
 
+function getStoredResponseLang(): ResponseLang {
+  if (typeof window === "undefined") return "id";
+  const saved = localStorage.getItem("responseLang") as ResponseLang | null;
+  return (saved === "id" || saved === "en") ? saved : "id";
+}
+
 const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "intellibaseaisupport@gmail.com";
 
 export default function ChatPage() {
@@ -23,20 +29,15 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
-  const [responseLang, setResponseLang] = useState<ResponseLang>("id");
+  const [responseLang, setResponseLang] = useState<ResponseLang>(getStoredResponseLang);
   const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const responseLangRef = useRef<ResponseLang>("id");
+  const responseLangRef = useRef<ResponseLang>(getStoredResponseLang());
 
   useEffect(() => {
     loadSessions();
-    const saved = localStorage.getItem("responseLang") as ResponseLang | null;
-    if (saved === "id" || saved === "en") {
-      setResponseLang(saved);
-      responseLangRef.current = saved;
-    }
   }, []);
 
   useEffect(() => {

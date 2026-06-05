@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { documentChunks, users, documents } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
-import { getSlackClient, verifySlackSignature } from "@/lib/slack";
+import { verifySlackSignature } from "@/lib/slack";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 
