@@ -11,6 +11,7 @@ export const companies = pgTable("companies", {
   geminiApiKey: text("gemini_api_key"),
   dailyQuestionCount: integer("daily_question_count").default(0).notNull(),
   dailyQuestionDate: text("daily_question_date"),
+  planExpiresAt: timestamp("plan_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

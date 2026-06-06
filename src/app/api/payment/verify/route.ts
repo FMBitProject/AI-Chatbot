@@ -45,12 +45,13 @@ export async function POST(req: NextRequest) {
       data.transaction_status === "settlement";
 
     if (isSuccess) {
+      const planExpiresAt = new Date();
+      planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
       await db.update(transactions).set({ status: "paid", paidAt: new Date() }).where(eq(transactions.id, tx.id));
-      await db.update(companies).set({ plan }).where(eq(companies.id, dbUser.companyId));
+      await db.update(companies).set({ plan, planExpiresAt }).where(eq(companies.id, dbUser.companyId));
       return NextResponse.json({ ok: true, upgraded: true });
     }
 
-    // For sandbox testing — also accept "pending" with QRIS as success simulation
     if (data.transaction_status === "pending") {
       return NextResponse.json({ ok: true, upgraded: false, status: "pending" });
     }

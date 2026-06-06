@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
       .set({ status: "paid", paidAt: new Date() })
       .where(eq(transactions.orderId, body.order_id));
 
+    const planExpiresAt = new Date();
+    planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
+
     await db.update(companies)
-      .set({ plan: tx.plan })
+      .set({ plan: tx.plan, planExpiresAt })
       .where(eq(companies.id, tx.companyId));
 
     console.log(`[payment] Plan upgraded: company=${tx.companyId} plan=${tx.plan}`);

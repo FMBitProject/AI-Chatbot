@@ -48,7 +48,16 @@ export async function POST(req: NextRequest) {
   }
 
   // Fetch company and check quotas before doing any heavy processing
-  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  let [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+
+  // Lazy expiry: downgrade plan if subscription has expired
+  if (company?.planExpiresAt && company.planExpiresAt < new Date() && company.plan !== "starter") {
+    await db.update(companies)
+      .set({ plan: "starter", planExpiresAt: null })
+      .where(eq(companies.id, dbUser.companyId));
+    company = { ...company, plan: "starter", planExpiresAt: null };
+  }
+
   const { maxQuestionsPerMonth, maxQuestionsPerDay } = getLimits(company?.plan ?? "starter");
 
   const companyId = dbUser.companyId!;

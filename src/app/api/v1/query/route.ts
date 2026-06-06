@@ -22,7 +22,16 @@ export async function POST(req: NextRequest) {
   if (!question) return NextResponse.json({ error: "question is required" }, { status: 400 });
 
   // Enforce same daily/monthly quota as the chat UI
-  const [company] = await db.select().from(companies).where(eq(companies.id, apiKey.companyId)).limit(1);
+  let [company] = await db.select().from(companies).where(eq(companies.id, apiKey.companyId)).limit(1);
+
+  // Lazy expiry: downgrade plan if subscription has expired
+  if (company?.planExpiresAt && company.planExpiresAt < new Date() && company.plan !== "starter") {
+    await db.update(companies)
+      .set({ plan: "starter", planExpiresAt: null })
+      .where(eq(companies.id, apiKey.companyId));
+    company = { ...company, plan: "starter", planExpiresAt: null };
+  }
+
   const { maxQuestionsPerDay, maxQuestionsPerMonth } = getLimits(company?.plan ?? "starter");
   const today = new Date().toISOString().split("T")[0];
 
