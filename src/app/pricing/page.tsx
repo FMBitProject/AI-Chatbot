@@ -8,6 +8,7 @@ import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
 import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
 
@@ -21,6 +22,8 @@ export default function PricingPage() {
   const T = pricing[lang];
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   async function handlePay(plan: "professional" | "enterprise") {
     if (!session) { window.location.href = "/register"; return; }
@@ -69,7 +72,7 @@ export default function PricingPage() {
           <LogoFull size="sm" />
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
-            {session?.user ? (
+            {mounted && session?.user ? (
               <Link href="/chat">
                 <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
                   {lang === "en" ? "Go to Dashboard" : "Buka Dashboard"}
@@ -162,7 +165,7 @@ export default function PricingPage() {
                     {T.startFree} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
-              ) : session?.user ? (
+              ) : mounted && session?.user ? (
                 <Button
                   className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}
                   onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
