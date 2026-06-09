@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoFull } from "@/components/Logo";
+import { version } from "../../package.json";
 
 const LINKS = [
   { href: "/pricing", labelId: "Harga", labelEn: "Pricing" },
@@ -14,7 +15,7 @@ export function SiteFooter({ lang = "id" }: { lang?: "id" | "en" }) {
     <footer className="border-t py-8 px-6 bg-white">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pr-24">
         <LogoFull size="sm" />
-        <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
+        <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved. &nbsp;·&nbsp; v{version}</p>
         <div className="flex flex-wrap gap-5 text-sm text-gray-400">
           {LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="hover:text-gray-600 transition-colors">
