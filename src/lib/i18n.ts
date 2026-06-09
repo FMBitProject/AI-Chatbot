@@ -233,14 +233,14 @@ export const pricing = {
     ],
     features: [
       ["5 karyawan", "10 dokumen", "100 pertanyaan/bulan · 10/hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
-      ["50 karyawan", "100 dokumen", "500 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
+      ["50 karyawan", "100 dokumen", "300 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
       ["Karyawan tidak terbatas", "Dokumen tidak terbatas", "Pertanyaan tidak terbatas", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan 24/7"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: "Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 500 pertanyaan/hari. Paket Enterprise tidak terbatas." },
+      { q: "Apakah ada batasan pertanyaan?", a: "Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari. Paket Enterprise tidak terbatas." },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -281,14 +281,14 @@ export const pricing = {
     ],
     features: [
       ["5 employees", "10 documents", "100 questions/month · 10/day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
-      ["50 employees", "100 documents", "500 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
+      ["50 employees", "100 documents", "300 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "24/7 Priority support"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: "Starter is limited to 10 questions/day and 100/month. Professional is limited to 500 questions/day. Enterprise is unlimited." },
+      { q: "Are there question limits?", a: "Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day. Enterprise is unlimited." },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],
