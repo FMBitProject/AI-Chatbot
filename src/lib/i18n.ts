@@ -232,9 +232,9 @@ export const pricing = {
       { name: "Enterprise", desc: "Untuk perusahaan skala besar" },
     ],
     features: [
-      ["5 karyawan", "10 dokumen", "100 pertanyaan/bulan · 10/hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration", "Role per departemen", "Prioritas dukungan"],
-      ["50 karyawan", "100 dokumen", "500 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration", "Role per departemen", "Prioritas dukungan"],
-      ["Karyawan tidak terbatas", "Dokumen tidak terbatas", "Pertanyaan tidak terbatas", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration", "Role per departemen", "Prioritas dukungan 24/7"],
+      ["5 karyawan", "10 dokumen", "100 pertanyaan/bulan · 10/hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
+      ["50 karyawan", "100 dokumen", "500 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
+      ["Karyawan tidak terbatas", "Dokumen tidak terbatas", "Pertanyaan tidak terbatas", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan 24/7"],
     ],
     fairUseNote: "",
     faqs: [
@@ -250,7 +250,7 @@ export const pricing = {
       { title: "Manajemen Tim", desc: "Kelola karyawan, role, dan akses per departemen" },
       { title: "Keamanan Multi-Tenant", desc: "Data tiap perusahaan terisolasi penuh, tidak ada kebocoran" },
       { title: "Analytics & Insight", desc: "Pantau pertanyaan terpopuler dan aktivitas karyawan" },
-      { title: "Integrasi Slack", desc: "Tanya langsung dari Slack tanpa buka browser" },
+      { title: "Integrasi Slack", desc: "Tanya langsung dari Slack tanpa buka browser — segera hadir" },
     ],
   },
   en: {
@@ -280,9 +280,9 @@ export const pricing = {
       { name: "Enterprise", desc: "For large-scale organizations" },
     ],
     features: [
-      ["5 employees", "10 documents", "100 questions/month · 10/day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration", "Department roles", "Priority support"],
-      ["50 employees", "100 documents", "500 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration", "Department roles", "Priority support"],
-      ["Unlimited employees", "Unlimited documents", "Unlimited questions", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration", "Department roles", "24/7 Priority support"],
+      ["5 employees", "10 documents", "100 questions/month · 10/day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
+      ["50 employees", "100 documents", "500 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
+      ["Unlimited employees", "Unlimited documents", "Unlimited questions", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "24/7 Priority support"],
     ],
     fairUseNote: "",
     faqs: [
@@ -298,7 +298,7 @@ export const pricing = {
       { title: "Team Management", desc: "Manage employees, roles, and department-based access" },
       { title: "Multi-Tenant Security", desc: "Each company's data is fully isolated, no leaks" },
       { title: "Analytics & Insights", desc: "Monitor top questions and employee activity" },
-      { title: "Slack Integration", desc: "Ask directly from Slack without opening a browser" },
+      { title: "Slack Integration", desc: "Ask directly from Slack without opening a browser — coming soon" },
     ],
   },
 } as const;
