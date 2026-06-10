@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("x-slack-signature") ?? "";
   const signingSecret = process.env.SLACK_SIGNING_SECRET ?? "";
 
-  if (signingSecret && !verifySlackSignature(signingSecret, signature, timestamp, rawBody)) {
+  if (!signingSecret || !verifySlackSignature(signingSecret, signature, timestamp, rawBody)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 

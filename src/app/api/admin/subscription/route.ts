@@ -19,7 +19,6 @@ export async function GET(req: NextRequest) {
     plan: transactions.plan,
     amount: transactions.amount,
     status: transactions.status,
-    snapToken: transactions.snapToken,
     createdAt: transactions.createdAt,
     paidAt: transactions.paidAt,
   }).from(transactions)
