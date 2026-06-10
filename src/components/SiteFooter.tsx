@@ -3,6 +3,7 @@ import { LogoFull } from "@/components/Logo";
 import { version } from "../../package.json";
 
 const LINKS = [
+  { href: "/roi",     labelId: "Kalkulator ROI", labelEn: "ROI Calculator" },
   { href: "/pricing", labelId: "Harga", labelEn: "Pricing" },
   { href: "/login",   labelId: "Masuk",  labelEn: "Sign In" },
   { href: "/register",labelId: "Daftar", labelEn: "Register" },

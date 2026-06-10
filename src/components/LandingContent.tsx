@@ -52,8 +52,8 @@ const CONTENT = {
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
     ctaBtn1: "Mulai Gratis Sekarang",
     ctaBtn2: "Lihat Paket Harga",
-    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis" },
-    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi" },
+    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
+    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI" },
   },
   en: {
     badge: "🚀 #1 Internal Knowledge Base Platform in Indonesia",
@@ -100,8 +100,8 @@ const CONTENT = {
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
     ctaBtn1: "Start Free Now",
     ctaBtn2: "View Pricing",
-    nav: { price: "Pricing", login: "Sign In", start: "Start Free" },
-    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy" },
+    nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
+    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator" },
   },
 };
 
@@ -117,6 +117,7 @@ export function LandingContent() {
           <LogoFull size="sm" />
           <div className="flex items-center gap-3">
             <LanguageSwitcher />
+            <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden sm:block">{T.nav.roi}</Link>
             <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden sm:block">{T.nav.price}</Link>
             <Link href="/login"><Button variant="ghost" size="sm">{T.nav.login}</Button></Link>
             <Link href="/register"><Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.nav.start}</Button></Link>
@@ -228,6 +229,7 @@ export function LandingContent() {
           <LogoFull size="sm" />
           <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
           <div className="flex gap-6 text-sm text-gray-400">
+            <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>
             <Link href="/pricing" className="hover:text-gray-600">{T.footer.price}</Link>
             <Link href="/login" className="hover:text-gray-600">{T.footer.login}</Link>
             <Link href="/register" className="hover:text-gray-600">{T.footer.register}</Link>
