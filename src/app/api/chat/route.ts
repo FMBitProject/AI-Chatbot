@@ -181,6 +181,16 @@ export async function POST(req: NextRequest) {
       companyId: dbUser.companyId,
       title: lastUserMessage.content.slice(0, 60),
     });
+  } else {
+    // Verify the session belongs to this user's company before writing messages into it
+    const [existingSession] = await db
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(and(eq(chatSessions.id, activeSessionId), eq(chatSessions.companyId, companyId)))
+      .limit(1);
+    if (!existingSession) {
+      return new Response(JSON.stringify({ error: "Session not found" }), { status: 404 });
+    }
   }
 
   if (scored.length === 0) {
