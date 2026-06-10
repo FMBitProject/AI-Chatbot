@@ -6,7 +6,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
-import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield } from "lucide-react";
+import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const CONTENT = {
   id: {
@@ -41,11 +41,13 @@ const CONTENT = {
         price: 200_000,
         priceLabel: "Rp 200.000 / bulan",
         limit: "Hingga 50 karyawan · 100 dokumen",
+        employeeLimit: 50,
         color: "blue",
-        popular: true,
-        popularLabel: "Paling Populer",
         cta: "Mulai Professional",
         ctaHref: "/register?plan=professional",
+        recommendedLabel: "Cocok untuk Tim Anda",
+        overLimitLabel: "Melebihi Batas",
+        overLimitDesc: "Plan ini hanya untuk maks. 50 karyawan. Upgrade ke Enterprise.",
       },
       {
         key: "enterprise",
@@ -53,11 +55,13 @@ const CONTENT = {
         price: 500_000,
         priceLabel: "Rp 500.000 / bulan",
         limit: "Karyawan & dokumen tidak terbatas",
+        employeeLimit: Infinity,
         color: "violet",
-        popular: false,
-        popularLabel: "",
         cta: "Mulai Enterprise",
         ctaHref: "/register?plan=enterprise",
+        recommendedLabel: "Cocok untuk Tim Anda",
+        overLimitLabel: "",
+        overLimitDesc: "",
       },
     ],
     results: {
@@ -108,11 +112,13 @@ const CONTENT = {
         price: 200_000,
         priceLabel: "Rp 200,000 / month",
         limit: "Up to 50 employees · 100 documents",
+        employeeLimit: 50,
         color: "blue",
-        popular: true,
-        popularLabel: "Most Popular",
         cta: "Start Professional",
         ctaHref: "/register?plan=professional",
+        recommendedLabel: "Right for Your Team",
+        overLimitLabel: "Over Limit",
+        overLimitDesc: "This plan supports max. 50 employees. Upgrade to Enterprise.",
       },
       {
         key: "enterprise",
@@ -120,11 +126,13 @@ const CONTENT = {
         price: 500_000,
         priceLabel: "Rp 500,000 / month",
         limit: "Unlimited employees & documents",
+        employeeLimit: Infinity,
         color: "violet",
-        popular: false,
-        popularLabel: "",
         cta: "Start Enterprise",
         ctaHref: "/register?plan=enterprise",
+        recommendedLabel: "Right for Your Team",
+        overLimitLabel: "",
+        overLimitDesc: "",
       },
     ],
     results: {
@@ -200,41 +208,67 @@ function SliderInput({
 function PlanResultCard({
   plan,
   savingsWithAI,
+  employees,
   labels,
-  lang,
 }: {
   plan: (typeof CONTENT)["id"]["plans"][0];
   savingsWithAI: number;
+  employees: number;
   labels: (typeof CONTENT)["id"]["results"];
-  lang: "id" | "en";
 }) {
-  const net = savingsWithAI - plan.price;
+  const isOverLimit = employees > plan.employeeLimit;
+  const isRecommended = !isOverLimit;
+  const net = isOverLimit ? 0 : savingsWithAI - plan.price;
   const roi = net > 0 ? (net / plan.price) * 100 : 0;
-  const payback = savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
+  const payback = !isOverLimit && savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
   const isBlue = plan.color === "blue";
 
   return (
-    <div className={`relative rounded-2xl border-2 p-6 flex flex-col ${isBlue ? "border-blue-500 shadow-blue-100 shadow-lg" : "border-violet-400"}`}>
-      {plan.popular && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-          <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
-            <Zap className="h-3 w-3" />{plan.popularLabel}
+    <div className={`relative rounded-2xl border-2 p-6 flex flex-col transition-all ${
+      isOverLimit
+        ? "border-gray-200 opacity-60"
+        : isBlue
+        ? "border-blue-500 shadow-blue-100 shadow-lg"
+        : "border-violet-400 shadow-violet-100 shadow-lg"
+    }`}>
+      {/* Badge */}
+      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+        {isOverLimit ? (
+          <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+            <AlertTriangle className="h-3 w-3" />{plan.overLimitLabel}
           </span>
-        </div>
-      )}
+        ) : isRecommended ? (
+          <span className={`text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${isBlue ? "bg-blue-600" : "bg-violet-600"}`}>
+            <CheckCircle2 className="h-3 w-3" />{plan.recommendedLabel}
+          </span>
+        ) : null}
+      </div>
 
       {/* Plan header */}
-      <div className={`flex items-center gap-2 mb-1 ${plan.popular ? "mt-2" : ""}`}>
-        <div className={`p-1.5 rounded-lg ${isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
-          {isBlue ? <Zap className="h-4 w-4 text-blue-600" /> : <Shield className="h-4 w-4 text-violet-600" />}
+      <div className="flex items-center gap-2 mb-1 mt-2">
+        <div className={`p-1.5 rounded-lg ${isOverLimit ? "bg-gray-100" : isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
+          {isBlue
+            ? <Zap className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-blue-600"}`} />
+            : <Shield className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-violet-600"}`} />
+          }
         </div>
         <h3 className="font-bold text-gray-900">{plan.name}</h3>
       </div>
-      <p className={`text-sm font-semibold mb-0.5 ${isBlue ? "text-blue-600" : "text-violet-600"}`}>{plan.priceLabel}</p>
-      <p className="text-xs text-gray-400 mb-5">{plan.limit}</p>
+      <p className={`text-sm font-semibold mb-0.5 ${isOverLimit ? "text-gray-400" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+        {plan.priceLabel}
+      </p>
+      <p className="text-xs text-gray-400 mb-4">{plan.limit}</p>
+
+      {/* Over-limit warning */}
+      {isOverLimit && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+          <p className="text-xs text-orange-700">{plan.overLimitDesc}</p>
+        </div>
+      )}
 
       {/* Numbers */}
-      <div className="space-y-3 flex-1">
+      <div className={`space-y-3 flex-1 ${isOverLimit ? "opacity-40 pointer-events-none" : ""}`}>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">{labels.savingsAI}</span>
           <span className="font-semibold text-green-600">{formatRp(savingsWithAI)}</span>
@@ -246,31 +280,42 @@ function PlanResultCard({
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm font-semibold text-gray-700">{labels.netSaving}</span>
           <span className={`font-bold text-xl ${net > 0 ? "text-green-600" : "text-gray-400"}`}>
-            {formatRp(Math.max(0, net))}
+            {net > 0 ? formatRp(net) : "-"}
           </span>
         </div>
       </div>
 
       {/* ROI badges */}
-      <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
+      <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${
+        isOverLimit ? "bg-gray-100" : isBlue ? "bg-blue-50" : "bg-violet-50"
+      }`}>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
-          <p className={`text-2xl font-bold ${isBlue ? "text-blue-600" : "text-violet-600"}`}>
-            {roi > 0 ? `${roi.toFixed(0)}%` : "-"}
+          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+            {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : "-"}
           </p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
-          <p className={`text-2xl font-bold ${isBlue ? "text-blue-600" : "text-violet-600"}`}>
-            {payback > 0 ? `${payback}` : "-"}
-            {payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
+          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+            {!isOverLimit && payback > 0 ? payback : "-"}
+            {!isOverLimit && payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
           </p>
         </div>
       </div>
 
-      <Link href={plan.ctaHref}>
-        <Button className={`w-full gap-2 ${isBlue ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700"}`}>
-          {plan.cta} <ArrowRight className="h-4 w-4" />
+      <Link href={isOverLimit ? "/pricing" : plan.ctaHref}>
+        <Button
+          className={`w-full gap-2 ${
+            isOverLimit
+              ? "bg-gray-300 hover:bg-gray-400 text-gray-600"
+              : isBlue
+              ? "bg-blue-600 hover:bg-blue-700"
+              : "bg-violet-600 hover:bg-violet-700"
+          }`}
+        >
+          {isOverLimit ? (isBlue ? "Lihat Enterprise →" : plan.cta) : plan.cta}
+          {!isOverLimit && <ArrowRight className="h-4 w-4" />}
         </Button>
       </Link>
     </div>
@@ -296,7 +341,8 @@ export default function ROIPage() {
     return { hoursPerMonth, costLost, savingsWithAI };
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
 
-  const bestNet = Math.max(0, results.savingsWithAI - T.plans[0].price);
+  const recommendedPlan = employees > 50 ? T.plans[1] : T.plans[0];
+  const bestNet = Math.max(0, results.savingsWithAI - recommendedPlan.price);
 
   return (
     <div className="min-h-screen bg-white">
@@ -420,8 +466,8 @@ export default function ROIPage() {
               key={plan.key}
               plan={plan}
               savingsWithAI={results.savingsWithAI}
+              employees={employees}
               labels={T.results}
-              lang={lang}
             />
           ))}
         </div>
