@@ -91,10 +91,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const safeName = file.name.replace(/[^\w.\- ]/g, "").trim() || "upload";
     const docId = randomUUID();
     await db.insert(documents).values({
       id: docId,
-      name: file.name,
+      name: safeName,
       companyId,
       status: "processing",
     });

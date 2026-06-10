@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, apiKeys } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 function generateApiKey(): string {
@@ -62,6 +62,6 @@ export async function DELETE(req: NextRequest) {
   }
 
   const { id } = await req.json() as { id: string };
-  await db.delete(apiKeys).where(eq(apiKeys.id, id));
+  await db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.companyId, dbUser.companyId)));
   return NextResponse.json({ ok: true });
 }

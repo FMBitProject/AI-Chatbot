@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { chatSessions, users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const sessions = await db
     .select()
     .from(chatSessions)
-    .where(eq(chatSessions.userId, dbUser.id));
+    .where(and(eq(chatSessions.userId, dbUser.id), eq(chatSessions.companyId, dbUser.companyId!)));
 
   return NextResponse.json(sessions);
 }
