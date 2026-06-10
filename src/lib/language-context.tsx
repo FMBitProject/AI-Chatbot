@@ -14,6 +14,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("lang") as Lang | null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved === "id" || saved === "en") setLangState(saved);
   }, []);
 

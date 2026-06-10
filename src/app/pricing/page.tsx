@@ -23,6 +23,7 @@ export default function PricingPage() {
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
 
   async function handlePay(plan: "professional" | "enterprise") {
