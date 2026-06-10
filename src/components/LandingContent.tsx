@@ -1,10 +1,11 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare } from "lucide-react";
+import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator } from "lucide-react";
 
 const CONTENT = {
   id: {
@@ -52,6 +53,16 @@ const CONTENT = {
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
     ctaBtn1: "Mulai Gratis Sekarang",
     ctaBtn2: "Lihat Paket Harga",
+    roiTeaser: {
+      badge: "💡 Hitung Sendiri",
+      title: "Berapa Kerugian Perusahaan Anda Setiap Bulan?",
+      desc: "Geser slider untuk melihat estimasi biaya waktu yang terbuang karyawan Anda saat mencari dokumen internal.",
+      label: "Jumlah Karyawan",
+      lostLabel: "Biaya waktu terbuang / bulan",
+      savingLabel: "Potensi hemat dengan IntelliBase",
+      cta: "Hitung Penghematan Lengkap",
+      ctaNote: "Gratis · Tidak perlu daftar",
+    },
     nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI" },
   },
@@ -100,14 +111,33 @@ const CONTENT = {
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
     ctaBtn1: "Start Free Now",
     ctaBtn2: "View Pricing",
+    roiTeaser: {
+      badge: "💡 Calculate Yourself",
+      title: "How Much Is Your Company Losing Every Month?",
+      desc: "Drag the slider to see the estimated cost of time wasted when employees manually search for internal documents.",
+      label: "Number of Employees",
+      lostLabel: "Cost of wasted time / month",
+      savingLabel: "Potential savings with IntelliBase",
+      cta: "Calculate Full Savings",
+      ctaNote: "Free · No sign-up required",
+    },
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
     footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator" },
   },
 };
 
+function formatRp(v: number) {
+  if (v >= 1_000_000_000) return `Rp ${(v / 1_000_000_000).toFixed(1)} M`;
+  if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(1)} jt`;
+  return `Rp ${(v / 1_000).toFixed(0)}rb`;
+}
+
 export function LandingContent() {
   const { lang } = useLang();
   const T = CONTENT[lang];
+  const [teaserEmployees, setTeaserEmployees] = useState(50);
+  const teaserLost = teaserEmployees * 3 * 20 * 22 / 60 * (6_000_000 / (22 * 8));
+  const teaserSaving = teaserLost * 0.9;
 
   return (
     <div className="min-h-screen bg-white">
@@ -193,6 +223,52 @@ export function LandingContent() {
         </div>
       </section>
 
+
+      {/* ROI Teaser */}
+      <section className="py-20 px-6 bg-gray-900">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="inline-flex items-center gap-1.5 bg-blue-900/60 text-blue-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
+              <Calculator className="h-3.5 w-3.5" />{T.roiTeaser.badge}
+            </span>
+            <h2 className="text-3xl font-bold text-white mb-3">{T.roiTeaser.title}</h2>
+            <p className="text-gray-400 max-w-xl mx-auto">{T.roiTeaser.desc}</p>
+          </div>
+          <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-medium text-gray-300">{T.roiTeaser.label}</label>
+                <span className="text-2xl font-bold text-white">{teaserEmployees} <span className="text-base font-normal text-gray-400">orang</span></span>
+              </div>
+              <input
+                type="range" min={5} max={500} step={5}
+                value={teaserEmployees}
+                onChange={(e) => setTeaserEmployees(Number(e.target.value))}
+                className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1"><span>5</span><span>500</span></div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4 mb-8">
+              <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-5 text-center">
+                <p className="text-red-400 text-xs font-medium mb-2">{T.roiTeaser.lostLabel}</p>
+                <p className="text-3xl font-bold text-red-400">{formatRp(teaserLost)}</p>
+              </div>
+              <div className="bg-green-900/30 border border-green-800/50 rounded-xl p-5 text-center">
+                <p className="text-green-400 text-xs font-medium mb-2">{T.roiTeaser.savingLabel}</p>
+                <p className="text-3xl font-bold text-green-400">{formatRp(teaserSaving)}</p>
+              </div>
+            </div>
+            <div className="text-center">
+              <Link href="/roi">
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-500 gap-2 h-12 px-10 font-semibold">
+                  {T.roiTeaser.cta} <ArrowRight className="h-5 w-5" />
+                </Button>
+              </Link>
+              <p className="text-gray-500 text-xs mt-3">{T.roiTeaser.ctaNote}</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Pricing teaser */}
       <section className="py-20 px-6">

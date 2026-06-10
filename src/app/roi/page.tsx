@@ -6,15 +6,15 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
-import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator } from "lucide-react";
-import type { Metadata } from "next";
+import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield } from "lucide-react";
 
 const CONTENT = {
   id: {
-    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
+    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis" },
     badge: "Kalkulator ROI",
     title: "Berapa Banyak Waktu & Uang yang Terbuang?",
     subtitle: "Hitung estimasi kerugian perusahaan Anda akibat karyawan yang menghabiskan waktu mencari informasi internal secara manual.",
+    inputsTitle: "Data Perusahaan Anda",
     inputs: {
       employees: "Jumlah Karyawan",
       employeesDesc: "Total karyawan yang rutin mencari dokumen internal",
@@ -26,33 +26,62 @@ const CONTENT = {
       salaryDesc: "Digunakan untuk menghitung biaya waktu yang hilang",
       workingDays: "Hari Kerja per Bulan",
     },
-    results: {
-      title: "Estimasi Kerugian Bulanan Tanpa IntelliBase",
+    lossCard: {
+      title: "Kerugian Bulanan Tanpa IntelliBase",
       hoursLost: "Total Jam Terbuang / Bulan",
       costLost: "Biaya Waktu Terbuang / Bulan",
-      withAI: "Penghematan dengan IntelliBase (90%)",
-      subscription: "Biaya Langganan IntelliBase",
-      netSaving: "Penghematan Bersih / Bulan",
-      roi: "Return on Investment (ROI)",
       hoursUnit: "jam",
-      paybackDays: "Balik modal dalam",
+    },
+    compTitle: "Pilih Paket yang Tepat untuk Anda",
+    compDesc: "Bandingkan ROI kedua paket berdasarkan data perusahaan Anda",
+    plans: [
+      {
+        key: "professional",
+        name: "Professional",
+        price: 200_000,
+        priceLabel: "Rp 200.000 / bulan",
+        limit: "Hingga 50 karyawan · 100 dokumen",
+        color: "blue",
+        popular: true,
+        popularLabel: "Paling Populer",
+        cta: "Mulai Professional",
+        ctaHref: "/register?plan=professional",
+      },
+      {
+        key: "enterprise",
+        name: "Enterprise",
+        price: 500_000,
+        priceLabel: "Rp 500.000 / bulan",
+        limit: "Karyawan & dokumen tidak terbatas",
+        color: "violet",
+        popular: false,
+        popularLabel: "",
+        cta: "Mulai Enterprise",
+        ctaHref: "/register?plan=enterprise",
+      },
+    ],
+    results: {
+      savingsAI: "Penghematan AI (90%)",
+      subscription: "Biaya Langganan",
+      netSaving: "Hemat Bersih / Bulan",
+      roi: "ROI",
+      payback: "Balik Modal",
       paybackUnit: "hari",
     },
     cta: {
-      title: "Siap Hemat hingga",
-      title2: "per Bulan?",
+      title: "Siap Mulai Menghemat?",
       desc: "Mulai gratis, setup 10 menit, tidak perlu kartu kredit.",
-      btn: "Mulai Gratis Sekarang",
-      pricing: "Lihat Paket Harga",
+      btn: "Coba Gratis Dulu",
+      pricing: "Lihat Detail Harga",
     },
-    note: "* Estimasi menggunakan asumsi 90% pengurangan waktu pencarian berdasarkan rata-rata penggunaan platform. Hasil aktual dapat bervariasi.",
-    plan: "Professional (50 karyawan)",
+    note: "* Estimasi menggunakan asumsi 90% pengurangan waktu pencarian. Hasil aktual dapat bervariasi.",
   },
   en: {
-    nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
+    nav: { price: "Pricing", login: "Sign In", start: "Start Free" },
     badge: "ROI Calculator",
     title: "How Much Time & Money Is Being Wasted?",
     subtitle: "Calculate your company's estimated losses from employees spending time manually searching for internal information.",
+    inputsTitle: "Your Company Data",
     inputs: {
       employees: "Number of Employees",
       employeesDesc: "Total employees who regularly search internal documents",
@@ -64,27 +93,55 @@ const CONTENT = {
       salaryDesc: "Used to calculate the cost of lost time",
       workingDays: "Working Days per Month",
     },
-    results: {
-      title: "Estimated Monthly Loss Without IntelliBase",
+    lossCard: {
+      title: "Monthly Loss Without IntelliBase",
       hoursLost: "Total Hours Wasted / Month",
       costLost: "Cost of Wasted Time / Month",
-      withAI: "Savings with IntelliBase (90%)",
-      subscription: "IntelliBase Subscription Cost",
-      netSaving: "Net Savings / Month",
-      roi: "Return on Investment (ROI)",
       hoursUnit: "hours",
-      paybackDays: "Payback period",
+    },
+    compTitle: "Choose the Right Plan for You",
+    compDesc: "Compare ROI for both plans based on your company data",
+    plans: [
+      {
+        key: "professional",
+        name: "Professional",
+        price: 200_000,
+        priceLabel: "Rp 200,000 / month",
+        limit: "Up to 50 employees · 100 documents",
+        color: "blue",
+        popular: true,
+        popularLabel: "Most Popular",
+        cta: "Start Professional",
+        ctaHref: "/register?plan=professional",
+      },
+      {
+        key: "enterprise",
+        name: "Enterprise",
+        price: 500_000,
+        priceLabel: "Rp 500,000 / month",
+        limit: "Unlimited employees & documents",
+        color: "violet",
+        popular: false,
+        popularLabel: "",
+        cta: "Start Enterprise",
+        ctaHref: "/register?plan=enterprise",
+      },
+    ],
+    results: {
+      savingsAI: "AI Savings (90%)",
+      subscription: "Subscription Cost",
+      netSaving: "Net Savings / Month",
+      roi: "ROI",
+      payback: "Payback",
       paybackUnit: "days",
     },
     cta: {
-      title: "Ready to Save up to",
-      title2: "per Month?",
+      title: "Ready to Start Saving?",
       desc: "Start free, 10-minute setup, no credit card required.",
-      btn: "Start Free Now",
-      pricing: "View Pricing",
+      btn: "Try Free First",
+      pricing: "View Full Pricing",
     },
-    note: "* Estimate uses 90% search time reduction assumption based on platform usage averages. Actual results may vary.",
-    plan: "Professional (50 employees)",
+    note: "* Estimate uses 90% search time reduction assumption. Actual results may vary.",
   },
 };
 
@@ -119,9 +176,9 @@ function SliderInput({
       <div className="flex items-center justify-between">
         <div>
           <label className="text-sm font-semibold text-gray-800">{label}</label>
-          <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+          {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
         </div>
-        <span className="text-lg font-bold text-blue-600 min-w-[80px] text-right">{format(value)}</span>
+        <span className="text-lg font-bold text-blue-600 min-w-[90px] text-right">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -140,6 +197,86 @@ function SliderInput({
   );
 }
 
+function PlanResultCard({
+  plan,
+  savingsWithAI,
+  labels,
+  lang,
+}: {
+  plan: (typeof CONTENT)["id"]["plans"][0];
+  savingsWithAI: number;
+  labels: (typeof CONTENT)["id"]["results"];
+  lang: "id" | "en";
+}) {
+  const net = savingsWithAI - plan.price;
+  const roi = net > 0 ? (net / plan.price) * 100 : 0;
+  const payback = savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
+  const isBlue = plan.color === "blue";
+
+  return (
+    <div className={`relative rounded-2xl border-2 p-6 flex flex-col ${isBlue ? "border-blue-500 shadow-blue-100 shadow-lg" : "border-violet-400"}`}>
+      {plan.popular && (
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+          <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
+            <Zap className="h-3 w-3" />{plan.popularLabel}
+          </span>
+        </div>
+      )}
+
+      {/* Plan header */}
+      <div className={`flex items-center gap-2 mb-1 ${plan.popular ? "mt-2" : ""}`}>
+        <div className={`p-1.5 rounded-lg ${isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
+          {isBlue ? <Zap className="h-4 w-4 text-blue-600" /> : <Shield className="h-4 w-4 text-violet-600" />}
+        </div>
+        <h3 className="font-bold text-gray-900">{plan.name}</h3>
+      </div>
+      <p className={`text-sm font-semibold mb-0.5 ${isBlue ? "text-blue-600" : "text-violet-600"}`}>{plan.priceLabel}</p>
+      <p className="text-xs text-gray-400 mb-5">{plan.limit}</p>
+
+      {/* Numbers */}
+      <div className="space-y-3 flex-1">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-500">{labels.savingsAI}</span>
+          <span className="font-semibold text-green-600">{formatRp(savingsWithAI)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-500">{labels.subscription}</span>
+          <span className="text-gray-500">- {formatRp(plan.price)}</span>
+        </div>
+        <div className="flex items-center justify-between border-t pt-3">
+          <span className="text-sm font-semibold text-gray-700">{labels.netSaving}</span>
+          <span className={`font-bold text-xl ${net > 0 ? "text-green-600" : "text-gray-400"}`}>
+            {formatRp(Math.max(0, net))}
+          </span>
+        </div>
+      </div>
+
+      {/* ROI badges */}
+      <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
+        <div className="text-center">
+          <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
+          <p className={`text-2xl font-bold ${isBlue ? "text-blue-600" : "text-violet-600"}`}>
+            {roi > 0 ? `${roi.toFixed(0)}%` : "-"}
+          </p>
+        </div>
+        <div className="text-center">
+          <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
+          <p className={`text-2xl font-bold ${isBlue ? "text-blue-600" : "text-violet-600"}`}>
+            {payback > 0 ? `${payback}` : "-"}
+            {payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
+          </p>
+        </div>
+      </div>
+
+      <Link href={plan.ctaHref}>
+        <Button className={`w-full gap-2 ${isBlue ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700"}`}>
+          {plan.cta} <ArrowRight className="h-4 w-4" />
+        </Button>
+      </Link>
+    </div>
+  );
+}
+
 export default function ROIPage() {
   const { lang } = useLang();
   const T = CONTENT[lang];
@@ -150,19 +287,16 @@ export default function ROIPage() {
   const [salaryPerMonth, setSalaryPerMonth] = useState(6_000_000);
   const [workingDays, setWorkingDays] = useState(22);
 
-  const SUBSCRIPTION_COST = 200_000;
-
   const results = useMemo(() => {
     const minutesPerMonth = employees * questionsPerDay * minutesPerSearch * workingDays;
     const hoursPerMonth = minutesPerMonth / 60;
     const hourlyRate = salaryPerMonth / (workingDays * 8);
     const costLost = hoursPerMonth * hourlyRate;
     const savingsWithAI = costLost * 0.9;
-    const netSaving = savingsWithAI - SUBSCRIPTION_COST;
-    const roi = netSaving > 0 ? (netSaving / SUBSCRIPTION_COST) * 100 : 0;
-    const paybackDays = savingsWithAI > 0 ? Math.ceil((SUBSCRIPTION_COST / savingsWithAI) * workingDays) : 0;
-    return { hoursPerMonth, costLost, savingsWithAI, netSaving, roi, paybackDays };
+    return { hoursPerMonth, costLost, savingsWithAI };
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
+
+  const bestNet = Math.max(0, results.savingsWithAI - T.plans[0].price);
 
   return (
     <div className="min-h-screen bg-white">
@@ -197,28 +331,22 @@ export default function ROIPage() {
         </div>
       </section>
 
-      {/* Calculator */}
-      <section className="max-w-6xl mx-auto px-6 pb-20">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Inputs */}
-          <div className="bg-white rounded-2xl border p-8 space-y-8 shadow-sm">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <Users className="h-5 w-5 text-blue-600" />
-              </div>
-              <h2 className="font-bold text-gray-900">
-                {lang === "id" ? "Data Perusahaan Anda" : "Your Company Data"}
-              </h2>
+      {/* Calculator — inputs */}
+      <section className="max-w-6xl mx-auto px-6 pb-6">
+        <div className="bg-white rounded-2xl border p-8 shadow-sm">
+          <div className="flex items-center gap-2 mb-8">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Users className="h-5 w-5 text-blue-600" />
             </div>
-
+            <h2 className="font-bold text-gray-900">{T.inputsTitle}</h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-8">
             <SliderInput
               label={T.inputs.employees}
               desc={T.inputs.employeesDesc}
               value={employees}
               onChange={setEmployees}
-              min={5}
-              max={500}
-              step={5}
+              min={5} max={500} step={5}
               format={(v) => `${v}`}
             />
             <SliderInput
@@ -226,9 +354,7 @@ export default function ROIPage() {
               desc={T.inputs.questionsDesc}
               value={questionsPerDay}
               onChange={setQuestionsPerDay}
-              min={1}
-              max={10}
-              step={1}
+              min={1} max={10} step={1}
               format={(v) => `${v}x`}
             />
             <SliderInput
@@ -236,9 +362,7 @@ export default function ROIPage() {
               desc={T.inputs.minutesDesc}
               value={minutesPerSearch}
               onChange={setMinutesPerSearch}
-              min={5}
-              max={60}
-              step={5}
+              min={5} max={60} step={5}
               format={(v) => `${v} mnt`}
             />
             <SliderInput
@@ -246,9 +370,7 @@ export default function ROIPage() {
               desc={T.inputs.salaryDesc}
               value={salaryPerMonth}
               onChange={setSalaryPerMonth}
-              min={3_000_000}
-              max={30_000_000}
-              step={500_000}
+              min={3_000_000} max={30_000_000} step={500_000}
               format={formatRp}
             />
             <SliderInput
@@ -256,95 +378,60 @@ export default function ROIPage() {
               desc=""
               value={workingDays}
               onChange={setWorkingDays}
-              min={20}
-              max={26}
-              step={1}
+              min={20} max={26} step={1}
               format={(v) => `${v} hari`}
             />
           </div>
+        </div>
+      </section>
 
-          {/* Results */}
-          <div className="space-y-4">
-            {/* Loss card */}
-            <div className="bg-red-50 border border-red-100 rounded-2xl p-8">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingDown className="h-5 w-5 text-red-500" />
-                <h2 className="font-bold text-gray-900">{T.results.title}</h2>
-              </div>
-              <div className="space-y-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm text-gray-600">{T.results.hoursLost}</span>
-                  </div>
-                  <span className="font-bold text-gray-900 text-lg">
-                    {results.hoursPerMonth.toFixed(0)} {T.results.hoursUnit}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between border-t pt-5">
-                  <span className="text-sm text-gray-600">{T.results.costLost}</span>
-                  <span className="font-bold text-red-600 text-2xl">{formatRp(results.costLost)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Savings card */}
-            <div className="bg-green-50 border border-green-100 rounded-2xl p-8">
-              <div className="flex items-center gap-2 mb-6">
-                <TrendingUp className="h-5 w-5 text-green-600" />
-                <h2 className="font-bold text-gray-900">
-                  {lang === "id" ? "Dengan IntelliBase AI" : "With IntelliBase AI"}
-                </h2>
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{T.results.withAI}</span>
-                  <span className="font-bold text-green-600 text-xl">{formatRp(results.savingsWithAI)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">{T.results.subscription} ({T.plan})</span>
-                  <span className="text-gray-500">- {formatRp(SUBSCRIPTION_COST)}</span>
-                </div>
-                <div className="flex items-center justify-between border-t pt-4">
-                  <span className="text-sm font-semibold text-gray-700">{T.results.netSaving}</span>
-                  <span className={`font-bold text-2xl ${results.netSaving > 0 ? "text-green-600" : "text-gray-400"}`}>
-                    {formatRp(Math.max(0, results.netSaving))}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* ROI badge */}
-            <div className="bg-gradient-to-r from-blue-600 to-violet-600 rounded-2xl p-8 text-white">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="text-center">
-                  <p className="text-blue-200 text-sm mb-1">{T.results.roi}</p>
-                  <p className="text-4xl font-bold">
-                    {results.roi > 0 ? `${results.roi.toFixed(0)}%` : "-"}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-blue-200 text-sm mb-1">{T.results.paybackDays}</p>
-                  <p className="text-4xl font-bold">
-                    {results.paybackDays > 0 ? results.paybackDays : "-"}
-                    {results.paybackDays > 0 && (
-                      <span className="text-lg font-normal ml-1">{T.results.paybackUnit}</span>
-                    )}
-                  </p>
-                </div>
-              </div>
+      {/* Loss summary */}
+      <section className="max-w-6xl mx-auto px-6 pb-6">
+        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-3">
+            <TrendingDown className="h-6 w-6 text-red-500 shrink-0" />
+            <div>
+              <p className="font-bold text-gray-900">{T.lossCard.title}</p>
+              <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
+                <Clock className="h-3.5 w-3.5" />
+                {results.hoursPerMonth.toFixed(0)} {T.lossCard.hoursUnit} {T.lossCard.hoursLost.split("/")[1] ? `/ ${T.lossCard.hoursLost.split("/")[1]}` : ""}
+              </p>
             </div>
           </div>
+          <div className="text-center sm:text-right">
+            <p className="text-xs text-gray-400 mb-0.5">{T.lossCard.costLost}</p>
+            <p className="text-4xl font-bold text-red-600">{formatRp(results.costLost)}</p>
+          </div>
         </div>
+      </section>
 
+      {/* Plan comparison */}
+      <section className="max-w-6xl mx-auto px-6 pb-16">
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <TrendingUp className="h-5 w-5 text-green-600" />
+            <h2 className="text-xl font-bold text-gray-900">{T.compTitle}</h2>
+          </div>
+          <p className="text-gray-500 text-sm">{T.compDesc}</p>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
+          {T.plans.map((plan) => (
+            <PlanResultCard
+              key={plan.key}
+              plan={plan}
+              savingsWithAI={results.savingsWithAI}
+              labels={T.results}
+              lang={lang}
+            />
+          ))}
+        </div>
         <p className="text-xs text-gray-400 mt-6 text-center">{T.note}</p>
       </section>
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-blue-600 to-violet-600 py-20 px-6 text-center">
-        <h2 className="text-3xl font-bold text-white mb-3">
-          {T.cta.title} {formatRp(Math.max(0, results.netSaving))} {T.cta.title2}
-        </h2>
+        <h2 className="text-3xl font-bold text-white mb-2">{T.cta.title}</h2>
+        <p className="text-5xl font-black text-white mb-4">{formatRp(bestNet)}<span className="text-xl font-normal text-blue-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
         <p className="text-blue-100 mb-8">{T.cta.desc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register">
