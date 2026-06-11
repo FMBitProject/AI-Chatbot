@@ -16,7 +16,7 @@ export function WhatsAppButton() {
   const mailUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+    <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end gap-3">
       {open && (
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-72 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center justify-between mb-3">

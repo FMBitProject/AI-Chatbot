@@ -153,13 +153,20 @@ export async function POST(req: NextRequest) {
       score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
     }))
     .sort((a, b) => b.score - a.score)
-    .filter((c) => c.score > 0.3);
+    .filter((c) => c.score > 0.5);
 
   // Take as many top-scored chunks as fit within the token budget
+  // Cap at 5 unique documents to avoid irrelevant sources
+  const MAX_UNIQUE_DOCS = 5;
   const scored: typeof rankedChunks = [];
+  const seenDocs = new Set<string>();
   let totalChars = 0;
   for (const c of rankedChunks) {
     if (totalChars + c.text.length > MAX_CONTEXT_CHARS) break;
+    if (!seenDocs.has(c.documentId)) {
+      if (seenDocs.size >= MAX_UNIQUE_DOCS) continue;
+      seenDocs.add(c.documentId);
+    }
     scored.push(c);
     totalChars += c.text.length;
   }

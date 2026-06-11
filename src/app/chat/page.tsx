@@ -281,7 +281,7 @@ export default function ChatPage() {
           )}
           {/* Response language toggle */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">Bahasa respons:</span>
+            <span className="text-xs text-gray-400 hidden sm:inline">Bahasa respons:</span>
             <div className="flex bg-gray-100 rounded-lg p-0.5">
               <button
                 onClick={() => handleSetLang("auto")}
