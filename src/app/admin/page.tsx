@@ -115,12 +115,12 @@ export default function AdminPage() {
       <header className="bg-white border-b px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LogoFull size="sm" />
-          <span className="text-xs font-medium bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">Admin</span>
+          <span className="text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5">Admin</span>
           {companyName && <span className="hidden sm:inline text-sm text-gray-400">·</span>}
           {companyName && <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>}
           <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-            plan === "enterprise" ? "bg-violet-100 text-violet-700 border-violet-200" :
-            plan === "professional" ? "bg-blue-100 text-blue-700 border-blue-200" :
+            plan === "enterprise" ? "bg-teal-100 text-teal-700 border-teal-200" :
+            plan === "professional" ? "bg-teal-100 text-teal-700 border-teal-200" :
             "bg-gray-100 text-gray-500 border-gray-200"
           }`}>
             {plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Professional" : "Free"}

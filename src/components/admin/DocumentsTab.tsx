@@ -102,7 +102,7 @@ export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: Doc
                             {doc.summary && (
                               <button
                                 onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
-                                className="ml-1 flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
+                                className="ml-1 flex items-center gap-1 text-xs text-teal-500 hover:text-teal-700"
                               >
                                 <Sparkles className="h-3 w-3" />
                                 {T.aiSummary}
@@ -131,9 +131,9 @@ export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: Doc
                       </TableRow>
                       {isExpanded && doc.summary && (
                         <TableRow>
-                          <TableCell colSpan={4} className="bg-blue-50 border-t-0">
+                          <TableCell colSpan={4} className="bg-teal-50 border-t-0">
                             <div className="flex items-start gap-2 py-1">
-                              <Sparkles className="h-4 w-4 text-blue-500 mt-0.5 shrink-0" />
+                              <Sparkles className="h-4 w-4 text-teal-500 mt-0.5 shrink-0" />
                               <div className="text-sm text-gray-700 whitespace-pre-line">{doc.summary}</div>
                             </div>
                           </TableCell>
