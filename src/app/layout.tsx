@@ -25,7 +25,24 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
   },
+  themeColor: "#0F47AF",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "IntelliBase",
+  },
 };
+
+function ServiceWorkerRegistration() {
+  const script = `
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      });
+    }
+  `;
+  return <script dangerouslySetInnerHTML={{ __html: script }} />;
+}
 
 export default function RootLayout({
   children,
@@ -35,6 +52,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegistration />
         <LanguageProvider>
           {children}
           <CookieConsent />
