@@ -112,36 +112,36 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster />
-      <header className="bg-white border-b px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <LogoFull size="sm" />
-          <span className="text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5">Admin</span>
-          {companyName && <span className="hidden sm:inline text-sm text-gray-400">·</span>}
-          {companyName && <span className="hidden sm:inline text-sm font-medium text-gray-600">{companyName}</span>}
-          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
+      <header className="bg-white border-b px-4 py-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <LogoFull size="sm" className="shrink-0" />
+          <span className="hidden sm:inline text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5 shrink-0">Admin</span>
+          {companyName && <span className="hidden md:inline text-sm text-gray-400 shrink-0">·</span>}
+          {companyName && <span className="hidden md:inline text-sm font-medium text-gray-600 truncate">{companyName}</span>}
+          <span className={`hidden sm:inline text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
             plan === "enterprise" ? "bg-teal-100 text-teal-700 border-teal-200" :
             plan === "professional" ? "bg-teal-100 text-teal-700 border-teal-200" :
             "bg-gray-100 text-gray-500 border-gray-200"
           }`}>
-            {plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Professional" : "Free"}
+            {plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : "Free"}
           </span>
         </div>
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher />
-          <span className="text-sm text-gray-500">{user?.name ?? "Admin"}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <LanguageSwitcher className="hidden sm:flex" />
+          <span className="hidden md:inline text-sm text-gray-500 truncate max-w-[100px]">{user?.name ?? "Admin"}</span>
           <Link href="/chat">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="gap-1.5">
               <MessageSquare className="h-4 w-4" />
-              {T.openChat}
+              <span className="hidden sm:inline">{T.openChat}</span>
             </Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5">
             <LogOut className="h-4 w-4" />
-            {T.logout}
+            <span className="hidden sm:inline">{T.logout}</span>
           </Button>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto p-6">
+      <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
         <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
         <Tabs defaultValue="documents">
