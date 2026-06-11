@@ -47,7 +47,7 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: On
   const completedCount = [hasDocuments, hasEmployees].filter(Boolean).length;
 
   return (
-    <div className="mb-6 bg-gradient-to-r from-blue-50 to-violet-50 border border-blue-100 rounded-2xl p-6 relative">
+    <div className="mb-6 bg-gradient-to-r from-teal-50 to-teal-100/50 border border-teal-100 rounded-2xl p-4 sm:p-6 relative">
       <button onClick={() => setDismissed(true)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
         <X className="h-4 w-4" />
       </button>
@@ -64,13 +64,13 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: On
           <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(completedCount / 2) * 100}%` }} />
         </div>
       </div>
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {steps.map((step) => (
           <div key={step.title} className={`rounded-xl p-4 border ${step.done ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
             <div className="flex items-center gap-2 mb-2">
               {step.done
                 ? <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-                : <step.icon className="h-5 w-5 text-blue-500 shrink-0" />}
+                : <step.icon className="h-5 w-5 text-teal-500 shrink-0" />}
               <p className={`text-sm font-semibold ${step.done ? "text-green-700 line-through" : "text-gray-800"}`}>
                 {step.title}
               </p>

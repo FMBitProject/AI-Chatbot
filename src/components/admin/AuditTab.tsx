@@ -60,9 +60,9 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
           const aiResponse = nextLog?.role === "assistant" ? nextLog : null;
           return (
             <div key={log.id} className="border rounded-xl p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-start justify-between gap-4 mb-2">
+              <div className="flex items-start justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
+                  <div className="h-7 w-7 rounded-full bg-teal-100 flex items-center justify-center text-xs font-bold text-teal-700 shrink-0">
                     {log.userName[0]?.toUpperCase()}
                   </div>
                   <div>
@@ -80,7 +80,7 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
                 </div>
               </div>
               <p className="text-sm text-gray-700 mb-1">
-                <span className="font-medium text-blue-600">Q: </span>{log.content}
+                <span className="font-medium text-teal-600">Q: </span>{log.content}
               </p>
               {aiResponse && (
                 <p className="text-xs text-gray-500 line-clamp-2">

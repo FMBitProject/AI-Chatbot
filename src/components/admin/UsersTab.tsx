@@ -109,8 +109,8 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
           <p className="text-sm">{T.noEmployee}</p>
         </div>
       ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <Table>
+        <div className="rounded-xl border overflow-hidden overflow-x-auto">
+          <Table className="min-w-[500px]">
             <TableHeader>
               <TableRow>
                 <TableHead>{T.colName2}</TableHead>

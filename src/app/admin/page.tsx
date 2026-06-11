@@ -10,7 +10,7 @@ import { OnboardingBanner } from "@/components/admin/OnboardingBanner";
 import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard, MoreVertical } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
@@ -23,6 +23,7 @@ export default function AdminPage() {
   const user = session?.user as { name?: string } | undefined;
   const { lang } = useLang();
   const T = adminT[lang];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -135,17 +136,33 @@ export default function AdminPage() {
               <span className="hidden sm:inline">{T.openChat}</span>
             </Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5">
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5 hidden sm:inline-flex">
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">{T.logout}</span>
           </Button>
+          {/* Mobile menu */}
+          <div className="relative sm:hidden">
+            <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen((o) => !o)}>
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+            {mobileMenuOpen && (
+              <div className="absolute right-0 top-9 z-50 bg-white border rounded-xl shadow-lg p-3 w-48 space-y-2">
+                <p className="text-xs font-medium text-gray-500 px-2">{user?.name ?? "Admin"}</p>
+                <LanguageSwitcher />
+                <Button variant="ghost" size="sm" onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full justify-start gap-2 text-red-500 hover:text-red-600">
+                  <LogOut className="h-4 w-4" />
+                  {T.logout}
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
         <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
         <Tabs defaultValue="documents">
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               {T.tabs.documents}

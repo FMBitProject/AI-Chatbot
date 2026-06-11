@@ -141,7 +141,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
               { label: lang === "en" ? "Documents" : "Dokumen", value: inf(data.limits.maxDocuments) },
               { label: lang === "en" ? "Employees" : "Karyawan", value: inf(data.limits.maxEmployees) },
