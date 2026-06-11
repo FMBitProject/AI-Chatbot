@@ -3,7 +3,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { PlusCircle, MessageSquare, LogOut, LayoutDashboard, Search, KeyRound } from "lucide-react";
+import { PlusCircle, MessageSquare, LogOut, LayoutDashboard, Search, KeyRound, X } from "lucide-react";
 import Link from "next/link";
 import { LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,8 @@ interface ChatSidebarProps {
   isAdmin?: boolean;
   userName?: string;
   userEmail?: string;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export function ChatSidebar({
@@ -36,6 +38,8 @@ export function ChatSidebar({
   userName,
   userEmail,
   isAdmin,
+  isOpen = false,
+  onClose,
 }: ChatSidebarProps) {
   const router = useRouter();
   const [changePwOpen, setChangePwOpen] = useState(false);
@@ -45,11 +49,33 @@ export function ChatSidebar({
     window.location.href = "/login";
   }
 
+  function handleSelectSession(id: string) {
+    onSelectSession(id);
+    onClose?.();
+  }
+
   return (
-    <div className="w-64 flex flex-col h-full bg-gray-900 text-white">
-      <div className="p-4 flex items-center gap-2">
-        <LogoIcon size="sm" variant="white" />
-        <span className="font-bold text-lg text-white">IntelliBase <span className="text-blue-300">AI</span></span>
+    <>
+      {/* Mobile overlay backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+    <div className={cn(
+      "w-64 flex-col h-full bg-gray-900 text-white shrink-0",
+      "hidden lg:flex",
+      isOpen && "fixed inset-y-0 left-0 z-50 flex"
+    )}>
+      <div className="p-4 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <LogoIcon size="sm" />
+          <span className="font-bold text-lg text-white">IntelliBase <span className="text-teal-300">AI</span></span>
+        </div>
+        <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white">
+          <X className="h-5 w-5" />
+        </button>
       </div>
       <div className="px-3 pb-3 space-y-2">
         <Button onClick={onNewChat} variant="outline" className="w-full bg-gray-800 border-gray-700 text-white hover:bg-gray-700 hover:text-white">
@@ -72,7 +98,7 @@ export function ChatSidebar({
           {sessions.map((session) => (
             <button
               key={session.id}
-              onClick={() => onSelectSession(session.id)}
+              onClick={() => handleSelectSession(session.id)}
               className={cn(
                 "w-full text-left px-3 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors truncate",
                 activeSessionId === session.id
@@ -89,7 +115,7 @@ export function ChatSidebar({
       <Separator className="bg-gray-800" />
       <div className="p-3 flex items-center gap-3">
         <Avatar className="h-8 w-8">
-          <AvatarFallback className="bg-blue-600 text-white text-xs font-semibold">
+          <AvatarFallback className="bg-teal-600 text-white text-xs font-semibold">
             {userName?.[0]?.toUpperCase() ?? "U"}
           </AvatarFallback>
         </Avatar>
@@ -111,5 +137,6 @@ export function ChatSidebar({
       <ChangePasswordDialog open={changePwOpen} onClose={() => setChangePwOpen(false)} />
       </div>
     </div>
+    </>
   );
 }

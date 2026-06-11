@@ -5,7 +5,7 @@ import { ChatMessages, type Message, type Citation } from "@/components/chat/Cha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";
-import { Send, Download } from "lucide-react";
+import { Send, Download, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -31,6 +31,7 @@ export default function ChatPage() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
   const [responseLang, setResponseLang] = useState<ResponseLang>(getStoredResponseLang);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -236,18 +237,28 @@ export default function ChatPage() {
       <ChatSidebar
         sessions={dbSessions}
         activeSessionId={activeSessionId}
-        onNewChat={handleNewChat}
+        onNewChat={() => { handleNewChat(); setSidebarOpen(false); }}
         onSelectSession={handleSelectSession}
         userName={user?.name}
         userEmail={user?.email}
         isAdmin={user?.role === "admin"}
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col bg-white">
         {/* Header */}
-        <div className="border-b px-6 py-3 flex items-center justify-between">
-          <h1 className="font-semibold text-gray-800">
-            {activeSessionId ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat" : "Chat Baru"}
-          </h1>
+        <div className="border-b px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              className="lg:hidden text-gray-500 hover:text-gray-700"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <h1 className="font-semibold text-gray-800 truncate max-w-[160px] sm:max-w-none">
+              {activeSessionId ? dbSessions.find((s) => s.id === activeSessionId)?.title ?? "Chat" : "Chat Baru"}
+            </h1>
+          </div>
 
           <div className="flex items-center gap-3">
           {/* Export PDF */}
@@ -275,19 +286,19 @@ export default function ChatPage() {
               <button
                 onClick={() => handleSetLang("auto")}
                 className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-                  responseLang === "auto" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  responseLang === "auto" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 )}
               >Auto</button>
               <button
                 onClick={() => handleSetLang("id")}
                 className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-                  responseLang === "id" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  responseLang === "id" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 )}
               >ID</button>
               <button
                 onClick={() => handleSetLang("en")}
                 className={cn("px-3 py-1.5 rounded-md text-xs font-semibold transition-all",
-                  responseLang === "en" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  responseLang === "en" ? "bg-white text-teal-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
                 )}
               >EN</button>
             </div>
@@ -324,7 +335,7 @@ export default function ChatPage() {
                   <button
                     key={i}
                     onClick={() => handleSuggestionClick(s)}
-                    className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-full px-3 py-1.5 transition-colors text-left"
+                    className="text-xs bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 rounded-full px-3 py-1.5 transition-colors text-left"
                   >
                     {s}
                   </button>
