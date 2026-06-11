@@ -150,22 +150,22 @@ export function LandingContent() {
             <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden sm:block">{T.nav.roi}</Link>
             <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden sm:block">{T.nav.price}</Link>
             <Link href="/login"><Button variant="ghost" size="sm">{T.nav.login}</Button></Link>
-            <Link href="/register"><Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.nav.start}</Button></Link>
+            <Link href="/register"><Button size="sm" className="bg-teal-600 hover:bg-teal-700">{T.nav.start}</Button></Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="text-center py-24 px-6 bg-gradient-to-b from-blue-50 via-white to-white">
+      <section className="text-center py-24 px-6 bg-gradient-to-b from-teal-50 via-white to-white">
         <div className="max-w-4xl mx-auto">
-          <span className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-6">{T.badge}</span>
+          <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-6">{T.badge}</span>
           <h1 className="text-5xl font-bold text-gray-900 leading-tight mb-6">
             {T.hero1}<br />
-            <span className="text-blue-600">{T.hero2}</span> {T.hero3}
+            <span className="text-teal-600">{T.hero2}</span> {T.hero3}
           </h1>
           <p className="text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">{T.heroDesc}</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/register"><Button size="lg" className="bg-blue-600 hover:bg-blue-700 gap-2 h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
+            <Link href="/register"><Button size="lg" className="bg-teal-600 hover:bg-teal-700 gap-2 h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
             <Link href="/pricing"><Button size="lg" className="bg-gray-900 hover:bg-gray-700 text-white gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4" /></Button></Link>
           </div>
           <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
@@ -173,12 +173,12 @@ export function LandingContent() {
       </section>
 
       {/* Stats */}
-      <section className="bg-blue-600 py-12 px-6">
+      <section className="bg-teal-700 py-12 px-6">
         <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
           {T.stats.map((s) => (
             <div key={s.l} className="text-center">
               <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
-              <p className="text-blue-100 text-sm">{s.l}</p>
+              <p className="text-teal-100 text-sm">{s.l}</p>
             </div>
           ))}
         </div>
@@ -194,8 +194,8 @@ export function LandingContent() {
           <div className="grid md:grid-cols-3 gap-8">
             {T.steps.map((s) => (
               <div key={s.n} className="bg-white rounded-2xl p-8 border text-center relative">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-blue-600 text-white text-sm font-bold flex items-center justify-center">{s.n}</div>
-                <div className="p-3 bg-blue-50 rounded-xl w-fit mx-auto mb-4 mt-2"><s.icon className="h-6 w-6 text-blue-600" /></div>
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-teal-600 text-white text-sm font-bold flex items-center justify-center">{s.n}</div>
+                <div className="p-3 bg-teal-50 rounded-xl w-fit mx-auto mb-4 mt-2"><s.icon className="h-6 w-6 text-teal-600" /></div>
                 <h3 className="font-bold text-gray-900 mb-2">{s.t}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">{s.d}</p>
               </div>
@@ -213,8 +213,8 @@ export function LandingContent() {
           </div>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {T.features.map((f) => (
-              <div key={f.t} className="rounded-xl border p-6 hover:border-blue-200 hover:shadow-sm transition-all">
-                <div className="p-2 bg-blue-50 rounded-lg w-fit mb-3"><f.icon className="h-5 w-5 text-blue-600" /></div>
+              <div key={f.t} className="rounded-xl border p-6 hover:border-teal-200 hover:shadow-sm transition-all">
+                <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3"><f.icon className="h-5 w-5 text-teal-600" /></div>
                 <h3 className="font-semibold text-gray-900 mb-1">{f.t}</h3>
                 <p className="text-gray-500 text-sm">{f.d}</p>
               </div>
@@ -228,7 +228,7 @@ export function LandingContent() {
       <section className="py-20 px-6 bg-gray-900">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-10">
-            <span className="inline-flex items-center gap-1.5 bg-blue-900/60 text-blue-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
+            <span className="inline-flex items-center gap-1.5 bg-teal-900/60 text-teal-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
               <Calculator className="h-3.5 w-3.5" />{T.roiTeaser.badge}
             </span>
             <h2 className="text-3xl font-bold text-white mb-3">{T.roiTeaser.title}</h2>
@@ -260,7 +260,7 @@ export function LandingContent() {
             </div>
             <div className="text-center">
               <Link href="/roi">
-                <Button size="lg" className="bg-blue-600 hover:bg-blue-500 gap-2 h-12 px-10 font-semibold">
+                <Button size="lg" className="bg-teal-600 hover:bg-teal-500 gap-2 h-12 px-10 font-semibold">
                   {T.roiTeaser.cta} <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
@@ -277,10 +277,10 @@ export function LandingContent() {
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
             {T.pricePlans.map((p) => (
-              <div key={p.name} className={`rounded-xl border p-5 text-left ${p.promo ? "border-blue-200 bg-blue-50" : ""}`}>
+              <div key={p.name} className={`rounded-xl border p-5 text-left ${p.promo ? "border-teal-200 bg-teal-50" : ""}`}>
                 {p.promo && <span className="text-xs font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
                 <p className="font-bold text-gray-900">{p.name}</p>
-                <p className="text-blue-600 font-semibold text-sm">{p.price}</p>
+                <p className="text-teal-600 font-semibold text-sm">{p.price}</p>
                 <p className="text-gray-400 text-xs mt-1">{p.desc}</p>
               </div>
             ))}
@@ -290,11 +290,11 @@ export function LandingContent() {
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-blue-600 to-violet-600 py-20 px-6 text-center">
+      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
         <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
-        <p className="text-blue-100 text-lg mb-8">{T.ctaDesc}</p>
+        <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/register"><Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
+          <Link href="/register"><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
           <Link href="/pricing"><Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
         </div>
       </section>

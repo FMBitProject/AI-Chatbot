@@ -47,12 +47,12 @@ export default function LoginPage() {
       <Toaster />
 
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col w-[55%] bg-gradient-to-br from-blue-700 via-blue-600 to-violet-700 p-12 justify-between">
+      <div className="hidden lg:flex flex-col w-[55%] bg-gradient-to-br from-[#061C24] via-[#0A2E2E] to-[#061C24] p-12 justify-between">
         <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-8">
           <div>
             <h1 className="text-4xl font-bold text-white leading-tight mb-4 whitespace-pre-line">{T.hero1}</h1>
-            <p className="text-blue-100 text-lg leading-relaxed">{T.heroDesc}</p>
+            <p className="text-teal-100 text-lg leading-relaxed">{T.heroDesc}</p>
           </div>
           <div className="space-y-5">
             {FEATURES.map((f) => (
@@ -62,13 +62,13 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <p className="font-semibold text-white">{f.title}</p>
-                  <p className="text-blue-100 text-sm">{f.desc}</p>
+                  <p className="text-teal-100 text-sm">{f.desc}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
-        <p className="text-blue-200 text-sm">© 2026 IntelliBase · B2B Knowledge Management Platform</p>
+        <p className="text-teal-200 text-sm">© 2026 IntelliBase · B2B Knowledge Management Platform</p>
       </div>
 
       {/* Right panel */}
@@ -99,7 +99,7 @@ export default function LoginPage() {
                 <Input id="password" type="password" placeholder={T.passwordPlaceholder}
                   value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
               </div>
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 h-11" disabled={loading}>
+              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.login}
               </Button>
@@ -107,7 +107,7 @@ export default function LoginPage() {
             <div className="text-center space-y-3">
               <p className="text-sm text-gray-500">
                 {T.noAccount}{" "}
-                <Link href="/register" className="text-blue-600 hover:underline font-medium">{T.register}</Link>
+                <Link href="/register" className="text-teal-600 hover:underline font-medium">{T.register}</Link>
               </p>
               <Link href="/pricing" className="text-xs text-gray-400 hover:text-gray-600 block">{T.viewPricing}</Link>
             </div>

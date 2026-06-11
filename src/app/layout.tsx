@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
   },
-  themeColor: "#0F47AF",
+  themeColor: "#0A2E2E",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

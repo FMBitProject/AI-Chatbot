@@ -52,12 +52,12 @@ export default function RegisterPage() {
       <Toaster />
 
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col w-[45%] bg-gradient-to-br from-violet-700 via-blue-600 to-blue-700 p-12 justify-between">
+      <div className="hidden lg:flex flex-col w-[45%] bg-gradient-to-br from-[#061C24] via-[#0A2E2E] to-[#061C24] p-12 justify-between">
         <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-white leading-tight mb-3 whitespace-pre-line">{T.heroRegister}</h1>
-            <p className="text-blue-100 leading-relaxed">{T.heroRegisterDesc}</p>
+            <p className="text-teal-100 leading-relaxed">{T.heroRegisterDesc}</p>
           </div>
           <div className="space-y-3">
             {BENEFITS.map((b) => (
@@ -69,10 +69,10 @@ export default function RegisterPage() {
           </div>
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
             <p className="text-white text-sm font-medium mb-1">{T.tip}</p>
-            <p className="text-blue-100 text-xs">{T.tipDesc}</p>
+            <p className="text-teal-100 text-xs">{T.tipDesc}</p>
           </div>
         </div>
-        <p className="text-blue-200 text-sm">© 2026 IntelliBase</p>
+        <p className="text-teal-200 text-sm">© 2026 IntelliBase</p>
       </div>
 
       {/* Right panel */}
@@ -93,7 +93,7 @@ export default function RegisterPage() {
               <div className="text-center space-y-4 py-8">
                 <div className="flex justify-center">
                   <div className="bg-blue-100 rounded-full p-4">
-                    <Mail className="h-10 w-10 text-blue-600" />
+                    <Mail className="h-10 w-10 text-teal-600" />
                   </div>
                 </div>
                 <h2 className="text-2xl font-bold text-gray-900">{T.checkEmail}</h2>
@@ -134,32 +134,32 @@ export default function RegisterPage() {
                   id="agree"
                   checked={agreed}
                   onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-blue-600 cursor-pointer shrink-0"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer shrink-0"
                 />
                 <label htmlFor="agree" className="text-xs text-gray-500 leading-relaxed cursor-pointer">
                   {lang === "en" ? (
                     <>I agree to the{" "}
-                      <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Terms & Conditions</Link>
+                      <Link href="/terms" className="text-teal-600 hover:underline" target="_blank">Terms & Conditions</Link>
                       {" "}and{" "}
-                      <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Privacy Policy</Link>
+                      <Link href="/privacy" className="text-teal-600 hover:underline" target="_blank">Privacy Policy</Link>
                     </>
                   ) : (
                     <>Saya menyetujui{" "}
-                      <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">Syarat & Ketentuan</Link>
+                      <Link href="/terms" className="text-teal-600 hover:underline" target="_blank">Syarat & Ketentuan</Link>
                       {" "}dan{" "}
-                      <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">Kebijakan Privasi</Link>
+                      <Link href="/privacy" className="text-teal-600 hover:underline" target="_blank">Kebijakan Privasi</Link>
                     </>
                   )}
                 </label>
               </div>
-              <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 h-11" disabled={loading || !agreed}>
+              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading || !agreed}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.registerBtn}
               </Button>
             </form>
             <p className="text-sm text-center text-gray-500">
               {T.hasAccount}{" "}
-              <Link href="/login" className="text-blue-600 hover:underline font-medium">{T.loginHere}</Link>
+              <Link href="/login" className="text-teal-600 hover:underline font-medium">{T.loginHere}</Link>
             </p>
             </>)}
           </div>

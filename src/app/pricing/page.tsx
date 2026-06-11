@@ -75,7 +75,7 @@ export default function PricingPage() {
             <LanguageSwitcher />
             {mounted && session?.user ? (
               <Link href="/chat">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+                <Button size="sm" className="bg-teal-600 hover:bg-teal-700">
                   {lang === "en" ? "Go to Dashboard" : "Buka Dashboard"}
                 </Button>
               </Link>
@@ -85,7 +85,7 @@ export default function PricingPage() {
                   <Button variant="ghost" size="sm">{T.signin}</Button>
                 </Link>
                 <Link href="/register">
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.startFree}</Button>
+                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700">{T.startFree}</Button>
                 </Link>
               </>
             )}
@@ -99,8 +99,8 @@ export default function PricingPage() {
       </div>
 
       {/* Hero */}
-      <section className="text-center py-16 px-6 bg-gradient-to-b from-blue-50 to-white">
-        <span className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
+      <section className="text-center py-16 px-6 bg-gradient-to-b from-teal-50 to-white">
+        <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           {T.badge}
         </span>
         <h1 className="text-4xl font-bold text-gray-900 mb-4">{T.title}</h1>
@@ -116,7 +116,7 @@ export default function PricingPage() {
             )}>
               {idx === 1 && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span className="bg-blue-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
+                  <span className="bg-teal-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
                     <Zap className="h-3 w-3" />{T.popular}
                   </span>
                 </div>
@@ -168,7 +168,7 @@ export default function PricingPage() {
                 </Link>
               ) : mounted && session?.user ? (
                 <Button
-                  className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}
+                  className={cn("w-full gap-2", idx === 1 ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}
                   onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
                   disabled={loadingPlan !== null}
                 >
@@ -179,7 +179,7 @@ export default function PricingPage() {
                 </Button>
               ) : (
                 <Link href={`/register?plan=${idx === 1 ? "professional" : "enterprise"}`}>
-                  <Button className={cn("w-full gap-2", idx === 1 ? "bg-blue-600 hover:bg-blue-700" : "bg-violet-600 hover:bg-violet-700")}>
+                  <Button className={cn("w-full gap-2", idx === 1 ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}>
                     {idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -206,8 +206,8 @@ export default function PricingPage() {
             const Icon = FEATURE_ICONS[i];
             return (
               <div key={i} className="bg-white rounded-xl p-6 border">
-                <div className="p-2 bg-blue-50 rounded-lg w-fit mb-3">
-                  <Icon className="h-5 w-5 text-blue-600" />
+                <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3">
+                  <Icon className="h-5 w-5 text-teal-600" />
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1">{f.title}</h3>
                 <p className="text-gray-500 text-sm">{f.desc}</p>
@@ -231,11 +231,11 @@ export default function PricingPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-blue-600 to-violet-600 py-16 px-6 text-center">
+      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
         <h2 className="text-3xl font-bold text-white mb-3">{T.ctaTitle}</h2>
-        <p className="text-blue-100 mb-8">{T.ctaDesc}</p>
+        <p className="text-teal-100 mb-8">{T.ctaDesc}</p>
         <Link href="/register">
-          <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-semibold">
+          <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold">
             {T.ctaBtn} <ArrowRight className="h-5 w-5" />
           </Button>
         </Link>
