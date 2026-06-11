@@ -348,18 +348,18 @@ export default function ROIPage() {
     <div className="min-h-screen bg-white">
       {/* Navbar */}
       <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
-          <LogoFull size="sm" />
-          <div className="flex items-center gap-3">
-            <LanguageSwitcher />
-            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden sm:block">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+          <LogoFull size="sm" className="shrink-0" />
+          <div className="flex items-center gap-2">
+            <LanguageSwitcher className="hidden sm:flex" />
+            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">
               {T.nav.price}
             </Link>
             <Link href="/login">
-              <Button variant="ghost" size="sm">{T.nav.login}</Button>
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.nav.login}</Button>
             </Link>
             <Link href="/register">
-              <Button size="sm" className="bg-teal-600 hover:bg-teal-700">{T.nav.start}</Button>
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button>
             </Link>
           </div>
         </div>
