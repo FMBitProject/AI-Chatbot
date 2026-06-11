@@ -186,7 +186,7 @@ function SliderInput({
           <label className="text-sm font-semibold text-gray-800">{label}</label>
           {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
         </div>
-        <span className="text-lg font-bold text-blue-600 min-w-[90px] text-right">{format(value)}</span>
+        <span className="text-lg font-bold text-teal-600 min-w-[90px] text-right">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -195,7 +195,7 @@ function SliderInput({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
       />
       <div className="flex justify-between text-xs text-gray-300">
         <span>{format(min)}</span>
@@ -228,8 +228,8 @@ function PlanResultCard({
       isOverLimit
         ? "border-gray-200 opacity-60"
         : isBlue
-        ? "border-blue-500 shadow-blue-100 shadow-lg"
-        : "border-violet-400 shadow-violet-100 shadow-lg"
+        ? "border-teal-500 shadow-teal-100 shadow-lg"
+        : "border-teal-400 shadow-teal-100 shadow-lg"
     }`}>
       {/* Badge */}
       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
@@ -238,7 +238,7 @@ function PlanResultCard({
             <AlertTriangle className="h-3 w-3" />{plan.overLimitLabel}
           </span>
         ) : isRecommended ? (
-          <span className={`text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${isBlue ? "bg-blue-600" : "bg-violet-600"}`}>
+          <span className={`text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${isBlue ? "bg-teal-600" : "bg-teal-700"}`}>
             <CheckCircle2 className="h-3 w-3" />{plan.recommendedLabel}
           </span>
         ) : null}
@@ -246,15 +246,15 @@ function PlanResultCard({
 
       {/* Plan header */}
       <div className="flex items-center gap-2 mb-1 mt-2">
-        <div className={`p-1.5 rounded-lg ${isOverLimit ? "bg-gray-100" : isBlue ? "bg-blue-50" : "bg-violet-50"}`}>
+        <div className={`p-1.5 rounded-lg ${isOverLimit ? "bg-gray-100" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
           {isBlue
-            ? <Zap className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-blue-600"}`} />
-            : <Shield className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-violet-600"}`} />
+            ? <Zap className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-teal-600"}`} />
+            : <Shield className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-teal-700"}`} />
           }
         </div>
         <h3 className="font-bold text-gray-900">{plan.name}</h3>
       </div>
-      <p className={`text-sm font-semibold mb-0.5 ${isOverLimit ? "text-gray-400" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+      <p className={`text-sm font-semibold mb-0.5 ${isOverLimit ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
         {plan.priceLabel}
       </p>
       <p className="text-xs text-gray-400 mb-4">{plan.limit}</p>
@@ -287,17 +287,17 @@ function PlanResultCard({
 
       {/* ROI badges */}
       <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${
-        isOverLimit ? "bg-gray-100" : isBlue ? "bg-blue-50" : "bg-violet-50"
+        isOverLimit ? "bg-gray-100" : isBlue ? "bg-teal-50" : "bg-violet-50"
       }`}>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
-          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
             {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : "-"}
           </p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
-          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-blue-600" : "text-violet-600"}`}>
+          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
             {!isOverLimit && payback > 0 ? payback : "-"}
             {!isOverLimit && payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
           </p>
@@ -310,8 +310,8 @@ function PlanResultCard({
             isOverLimit
               ? "bg-gray-300 hover:bg-gray-400 text-gray-600"
               : isBlue
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-violet-600 hover:bg-violet-700"
+              ? "bg-teal-600 hover:bg-teal-700"
+              : "bg-teal-700 hover:bg-teal-800"
           }`}
         >
           {isOverLimit ? (isBlue ? "Lihat Enterprise →" : plan.cta) : plan.cta}
@@ -359,16 +359,16 @@ export default function ROIPage() {
               <Button variant="ghost" size="sm">{T.nav.login}</Button>
             </Link>
             <Link href="/register">
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700">{T.nav.start}</Button>
+              <Button size="sm" className="bg-teal-600 hover:bg-teal-700">{T.nav.start}</Button>
             </Link>
           </div>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="text-center py-16 px-6 bg-gradient-to-b from-blue-50 via-white to-white">
+      <section className="text-center py-16 px-6 bg-gradient-to-b from-teal-50 via-white to-white">
         <div className="max-w-3xl mx-auto">
-          <span className="inline-flex items-center gap-1.5 bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-5">
+          <span className="inline-flex items-center gap-1.5 bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-5">
             <Calculator className="h-3.5 w-3.5" />
             {T.badge}
           </span>
@@ -381,8 +381,8 @@ export default function ROIPage() {
       <section className="max-w-6xl mx-auto px-6 pb-6">
         <div className="bg-white rounded-2xl border p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-8">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Users className="h-5 w-5 text-blue-600" />
+            <div className="p-2 bg-teal-50 rounded-lg">
+              <Users className="h-5 w-5 text-teal-600" />
             </div>
             <h2 className="font-bold text-gray-900">{T.inputsTitle}</h2>
           </div>
@@ -475,13 +475,13 @@ export default function ROIPage() {
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-blue-600 to-violet-600 py-20 px-6 text-center">
+      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
         <h2 className="text-3xl font-bold text-white mb-2">{T.cta.title}</h2>
-        <p className="text-5xl font-black text-white mb-4">{formatRp(bestNet)}<span className="text-xl font-normal text-blue-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
-        <p className="text-blue-100 mb-8">{T.cta.desc}</p>
+        <p className="text-5xl font-black text-white mb-4">{formatRp(bestNet)}<span className="text-xl font-normal text-teal-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
+        <p className="text-teal-100 mb-8">{T.cta.desc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register">
-            <Button size="lg" className="bg-white text-blue-600 hover:bg-blue-50 gap-2 font-semibold h-12 px-8">
+            <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">
               {T.cta.btn} <ArrowRight className="h-5 w-5" />
             </Button>
           </Link>

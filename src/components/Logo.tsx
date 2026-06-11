@@ -16,7 +16,7 @@ export function LogoIcon({ className, size = "md", variant = "default" }: LogoPr
       alt="IntelliBase"
       width={px}
       height={px}
-      className={cn(variant === "white" && "invert", className)}
+      className={cn(className)}
     />
   );
 }

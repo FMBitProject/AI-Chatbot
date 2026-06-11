@@ -21,7 +21,7 @@ export function WhatsAppButton() {
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-72 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center">
+              <div className="h-9 w-9 rounded-full bg-teal-600 flex items-center justify-center">
                 <Mail className="h-5 w-5 text-white" />
               </div>
               <div>
@@ -42,7 +42,7 @@ export function WhatsAppButton() {
           </div>
           <a
             href={mailUrl}
-            className="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
             onClick={() => setOpen(false)}
           >
             <Mail className="h-4 w-4" />
@@ -53,7 +53,7 @@ export function WhatsAppButton() {
 
       <button
         onClick={() => setOpen((o) => !o)}
-        className="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+        className="h-14 w-14 rounded-full bg-teal-600 hover:bg-teal-700 shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
         aria-label="Email Support"
       >
         {open
