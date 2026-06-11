@@ -138,7 +138,7 @@ export default function AdminPage() {
           </Link>
           <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5 hidden sm:inline-flex">
             <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">{T.logout}</span>
+            {T.logout}
           </Button>
           {/* Mobile menu */}
           <div className="relative sm:hidden">

@@ -244,7 +244,7 @@ export function LandingContent() {
                 type="range" min={5} max={500} step={5}
                 value={teaserEmployees}
                 onChange={(e) => setTeaserEmployees(Number(e.target.value))}
-                className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-teal-500"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1"><span>5</span><span>500</span></div>
             </div>
@@ -301,7 +301,7 @@ export function LandingContent() {
 
       {/* Footer */}
       <footer className="border-t py-10 px-6">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pr-24">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
           <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
           <div className="flex gap-6 text-sm text-gray-400">

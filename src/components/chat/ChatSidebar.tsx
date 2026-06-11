@@ -65,8 +65,7 @@ export function ChatSidebar({
       )}
     <div className={cn(
       "w-64 flex-col h-full bg-gray-900 text-white shrink-0",
-      "hidden lg:flex",
-      isOpen && "fixed inset-y-0 left-0 z-50 flex"
+      isOpen ? "fixed inset-y-0 left-0 z-50 flex" : "hidden lg:flex"
     )}>
       <div className="p-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">

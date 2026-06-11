@@ -112,7 +112,7 @@ export default function PricingPage() {
         <div className="grid md:grid-cols-3 gap-6">
           {T.plans.map((plan, idx) => (
             <div key={plan.name} className={cn("rounded-2xl border-2 p-8 flex flex-col relative",
-              idx === 1 ? "border-blue-500 shadow-blue-100 shadow-xl" : idx === 2 ? "border-violet-400" : "border-gray-200"
+              idx === 1 ? "border-teal-500 shadow-teal-100 shadow-xl" : idx === 2 ? "border-teal-700" : "border-gray-200"
             )}>
               {idx === 1 && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
