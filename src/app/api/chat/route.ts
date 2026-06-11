@@ -23,7 +23,8 @@ MANDATORY RULES:
 4. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
 5. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
 6. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
-7. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.`;
+7. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.
+8. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists ALL documents available in this knowledge base. Use it to answer any questions about document count, names, or availability — even if a document's full content is not in the retrieved excerpts below.`;
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -141,6 +142,16 @@ export async function POST(req: NextRequest) {
     ? chunksQuery.then((rows) => rows.filter((r) => !r.department || r.department === dbUser.department))
     : chunksQuery);
 
+  // Build a full document catalog from all fetched chunks (unique doc names, no extra query)
+  const docCatalogMap = new Map<string, string>(); // documentId → name
+  for (const c of allChunks) {
+    if (!docCatalogMap.has(c.documentId)) docCatalogMap.set(c.documentId, c.documentName);
+  }
+  const docCatalogNames = [...docCatalogMap.values()].sort();
+  const docCatalog = docCatalogNames.length > 0
+    ? `KNOWLEDGE BASE CATALOG — ${docCatalogNames.length} document(s) available:\n${docCatalogNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}`
+    : "KNOWLEDGE BASE CATALOG: No documents available.";
+
   // ~4 chars per token; reserve ~3000 tokens for system prompt + messages + output
   // Groq free tier: 12,000 TPM → safe context budget ≈ 9,000 tokens ≈ 36,000 chars
   // Groq Dev/paid tier: 100,000+ TPM → can raise this significantly
@@ -200,7 +211,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (scored.length === 0) {
+  // Only bail out early when there are truly no documents at all in the knowledge base.
+  // If there are documents but no relevant chunks (e.g. a meta-question like "how many docs?"),
+  // continue to the AI so it can answer from the catalog.
+  if (scored.length === 0 && docCatalogNames.length === 0) {
     const effectiveLang = responseLang === "auto" ? detectLang(lastUserMessage.content) : (responseLang ?? "id");
     const noDocMsg = effectiveLang === "en"
       ? "Sorry, the information could not be found in the company's internal documents."
@@ -221,13 +235,15 @@ export async function POST(req: NextRequest) {
     return new Response(r2, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
-  const contextText = Array.from(byDoc.entries())
-    .map(([, chunks]) => {
-      const docName = chunks[0].documentName;
-      const body = chunks.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
-      return `=== ${docName} ===\n${body}`;
-    })
-    .join("\n\n");
+  const contextText = byDoc.size > 0
+    ? Array.from(byDoc.entries())
+        .map(([, chunks]) => {
+          const docName = chunks[0].documentName;
+          const body = chunks.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
+          return `=== ${docName} ===\n${body}`;
+        })
+        .join("\n\n")
+    : "(No specific excerpts retrieved — answer from the catalog above if relevant.)";
 
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
@@ -260,7 +276,7 @@ If no relevant information is found:
     ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
     : "Remember: detect the user's question language and respond in that same language.";
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\nINTERNAL DOCUMENT CONTEXT:\n${contextText}\n---\n\n${langReminder}`;
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${langReminder}`;
 
   const userMsgId = randomUUID();
   await db.insert(chatMessages).values({
