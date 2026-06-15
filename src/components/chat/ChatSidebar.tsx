@@ -68,10 +68,17 @@ export function ChatSidebar({
       isOpen ? "fixed inset-y-0 left-0 z-50 flex" : "hidden lg:flex"
     )}>
       <div className="p-4 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <LogoIcon size="sm" />
-          <span className="font-bold text-lg text-white">IntelliBase <span className="text-teal-300">AI</span></span>
-        </div>
+        {isAdmin ? (
+          <Link href="/admin" className="flex items-center gap-2 hover:opacity-75 transition-opacity" title="Buka Dashboard Admin">
+            <LogoIcon size="sm" />
+            <span className="font-bold text-lg text-white">IntelliBase <span className="text-teal-300">AI</span></span>
+          </Link>
+        ) : (
+          <div className="flex items-center gap-2">
+            <LogoIcon size="sm" />
+            <span className="font-bold text-lg text-white">IntelliBase <span className="text-teal-300">AI</span></span>
+          </div>
+        )}
         <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white">
           <X className="h-5 w-5" />
         </button>
