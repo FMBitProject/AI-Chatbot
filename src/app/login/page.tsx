@@ -27,8 +27,13 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { data, error } = await authClient.signIn.email({ email: form.email, password: form.password });
-      if (error) { toast({ variant: "destructive", title: T.loginFailed, description: error.message }); return; }
-      const user = data?.user as { role?: string } | null;
+      // 2FA: onTwoFactorRedirect handles redirect automatically, so data will be null — don't show error
+      if (error && error.code !== "SECOND_FACTOR_REQUIRED") {
+        toast({ variant: "destructive", title: T.loginFailed, description: error.message });
+        return;
+      }
+      if (!data) return; // 2FA redirect in progress
+      const user = data.user as { role?: string } | null;
       router.push(user?.role === "admin" ? "/admin" : "/chat");
     } catch {
       toast({ variant: "destructive", title: "Error", description: T.error });

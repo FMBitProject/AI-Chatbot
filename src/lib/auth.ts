@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { twoFactor } from "better-auth/plugins";
 import { db } from "@/lib/db";
 import * as schema from "@/lib/db/schema";
 import { Resend } from "resend";
@@ -70,4 +71,33 @@ export const auth = betterAuth({
       maxAge: 60 * 60 * 24 * 7,
     },
   },
+  plugins: [
+    twoFactor({
+      otpOptions: {
+        sendOTP: async ({ user, otp }) => {
+          await resend.emails.send({
+            from: "onboarding@resend.dev",
+            to: user.email,
+            subject: "Kode Verifikasi Login — IntelliBase AI",
+            html: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
+                <div style="background:white;border-radius:12px;padding:36px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+                  <h2 style="color:#0d9488;margin:0 0 6px;">IntelliBase AI</h2>
+                  <h3 style="color:#111827;margin:0 0 20px;">Kode Verifikasi Login</h3>
+                  <p style="color:#374151;">Halo <strong>${user.name}</strong>,</p>
+                  <p style="color:#374151;">Gunakan kode berikut untuk menyelesaikan login Anda:</p>
+                  <div style="text-align:center;margin:28px 0;">
+                    <span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#0d9488;">${otp}</span>
+                  </div>
+                  <p style="color:#6b7280;font-size:13px;">Kode ini berlaku selama <strong>3 menit</strong>. Jangan bagikan kode ini kepada siapapun.</p>
+                  <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+                  <p style="color:#9ca3af;font-size:12px;text-align:center;">© 2026 IntelliBase AI</p>
+                </div>
+              </div>
+            `,
+          });
+        },
+      },
+    }),
+  ],
 });

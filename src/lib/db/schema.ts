@@ -24,6 +24,8 @@ export const users = pgTable("users", {
   companyId: text("company_id").references(() => companies.id),
   role: text("role").$type<"admin" | "employee">().default("employee").notNull(),
   department: text("department"),
+  twoFactorEnabled: boolean("two_factor_enabled").default(false),
+  twoFactorSecret: text("two_factor_secret"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
