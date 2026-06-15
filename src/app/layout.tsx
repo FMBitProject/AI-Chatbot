@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/language-context";
@@ -25,12 +25,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "id_ID",
   },
-  themeColor: "#0A2E2E",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "IntelliBase",
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0A2E2E",
 };
 
 function ServiceWorkerRegistration() {
