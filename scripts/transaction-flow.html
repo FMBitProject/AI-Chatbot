@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 13px; color: #1f2937; background: #fff; }
+
+  /* ── COVER ── */
+  .cover {
+    background: #0A2E2E;
+    color: white;
+    padding: 60px 50px;
+    text-align: center;
+    page-break-after: always;
+    min-height: 200px;
+  }
+  .cover-logo { font-size: 32px; font-weight: 900; color: #2dd4bf; margin-bottom: 6px; }
+  .cover-sub  { font-size: 14px; color: #99f6e4; margin-bottom: 48px; }
+  .cover h1   { font-size: 30px; font-weight: 800; color: #ffffff; margin-bottom: 16px; line-height: 1.3; }
+  .cover p    { font-size: 15px; color: #d1fae5; max-width: 480px; margin: 0 auto; line-height: 1.7; }
+  .cover-meta { margin-top: 48px; font-size: 13px; color: #6ee7b7; }
+
+  /* ── PAGE HEADER ── */
+  .page { padding: 0; page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .ph { display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 2px solid #0d9488; padding-bottom: 8px; margin-bottom: 28px; }
+  .ph-brand { font-size: 17px; font-weight: 800; color: #0d9488; }
+  .ph-label { font-size: 11px; color: #9ca3af; }
+
+  h2 { font-size: 20px; font-weight: 800; color: #0A2E2E; margin-bottom: 6px; }
+  .desc { font-size: 13px; color: #6b7280; margin-bottom: 24px; border-bottom: 1px solid #e5e7eb; padding-bottom: 16px; line-height: 1.6; }
+
+  /* ── CREDENTIAL BOX ── */
+  .cred { background: #f0f9ff; border: 1.5px solid #38bdf8; border-radius: 10px; padding: 22px 28px; }
+  .cred h3 { font-size: 14px; font-weight: 700; color: #0c4a6e; margin-bottom: 14px; }
+  .cr { display: flex; align-items: center; margin-bottom: 10px; gap: 12px; }
+  .cl { font-size: 12px; color: #64748b; font-weight: 700; min-width: 110px; }
+  .cv { font-family: 'Courier New', monospace; font-size: 14px; background: white;
+        border: 1px solid #bae6fd; padding: 4px 12px; border-radius: 6px; color: #0369a1; font-weight: 700; }
+  .cred-note { font-size: 12px; color: #64748b; margin-top: 14px; line-height: 1.6;
+               background: #fefce8; border-left: 3px solid #fbbf24; padding: 8px 12px; border-radius: 0 6px 6px 0; }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 14px; }
+  th { background: #f1f5f9; padding: 9px 12px; text-align: left; border: 1px solid #e2e8f0;
+       color: #475569; font-weight: 700; }
+  td { padding: 9px 12px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  code { font-family: 'Courier New', monospace; font-size: 12px; background: #f3f4f6;
+         padding: 1px 6px; border-radius: 4px; color: #1f2937; }
+
+  /* ── STEPS ── */
+  .step { display: flex; gap: 16px; margin-bottom: 22px; }
+  .snum { min-width: 34px; width: 34px; height: 34px; background: #0d9488; color: white;
+          border-radius: 50%; display: flex; align-items: center; justify-content: center;
+          font-weight: 800; font-size: 15px; flex-shrink: 0; }
+  .sbody { flex: 1; padding-top: 6px; }
+  .stitle { font-weight: 800; font-size: 14px; color: #111827; margin-bottom: 5px; }
+  .stext { font-size: 12.5px; color: #374151; line-height: 1.7; }
+  .surl { display: inline-block; background: #f0fdf4; border: 1px solid #86efac; color: #166534;
+          padding: 2px 10px; border-radius: 6px; font-family: 'Courier New', monospace;
+          font-size: 11.5px; margin-top: 6px; }
+  .snote { background: #fffbeb; border-left: 3px solid #f59e0b; padding: 6px 10px;
+           font-size: 12px; color: #92400e; margin-top: 7px; border-radius: 0 6px 6px 0; }
+
+  /* ── RESULT CARDS ── */
+  .rcards { display: flex; gap: 16px; margin-top: 18px; }
+  .rcard { flex: 1; border-radius: 10px; padding: 16px 14px; text-align: center; }
+  .rcard.s { background: #f0fdf4; border: 1.5px solid #86efac; }
+  .rcard.p { background: #fffbeb; border: 1.5px solid #fcd34d; }
+  .rcard.f { background: #fef2f2; border: 1.5px solid #fca5a5; }
+  .rcard .ri { font-size: 20px; margin-bottom: 6px; }
+  .rcard .rl { font-weight: 800; font-size: 13px; color: #111827; }
+  .rcard .ru { font-family: 'Courier New', monospace; font-size: 11px; color: #6b7280; margin-top: 3px; }
+  .rcard .rd { font-size: 11.5px; color: #6b7280; margin-top: 6px; line-height: 1.5; }
+
+  /* ── WEBHOOK ── */
+  .wh { background: #fafafa; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 20px; margin-top: 20px; }
+  .wh h4 { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+  .wh ul { list-style: none; padding: 0; }
+  .wh li { font-size: 12px; color: #374151; padding: 3px 0 3px 18px; position: relative; line-height: 1.6; }
+  .wh li::before { content: '→'; position: absolute; left: 0; color: #0d9488; font-weight: 700; }
+
+  /* ── DIAGRAM ── */
+  .diagram { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 28px; }
+  .dbox { background: #0d9488; color: white; padding: 9px 0; border-radius: 8px;
+          font-weight: 700; font-size: 13px; text-align: center; width: 260px; margin: 0 auto; }
+  .dbox.b { background: #1e3a5f; }
+  .dbox.v { background: #1e40af; }
+  .dbox.p { background: #7c3aed; }
+  .darr { text-align: center; color: #9ca3af; font-size: 18px; line-height: 1.4; }
+  .dresult { display: flex; gap: 16px; justify-content: center; margin-top: 4px; }
+  .dr { padding: 10px 16px; border-radius: 8px; text-align: center; font-weight: 700; font-size: 12px; }
+  .dr.s { background: #15803d; color: white; }
+  .dr.p { background: #b45309; color: white; }
+  .dr.f { background: #991b1b; color: white; }
+  .dr span { display: block; font-weight: 400; font-size: 10.5px; margin-top: 3px; }
+
+  .footer { margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px;
+            text-align: center; color: #9ca3af; font-size: 11px; }
+
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700; }
+  .chip.g { background: #dcfce7; color: #166534; }
+  .chip.b2 { background: #dbeafe; color: #1e40af; }
+  .chip.gr { background: #f3f4f6; color: #374151; }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover">
+  <div class="cover-logo">IntelliBase AI</div>
+  <div class="cover-sub">Platform AI Chatbot untuk Bisnis</div>
+  <h1>Flow Transaksi &amp;<br>Kredensial Akun Demo</h1>
+  <p>Dokumen customer journey dari membuka website hingga pembayaran berhasil melalui Midtrans Snap</p>
+  <div class="cover-meta">
+    Disiapkan untuk: PT Midtrans &nbsp;&bull;&nbsp;
+    Tanggal: 15 Juni 2026 &nbsp;&bull;&nbsp;
+    Mode: Sandbox
+  </div>
+</div>
+
+<!-- PAGE 1: KREDENSIAL -->
+<div class="page">
+  <div class="ph">
+    <div class="ph-brand">IntelliBase AI</div>
+    <div class="ph-label">Kredensial Akun Demo</div>
+  </div>
+
+  <h2>Kredensial Akun Uji Coba</h2>
+  <div class="desc">
+    Gunakan akun berikut untuk mengakses aplikasi dan mencoba alur pembayaran secara langsung.
+    Akun sudah diverifikasi (email verified) dan memiliki hak akses penuh sebagai Admin.
+  </div>
+
+  <div class="cred">
+    <h3>Data Login - IntelliBase AI</h3>
+    <div class="cr"><div class="cl">URL Aplikasi</div><div class="cv">https://intellibase.app</div></div>
+    <div class="cr"><div class="cl">URL Login</div><div class="cv">https://intellibase.app/login</div></div>
+    <div class="cr"><div class="cl">Email</div><div class="cv">demo@intellibase.app</div></div>
+    <div class="cr"><div class="cl">Password</div><div class="cv">Demo@12345</div></div>
+    <div class="cr"><div class="cl">Role</div><div class="cv">Admin (akses penuh)</div></div>
+    <div class="cred-note">
+      Setelah login, reviewer dapat langsung navigasi ke <strong>/pricing</strong> dan
+      mencoba flow pembayaran menggunakan kartu uji coba Midtrans Sandbox di bawah.
+    </div>
+  </div>
+
+  <div style="margin-top: 28px;">
+    <h3 style="font-size:14px;font-weight:700;color:#374151;margin-bottom:10px;">Kartu Uji Coba Midtrans Sandbox</h3>
+    <table>
+      <tr><th>Nomor Kartu</th><th>CVV</th><th>Expiry</th><th>Hasil</th></tr>
+      <tr>
+        <td><code>4811 1111 1111 1114</code></td>
+        <td>123</td><td>01/39</td>
+        <td><span class="chip g">Sukses</span></td>
+      </tr>
+      <tr>
+        <td><code>4911 1111 1111 1113</code></td>
+        <td>123</td><td>01/39</td>
+        <td><span class="chip gr">Pending</span></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- PAGE 2: FLOW STEP 1-4 -->
+<div class="page">
+  <div class="ph">
+    <div class="ph-brand">IntelliBase AI</div>
+    <div class="ph-label">Flow Transaksi - Langkah 1 s/d 4</div>
+  </div>
+
+  <h2>Alur Transaksi: Buka Website hingga Login</h2>
+  <div class="desc">
+    Berikut customer journey dari saat pertama membuka website hingga siap melakukan pembayaran.
+  </div>
+
+  <div class="step">
+    <div class="snum">1</div>
+    <div class="sbody">
+      <div class="stitle">Buka Website / Landing Page</div>
+      <div class="stext">
+        Customer mengunjungi website IntelliBase AI. Halaman utama menampilkan fitur-fitur produk,
+        testimoni pengguna, dan tombol CTA untuk melihat harga atau mendaftar gratis.
+      </div>
+      <div class="surl">https://intellibase.app/</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">2</div>
+    <div class="sbody">
+      <div class="stitle">Halaman Pricing - Pilih Paket</div>
+      <div class="stext">
+        Customer klik tombol "Lihat Harga" dan diarahkan ke halaman pricing. Tersedia 3 paket berlangganan:
+        <br>- <strong>Free</strong>: Gratis selamanya, fitur terbatas
+        <br>- <strong>Professional</strong>: Rp 200.000 / bulan (harga promo dari Rp 299.000)
+        <br>- <strong>Enterprise</strong>: Rp 500.000 / bulan (harga promo dari Rp 799.000)
+        <br><br>Customer memilih paket Professional atau Enterprise dan klik tombol <strong>"Mulai Sekarang"</strong>.
+      </div>
+      <div class="surl">https://intellibase.app/pricing</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">3</div>
+    <div class="sbody">
+      <div class="stitle">Registrasi Akun (Jika Belum Login)</div>
+      <div class="stext">
+        Jika customer belum memiliki akun, sistem mengarahkan ke halaman registrasi.
+        Customer mengisi: Nama Perusahaan, Nama Lengkap, Email, dan Password.
+        Setelah submit, email verifikasi dikirim ke alamat email customer.
+        Customer klik link verifikasi di email untuk mengaktifkan akun.
+      </div>
+      <div class="surl">https://intellibase.app/register</div>
+      <div class="snote">Email verifikasi dikirim via Resend.com dengan link yang berlaku 24 jam.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">4</div>
+    <div class="sbody">
+      <div class="stitle">Login ke Akun</div>
+      <div class="stext">
+        Customer login menggunakan email dan password yang telah didaftarkan.
+        Setelah login berhasil, session disimpan selama 7 hari.
+        Customer kemudian kembali ke halaman pricing untuk melanjutkan pembelian.
+      </div>
+      <div class="surl">https://intellibase.app/login</div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 3: FLOW STEP 5-8 -->
+<div class="page">
+  <div class="ph">
+    <div class="ph-brand">IntelliBase AI</div>
+    <div class="ph-label">Flow Transaksi - Langkah 5 s/d 8</div>
+  </div>
+
+  <h2>Alur Transaksi: Checkout &amp; Pembayaran Midtrans</h2>
+  <div class="desc">
+    Setelah login, customer memilih paket dan langsung masuk ke payment page Midtrans Snap.
+  </div>
+
+  <div class="step">
+    <div class="snum">5</div>
+    <div class="sbody">
+      <div class="stitle">Pilih Paket dan Klik Tombol Bayar</div>
+      <div class="stext">
+        Customer yang sudah login menekan tombol <strong>"Mulai Sekarang"</strong> pada paket yang dipilih.
+        Tombol menampilkan loading spinner sementara sistem mempersiapkan transaksi di backend.
+      </div>
+      <div class="surl">/pricing - klik "Mulai Sekarang"</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">6</div>
+    <div class="sbody">
+      <div class="stitle">Backend: Generate Token Midtrans</div>
+      <div class="stext">
+        Frontend memanggil API backend untuk membuat transaksi di Midtrans dan mendapatkan snap_token.
+      </div>
+      <div class="surl">POST /api/payment/create</div>
+      <table style="margin-top:10px;">
+        <tr><th>Parameter</th><th>Nilai</th></tr>
+        <tr><td>order_id</td><td><code>IB-PROFESSIONAL-{timestamp}</code> atau <code>IB-ENTERPRISE-{timestamp}</code></td></tr>
+        <tr><td>gross_amount</td><td>200000 (Professional) atau 500000 (Enterprise)</td></tr>
+        <tr><td>item name</td><td>IntelliBase Professional - 1 Bulan</td></tr>
+        <tr><td>customer email</td><td>Email akun yang sedang login</td></tr>
+      </table>
+      <div class="snote">Backend mengembalikan snap_token dan menyimpan record transaksi berstatus "pending" ke database.</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">7</div>
+    <div class="sbody">
+      <div class="stitle">Midtrans Snap - Payment Page Terbuka</div>
+      <div class="stext">
+        Frontend memuat script snap.js dari Midtrans dan membuka popup payment page menggunakan token.
+        <strong>Customer tidak keluar dari website IntelliBase</strong> - Snap tampil sebagai overlay.
+        <br><br>Metode pembayaran tersedia: Kartu Kredit/Debit, GoPay, OVO, DANA, ShopeePay,
+        Transfer Bank (BCA, Mandiri, BNI, BRI), Alfamart, Indomaret, dan lainnya.
+      </div>
+      <div class="surl">Midtrans Snap popup (overlay di atas halaman /pricing)</div>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="snum">8</div>
+    <div class="sbody">
+      <div class="stitle">Customer Menyelesaikan Pembayaran</div>
+      <div class="stext">
+        Customer memilih metode pembayaran dan menyelesaikan transaksi di dalam popup Midtrans Snap.
+        Setelah selesai, Midtrans Snap memanggil callback sesuai hasil pembayaran (sukses/pending/gagal).
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE 4: HASIL & WEBHOOK -->
+<div class="page">
+  <div class="ph">
+    <div class="ph-brand">IntelliBase AI</div>
+    <div class="ph-label">Hasil Pembayaran &amp; Webhook</div>
+  </div>
+
+  <h2>Hasil Pembayaran &amp; Notifikasi Webhook</h2>
+  <div class="desc">
+    Setelah transaksi selesai, customer diarahkan ke halaman hasil dan sistem menerima notifikasi dari Midtrans.
+  </div>
+
+  <div class="rcards">
+    <div class="rcard s">
+      <div class="ri">OK</div>
+      <div class="rl">Pembayaran Berhasil</div>
+      <div class="ru">/payment/success</div>
+      <div class="rd">Akun diupgrade, notifikasi sukses ditampilkan, customer diarahkan ke dashboard</div>
+    </div>
+    <div class="rcard p">
+      <div class="ri">...</div>
+      <div class="rl">Pembayaran Pending</div>
+      <div class="ru">/payment/pending</div>
+      <div class="rd">Menunggu konfirmasi (e.g. transfer bank). Akun diupgrade setelah konfirmasi</div>
+    </div>
+    <div class="rcard f">
+      <div class="ri">X</div>
+      <div class="rl">Pembayaran Gagal</div>
+      <div class="ru">/payment/failed</div>
+      <div class="rd">Transaksi dibatalkan, ditolak, atau expired. Customer dapat mencoba ulang</div>
+    </div>
+  </div>
+
+  <div class="wh">
+    <h4>Webhook - Notifikasi Otomatis dari Midtrans</h4>
+    <div style="font-size:12px;color:#6b7280;margin-bottom:8px;">
+      Endpoint: <code>POST /api/payment/webhook</code>
+    </div>
+    <ul>
+      <li>Midtrans mengirim notifikasi HTTP POST setiap kali status transaksi berubah</li>
+      <li>Backend memverifikasi signature SHA-512 menggunakan Midtrans Server Key</li>
+      <li>Jika status <strong>settlement</strong> atau <strong>capture + accept</strong>: transaksi ditandai "paid" dan plan perusahaan diupgrade 1 bulan</li>
+      <li>Jika status <strong>cancel / deny / expire</strong>: transaksi ditandai "failed"</li>
+      <li>Jika status <strong>pending</strong>: transaksi tetap "pending" hingga konfirmasi berikutnya</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:24px;">
+    <h3 style="font-size:13px;font-weight:700;color:#374151;margin-bottom:10px;">Ringkasan API Endpoints Pembayaran</h3>
+    <table>
+      <tr><th>Endpoint</th><th>Method</th><th>Fungsi</th></tr>
+      <tr>
+        <td><code>/api/payment/create</code></td>
+        <td><span class="chip b2">POST</span></td>
+        <td>Membuat transaksi Midtrans dan mendapatkan snap_token</td>
+      </tr>
+      <tr>
+        <td><code>/api/payment/webhook</code></td>
+        <td><span class="chip b2">POST</span></td>
+        <td>Menerima notifikasi status transaksi dari Midtrans</td>
+      </tr>
+      <tr>
+        <td><code>/api/payment/verify</code></td>
+        <td><span class="chip b2">POST</span></td>
+        <td>Verifikasi status upgrade plan setelah redirect success</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- PAGE 5: DIAGRAM -->
+<div class="page" style="page-break-after: auto;">
+  <div class="ph">
+    <div class="ph-brand">IntelliBase AI</div>
+    <div class="ph-label">Diagram Alur Keseluruhan</div>
+  </div>
+
+  <h2>Diagram Alur Keseluruhan</h2>
+  <div class="desc">Ringkasan visual customer journey dari awal hingga akhir.</div>
+
+  <div class="diagram">
+    <div class="dbox">1. Customer Buka Website</div>
+    <div class="darr">|</div>
+    <div class="dbox">2. Lihat Halaman Pricing</div>
+    <div class="darr">|</div>
+    <div class="dbox b">3. Daftar / Login Akun</div>
+    <div class="darr">|</div>
+    <div class="dbox b">4. Pilih Paket &amp; Klik Bayar</div>
+    <div class="darr">|</div>
+    <div class="dbox v">5. Backend Buat Transaksi Midtrans</div>
+    <div class="darr">|</div>
+    <div class="dbox v">6. Midtrans Snap Popup Terbuka</div>
+    <div class="darr">|</div>
+    <div class="dbox p">7. Customer Bayar (pilih metode)</div>
+    <div class="darr">|</div>
+    <div class="dresult">
+      <div class="dr s">Sukses<span>Plan Diupgrade</span></div>
+      <div class="dr p">Pending<span>Tunggu Konfirmasi</span></div>
+      <div class="dr f">Gagal<span>Coba Lagi</span></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    dokumen ini bersifat rahasia dan hanya ditujukan untuk keperluan review Midtrans &bull; IntelliBase AI &copy; 2026
+  </div>
+</div>
+
+</body>
+</html>
