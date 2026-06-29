@@ -148,8 +148,9 @@ export default function PricingPage() {
               </div>
               <ul className="space-y-3 flex-1 mb-8">
                 {T.features[idx].map((f, fi) => {
-                  const hasCheck = fi < (idx === 0 ? 5 : 10);
-                  const isGray = fi >= (idx === 0 ? 5 : 10);
+                  const checkedCount = idx === 0 ? 5 : T.features[idx].length;
+                  const hasCheck = fi < checkedCount;
+                  const isGray = fi >= checkedCount;
                   return (
                     <li key={fi} className="flex items-center gap-2.5 text-sm">
                       {hasCheck
