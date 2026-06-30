@@ -1,0 +1,134 @@
+name: DAST (OWASP ZAP)
+
+# First-ever CI workflow in this repo. Runs an OWASP ZAP full scan against the
+# app booted in CI, logged in as a seeded demo admin so authenticated routes
+# (/api/admin/*) are covered. Report-only: never fails the job on findings.
+#
+# Manual trigger only for now (workflow_dispatch). Uses a throwaway ephemeral
+# Neon branch as the database, created and deleted within the run — the real
+# dev/production database is never touched.
+#
+# Required repo secrets (Settings > Secrets and variables > Actions):
+#   NEON_API_KEY    - Neon API key allowed to create/delete branches
+#   NEON_PROJECT_ID - Neon project id to branch from
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  dast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create ephemeral Neon branch
+        id: neon-branch
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch_name: dast-ci-${{ github.run_id }}
+
+      - name: Run database migrations
+        run: npx drizzle-kit migrate
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+
+      - name: Seed demo admin user
+        run: node scripts/create-demo-user.mjs
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+
+      - name: Generate throwaway auth secret
+        id: auth-secret
+        run: echo "value=$(openssl rand -hex 32)" >> "$GITHUB_OUTPUT"
+
+      - name: Build app
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+          BETTER_AUTH_SECRET: ${{ steps.auth-secret.outputs.value }}
+          BETTER_AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Start app in background
+        run: npm run start &
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+          BETTER_AUTH_SECRET: ${{ steps.auth-secret.outputs.value }}
+          BETTER_AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Wait for app to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/ -o /dev/null; then
+              echo "App is up"
+              exit 0
+            fi
+            echo "Waiting for app... ($i)"
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          exit 1
+
+      - name: Login as demo admin and capture session cookie
+        id: login
+        run: |
+          RESPONSE=$(curl -sS -c cookies.txt -X POST http://localhost:3000/api/auth/sign-in/email \
+            -H "Content-Type: application/json" \
+            -d '{"email":"demo@intellibase.app","password":"Demo@12345"}')
+          echo "Login response: $RESPONSE"
+          TOKEN=$(grep 'better-auth.session_token' cookies.txt | awk '{print $7}')
+          if [ -z "$TOKEN" ]; then
+            echo "Login failed - no session cookie captured"
+            exit 1
+          fi
+          echo "::add-mask::$TOKEN"
+          echo "cookie=better-auth.session_token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: ZAP full scan (authenticated)
+        uses: zaproxy/action-full-scan@v0.12.0
+        env:
+          ZAP_AUTH_HEADER: Cookie
+          ZAP_AUTH_HEADER_VALUE: ${{ steps.login.outputs.cookie }}
+          ZAP_AUTH_HEADER_SITE: localhost
+        with:
+          target: http://localhost:3000
+          artifact_name: zap-dast-report
+          allow_issue_writing: false
+          fail_action: false
+
+      - name: Upload ZAP report (fallback)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report-files
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+
+      - name: Delete ephemeral Neon branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ secrets.NEON_PROJECT_ID }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+          branch: ${{ steps.neon-branch.outputs.branch_id }}
