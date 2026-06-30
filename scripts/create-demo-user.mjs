@@ -3,18 +3,23 @@ import { neon } from "@neondatabase/serverless";
 import { readFileSync } from "fs";
 import { randomUUID } from "crypto";
 
-// Load env
-const envFile = readFileSync("/home/user/ai-chatbot/.env.local", "utf8");
-const envVars = {};
-for (const line of envFile.split("\n")) {
-  if (line.startsWith("#") || !line.includes("=")) continue;
-  const idx = line.indexOf("=");
-  const key = line.slice(0, idx).trim();
-  const val = line.slice(idx + 1).trim();
-  envVars[key] = val;
+// Use DATABASE_URL from the environment (e.g. CI) if set, otherwise fall back
+// to reading the local .env.local file for manual/local runs.
+let databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) {
+  const envFile = readFileSync("/home/user/ai-chatbot/.env.local", "utf8");
+  const envVars = {};
+  for (const line of envFile.split("\n")) {
+    if (line.startsWith("#") || !line.includes("=")) continue;
+    const idx = line.indexOf("=");
+    const key = line.slice(0, idx).trim();
+    const val = line.slice(idx + 1).trim();
+    envVars[key] = val;
+  }
+  databaseUrl = envVars.DATABASE_URL;
 }
 
-const sql = neon(envVars.DATABASE_URL);
+const sql = neon(databaseUrl);
 
 const DEMO_EMAIL = "demo@intellibase.app";
 const DEMO_PASSWORD = "Demo@12345";
@@ -41,10 +46,11 @@ async function main() {
   await sql`INSERT INTO companies (id, name) VALUES (${companyId}, ${COMPANY_NAME})`;
   console.log("Company created:", companyId);
 
-  // Insert user
+  // Insert user (two_factor_enabled explicitly false so automated/demo login
+  // is never blocked by an email OTP challenge)
   await sql`
-    INSERT INTO users (id, name, email, email_verified, role, company_id, created_at, updated_at)
-    VALUES (${userId}, ${DEMO_NAME}, ${DEMO_EMAIL}, true, 'admin', ${companyId}, NOW(), NOW())
+    INSERT INTO users (id, name, email, email_verified, role, company_id, two_factor_enabled, created_at, updated_at)
+    VALUES (${userId}, ${DEMO_NAME}, ${DEMO_EMAIL}, true, 'admin', ${companyId}, false, NOW(), NOW())
   `;
   console.log("User created:", userId);
 
