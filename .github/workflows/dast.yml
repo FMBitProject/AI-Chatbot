@@ -64,6 +64,9 @@ jobs:
           BETTER_AUTH_SECRET: ${{ steps.auth-secret.outputs.value }}
           BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_APP_URL: http://localhost:3000
+          # Dummy value: auth.ts constructs `new Resend(...)` at module load,
+          # which throws on an empty key. Not used to actually send email in CI.
+          RESEND_API_KEY: re_dummy_key_for_ci
 
       - name: Start app in background
         run: npm run start &
@@ -72,6 +75,7 @@ jobs:
           BETTER_AUTH_SECRET: ${{ steps.auth-secret.outputs.value }}
           BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_APP_URL: http://localhost:3000
+          RESEND_API_KEY: re_dummy_key_for_ci
 
       - name: Wait for app to be ready
         run: |
