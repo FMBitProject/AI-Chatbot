@@ -85,9 +85,6 @@ export const documentChunks = pgTable("document_chunks", {
   documentId: text("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   text: text("text").notNull(),
-  // Legacy JSON-text embeddings, kept during the pgvector migration. Retrieval
-  // now uses the native `embedding` vector column below; drop this once backfilled.
-  embeddingJson: text("embedding_json"),
   embedding: vector("embedding", { dimensions: 1536 }),
   chunkIndex: integer("chunk_index").notNull().default(0),
 }, (t) => [

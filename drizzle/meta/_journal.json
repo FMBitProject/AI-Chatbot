@@ -15,6 +15,13 @@
       "when": 1782868875380,
       "tag": "0001_gray_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782872999322,
+      "tag": "0002_left_cannonball",
+      "breakpoints": true
     }
   ]
 }
