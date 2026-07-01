@@ -84,17 +84,37 @@ function mergeOverlap(acc, next) {
   return acc + "\n" + next;
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Gemini free tier allows ~100 embed requests/minute and the SDK issues one
+// request per value, so we embed in small batches and pace between them,
+// retrying on 429 for the delay the API asks for.
 async function embedAll(texts) {
-  const BATCH = 100;
+  const BATCH = 15;
   const out = [];
   for (let i = 0; i < texts.length; i += BATCH) {
-    const { embeddings } = await embedMany({
-      model: google.embedding("gemini-embedding-001"),
-      values: texts.slice(i, i + BATCH).map((t) => t.replace(/\n/g, " ")),
-      maxRetries: 3,
-      providerOptions: { google: { outputDimensionality: 1536, taskType: "RETRIEVAL_DOCUMENT" } },
-    });
-    out.push(...embeddings);
+    const batch = texts.slice(i, i + BATCH).map((t) => t.replace(/\n/g, " "));
+    let done = false;
+    for (let attempt = 0; attempt < 6 && !done; attempt++) {
+      try {
+        const { embeddings } = await embedMany({
+          model: google.embedding("gemini-embedding-001"),
+          values: batch,
+          maxRetries: 0,
+          providerOptions: { google: { outputDimensionality: 1536, taskType: "RETRIEVAL_DOCUMENT" } },
+        });
+        out.push(...embeddings);
+        done = true;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const m = msg.match(/retryDelay"?:?\s*"?(\d+)s/) || msg.match(/retry in (\d+)/i);
+        const delay = (m ? parseInt(m[1], 10) : 30) + 3;
+        console.log(`    rate-limited, waiting ${delay}s (attempt ${attempt + 1}/6)...`);
+        await sleep(delay * 1000);
+      }
+    }
+    if (!done) throw new Error("embedding failed after retries");
+    if (i + BATCH < texts.length) await sleep(12000); // pace: ~15 per 12s < 100/min
   }
   return out;
 }
@@ -104,6 +124,20 @@ async function main() {
   console.log(`Found ${docs.length} document(s).`);
 
   for (const doc of docs) {
+    // Resumable: skip documents already fully migrated (raw_text saved and no
+    // chunk left without an embedding).
+    if (doc.raw_text) {
+      const [{ pending }] = await sql`
+        SELECT count(*)::int AS pending FROM document_chunks
+        WHERE document_id = ${doc.id} AND embedding IS NULL`;
+      const [{ total }] = await sql`
+        SELECT count(*)::int AS total FROM document_chunks WHERE document_id = ${doc.id}`;
+      if (total > 0 && pending === 0) {
+        console.log(`  [skip] ${doc.id}: already migrated`);
+        continue;
+      }
+    }
+
     const oldChunks = await sql`
       SELECT text FROM document_chunks WHERE document_id = ${doc.id} ORDER BY chunk_index`;
 
@@ -124,6 +158,12 @@ async function main() {
 
     const embeddings = await embedAll(chunks);
 
+    // Persist the recovered text BEFORE deleting the old chunks, so the source
+    // text is never lost if the run is interrupted mid-document.
+    if (!doc.raw_text) {
+      await sql`UPDATE documents SET raw_text = ${fullText} WHERE id = ${doc.id}`;
+    }
+
     // Replace this document's chunks. (Per-doc; the FK cascade is on documents,
     // so we delete chunks explicitly here.)
     await sql`DELETE FROM document_chunks WHERE document_id = ${doc.id}`;
@@ -132,9 +172,6 @@ async function main() {
       await sql`
         INSERT INTO document_chunks (id, document_id, company_id, text, embedding, chunk_index)
         VALUES (${randomUUID()}, ${doc.id}, ${doc.company_id}, ${chunks[i]}, ${literal}::vector, ${i})`;
-    }
-    if (!doc.raw_text) {
-      await sql`UPDATE documents SET raw_text = ${fullText} WHERE id = ${doc.id}`;
     }
     console.log(`  [ok]   ${doc.id}: ${oldChunks.length} → ${chunks.length} chunks re-embedded`);
   }
