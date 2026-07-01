@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { documentChunks, users, documents } from "@/lib/db/schema";
+import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { getEmbedding } from "@/lib/embeddings";
+import { retrieveChunks } from "@/lib/retrieval";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -17,29 +18,21 @@ export async function GET(req: NextRequest) {
 
   const queryEmbedding = await getEmbedding(q);
 
-  const chunks = await db
-    .select({
-      id: documentChunks.id,
-      text: documentChunks.text,
-      embeddingJson: documentChunks.embeddingJson,
-      documentId: documentChunks.documentId,
-      documentName: documents.name,
-    })
-    .from(documentChunks)
-    .innerJoin(documents, eq(documentChunks.documentId, documents.id))
-    .where(eq(documentChunks.companyId, dbUser.companyId));
-
-  const results = chunks
-    .filter((c) => c.embeddingJson)
-    .map((c) => ({
-      id: c.id,
-      text: c.text,
-      documentName: c.documentName,
-      documentId: c.documentId,
-      score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 8);
+  // Search is permissive (minScore 0) so it still surfaces weaker matches; it's
+  // department-scoped like chat so employees only see documents they may access.
+  const results = (await retrieveChunks({
+    companyId: dbUser.companyId,
+    queryEmbedding,
+    department: dbUser.department,
+    limit: 8,
+    minScore: 0,
+  })).map((c) => ({
+    id: c.id,
+    text: c.text,
+    documentName: c.documentName,
+    documentId: c.documentId,
+    score: c.score,
+  }));
 
   return NextResponse.json(results);
 }
