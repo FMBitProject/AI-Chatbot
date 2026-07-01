@@ -6,6 +6,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
+import { getPlanPrice, formatRupiah, type PaidPlan } from "@/lib/pricing";
 import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const CONTENT = {
@@ -326,6 +327,13 @@ export default function ROIPage() {
   const { lang } = useLang();
   const T = CONTENT[lang];
 
+  // Override the static plan prices with the current effective price (promo
+  // until Dec 2026, then normal) so the ROI math and labels stay in sync.
+  const plans = T.plans.map((p) => {
+    const price = getPlanPrice(p.key as PaidPlan);
+    return { ...p, price, priceLabel: `${formatRupiah(price, lang)} / ${lang === "id" ? "bulan" : "month"}` };
+  });
+
   const [employees, setEmployees] = useState(50);
   const [questionsPerDay, setQuestionsPerDay] = useState(3);
   const [minutesPerSearch, setMinutesPerSearch] = useState(20);
@@ -341,7 +349,7 @@ export default function ROIPage() {
     return { hoursPerMonth, costLost, savingsWithAI };
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
 
-  const recommendedPlan = employees > 50 ? T.plans[1] : T.plans[0];
+  const recommendedPlan = employees > 50 ? plans[1] : plans[0];
   const bestNet = Math.max(0, results.savingsWithAI - recommendedPlan.price);
 
   return (
@@ -461,7 +469,7 @@ export default function ROIPage() {
           <p className="text-gray-500 text-sm">{T.compDesc}</p>
         </div>
         <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
-          {T.plans.map((plan) => (
+          {plans.map((plan) => (
             <PlanResultCard
               key={plan.key}
               plan={plan}

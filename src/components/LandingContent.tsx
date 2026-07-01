@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
+import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator } from "lucide-react";
 
 const CONTENT = {
@@ -276,14 +277,21 @@ export function LandingContent() {
           <h2 className="text-3xl font-bold text-gray-900 mb-4">{T.priceTitle}</h2>
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
           <div className="grid sm:grid-cols-3 gap-4 mb-8">
-            {T.pricePlans.map((p) => (
-              <div key={p.name} className={`rounded-xl border p-5 text-left ${p.promo ? "border-teal-200 bg-teal-50" : ""}`}>
-                {p.promo && <span className="text-xs font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
-                <p className="font-bold text-gray-900">{p.name}</p>
-                <p className="text-teal-600 font-semibold text-sm">{p.price}</p>
-                <p className="text-gray-400 text-xs mt-1">{p.desc}</p>
-              </div>
-            ))}
+            {T.pricePlans.map((p) => {
+              const planKey = p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
+              const promo = planKey ? isPromoActive() : false;
+              const priceText = planKey
+                ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
+                : p.price;
+              return (
+                <div key={p.name} className={`rounded-xl border p-5 text-left ${promo ? "border-teal-200 bg-teal-50" : ""}`}>
+                  {promo && <span className="text-xs font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
+                  <p className="font-bold text-gray-900">{p.name}</p>
+                  <p className="text-teal-600 font-semibold text-sm">{priceText}</p>
+                  <p className="text-gray-400 text-xs mt-1">{p.desc}</p>
+                </div>
+              );
+            })}
           </div>
           <Link href="/pricing"><Button variant="outline" className="gap-2">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button></Link>
         </div>
