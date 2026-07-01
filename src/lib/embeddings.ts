@@ -8,11 +8,28 @@ function getGoogle(apiKey?: string | null) {
   });
 }
 
+// Embeddings are reduced from the model's 3072-dim default to 1536 so they fit
+// within pgvector's 2000-dim index limit (and cost less to store/compare).
+// Cosine similarity is scale-invariant, so the un-normalized shorter vectors
+// are fine for our cosine-distance search.
+export const EMBEDDING_DIMENSIONS = 1536;
+
+// Format a vector as a pgvector literal, e.g. "[0.1,0.2,...]".
+export function toVectorLiteral(v: number[]): string {
+  return `[${v.join(",")}]`;
+}
+
+// Embed a search query. taskType RETRIEVAL_QUERY tells Gemini this is the
+// question side of an asymmetric search, which improves match quality against
+// document-side embeddings.
 export async function getEmbedding(text: string, apiKey?: string | null): Promise<number[]> {
   const google = getGoogle(apiKey);
   const { embedding } = await embed({
     model: google.embedding("gemini-embedding-001"),
     value: text.replace(/\n/g, " "),
+    providerOptions: {
+      google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_QUERY" },
+    },
   });
   return embedding;
 }
@@ -42,6 +59,9 @@ export async function getEmbeddings(texts: string[]): Promise<number[][]> {
           model: google.embedding("gemini-embedding-001"),
           values: batch,
           maxRetries: 0, // we handle retries ourselves
+          providerOptions: {
+            google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_DOCUMENT" },
+          },
         });
         results.push(...embeddings);
         lastErr = undefined;

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { apiKeys, documentChunks, documents, companies, chatMessages, chatSessions } from "@/lib/db/schema";
+import { apiKeys, companies, chatMessages, chatSessions } from "@/lib/db/schema";
 import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
-import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { getEmbedding } from "@/lib/embeddings";
+import { retrieveChunks } from "@/lib/retrieval";
 import { getLimits } from "@/lib/plan-limits";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
@@ -65,17 +66,10 @@ export async function POST(req: NextRequest) {
 
   const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
   const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
-  const chunks = await db
-    .select({ id: documentChunks.id, text: documentChunks.text, embeddingJson: documentChunks.embeddingJson })
-    .from(documentChunks)
-    .innerJoin(documents, eq(documentChunks.documentId, documents.id))
-    .where(eq(documentChunks.companyId, apiKey.companyId));
-
-  const scored = chunks
-    .filter((c) => c.embeddingJson)
-    .map((c) => ({ ...c, score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 4);
+  const scored = (await retrieveChunks({
+    companyId: apiKey.companyId,
+    queryEmbedding,
+  })).slice(0, 4);
 
   const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
   const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";

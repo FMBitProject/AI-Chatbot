@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
           documentId: docId,
           companyId,
           text,
-          embeddingJson: JSON.stringify(embeddings[i]),
+          embedding: embeddings[i],
           chunkIndex: i,
         }))
       );
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
         summary = text.trim();
       } catch {}
 
-      await db.update(documents).set({ status: "success", summary }).where(eq(documents.id, docId));
+      await db.update(documents).set({ status: "success", summary, rawText }).where(eq(documents.id, docId));
       results.push({ id: docId, name: file.name, status: "success", createdAt: new Date().toISOString() });
 
     } catch (error) {
