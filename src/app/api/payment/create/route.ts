@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getSnap, PLAN_PRICES, PLAN_NAMES } from "@/lib/midtrans";
+import { getSnap } from "@/lib/midtrans";
+import { getPlanPrice, PLAN_NAMES, isPaidPlan } from "@/lib/pricing";
 import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -15,8 +16,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { plan } = await req.json() as { plan: "professional" | "enterprise" };
-  if (!plan || !PLAN_PRICES[plan]) {
+  const { plan } = await req.json() as { plan: unknown };
+  if (!isPaidPlan(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
@@ -24,7 +25,8 @@ export async function POST(req: NextRequest) {
   if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
   const orderId = `IB-${plan.toUpperCase()}-${Date.now()}`;
-  const amount = PLAN_PRICES[plan];
+  // Price is resolved server-side (promo-aware) so the client can never dictate it.
+  const amount = getPlanPrice(plan);
 
   const parameter = {
     transaction_details: {

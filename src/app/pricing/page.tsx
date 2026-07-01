@@ -11,15 +11,20 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
+import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah } from "@/lib/pricing";
 
-const ORIGINAL_PRICES = ["", "Rp 299.000", "Rp 799.000"];
-const PROMO_PRICES = ["", "Rp 200.000", "Rp 500.000"];
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
-const HAS_PROMO = [false, true, true];
 
 export default function PricingPage() {
   const { lang } = useLang();
   const T = pricing[lang];
+
+  // Prices and promo state come from the shared pricing module, so this page
+  // (and the checkout) automatically revert to normal prices once the promo ends.
+  const promoActive = isPromoActive();
+  const ORIGINAL_PRICES = ["", formatRupiah(NORMAL_PRICES.professional, lang), formatRupiah(NORMAL_PRICES.enterprise, lang)];
+  const PROMO_PRICES = ["", formatRupiah(PROMO.professional, lang), formatRupiah(PROMO.enterprise, lang)];
+  const HAS_PROMO = [false, promoActive, promoActive];
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -94,9 +99,11 @@ export default function PricingPage() {
       </nav>
 
       {/* Promo Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-center py-2.5 px-4 text-sm font-medium">
-        {T.promoBanner} &nbsp;·&nbsp; <span className="underline">{T.promoEnds}</span>
-      </div>
+      {promoActive && (
+        <div className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-center py-2.5 px-4 text-sm font-medium">
+          {T.promoBanner} &nbsp;·&nbsp; <span className="underline">{T.promoEnds}</span>
+        </div>
+      )}
 
       {/* Hero */}
       <section className="text-center py-16 px-6 bg-gradient-to-b from-teal-50 to-white">
