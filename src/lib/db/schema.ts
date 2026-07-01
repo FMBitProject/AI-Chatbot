@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, vector, index } from "drizzle-orm/pg-core";
 
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
@@ -73,6 +73,9 @@ export const documents = pgTable("documents", {
   department: text("department"),
   status: text("status").$type<"processing" | "success" | "failed">().default("processing").notNull(),
   summary: text("summary"),
+  // Full extracted text, kept so a document can be re-chunked later without
+  // re-uploading the original file.
+  rawText: text("raw_text"),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -82,9 +85,14 @@ export const documentChunks = pgTable("document_chunks", {
   documentId: text("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   text: text("text").notNull(),
+  // Legacy JSON-text embeddings, kept during the pgvector migration. Retrieval
+  // now uses the native `embedding` vector column below; drop this once backfilled.
   embeddingJson: text("embedding_json"),
+  embedding: vector("embedding", { dimensions: 1536 }),
   chunkIndex: integer("chunk_index").notNull().default(0),
-});
+}, (t) => [
+  index("document_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+]);
 
 export const chatSessions = pgTable("chat_sessions", {
   id: text("id").primaryKey(),

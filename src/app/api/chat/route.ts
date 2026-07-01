@@ -3,9 +3,10 @@ import { streamText, generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { documentChunks, users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
+import { users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
 import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
-import { getEmbedding, cosineSimilarity } from "@/lib/embeddings";
+import { getEmbedding } from "@/lib/embeddings";
+import { retrieveChunks } from "@/lib/retrieval";
 import { getLimits } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
 
@@ -125,29 +126,19 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const chunksQuery = db
-    .select({
-      id: documentChunks.id,
-      text: documentChunks.text,
-      embeddingJson: documentChunks.embeddingJson,
-      documentId: documentChunks.documentId,
-      documentName: documents.name,
-      department: documents.department,
-    })
-    .from(documentChunks)
-    .innerJoin(documents, eq(documentChunks.documentId, documents.id))
-    .where(eq(documentChunks.companyId, dbUser.companyId));
-
-  const allChunks = await (dbUser.department
-    ? chunksQuery.then((rows) => rows.filter((r) => !r.department || r.department === dbUser.department))
-    : chunksQuery);
-
-  // Build a full document catalog from all fetched chunks (unique doc names, no extra query)
-  const docCatalogMap = new Map<string, string>(); // documentId → name
-  for (const c of allChunks) {
-    if (!docCatalogMap.has(c.documentId)) docCatalogMap.set(c.documentId, c.documentName);
-  }
-  const docCatalogNames = [...docCatalogMap.values()].sort();
+  // Document catalog: every document the user can see (shared or their own
+  // department), so the AI can still answer "how many documents?"-style
+  // meta-questions even when no chunk is retrieved.
+  const catalogRows = await db
+    .select({ name: documents.name })
+    .from(documents)
+    .where(dbUser.department
+      ? and(
+          eq(documents.companyId, dbUser.companyId),
+          or(isNull(documents.department), eq(documents.department, dbUser.department)),
+        )
+      : eq(documents.companyId, dbUser.companyId));
+  const docCatalogNames = [...new Set(catalogRows.map((r) => r.name))].sort();
   const docCatalog = docCatalogNames.length > 0
     ? `KNOWLEDGE BASE CATALOG — ${docCatalogNames.length} document(s) available:\n${docCatalogNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}`
     : "KNOWLEDGE BASE CATALOG: No documents available.";
@@ -157,14 +148,14 @@ export async function POST(req: NextRequest) {
   // Groq Dev/paid tier: 100,000+ TPM → can raise this significantly
   const MAX_CONTEXT_CHARS = 36_000;
 
-  const rankedChunks = allChunks
-    .filter((c) => c.embeddingJson)
-    .map((c) => ({
-      ...c,
-      score: cosineSimilarity(queryEmbedding, JSON.parse(c.embeddingJson!) as number[]),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .filter((c) => c.score > 0.5);
+  // Relevant chunks via the shared pgvector retriever (department-scoped, 0.5
+  // similarity threshold, ordered by the HNSW index in the database).
+  const rankedChunks = await retrieveChunks({
+    companyId: dbUser.companyId,
+    queryEmbedding,
+    department: dbUser.department,
+    limit: 30,
+  });
 
   // Take as many top-scored chunks as fit within the token budget
   // Cap at 5 unique documents to avoid irrelevant sources
