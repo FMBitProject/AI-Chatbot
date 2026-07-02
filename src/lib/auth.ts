@@ -71,6 +71,17 @@ export const auth = betterAuth({
       maxAge: 60 * 60 * 24 * 7,
     },
   },
+  // Enabled by default in production only, so local dev stays unthrottled.
+  // Tight windows on the credential/OTP endpoints to slow brute-force.
+  rateLimit: {
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60, max: 5 },
+      "/two-factor/*": { window: 60, max: 5 },
+    },
+  },
   plugins: [
     twoFactor({
       otpOptions: {

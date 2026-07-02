@@ -4,8 +4,21 @@ import { companies, users } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+
+// Public endpoint that creates a company + admin — throttle per IP so it can't
+// be used for mass signup spam.
+const REGISTER_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 
 export async function POST(req: NextRequest) {
+  const limit = consumeRateLimit(`register-admin:${getClientIp(req)}`, REGISTER_LIMIT);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Terlalu banyak percobaan pendaftaran. Coba lagi beberapa menit lagi." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+    );
+  }
+
   try {
     const { name, email, password, companyName } = await req.json() as {
       name: string;
