@@ -30,14 +30,13 @@ async function extractText(file: File): Promise<string> {
   }
 
   if (name.endsWith(".xlsx")) {
-    const XLSX = await import("xlsx");
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const lines: string[] = [];
-    for (const sheetName of workbook.SheetNames) {
-      lines.push(`=== ${sheetName} ===`);
-      lines.push(XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]));
-    }
-    return lines.join("\n");
+    // Parsed via officeparser (like pptx below) instead of the abandoned `xlsx`
+    // package, which has unpatched prototype-pollution/ReDoS advisories in its
+    // parser. The "csv" destination keeps the tabular structure for retrieval.
+    const { parseOffice } = await import("officeparser");
+    const ast = await parseOffice(buffer, { fileType: "xlsx" });
+    const { value: text } = await ast.to("csv");
+    return text as string;
   }
 
   if (name.endsWith(".pptx")) {
