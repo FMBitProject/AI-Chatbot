@@ -60,10 +60,34 @@ export async function POST(req: NextRequest) {
     company = { ...company, plan: "starter", planExpiresAt: null };
   }
 
-  const { maxQuestionsPerMonth, maxQuestionsPerDay } = getLimits(company?.plan ?? "starter");
+  const { maxQuestionsPerMonth, maxQuestionsPerDay, maxQuestionsPerDayPerUser } = getLimits(company?.plan ?? "starter");
 
   const companyId = dbUser.companyId!;
   const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+  // Per-user fairness cap, checked BEFORE the company counter increments so a
+  // capped user doesn't burn shared quota. Count-based like the monthly check.
+  if (maxQuestionsPerDayPerUser !== -1) {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const [{ total: userDailyCount }] = await db
+      .select({ total: count() })
+      .from(chatMessages)
+      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+      .where(and(
+        eq(chatSessions.userId, dbUser.id),
+        eq(chatMessages.role, "user"),
+        gte(chatMessages.createdAt, startOfDay)
+      ));
+
+    if (userDailyCount >= maxQuestionsPerDayPerUser) {
+      return new Response(
+        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDayPerUser, period: "daily-user" }),
+        { status: 429 }
+      );
+    }
+  }
 
   // Daily quota: atomic check-and-increment in one UPDATE query.
   // PostgreSQL executes this atomically — no race condition possible.
