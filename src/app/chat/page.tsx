@@ -112,13 +112,16 @@ export default function ChatPage() {
       if (!res.ok) {
         const langCode = responseLangRef.current;
         if (res.status === 429) {
-          const data = await res.json().catch(() => ({ limit: 0, period: "daily" })) as { error: string; limit: number; period: "daily" | "monthly" };
-          const isDaily = data.period === "daily";
+          const data = await res.json().catch(() => ({ limit: 0, period: "daily" })) as { error: string; limit: number; period: "daily" | "monthly" | "daily-user" };
           const quotaMsg = langCode === "en"
-            ? isDaily
+            ? data.period === "daily-user"
+              ? `🚫 **Your personal daily limit is reached** (${data.limit} questions/day per person).\n\nThis keeps the company quota fair for your teammates — they can still ask questions. Your personal quota resets tomorrow.`
+              : data.period === "daily"
               ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
               : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
-            : isDaily
+            : data.period === "daily-user"
+              ? `🚫 **Batas harian pribadi Anda tercapai** (${data.limit} pertanyaan/hari per orang).\n\nBatas ini menjaga kuota perusahaan tetap adil — rekan tim Anda masih bisa bertanya. Kuota pribadi Anda reset besok.`
+              : data.period === "daily"
               ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda akan reset besok. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`
               : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda akan reset bulan depan. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
