@@ -113,7 +113,11 @@ export const transactions = pgTable("transactions", {
 
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
-  key: text("key").notNull().unique(),
+  // SHA-256 hash of the full key — the plaintext is shown to the admin once at
+  // creation and never stored, so a database leak cannot expose usable keys.
+  keyHash: text("key_hash").notNull().unique(),
+  // First few chars of the key, kept in the clear purely for display (e.g. ib_a1b2c3d4…).
+  keyPrefix: text("key_prefix").notNull(),
   name: text("name").notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

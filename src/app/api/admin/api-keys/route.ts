@@ -4,11 +4,7 @@ import { db } from "@/lib/db";
 import { users, apiKeys } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
-
-function generateApiKey(): string {
-  const raw = randomUUID().replace(/-/g, "");
-  return `ib_${raw}`;
-}
+import { generateApiKey } from "@/lib/api-key";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -22,12 +18,12 @@ export async function GET(req: NextRequest) {
   const keys = await db.select({
     id: apiKeys.id,
     name: apiKeys.name,
-    key: apiKeys.key,
+    keyPrefix: apiKeys.keyPrefix,
     createdAt: apiKeys.createdAt,
     lastUsedAt: apiKeys.lastUsedAt,
   }).from(apiKeys).where(eq(apiKeys.companyId, dbUser.companyId));
 
-  return NextResponse.json(keys.map((k) => ({ ...k, key: `${k.key.slice(0, 8)}${"•".repeat(24)}` })));
+  return NextResponse.json(keys.map(({ keyPrefix, ...k }) => ({ ...k, key: `${keyPrefix}${"•".repeat(24)}` })));
 }
 
 export async function POST(req: NextRequest) {
@@ -40,15 +36,17 @@ export async function POST(req: NextRequest) {
   }
 
   const { name } = await req.json() as { name: string };
-  const key = generateApiKey();
+  const { key, hash, prefix } = generateApiKey();
 
   await db.insert(apiKeys).values({
     id: randomUUID(),
-    key,
+    keyHash: hash,
+    keyPrefix: prefix,
     name: name || "API Key",
     companyId: dbUser.companyId,
   });
 
+  // Plaintext key is returned exactly once — it is not recoverable afterwards.
   return NextResponse.json({ key, name });
 }
 
