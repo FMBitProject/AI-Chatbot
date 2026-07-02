@@ -29,12 +29,14 @@ export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
 
   async function handleExportExcel() {
     if (!data) return;
-    const { utils, writeFile } = await import("xlsx");
+    const ExcelJS = (await import("exceljs")).default;
 
-    const wb = utils.book_new();
+    const wb = new ExcelJS.Workbook();
 
     // Sheet 1: Ringkasan
-    const summaryData = [
+    const ws1 = wb.addWorksheet("Ringkasan");
+    ws1.columns = [{ width: 25 }, { width: 15 }];
+    ws1.addRows([
       ["IntelliBase AI — Laporan Analitik"],
       ["Digenerate pada", new Date().toLocaleString("id-ID")],
       [""],
@@ -43,25 +45,31 @@ export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
       ["Total Pertanyaan", data.totalMessages],
       ["Total Dokumen", data.totalDocuments],
       ["Total Karyawan", data.totalEmployees],
-    ];
-    const ws1 = utils.aoa_to_sheet(summaryData);
-    ws1["!cols"] = [{ wch: 25 }, { wch: 15 }];
-    utils.book_append_sheet(wb, ws1, "Ringkasan");
+    ]);
 
     // Sheet 2: Pertanyaan Terbaru
-    const questionData = [
+    const ws2 = wb.addWorksheet("Pertanyaan Terbaru");
+    ws2.columns = [{ width: 5 }, { width: 60 }, { width: 15 }];
+    ws2.addRows([
       ["No", "Pertanyaan", "Tanggal"],
       ...data.recentQuestions.map((q, i) => [
         i + 1,
         q.title,
         new Date(q.createdAt).toLocaleDateString("id-ID"),
       ]),
-    ];
-    const ws2 = utils.aoa_to_sheet(questionData);
-    ws2["!cols"] = [{ wch: 5 }, { wch: 60 }, { wch: 15 }];
-    utils.book_append_sheet(wb, ws2, "Pertanyaan Terbaru");
+    ]);
 
-    writeFile(wb, `IntelliBase_Analytics_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `IntelliBase_Analytics_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+
     toast({ title: "Excel berhasil diunduh!" });
   }
 
