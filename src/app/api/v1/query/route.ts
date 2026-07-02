@@ -5,6 +5,7 @@ import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { getLimits } from "@/lib/plan-limits";
+import { hashApiKey } from "@/lib/api-key";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
 
   if (!key) return NextResponse.json({ error: "Missing API key" }, { status: 401 });
 
-  const [apiKey] = await db.select().from(apiKeys).where(eq(apiKeys.key, key)).limit(1);
+  const [apiKey] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(key))).limit(1);
   if (!apiKey) return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, apiKey.id));
