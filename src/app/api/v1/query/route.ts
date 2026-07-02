@@ -6,17 +6,30 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { getLimits } from "@/lib/plan-limits";
 import { hashApiKey } from "@/lib/api-key";
+import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
+
+// Only failed key lookups count toward this, so valid integrations are never
+// throttled here (they are governed by the plan quotas below instead).
+const BAD_KEY_LIMIT = { max: 10, windowMs: 60 * 1000 };
 
 export async function POST(req: NextRequest) {
   const authorization = req.headers.get("authorization");
   const key = authorization?.replace("Bearer ", "").trim();
 
+  const badKeyBucket = `v1-bad-key:${getClientIp(req)}`;
+  if (isRateLimited(badKeyBucket, BAD_KEY_LIMIT)) {
+    return NextResponse.json({ error: "Too many invalid API key attempts" }, { status: 429 });
+  }
+
   if (!key) return NextResponse.json({ error: "Missing API key" }, { status: 401 });
 
   const [apiKey] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(key))).limit(1);
-  if (!apiKey) return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+  if (!apiKey) {
+    recordFailure(badKeyBucket, BAD_KEY_LIMIT);
+    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+  }
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, apiKey.id));
 
