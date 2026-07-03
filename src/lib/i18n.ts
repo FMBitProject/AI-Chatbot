@@ -1,4 +1,10 @@
+import { PLAN_LIMITS } from "./plan-limits";
+
 export type Lang = "id" | "en";
+
+// Quota numbers in copy are pulled from PLAN_LIMITS so pricing text can never
+// drift from what the API actually enforces.
+const proPerUser = PLAN_LIMITS.professional.maxQuestionsPerDayPerUser;
 
 export const t = {
   id: {
@@ -240,7 +246,7 @@ export const pricing = {
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: "Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari. Paket Enterprise tidak terbatas." },
+      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${proPerUser} pertanyaan/hari per karyawan). Paket Enterprise tidak terbatas.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -288,7 +294,7 @@ export const pricing = {
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: "Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day. Enterprise is unlimited." },
+      { q: "Are there question limits?", a: `Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day (to keep things fair for the whole team, at most ${proPerUser} questions/day per employee). Enterprise is unlimited.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],
