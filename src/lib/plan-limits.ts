@@ -1,9 +1,12 @@
-// maxQuestionsPerDayPerUser is a fairness cap *inside* the shared company
-// quota: it stops one heavy user from draining maxQuestionsPerDay for
-// everyone else. Enterprise stays uncapped — that's what the plan sells.
+// maxQuestionsPerDayPerUser is an emergency brake, not an everyday fence: it
+// only exists to stop one runaway user (or script) from draining the shared
+// maxQuestionsPerDay pool. Calibrated so normal humans never hit it — one
+// professional user can take at most 20% of the company pool. Starter's pool
+// (10/day) is too small to be worth "protecting" at the cost of solo-founder
+// trials, and enterprise sells unlimited, so both stay uncapped.
 export const PLAN_LIMITS = {
-  starter:      { maxDocuments: 10,  maxEmployees: 5,  maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,  maxQuestionsPerDayPerUser: 5  },
-  professional: { maxDocuments: 100, maxEmployees: 50, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300, maxQuestionsPerDayPerUser: 30 },
+  starter:      { maxDocuments: 10,  maxEmployees: 5,  maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,  maxQuestionsPerDayPerUser: -1 },
+  professional: { maxDocuments: 100, maxEmployees: 50, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300, maxQuestionsPerDayPerUser: 60 },
   enterprise:   { maxDocuments: -1,  maxEmployees: -1, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,  maxQuestionsPerDayPerUser: -1 },
 } as const;
 
