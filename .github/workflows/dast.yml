@@ -6,7 +6,9 @@ name: DAST (OWASP ZAP)
 #
 # Manual trigger only for now (workflow_dispatch). Uses a throwaway ephemeral
 # Neon branch as the database, created and deleted within the run — the real
-# dev/production database is never touched.
+# dev/production database is never touched. The branch is a clone of
+# production, so all its data is wiped before the scan; the ZAP report can
+# only ever contain the seeded demo admin, never customer data.
 #
 # Required repo secrets (Settings > Secrets and variables > Actions):
 #   NEON_API_KEY    - Neon API key allowed to create/delete branches
@@ -47,6 +49,26 @@ jobs:
       # No migration step needed: the ephemeral branch is a copy-on-write clone
       # of the project's default branch, so it already contains the full schema.
       # Running drizzle-kit migrate here would fail because the tables exist.
+
+      # The clone also starts with real production data. Wipe every table so
+      # the ZAP report can never contain customer data — the scan only ever
+      # sees the demo admin seeded in the next step. This runs strictly against
+      # the ephemeral branch's DATABASE_URL, never the real database.
+      - name: Wipe cloned production data
+        run: |
+          node - <<'EOF'
+          const { neon } = require("@neondatabase/serverless");
+          const sql = neon(process.env.DATABASE_URL);
+          (async () => {
+            const tables = await sql`SELECT tablename FROM pg_tables WHERE schemaname = 'public'`;
+            if (tables.length === 0) throw new Error("No tables in public schema - unexpected database");
+            const list = tables.map((t) => `"public"."${t.tablename}"`).join(", ");
+            await sql.query(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+            console.log(`Truncated ${tables.length} tables:`, tables.map((t) => t.tablename).join(", "));
+          })().catch((e) => { console.error(e); process.exit(1); });
+          EOF
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
 
       - name: Seed demo admin user
         run: node scripts/create-demo-user.mjs
