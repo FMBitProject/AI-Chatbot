@@ -10,17 +10,27 @@ const isDev = process.env.NODE_ENV === "development";
 const MIDTRANS_APP = "https://app.midtrans.com https://app.sandbox.midtrans.com";
 const MIDTRANS_API = "https://api.midtrans.com https://api.sandbox.midtrans.com";
 
+// Google Analytics 4 via @next/third-parties (gated on cookie consent in
+// AnalyticsConsent.tsx). gtag.js loads from googletagmanager.com; GA4 beacons
+// POST to google-analytics.com — including region endpoints like
+// region1.google-analytics.com and analytics.google.com, hence the wildcards —
+// and a fallback tracking pixel loads as an image. Whitelisting these hosts
+// does not load GA on its own; the component still requires consent + a set
+// NEXT_PUBLIC_GA_ID before any request is made.
+const GA_TAGMANAGER = "https://www.googletagmanager.com";
+const GA_ANALYTICS = "https://*.google-analytics.com https://*.analytics.google.com";
+
 // No nonces: per the Next.js CSP guide, nonce-based CSP forces every page into
 // dynamic rendering. 'unsafe-inline' keeps static optimization; the policy
 // still blocks external script injection, exfiltration and framing.
 // Dev needs 'unsafe-eval' (React error stacks) and ws: (HMR).
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' blob: data: ${MIDTRANS_APP}`,
+  `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
   "font-src 'self' data:",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API}`,
+  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
   `frame-src ${MIDTRANS_APP}`,
   "worker-src 'self'",
   "object-src 'none'",
