@@ -12,11 +12,14 @@ export function CookieConsent() {
 
   function accept() {
     localStorage.setItem("cookie-consent", "accepted");
+    // Let <AnalyticsConsent /> start GA immediately, without a page reload.
+    window.dispatchEvent(new Event("cookie-consent-changed"));
     setVisible(false);
   }
 
   function decline() {
     localStorage.setItem("cookie-consent", "declined");
+    window.dispatchEvent(new Event("cookie-consent-changed"));
     setVisible(false);
   }
 
