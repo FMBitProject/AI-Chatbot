@@ -359,7 +359,7 @@ export default function ROIPage() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
-            <LanguageSwitcher className="hidden sm:flex" />
+            <LanguageSwitcher />
             <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">
               {T.nav.price}
             </Link>

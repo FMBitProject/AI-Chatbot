@@ -77,7 +77,7 @@ export default function PricingPage() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
-            <LanguageSwitcher className="hidden sm:flex" />
+            <LanguageSwitcher />
             {mounted && session?.user ? (
               <Link href="/chat">
                 <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">
