@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const [{ total: userDailyCount }] = await db
+    const [{ total: userDailyCount }] = await withTenant(companyId, (tx) => tx
       .select({ total: count() })
       .from(chatMessages)
       .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         eq(chatSessions.userId, dbUser.id),
         eq(chatMessages.role, "user"),
         gte(chatMessages.createdAt, startOfDay)
-      ));
+      )));
 
     if (userDailyCount >= maxQuestionsPerDayPerUser) {
       return new Response(
@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const [{ total: monthlyCount }] = await db
+    const [{ total: monthlyCount }] = await withTenant(companyId, (tx) => tx
       .select({ total: count() })
       .from(chatMessages)
       .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
         eq(chatSessions.companyId, companyId),
         eq(chatMessages.role, "user"),
         gte(chatMessages.createdAt, startOfMonth)
-      ));
+      )));
 
     if (monthlyCount >= maxQuestionsPerMonth) {
       return new Response(
@@ -217,23 +217,29 @@ export async function POST(req: NextRequest) {
   let activeSessionId = sessionId;
   if (!activeSessionId) {
     activeSessionId = randomUUID();
-    await db.insert(chatSessions).values({
-      id: activeSessionId,
+    const newSessionId = activeSessionId;
+    await withTenant(companyId, (tx) => tx.insert(chatSessions).values({
+      id: newSessionId,
       userId: dbUser.id,
-      companyId: dbUser.companyId,
+      companyId,
       title: lastUserMessage.content.slice(0, 60),
-    });
+    }));
   } else {
     // Verify the session belongs to this user's company before writing messages into it
-    const [existingSession] = await db
+    const existingSessionId = activeSessionId;
+    const [existingSession] = await withTenant(companyId, (tx) => tx
       .select({ id: chatSessions.id })
       .from(chatSessions)
-      .where(and(eq(chatSessions.id, activeSessionId), eq(chatSessions.companyId, companyId)))
-      .limit(1);
+      .where(and(eq(chatSessions.id, existingSessionId), eq(chatSessions.companyId, companyId)))
+      .limit(1));
     if (!existingSession) {
       return new Response(JSON.stringify({ error: "Session not found" }), { status: 404 });
     }
   }
+
+  // Stable, non-null handle to the session id for use inside withTenant closures
+  // (activeSessionId is a reassignable `let`, which loses its narrowing there).
+  const resolvedSessionId = activeSessionId;
 
   // Only bail out early when there are truly no documents at all in the knowledge base.
   // If there are documents but no relevant chunks (e.g. a meta-question like "how many docs?"),
@@ -245,8 +251,10 @@ export async function POST(req: NextRequest) {
       : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
 
     const noDocMsgId = randomUUID();
-    await db.insert(chatMessages).values({ id: randomUUID(), sessionId: activeSessionId, role: "user", content: lastUserMessage.content });
-    await db.insert(chatMessages).values({ id: noDocMsgId, sessionId: activeSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
+    await withTenant(companyId, async (tx) => {
+      await tx.insert(chatMessages).values({ id: randomUUID(), sessionId: resolvedSessionId, role: "user", content: lastUserMessage.content });
+      await tx.insert(chatMessages).values({ id: noDocMsgId, sessionId: resolvedSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
+    });
 
     const encoder2 = new TextEncoder();
     const { readable: r2, writable: w2 } = new TransformStream<Uint8Array, Uint8Array>();
@@ -303,12 +311,12 @@ If no relevant information is found:
   const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${langReminder}`;
 
   const userMsgId = randomUUID();
-  await db.insert(chatMessages).values({
+  await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
     id: userMsgId,
-    sessionId: activeSessionId,
+    sessionId: resolvedSessionId,
     role: "user",
     content: lastUserMessage.content,
-  });
+  }));
 
   const citations = scored.map((c) => ({ id: c.id, text: c.text, documentName: c.documentName }));
   const assistantMsgId = randomUUID();
@@ -342,13 +350,15 @@ If no relevant information is found:
     system: systemPromptWithContext,
     messages: messagesWithLang,
     onFinish: async ({ text }) => {
-      await db.insert(chatMessages).values({
+      // Runs after the stream completes, so it gets its own short tenant-scoped
+      // transaction rather than being held open across the LLM response.
+      await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
         id: assistantMsgId,
-        sessionId: activeSessionId!,
+        sessionId: resolvedSessionId,
         role: "assistant",
         content: text,
         citationsJson: JSON.stringify(citations),
-      });
+      }));
     },
   });
 

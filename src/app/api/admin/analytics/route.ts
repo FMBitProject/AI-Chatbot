@@ -15,25 +15,27 @@ export async function GET(req: NextRequest) {
   }
   const companyId = dbUser.companyId;
 
-  const [totalSessions] = await db.select({ count: count() }).from(chatSessions)
-    .where(eq(chatSessions.companyId, companyId));
-
-  const [totalMessages] = await db.select({ count: count() }).from(chatMessages)
-    .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-    .where(eq(chatSessions.companyId, companyId));
-
-  // documents is RLS-protected — read it inside a tenant-scoped transaction.
-  const [totalDocs] = await withTenant(companyId, (tx) =>
-    tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
+  // documents, chat_sessions and chat_messages are all RLS-protected, so their
+  // reads share one tenant-scoped transaction. users is not RLS'd and stays on
+  // the plain connection below.
+  const { totalSessions, totalMessages, totalDocs, recentSessions } = await withTenant(companyId, async (tx) => {
+    const [totalSessions] = await tx.select({ count: count() }).from(chatSessions)
+      .where(eq(chatSessions.companyId, companyId));
+    const [totalMessages] = await tx.select({ count: count() }).from(chatMessages)
+      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
+      .where(eq(chatSessions.companyId, companyId));
+    const [totalDocs] = await tx.select({ count: count() }).from(documents)
+      .where(eq(documents.companyId, companyId));
+    const recentSessions = await tx.select({ title: chatSessions.title, createdAt: chatSessions.createdAt })
+      .from(chatSessions)
+      .where(eq(chatSessions.companyId, companyId))
+      .orderBy(desc(chatSessions.createdAt))
+      .limit(10);
+    return { totalSessions, totalMessages, totalDocs, recentSessions };
+  });
 
   const [totalEmployees] = await db.select({ count: count() }).from(users)
-    .where(eq(users.companyId, dbUser.companyId));
-
-  const recentSessions = await db.select({ title: chatSessions.title, createdAt: chatSessions.createdAt })
-    .from(chatSessions)
-    .where(eq(chatSessions.companyId, dbUser.companyId))
-    .orderBy(desc(chatSessions.createdAt))
-    .limit(10);
+    .where(eq(users.companyId, companyId));
 
   return NextResponse.json({
     totalSessions: totalSessions.count,

@@ -27,18 +27,24 @@ const DATABASE_URL = process.env.DATABASE_URL || fromEnvFile("DATABASE_URL");
 if (!DATABASE_URL) throw new Error("DATABASE_URL not set");
 
 const sql = neon(DATABASE_URL);
-const file = readFileSync(new URL("../drizzle/0004_row_level_security.sql", import.meta.url), "utf8");
 
-// The migration is one statement per `--> statement-breakpoint`; comment-only
-// segments (the header) are skipped.
-const statements = file
-  .split("--> statement-breakpoint")
-  .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
-  .filter(Boolean);
+// Both RLS migrations, in order. All statements are idempotent (DROP POLICY IF
+// EXISTS + idempotent ENABLE/FORCE), so re-applying one already present on a
+// branch is harmless.
+const MIGRATIONS = ["0004_row_level_security.sql", "0005_row_level_security_chat.sql"];
 
-console.log(`Applying ${statements.length} statements from 0004_row_level_security.sql…`);
-for (const stmt of statements) {
-  console.log(`  ${stmt.split("\n")[0].slice(0, 70)}…`);
-  await sql.query(stmt);
+for (const name of MIGRATIONS) {
+  const file = readFileSync(new URL(`../drizzle/${name}`, import.meta.url), "utf8");
+  // One statement per `--> statement-breakpoint`; comment-only segments skipped.
+  const statements = file
+    .split("--> statement-breakpoint")
+    .map((s) => s.replace(/^\s*--.*$/gm, "").trim())
+    .filter(Boolean);
+
+  console.log(`Applying ${statements.length} statements from ${name}…`);
+  for (const stmt of statements) {
+    console.log(`  ${stmt.split("\n")[0].slice(0, 70)}…`);
+    await sql.query(stmt);
+  }
 }
 console.log("Done. Now run: DATABASE_URL=<same-url> node scripts/verify-rls.mjs");

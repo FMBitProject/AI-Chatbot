@@ -70,10 +70,10 @@ export async function POST(req: NextRequest) {
 
   if (maxQuestionsPerMonth !== -1) {
     const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const [{ total: monthlyCount }] = await db
+    const [{ total: monthlyCount }] = await withTenant(apiKey.companyId, (tx) => tx
       .select({ total: count() }).from(chatMessages)
       .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-      .where(and(eq(chatSessions.companyId, apiKey.companyId), eq(chatMessages.role, "user"), gte(chatMessages.createdAt, startOfMonth)));
+      .where(and(eq(chatSessions.companyId, apiKey.companyId), eq(chatMessages.role, "user"), gte(chatMessages.createdAt, startOfMonth))));
     if (monthlyCount >= maxQuestionsPerMonth) {
       return NextResponse.json({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth, period: "monthly" }, { status: 429 });
     }

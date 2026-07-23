@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { chatMessages, chatSessions, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -13,15 +14,20 @@ export async function GET(
 
   const { id } = await params;
   const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!dbUser?.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const companyId = dbUser.companyId;
 
-  const [chatSession] = await db.select().from(chatSessions)
-    .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, dbUser.id)))
-    .limit(1);
-  if (!chatSession) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // chat_sessions/chat_messages are RLS-protected: verify session ownership and
+  // read its messages in one tenant-scoped transaction. RLS also guarantees a
+  // session/message from another company is invisible even if the id matches.
+  const messages = await withTenant(companyId, async (tx) => {
+    const [chatSession] = await tx.select().from(chatSessions)
+      .where(and(eq(chatSessions.id, id), eq(chatSessions.userId, dbUser.id)))
+      .limit(1);
+    if (!chatSession) return null;
+    return tx.select().from(chatMessages).where(eq(chatMessages.sessionId, id));
+  });
 
-  const messages = await db.select().from(chatMessages)
-    .where(eq(chatMessages.sessionId, id));
-
+  if (messages === null) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json(messages);
 }
