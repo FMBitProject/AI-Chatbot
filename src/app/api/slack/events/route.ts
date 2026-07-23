@@ -4,6 +4,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
+import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
@@ -13,7 +14,7 @@ const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on th
 async function runRAG(question: string, companyId: string): Promise<string> {
   const queryEmbedding = await getEmbedding(question);
 
-  const scored = (await retrieveChunks({ companyId, queryEmbedding })).slice(0, 3);
+  const scored = (await withTenant(companyId, (tx) => retrieveChunks({ companyId, queryEmbedding }, tx))).slice(0, 3);
 
   const context = scored.length > 0
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
