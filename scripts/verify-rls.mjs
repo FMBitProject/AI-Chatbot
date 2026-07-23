@@ -105,6 +105,22 @@ async function cleanup() {
 async function main() {
   console.log("== RLS verification ==\n");
 
+  // -- Preflight: does the connected role even respect RLS? -------------------
+  // Neon console roles (neondb_owner etc.) are members of neon_superuser, which
+  // has BYPASSRLS: policies exist but are silently ignored. The app (and this
+  // script) must connect as a plain SQL-created role — see create-rls-role.mjs.
+  const { rows: [who] } = await pool.query(
+    `select current_user as usr, rolbypassrls, rolsuper
+     from pg_roles where rolname = current_user`);
+  console.log("Preflight:");
+  check(`connected as '${who.usr}' — role does NOT bypass RLS`,
+    who.rolbypassrls === false && who.rolsuper === false,
+    "this role ignores RLS entirely; run scripts/create-rls-role.mjs and re-run with the printed URL");
+  if (failed > 0) {
+    console.log("\nVerifying as a BYPASSRLS role proves nothing. Aborting.");
+    process.exit(1);
+  }
+
   // -- Preflight: is the migration actually applied? --------------------------
   const { rows: rls } = await pool.query(`
     select relname, relrowsecurity, relforcerowsecurity
@@ -113,7 +129,6 @@ async function main() {
     select tablename, policyname from pg_policies
     where tablename in ('documents', 'document_chunks')`);
 
-  console.log("Preflight:");
   for (const name of ["documents", "document_chunks"]) {
     const row = rls.find((r) => r.relname === name);
     const pol = policies.find((p) => p.tablename === name);
