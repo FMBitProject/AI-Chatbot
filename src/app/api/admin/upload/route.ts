@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { documents, documentChunks, users, companies } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { getLimits, isUnderLimit } from "@/lib/plan-limits";
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest) {
   // Enforce plan limits
   const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
   const limits = getLimits(company?.plan ?? "starter");
-  const [{ count: docCount }] = await db.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId));
+  const [{ count: docCount }] = await withTenant(companyId, (tx) =>
+    tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
   if (!isUnderLimit(docCount, limits.maxDocuments)) {
     return NextResponse.json({
       error: `Batas dokumen paket ${company?.plan ?? "Starter"} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`,
@@ -92,12 +94,12 @@ export async function POST(req: NextRequest) {
 
     const safeName = file.name.replace(/[^\w.\- ]/g, "").trim() || "upload";
     const docId = randomUUID();
-    await db.insert(documents).values({
+    await withTenant(companyId, (tx) => tx.insert(documents).values({
       id: docId,
       name: safeName,
       companyId,
       status: "processing",
-    });
+    }));
 
     try {
       const rawText = await extractText(file);
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
       // Batch embed all chunks in one API call instead of N sequential calls
       const embeddings = await getEmbeddings(chunks);
 
-      await db.insert(documentChunks).values(
+      await withTenant(companyId, (tx) => tx.insert(documentChunks).values(
         chunks.map((text, i) => ({
           id: randomUUID(),
           documentId: docId,
@@ -115,7 +117,7 @@ export async function POST(req: NextRequest) {
           embedding: embeddings[i],
           chunkIndex: i,
         }))
-      );
+      ));
 
       // Auto-generate document summary
       const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
@@ -128,12 +130,14 @@ export async function POST(req: NextRequest) {
         summary = text.trim();
       } catch {}
 
-      await db.update(documents).set({ status: "success", summary, rawText }).where(eq(documents.id, docId));
+      await withTenant(companyId, (tx) =>
+        tx.update(documents).set({ status: "success", summary, rawText }).where(eq(documents.id, docId)));
       results.push({ id: docId, name: file.name, status: "success", createdAt: new Date().toISOString() });
 
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
-      await db.update(documents).set({ status: "failed" }).where(eq(documents.id, docId));
+      await withTenant(companyId, (tx) =>
+        tx.update(documents).set({ status: "failed" }).where(eq(documents.id, docId)));
       results.push({ id: docId, name: file.name, status: "failed", createdAt: new Date().toISOString() });
     }
   }

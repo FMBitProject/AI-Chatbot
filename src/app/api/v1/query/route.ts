@@ -4,6 +4,7 @@ import { apiKeys, companies, chatMessages, chatSessions } from "@/lib/db/schema"
 import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
+import { withTenant } from "@/lib/db/tenant";
 import { getLimits } from "@/lib/plan-limits";
 import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
@@ -80,10 +81,10 @@ export async function POST(req: NextRequest) {
 
   const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
   const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
-  const scored = (await retrieveChunks({
+  const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
     companyId: apiKey.companyId,
     queryEmbedding,
-  })).slice(0, 4);
+  }, tx))).slice(0, 4);
 
   const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
   const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";

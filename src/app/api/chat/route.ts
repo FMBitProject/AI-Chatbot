@@ -7,6 +7,7 @@ import { users, chatSessions, chatMessages, documents, companies } from "@/lib/d
 import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
+import { withTenant } from "@/lib/db/tenant";
 import { getLimits } from "@/lib/plan-limits";
 import { randomUUID } from "crypto";
 
@@ -150,18 +151,35 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Document catalog: every document the user can see (shared or their own
-  // department), so the AI can still answer "how many documents?"-style
-  // meta-questions even when no chunk is retrieved.
-  const catalogRows = await db
-    .select({ name: documents.name })
-    .from(documents)
-    .where(dbUser.department
-      ? and(
-          eq(documents.companyId, dbUser.companyId),
-          or(isNull(documents.department), eq(documents.department, dbUser.department)),
-        )
-      : eq(documents.companyId, dbUser.companyId));
+  // Document catalog + relevant chunks both read the RLS-protected documents /
+  // document_chunks tables, so they run together inside one tenant-scoped
+  // transaction (see withTenant).
+  const { catalogRows, rankedChunks } = await withTenant(companyId, async (tx) => {
+    // Every document the user can see (shared or their own department), so the
+    // AI can still answer "how many documents?"-style meta-questions even when
+    // no chunk is retrieved.
+    const catalogRows = await tx
+      .select({ name: documents.name })
+      .from(documents)
+      .where(dbUser.department
+        ? and(
+            eq(documents.companyId, companyId),
+            or(isNull(documents.department), eq(documents.department, dbUser.department)),
+          )
+        : eq(documents.companyId, companyId));
+
+    // Relevant chunks via the shared pgvector retriever (department-scoped, 0.5
+    // similarity threshold, ordered by the HNSW index in the database).
+    const rankedChunks = await retrieveChunks({
+      companyId,
+      queryEmbedding,
+      department: dbUser.department,
+      limit: 30,
+    }, tx);
+
+    return { catalogRows, rankedChunks };
+  });
+
   const docCatalogNames = [...new Set(catalogRows.map((r) => r.name))].sort();
   const docCatalog = docCatalogNames.length > 0
     ? `KNOWLEDGE BASE CATALOG — ${docCatalogNames.length} document(s) available:\n${docCatalogNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}`
@@ -171,15 +189,6 @@ export async function POST(req: NextRequest) {
   // Groq free tier: 12,000 TPM → safe context budget ≈ 9,000 tokens ≈ 36,000 chars
   // Groq Dev/paid tier: 100,000+ TPM → can raise this significantly
   const MAX_CONTEXT_CHARS = 36_000;
-
-  // Relevant chunks via the shared pgvector retriever (department-scoped, 0.5
-  // similarity threshold, ordered by the HNSW index in the database).
-  const rankedChunks = await retrieveChunks({
-    companyId: dbUser.companyId,
-    queryEmbedding,
-    department: dbUser.department,
-    limit: 30,
-  });
 
   // Take as many top-scored chunks as fit within the token budget
   // Cap at 5 unique documents to avoid irrelevant sources

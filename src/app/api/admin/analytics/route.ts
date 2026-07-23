@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { chatSessions, chatMessages, documents, users } from "@/lib/db/schema";
 import { eq, count, desc } from "drizzle-orm";
 
@@ -12,16 +13,18 @@ export async function GET(req: NextRequest) {
   if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const companyId = dbUser.companyId;
 
   const [totalSessions] = await db.select({ count: count() }).from(chatSessions)
-    .where(eq(chatSessions.companyId, dbUser.companyId));
+    .where(eq(chatSessions.companyId, companyId));
 
   const [totalMessages] = await db.select({ count: count() }).from(chatMessages)
     .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-    .where(eq(chatSessions.companyId, dbUser.companyId));
+    .where(eq(chatSessions.companyId, companyId));
 
-  const [totalDocs] = await db.select({ count: count() }).from(documents)
-    .where(eq(documents.companyId, dbUser.companyId));
+  // documents is RLS-protected — read it inside a tenant-scoped transaction.
+  const [totalDocs] = await withTenant(companyId, (tx) =>
+    tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
 
   const [totalEmployees] = await db.select({ count: count() }).from(users)
     .where(eq(users.companyId, dbUser.companyId));

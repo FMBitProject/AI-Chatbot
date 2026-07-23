@@ -4,6 +4,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
+import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
@@ -48,7 +49,8 @@ export async function POST(req: NextRequest) {
 
   (async () => {
     const queryEmbedding = await getEmbedding(text);
-    const scored = (await retrieveChunks({ companyId: dbUser.companyId!, queryEmbedding })).slice(0, 3);
+    const companyId = dbUser.companyId!;
+    const scored = (await withTenant(companyId, (tx) => retrieveChunks({ companyId, queryEmbedding }, tx))).slice(0, 3);
 
     const context = scored.length > 0
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")

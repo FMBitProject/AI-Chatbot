@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { documents, users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -13,6 +14,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const docs = await db.select().from(documents).where(eq(documents.companyId, dbUser.companyId));
+  const companyId = dbUser.companyId;
+  const docs = await withTenant(companyId, (tx) =>
+    tx.select().from(documents).where(eq(documents.companyId, companyId)));
   return NextResponse.json(docs);
 }

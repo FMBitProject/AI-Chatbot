@@ -1,6 +1,6 @@
 import { and, cosineDistance, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { documentChunks, documents } from "@/lib/db/schema";
+import type { TenantTx } from "@/lib/db/tenant";
 
 export interface RetrievedChunk {
   id: string;
@@ -15,13 +15,18 @@ export interface RetrievedChunk {
 // channels rank and threshold identically. Uses the pgvector HNSW index via
 // drizzle's cosineDistance operator (`embedding <=> query`), so ordering +
 // LIMIT are done in the database instead of scanning every chunk in JS.
+//
+// documents/document_chunks are RLS-protected, so this MUST run inside a
+// withTenant(companyId, ...) transaction — the caller passes that transaction's
+// `tx` handle. The explicit companyId filter below is kept as defence-in-depth
+// on top of the row-level policy.
 export async function retrieveChunks(opts: {
   companyId: string;
   queryEmbedding: number[];
   department?: string | null;
   limit?: number;
   minScore?: number;
-}): Promise<RetrievedChunk[]> {
+}, tx: TenantTx): Promise<RetrievedChunk[]> {
   const { companyId, queryEmbedding, department = null, limit = 20, minScore = 0.5 } = opts;
 
   const distance = cosineDistance(documentChunks.embedding, queryEmbedding);
@@ -35,7 +40,7 @@ export async function retrieveChunks(opts: {
     conditions.push(or(isNull(documents.department), eq(documents.department, department))!);
   }
 
-  const rows = await db
+  const rows = await tx
     .select({
       id: documentChunks.id,
       text: documentChunks.text,
