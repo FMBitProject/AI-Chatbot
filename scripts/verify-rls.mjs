@@ -71,33 +71,44 @@ function check(name, ok, detail = "") {
   }
 }
 
-const A = { company: `rls-test-A-${randomUUID()}`, doc: randomUUID(), chunk: randomUUID() };
-const B = { company: `rls-test-B-${randomUUID()}`, doc: randomUUID(), chunk: randomUUID() };
+const A = { company: `rls-test-A-${randomUUID()}`, doc: randomUUID(), chunk: randomUUID(), user: randomUUID(), session: randomUUID(), msg: randomUUID() };
+const B = { company: `rls-test-B-${randomUUID()}`, doc: randomUUID(), chunk: randomUUID(), user: randomUUID(), session: randomUUID(), msg: randomUUID() };
 
 async function seed() {
-  // companies is not RLS-protected — plain inserts.
   for (const t of [A, B]) {
+    // companies + users are not RLS-protected — plain inserts.
     await pool.query(`insert into companies (id, name) values ($1, $1)`, [t.company]);
-    // documents/document_chunks ARE protected: inserts must run with the
-    // matching context or WITH CHECK rejects them (itself part of the test).
+    await pool.query(
+      `insert into users (id, name, email, company_id) values ($1, 'RLS Test', $2, $3)`,
+      [t.user, `${t.user}@rls-test.local`, t.company]);
+    // documents/document_chunks/chat_sessions/chat_messages ARE protected:
+    // inserts must run with the matching context or WITH CHECK rejects them
+    // (itself part of the test). chat_messages has no company_id — its policy
+    // checks session_id belongs to a session visible for the context.
     await withCompany(t.company, async (c) => {
       await c.query(
         `insert into documents (id, name, company_id, status) values ($1, 'rls-test.pdf', $2, 'success')`,
-        [t.doc, t.company],
-      );
+        [t.doc, t.company]);
       await c.query(
         `insert into document_chunks (id, document_id, company_id, text, chunk_index) values ($1, $2, $3, 'rls test chunk', 0)`,
-        [t.chunk, t.doc, t.company],
-      );
+        [t.chunk, t.doc, t.company]);
+      await c.query(
+        `insert into chat_sessions (id, user_id, company_id, title) values ($1, $2, $3, 'rls test session')`,
+        [t.session, t.user, t.company]);
+      await c.query(
+        `insert into chat_messages (id, session_id, role, content) values ($1, $2, 'user', 'rls test question')`,
+        [t.msg, t.session]);
     });
   }
 }
 
 async function cleanup() {
   for (const t of [A, B]) {
-    await withCompany(t.company, (c) =>
-      c.query(`delete from documents where id = $1`, [t.doc]), // chunks cascade
-    ).catch(() => {});
+    await withCompany(t.company, async (c) => {
+      await c.query(`delete from chat_sessions where id = $1`, [t.session]); // messages cascade
+      await c.query(`delete from documents where id = $1`, [t.doc]); // chunks cascade
+    }).catch(() => {});
+    await pool.query(`delete from users where id = $1`, [t.user]).catch(() => {});
     await pool.query(`delete from companies where id = $1`, [t.company]).catch(() => {});
   }
 }
@@ -122,22 +133,23 @@ async function main() {
   }
 
   // -- Preflight: is the migration actually applied? --------------------------
+  const rlsTables = ["documents", "document_chunks", "chat_sessions", "chat_messages"];
+  const inList = rlsTables.map((t) => `'${t}'`).join(", ");
   const { rows: rls } = await pool.query(`
     select relname, relrowsecurity, relforcerowsecurity
-    from pg_class where relname in ('documents', 'document_chunks')`);
+    from pg_class where relname in (${inList})`);
   const { rows: policies } = await pool.query(`
-    select tablename, policyname from pg_policies
-    where tablename in ('documents', 'document_chunks')`);
+    select tablename, policyname from pg_policies where tablename in (${inList})`);
 
-  for (const name of ["documents", "document_chunks"]) {
+  for (const name of rlsTables) {
     const row = rls.find((r) => r.relname === name);
     const pol = policies.find((p) => p.tablename === name);
     check(`${name}: RLS enabled`, row?.relrowsecurity === true);
     check(`${name}: RLS FORCED (owner not exempt)`, row?.relforcerowsecurity === true);
-    check(`${name}: tenant policy exists`, Boolean(pol), "run drizzle-kit migrate on this branch first");
+    check(`${name}: tenant policy exists`, Boolean(pol), "apply migrations 0004 + 0005 to this branch first");
   }
   if (failed > 0) {
-    console.log("\nMigration 0004 is not (fully) applied to this database. Aborting before seeding.");
+    console.log("\nMigrations 0004/0005 are not (fully) applied to this database. Aborting before seeding.");
     process.exit(1);
   }
 
@@ -211,6 +223,64 @@ async function main() {
     const aChunksAfter = await withCompany(A.company, (c) =>
       c.query(`select id from document_chunks where document_id = $1`, [A.doc]));
     check("chunk cascade-delete fired", aChunksAfter.rows.length === 0);
+
+    // -- chat_sessions + chat_messages (phase 2) ------------------------------
+    console.log("\nChat-history isolation checks:");
+
+    // No context → nothing visible.
+    const noCtxS = await withCompany(null, (c) =>
+      c.query(`select id from chat_sessions where id in ($1, $2)`, [A.session, B.session]));
+    check("no context → 0 chat_sessions visible (fail closed)", noCtxS.rows.length === 0);
+
+    // Context A sees own session/message, never B's.
+    const aSess = await withCompany(A.company, (c) =>
+      c.query(`select id from chat_sessions where id in ($1, $2)`, [A.session, B.session]));
+    check("tenant A sees own chat_session", aSess.rows.some((r) => r.id === A.session));
+    check("tenant A cannot see B's chat_session", !aSess.rows.some((r) => r.id === B.session));
+
+    // chat_messages has no company_id — isolation comes from the session subquery.
+    const aMsgs = await withCompany(A.company, (c) =>
+      c.query(`select id from chat_messages where id in ($1, $2)`, [A.msg, B.msg]));
+    check("tenant A sees own chat_message", aMsgs.rows.some((r) => r.id === A.msg));
+    check("tenant A cannot see B's chat_message (scoped via session subquery)",
+      !aMsgs.rows.some((r) => r.id === B.msg));
+
+    // Forgotten WHERE on chat_sessions still returns only A.
+    const forgotS = await withCompany(A.company, (c) =>
+      c.query(`select company_id from chat_sessions where title = 'rls test session'`));
+    check("forgotten WHERE on chat_sessions returns only tenant A",
+      forgotS.rows.length === 1 && forgotS.rows[0].company_id === A.company);
+
+    // Cross-tenant INSERTs rejected by WITH CHECK.
+    let sessInsertRejected = false;
+    try {
+      await withCompany(A.company, (c) =>
+        c.query(`insert into chat_sessions (id, user_id, company_id, title) values ($1, $2, $3, 'evil')`,
+          [randomUUID(), A.user, B.company]));
+    } catch (err) { sessInsertRejected = /row-level security|policy/i.test(String(err.message)); }
+    check("tenant A cannot INSERT a chat_session for tenant B", sessInsertRejected);
+
+    let msgInsertRejected = false;
+    try {
+      await withCompany(A.company, (c) =>
+        c.query(`insert into chat_messages (id, session_id, role, content) values ($1, $2, 'user', 'evil')`,
+          [randomUUID(), B.session])); // B's session under A's context
+    } catch (err) { msgInsertRejected = /row-level security|policy/i.test(String(err.message)); }
+    check("tenant A cannot INSERT a chat_message into B's session (subquery WITH CHECK)", msgInsertRejected);
+
+    // Cross-tenant UPDATE/DELETE affect 0 rows; B's data survives.
+    const updS = await withCompany(A.company, (c) =>
+      c.query(`update chat_sessions set title = 'hacked' where id = $1`, [B.session]));
+    check("tenant A UPDATE on B's chat_session affects 0 rows", updS.rowCount === 0);
+
+    const delM = await withCompany(A.company, (c) =>
+      c.query(`delete from chat_messages where id = $1`, [B.msg]));
+    check("tenant A DELETE on B's chat_message affects 0 rows", delM.rowCount === 0);
+
+    const bSessStill = await withCompany(B.company, (c) =>
+      c.query(`select title from chat_sessions where id = $1`, [B.session]));
+    check("B's chat_session survived A's attack, title intact",
+      bSessStill.rows.length === 1 && bSessStill.rows[0].title === "rls test session");
   } finally {
     console.log("\nCleaning up test tenants…");
     await cleanup();

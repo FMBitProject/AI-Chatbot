@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { withTenant } from "@/lib/db/tenant";
 import { chatMessages, chatSessions, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 
@@ -12,8 +13,11 @@ export async function GET(req: NextRequest) {
   if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const companyId = dbUser.companyId;
 
-  const logs = await db
+  // chat_messages/chat_sessions are RLS-protected; the join (incl. non-RLS users)
+  // runs inside a tenant-scoped transaction.
+  const logs = await withTenant(companyId, (tx) => tx
     .select({
       id: chatMessages.id,
       role: chatMessages.role,
@@ -27,9 +31,9 @@ export async function GET(req: NextRequest) {
     .from(chatMessages)
     .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
     .innerJoin(users, eq(chatSessions.userId, users.id))
-    .where(eq(chatSessions.companyId, dbUser.companyId))
+    .where(eq(chatSessions.companyId, companyId))
     .orderBy(desc(chatMessages.createdAt))
-    .limit(200);
+    .limit(200));
 
   return NextResponse.json(logs);
 }
