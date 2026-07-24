@@ -168,10 +168,16 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
               </div>
             ))}
           </div>
-          {data.plan === "starter" && (
+          {data.plan === "starter" ? (
             <Link href="/pricing">
               <Button className="w-full bg-blue-600 hover:bg-blue-700 gap-2">
                 {lang === "en" ? "Upgrade Plan" : "Upgrade Paket"} <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/pricing">
+              <Button variant="outline" className="w-full gap-2">
+                {lang === "en" ? "View all plans & pricing" : "Lihat semua paket & harga"} <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           )}
