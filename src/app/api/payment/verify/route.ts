@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -45,10 +46,20 @@ export async function POST(req: NextRequest) {
       data.transaction_status === "settlement";
 
     if (isSuccess) {
-      const planExpiresAt = new Date();
-      planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
       await db.update(transactions).set({ status: "paid", paidAt: new Date() }).where(eq(transactions.id, tx.id));
-      await db.update(companies).set({ plan, planExpiresAt }).where(eq(companies.id, dbUser.companyId));
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+      const now = new Date();
+      const currentRank = isSubscriptionActive(company?.plan, company?.planExpiresAt, now)
+        ? planRank(company?.plan)
+        : 0;
+
+      // Renewal/upgrade stacks onto remaining time; never downgrade a paid plan
+      // (downgrades are blocked at checkout).
+      if (planRank(plan) >= currentRank) {
+        const planExpiresAt = computeRenewedExpiry(company?.planExpiresAt, now);
+        await db.update(companies).set({ plan, planExpiresAt }).where(eq(companies.id, dbUser.companyId));
+      }
       return NextResponse.json({ ok: true, upgraded: true });
     }
 

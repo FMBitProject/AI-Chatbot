@@ -40,8 +40,12 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json() as { token: string };
-      if (!data.token) throw new Error("No token");
+      const data = await res.json() as { token?: string; message?: string };
+      if (!res.ok || !data.token) {
+        setLoadingPlan(null);
+        alert(data.message ?? "Gagal memulai pembayaran. Silakan coba lagi.");
+        return;
+      }
 
       // Load Midtrans Snap script dynamically
       const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";

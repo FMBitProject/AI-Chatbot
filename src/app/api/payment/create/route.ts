@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getSnap } from "@/lib/midtrans";
-import { getPlanPrice, PLAN_NAMES, isPaidPlan } from "@/lib/pricing";
+import { getPlanPrice, PLAN_NAMES, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
 import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -23,6 +23,20 @@ export async function POST(req: NextRequest) {
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   if (!company) return NextResponse.json({ error: "Company not found" }, { status: 404 });
+
+  // Block buying a lower tier while a paid subscription is still active — a
+  // downgrade would strip time the customer already paid for. They can switch
+  // once the current period lapses. Renewals (same tier) and upgrades are fine.
+  if (isSubscriptionActive(company.plan, company.planExpiresAt) && planRank(plan) < planRank(company.plan)) {
+    return NextResponse.json(
+      {
+        error: "downgrade_not_allowed",
+        message:
+          "Langganan Anda saat ini masih aktif. Beralih ke paket yang lebih rendah bisa dilakukan setelah periode berjalan berakhir.",
+      },
+      { status: 409 },
+    );
+  }
 
   const orderId = `IB-${plan.toUpperCase()}-${Date.now()}`;
   // Price is resolved server-side (promo-aware) so the client can never dictate it.

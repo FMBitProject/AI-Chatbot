@@ -29,6 +29,44 @@ export function isPaidPlan(value: unknown): value is PaidPlan {
   return value === "professional" || value === "enterprise";
 }
 
+export type Plan = "starter" | PaidPlan;
+
+const PLAN_RANK: Record<Plan, number> = {
+  starter: 0,
+  professional: 1,
+  enterprise: 2,
+};
+
+// Ordinal tier of a plan (higher = more premium). Unknown/null → starter (0).
+// Used to tell renewals/upgrades apart from downgrades.
+export function planRank(plan: string | null | undefined): number {
+  return plan && plan in PLAN_RANK ? PLAN_RANK[plan as Plan] : 0;
+}
+
+// A paid subscription that hasn't lapsed yet.
+export function isSubscriptionActive(
+  plan: string | null | undefined,
+  expiresAt: Date | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  return isPaidPlan(plan) && !!expiresAt && expiresAt.getTime() > now.getTime();
+}
+
+// Expiry after a successful payment: when the current subscription is still
+// active, stack a month onto the remaining time (renewal/upgrade keeps unused
+// days); otherwise start a fresh month from now. One month per purchase.
+export function computeRenewedExpiry(
+  currentExpiresAt: Date | null | undefined,
+  now: Date = new Date(),
+): Date {
+  const base =
+    currentExpiresAt && currentExpiresAt.getTime() > now.getTime()
+      ? new Date(currentExpiresAt)
+      : new Date(now);
+  base.setMonth(base.getMonth() + 1);
+  return base;
+}
+
 export function isPromoActive(now: Date = new Date()): boolean {
   return now.getTime() < PROMO_ENDS_AT.getTime();
 }
