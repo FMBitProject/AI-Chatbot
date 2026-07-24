@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { transactions, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { createHash } from "crypto";
+import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
 
 interface MidtransNotification {
   order_id: string;
@@ -43,14 +44,24 @@ export async function POST(req: NextRequest) {
       .set({ status: "paid", paidAt: new Date() })
       .where(eq(transactions.orderId, body.order_id));
 
-    const planExpiresAt = new Date();
-    planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
+    const [company] = await db.select().from(companies).where(eq(companies.id, tx.companyId)).limit(1);
+    const now = new Date();
+    const currentRank = isSubscriptionActive(company?.plan, company?.planExpiresAt, now)
+      ? planRank(company?.plan)
+      : 0;
 
-    await db.update(companies)
-      .set({ plan: tx.plan, planExpiresAt })
-      .where(eq(companies.id, tx.companyId));
-
-    console.log(`[payment] Plan upgraded: company=${tx.companyId} plan=${tx.plan}`);
+    if (planRank(tx.plan) < currentRank) {
+      // Downgrades are blocked at checkout (payment/create); if one still reaches
+      // here, never strip a paying customer's higher plan — leave it untouched.
+      console.warn(`[payment] Ignored downgrade from webhook: company=${tx.companyId} current=${company?.plan} purchased=${tx.plan}`);
+    } else {
+      // Renewal/upgrade stacks onto any remaining time; a lapsed plan starts fresh.
+      const planExpiresAt = computeRenewedExpiry(company?.planExpiresAt, now);
+      await db.update(companies)
+        .set({ plan: tx.plan, planExpiresAt })
+        .where(eq(companies.id, tx.companyId));
+      console.log(`[payment] Plan set: company=${tx.companyId} plan=${tx.plan} expires=${planExpiresAt.toISOString()}`);
+    }
   } else if (isFailed) {
     await db.update(transactions)
       .set({ status: "failed" })
