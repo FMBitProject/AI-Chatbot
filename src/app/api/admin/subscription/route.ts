@@ -28,5 +28,10 @@ export async function GET(req: NextRequest) {
 
   const limits = getLimits(company?.plan ?? "starter");
 
-  return NextResponse.json({ plan: company?.plan ?? "starter", limits, history });
+  return NextResponse.json({
+    plan: company?.plan ?? "starter",
+    planExpiresAt: company?.planExpiresAt ?? null,
+    limits,
+    history,
+  });
 }

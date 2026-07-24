@@ -10,6 +10,7 @@ import Link from "next/link";
 
 interface SubData {
   plan: string;
+  planExpiresAt?: string | null;
   limits: { maxDocuments: number; maxEmployees: number; maxQuestionsPerMonth: number; maxQuestionsPerDay: number };
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
@@ -124,6 +125,12 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
     return v;
   };
 
+  const expiry = data.plan !== "starter" && data.planExpiresAt ? new Date(data.planExpiresAt) : null;
+  const expiryExpired = expiry ? expiry.getTime() < Date.now() : false;
+  const expiryStr = expiry
+    ? expiry.toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
@@ -141,6 +148,13 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           </div>
         </CardHeader>
         <CardContent>
+          {expiry && (
+            <div className={`mb-4 text-sm font-medium ${expiryExpired ? "text-red-600" : "text-gray-600"}`}>
+              {expiryExpired
+                ? (lang === "en" ? `Expired on ${expiryStr}` : `Kedaluwarsa pada ${expiryStr}`)
+                : (lang === "en" ? `Active until ${expiryStr}` : `Aktif sampai ${expiryStr}`)}
+            </div>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[
               { label: lang === "en" ? "Documents" : "Dokumen", value: inf(data.limits.maxDocuments) },
