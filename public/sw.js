@@ -1,9 +1,16 @@
-const CACHE_NAME = "intellibase-v1";
-const STATIC_ASSETS = ["/", "/offline"];
+const CACHE_NAME = "intellibase-v2";
+const STATIC_ASSETS = ["/"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      // Cache each asset independently so one failure can't reject the whole install.
+      Promise.all(
+        STATIC_ASSETS.map((asset) =>
+          cache.add(asset).catch(() => {})
+        )
+      )
+    )
   );
   self.skipWaiting();
 });
