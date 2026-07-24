@@ -31,6 +31,7 @@
     "@radix-ui/react-toast": "^1.2.15",
     "@slack/web-api": "^7.16.0",
     "@types/pdf-parse": "^1.1.5",
+    "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.193",
     "better-auth": "^1.6.11",
     "class-variance-authority": "^0.7.1",
