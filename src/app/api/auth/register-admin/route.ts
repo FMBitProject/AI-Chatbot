@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { companies, users } from "@/lib/db/schema";
+import { accounts, companies, sessions, users } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -9,6 +9,22 @@ import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 // Public endpoint that creates a company + admin — throttle per IP so it can't
 // be used for mass signup spam.
 const REGISTER_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
+
+// Undoes a signup that failed partway. better-auth may or may not have created
+// the user by the time it threw, so both halves are cleaned up defensively.
+async function rollback(companyId: string, email: string) {
+  try {
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (user) {
+      await db.delete(sessions).where(eq(sessions.userId, user.id));
+      await db.delete(accounts).where(eq(accounts.userId, user.id));
+      await db.delete(users).where(eq(users.id, user.id));
+    }
+    await db.delete(companies).where(eq(companies.id, companyId));
+  } catch (cleanupError) {
+    console.error("[register-admin] rollback failed:", cleanupError);
+  }
+}
 
 export async function POST(req: NextRequest) {
   const limit = consumeRateLimit(`register-admin:${getClientIp(req)}`, REGISTER_LIMIT);
@@ -44,9 +60,21 @@ export async function POST(req: NextRequest) {
     const companyId = randomUUID();
     await db.insert(companies).values({ id: companyId, name: companyName });
 
-    await auth.api.signUpEmail({
-      body: { name, email, password, callbackURL: "/admin" },
-    });
+    try {
+      await auth.api.signUpEmail({
+        body: { name, email, password, callbackURL: "/admin" },
+      });
+    } catch (signUpError) {
+      // Signing up sends the verification mail, and login is blocked until it is
+      // clicked — so a mail failure here means the account can never be used.
+      // Roll the half-made signup back rather than leaving the company name and
+      // email taken, which would stop the person retrying once mail works again.
+      await rollback(companyId, email);
+      console.error("[register-admin] signup failed, rolled back:", signUpError);
+      return NextResponse.json({
+        error: "Pendaftaran gagal saat mengirim email verifikasi. Silakan coba lagi beberapa saat lagi.",
+      }, { status: 502 });
+    }
 
     const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
     if (created) {
