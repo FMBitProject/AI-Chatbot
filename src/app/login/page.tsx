@@ -21,14 +21,35 @@ export default function LoginPage() {
   const T = t[lang];
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  // Verification is required before login, so anyone whose mail was lost would
+  // otherwise be stuck with no way forward. Offer a resend right here.
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  async function resendVerification() {
+    setResending(true);
+    try {
+      const { error } = await authClient.sendVerificationEmail({ email: form.email, callbackURL: "/admin" });
+      toast(error
+        ? { variant: "destructive", title: T.loginFailed, description: error.message }
+        : {
+          title: lang === "en" ? "Verification email sent" : "Email verifikasi terkirim",
+          description: lang === "en"
+            ? "Check your inbox, and your spam folder too."
+            : "Cek kotak masuk Anda, termasuk folder spam.",
+        });
+    } finally { setResending(false); }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setNeedsVerification(false);
     try {
       const { data, error } = await authClient.signIn.email({ email: form.email, password: form.password });
       // 2FA: onTwoFactorRedirect handles redirect automatically, so data will be null — don't show error
       if (error && error.code !== "SECOND_FACTOR_REQUIRED") {
+        if (error.code === "EMAIL_NOT_VERIFIED") setNeedsVerification(true);
         toast({ variant: "destructive", title: T.loginFailed, description: error.message });
         return;
       }
@@ -109,6 +130,19 @@ export default function LoginPage() {
                 {T.login}
               </Button>
             </form>
+            {needsVerification && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center space-y-2">
+                <p className="text-sm text-amber-900">
+                  {lang === "en"
+                    ? "This account still needs email verification before you can sign in."
+                    : "Akun ini perlu verifikasi email dulu sebelum bisa masuk."}
+                </p>
+                <Button variant="outline" size="sm" onClick={resendVerification} disabled={resending || !form.email}>
+                  {resending && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {lang === "en" ? "Resend verification email" : "Kirim ulang email verifikasi"}
+                </Button>
+              </div>
+            )}
             <div className="text-center space-y-3">
               <p className="text-sm text-gray-500">
                 {T.noAccount}{" "}
