@@ -43,6 +43,13 @@
       "when": 1784793464967,
       "tag": "0005_row_level_security_chat",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784992181298,
+      "tag": "0006_amazing_kat_farrell",
+      "breakpoints": true
     }
   ]
 }

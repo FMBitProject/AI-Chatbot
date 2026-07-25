@@ -1,7 +1,6 @@
-import { and, count, eq, gte, isNull, lt, or, sql } from "drizzle-orm";
+import { and, count, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { chatMessages, chatSessions, companies, users } from "@/lib/db/schema";
-import { withTenant } from "@/lib/db/tenant";
+import { companies, users } from "@/lib/db/schema";
 import { getLimits } from "@/lib/plan-limits";
 import { getEffectiveSubscription, type EffectiveSubscription } from "@/lib/pricing";
 
@@ -50,58 +49,72 @@ export interface QuotaFailure {
 
 // Company-wide question quota, shared by the chat UI, the public API and Slack
 // so the three channels can never drift apart again. Returns null when the
-// question is allowed; the daily counter is already incremented by then.
+// question is allowed; both counters are already incremented by then.
+//
+// Daily and monthly are checked and incremented in ONE atomic UPDATE: the
+// counters only move when both guards pass, so concurrent questions can never
+// overshoot a limit. Both counters live on the companies row rather than being
+// derived from chat_messages, because Slack and the public API answer questions
+// without ever writing chat history — counting rows there would let those
+// channels slip past the monthly quota entirely.
 export async function consumeQuestionQuota(
   companyId: string,
   limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number },
 ): Promise<QuotaFailure | null> {
-  const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+  const { maxQuestionsPerDay, maxQuestionsPerMonth } = limits;
 
-  // Daily quota: atomic check-and-increment in one UPDATE query.
-  // PostgreSQL executes this atomically — no race condition possible.
-  if (limits.maxQuestionsPerDay !== -1) {
-    const updated = await db.update(companies)
-      .set({
-        dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN daily_question_count + 1 ELSE 1 END`,
-        dailyQuestionDate: today,
-      })
-      .where(and(
-        eq(companies.id, companyId),
-        or(
-          isNull(companies.dailyQuestionDate),
-          sql`daily_question_date != ${today}`,
-          lt(companies.dailyQuestionCount, limits.maxQuestionsPerDay)
-        )
-      ))
-      .returning({ id: companies.id });
+  // Both unlimited (enterprise): nothing to enforce, and no write to make.
+  if (maxQuestionsPerDay === -1 && maxQuestionsPerMonth === -1) return null;
 
-    if (updated.length === 0) {
-      return { limit: limits.maxQuestionsPerDay, period: "daily" };
-    }
+  const now = new Date();
+  const today = now.toISOString().split("T")[0]; // "YYYY-MM-DD" (UTC)
+  const month = today.slice(0, 7);               // "YYYY-MM"   (UTC)
+
+  // A new day/month resets its counter to 1 instead of incrementing.
+  const guards = [eq(companies.id, companyId)];
+  if (maxQuestionsPerDay !== -1) {
+    guards.push(or(
+      isNull(companies.dailyQuestionDate),
+      sql`daily_question_date != ${today}`,
+      lt(companies.dailyQuestionCount, maxQuestionsPerDay)
+    )!);
+  }
+  if (maxQuestionsPerMonth !== -1) {
+    guards.push(or(
+      isNull(companies.monthlyQuestionMonth),
+      sql`monthly_question_month != ${month}`,
+      lt(companies.monthlyQuestionCount, maxQuestionsPerMonth)
+    )!);
   }
 
-  // Monthly quota: count-based check (race window is large enough to be negligible)
-  if (limits.maxQuestionsPerMonth !== -1) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+  const updated = await db.update(companies)
+    .set({
+      dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN daily_question_count + 1 ELSE 1 END`,
+      dailyQuestionDate: today,
+      monthlyQuestionCount: sql`CASE WHEN monthly_question_month = ${month} THEN monthly_question_count + 1 ELSE 1 END`,
+      monthlyQuestionMonth: month,
+    })
+    .where(and(...guards))
+    .returning({ id: companies.id });
 
-    const [{ total: monthlyCount }] = await withTenant(companyId, (tx) => tx
-      .select({ total: count() })
-      .from(chatMessages)
-      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-      .where(and(
-        eq(chatSessions.companyId, companyId),
-        eq(chatMessages.role, "user"),
-        gte(chatMessages.createdAt, startOfMonth)
-      )));
+  if (updated.length > 0) return null;
 
-    if (monthlyCount >= limits.maxQuestionsPerMonth) {
-      return { limit: limits.maxQuestionsPerMonth, period: "monthly" };
-    }
-  }
+  // Nothing was updated, so one of the guards failed — read the row back to say
+  // which limit was actually hit. Only runs on the rejection path.
+  const [row] = await db.select({
+    dailyQuestionCount: companies.dailyQuestionCount,
+    dailyQuestionDate: companies.dailyQuestionDate,
+    monthlyQuestionCount: companies.monthlyQuestionCount,
+    monthlyQuestionMonth: companies.monthlyQuestionMonth,
+  }).from(companies).where(eq(companies.id, companyId)).limit(1);
 
-  return null;
+  const dailyHit = maxQuestionsPerDay !== -1
+    && row?.dailyQuestionDate === today
+    && row.dailyQuestionCount >= maxQuestionsPerDay;
+
+  return dailyHit
+    ? { limit: maxQuestionsPerDay, period: "daily" }
+    : { limit: maxQuestionsPerMonth, period: "monthly" };
 }
 
 // Seats above the plan's employee limit are frozen, not deleted: the accounts

@@ -10,7 +10,12 @@ export const companies = pgTable("companies", {
   groqApiKey: text("groq_api_key"),
   geminiApiKey: text("gemini_api_key"),
   dailyQuestionCount: integer("daily_question_count").default(0).notNull(),
-  dailyQuestionDate: text("daily_question_date"),
+  dailyQuestionDate: text("daily_question_date"), // "YYYY-MM-DD" (UTC)
+  // Monthly usage is counted here rather than by counting chat_messages, so
+  // questions asked through the public API and Slack — which never write chat
+  // history — count toward the monthly quota like the chat UI does.
+  monthlyQuestionCount: integer("monthly_question_count").default(0).notNull(),
+  monthlyQuestionMonth: text("monthly_question_month"), // "YYYY-MM" (UTC)
   planExpiresAt: timestamp("plan_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
