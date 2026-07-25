@@ -138,6 +138,12 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const graceStr = data.graceEndsAt ? fmtDate(data.graceEndsAt) : null;
   const purchasedLabel = PLAN_LABELS[data.purchasedPlan ?? data.plan] ?? data.plan;
 
+  // Storing a key is Enterprise-only, but a company that already stored one
+  // keeps the right to see and remove it after the plan lapses — it is their
+  // credential, and clearing it is the fix if the key stops working upstream.
+  const canEditKeys = data.plan === "enterprise";
+  const hasAnyKey = byok.hasGroqKey || byok.hasGeminiKey;
+
   // One line that always says where the subscription stands, including the two
   // states the plan badge alone cannot show: grace period and lapsed.
   const statusLine = !expiryStr ? null
@@ -204,8 +210,8 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
         </CardContent>
       </Card>
 
-      {/* BYOK — Enterprise only */}
-      {data.plan === "enterprise" && (
+      {/* BYOK — configurable on Enterprise; visible + removable whenever a key exists */}
+      {(canEditKeys || hasAnyKey) && (
         <Card className="border-violet-200">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
@@ -215,15 +221,23 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                   {lang === "en" ? "Dedicated AI Capacity" : "Kapasitas AI Dedicated"}
                 </CardTitle>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  {lang === "en"
-                    ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity."
-                    : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas."}
+                  {canEditKeys
+                    ? (lang === "en"
+                      ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity."
+                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas.")
+                    : (lang === "en"
+                      ? "Your stored key is still used to answer questions. Adding or replacing a key requires Enterprise — removing one is always yours to do."
+                      : "Key Anda yang tersimpan masih dipakai untuk menjawab pertanyaan. Menambah atau mengganti key hanya di paket Enterprise — menghapus selalu bisa Anda lakukan.")}
                 </p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(["groq", "gemini"] as const).map((provider) => {
+            {(["groq", "gemini"] as const)
+              // Without edit rights there is nothing to show for a provider
+              // whose key was never set.
+              .filter((provider) => canEditKeys || (provider === "groq" ? byok.hasGroqKey : byok.hasGeminiKey))
+              .map((provider) => {
               const isGroq = provider === "groq";
               const hasKey = isGroq ? byok.hasGroqKey : byok.hasGeminiKey;
               const input = isGroq ? byok.groqInput : byok.geminiInput;
@@ -242,29 +256,41 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                         </span>
                       )}
                     </div>
-                    <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                      {lang === "en" ? "Get key" : "Dapatkan key"} <ExternalLink className="h-3 w-3" />
-                    </a>
+                    {canEditKeys && (
+                      <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                        {lang === "en" ? "Get key" : "Dapatkan key"} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                   <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Input
-                        type={show ? "text" : "password"}
-                        placeholder={hasKey ? (lang === "en" ? "Enter new key to replace…" : "Masukkan key baru untuk mengganti…") : placeholder}
-                        value={input}
-                        onChange={(e) => setByok((p) => ({ ...p, [`${provider}Input`]: e.target.value }))}
-                        className="pr-10 text-sm font-mono"
-                      />
-                      <button type="button"
-                        onClick={() => setByok((p) => ({ ...p, [isGroq ? "showGroq" : "showGemini"]: !show }))}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                    <Button size="sm" disabled={!input || byok.saving} onClick={() => saveByokKey(provider, input)}
-                      className="bg-violet-600 hover:bg-violet-700 shrink-0">
-                      {byok.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === "en" ? "Save" : "Simpan")}
-                    </Button>
+                    {canEditKeys ? (
+                      <>
+                        <div className="relative flex-1">
+                          <Input
+                            type={show ? "text" : "password"}
+                            placeholder={hasKey ? (lang === "en" ? "Enter new key to replace…" : "Masukkan key baru untuk mengganti…") : placeholder}
+                            value={input}
+                            onChange={(e) => setByok((p) => ({ ...p, [`${provider}Input`]: e.target.value }))}
+                            className="pr-10 text-sm font-mono"
+                          />
+                          <button type="button"
+                            onClick={() => setByok((p) => ({ ...p, [isGroq ? "showGroq" : "showGemini"]: !show }))}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <Button size="sm" disabled={!input || byok.saving} onClick={() => saveByokKey(provider, input)}
+                          className="bg-violet-600 hover:bg-violet-700 shrink-0">
+                          {byok.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === "en" ? "Save" : "Simpan")}
+                        </Button>
+                      </>
+                    ) : (
+                      <p className="flex-1 self-center text-xs text-gray-500">
+                        {lang === "en"
+                          ? "Stored and in use. Remove it to fall back to the platform's shared capacity."
+                          : "Tersimpan dan sedang dipakai. Hapus untuk kembali memakai kapasitas bersama platform."}
+                      </p>
+                    )}
                     {hasKey && (
                       <Button size="sm" variant="outline" disabled={byok.saving} onClick={() => saveByokKey(provider, null)}
                         className="text-red-500 border-red-200 hover:bg-red-50 shrink-0">
@@ -276,9 +302,13 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
               );
             })}
             <p className="text-xs text-gray-400 pt-1">
-              {lang === "en"
-                ? "Keys are stored securely and never shown again. If not set, platform shared capacity is used."
-                : "Key disimpan secara aman dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan."}
+              {canEditKeys
+                ? (lang === "en"
+                  ? "Keys are stored securely and never shown again. If not set, platform shared capacity is used."
+                  : "Key disimpan secara aman dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan.")
+                : (lang === "en"
+                  ? "Upgrade to Enterprise to add or replace keys again."
+                  : "Upgrade ke Enterprise untuk menambah atau mengganti key lagi.")}
             </p>
           </CardContent>
         </Card>

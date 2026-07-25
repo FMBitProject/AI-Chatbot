@@ -41,18 +41,24 @@ export async function PATCH(req: NextRequest) {
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId!)).limit(1);
   if (!companyRow) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
-  // Own-API-key support is an Enterprise feature, judged on the plan in force
-  // right now — an expired Enterprise plan must not keep editing these keys.
-  const { subscription } = await resolvePlan(companyRow);
-  if (subscription.plan !== "enterprise") {
-    return NextResponse.json({ error: "Fitur ini hanya tersedia untuk paket Enterprise." }, { status: 403 });
-  }
-
   const body = await req.json() as { groqApiKey?: string | null; geminiApiKey?: string | null };
   const update: { groqApiKey?: string | null; geminiApiKey?: string | null } = {};
   if (body.groqApiKey !== undefined) update.groqApiKey = body.groqApiKey || null;
   if (body.geminiApiKey !== undefined) update.geminiApiKey = body.geminiApiKey || null;
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
+
+  // Storing a key is the Enterprise feature (judged on the plan in force right
+  // now, so a lapsed Enterprise cannot keep configuring dedicated capacity).
+  // REMOVING a key is always allowed, whatever the plan: it is the customer's
+  // own credential, and a company whose key was revoked upstream must be able
+  // to clear it themselves — otherwise their chat stays broken until we step in.
+  const isRemovalOnly = Object.values(update).every((v) => v === null);
+  if (!isRemovalOnly) {
+    const { subscription } = await resolvePlan(companyRow);
+    if (subscription.plan !== "enterprise") {
+      return NextResponse.json({ error: "Fitur ini hanya tersedia untuk paket Enterprise." }, { status: 403 });
+    }
+  }
 
   await db.update(companies).set(update).where(eq(companies.id, companyRow.id));
 
