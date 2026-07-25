@@ -26,14 +26,35 @@ export interface ResolvedPlan {
 export async function resolvePlan(company: Company | undefined, now: Date = new Date()): Promise<ResolvedPlan> {
   const subscription = getEffectiveSubscription(company?.plan, company?.planExpiresAt, now);
 
-  let resolved = company;
   if (company && subscription.status === "expired" && company.plan !== "starter") {
-    await db.update(companies).set({ plan: "starter" }).where(eq(companies.id, company.id));
-    resolved = { ...company, plan: "starter" };
+    // Compare-and-set: only downgrade while the row still looks the way it did
+    // when we read it. Without this guard a payment landing in the same
+    // millisecond could be overwritten — the customer would have paid and still
+    // be dropped to starter.
+    const downgraded = await db.update(companies)
+      .set({ plan: "starter" })
+      .where(and(
+        eq(companies.id, company.id),
+        eq(companies.plan, company.plan),
+        company.planExpiresAt
+          ? eq(companies.planExpiresAt, company.planExpiresAt)
+          : isNull(companies.planExpiresAt),
+      ))
+      .returning({ id: companies.id });
+
+    if (downgraded.length === 0) {
+      // Someone changed the row underneath us — in practice a renewal. Trust
+      // the fresh row instead of forcing the downgrade over the top of it.
+      const [fresh] = await db.select().from(companies).where(eq(companies.id, company.id)).limit(1);
+      const freshSubscription = getEffectiveSubscription(fresh?.plan, fresh?.planExpiresAt, now);
+      return { company: fresh, subscription: freshSubscription, limits: getLimits(freshSubscription.plan) };
+    }
+
     console.log(`[subscription] Downgraded to starter after grace: company=${company.id} was=${company.plan} expired=${company.planExpiresAt?.toISOString()}`);
+    return { company: { ...company, plan: "starter" }, subscription, limits: getLimits(subscription.plan) };
   }
 
-  return { company: resolved, subscription, limits: getLimits(subscription.plan) };
+  return { company, subscription, limits: getLimits(subscription.plan) };
 }
 
 // Convenience wrapper for the callers that only have a company id.
@@ -112,7 +133,9 @@ export async function consumeQuestionQuota(
     && row?.dailyQuestionDate === today
     && row.dailyQuestionCount >= maxQuestionsPerDay;
 
-  return dailyHit
+  // Fall back to the daily limit when there is no monthly limit to blame (or the
+  // row vanished), so the message can never read "monthly quota reached (-1)".
+  return dailyHit || maxQuestionsPerMonth === -1
     ? { limit: maxQuestionsPerDay, period: "daily" }
     : { limit: maxQuestionsPerMonth, period: "monthly" };
 }

@@ -22,6 +22,9 @@ export default function SearchPage() {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  // Set when the server refuses the search (e.g. a seat frozen by the plan
+  // limit), so the page explains why instead of showing a bare "no results".
+  const [notice, setNotice] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function doSearch(q: string) {
@@ -30,7 +33,13 @@ export default function SearchPage() {
     setSearched(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json() as SearchResult[];
+      const data = await res.json() as SearchResult[] | { error?: string; message?: string };
+      if (!res.ok || !Array.isArray(data)) {
+        setResults([]);
+        setNotice(!Array.isArray(data) && data?.message ? data.message : null);
+        return;
+      }
+      setNotice(null);
       setResults(data);
     } catch {
       setResults([]);
@@ -103,7 +112,13 @@ export default function SearchPage() {
           </div>
         )}
 
-        {searched && !loading && results.length === 0 && (
+        {searched && !loading && notice && (
+          <div className="mt-10 mx-auto max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
+            <p className="text-sm text-amber-900">{notice}</p>
+          </div>
+        )}
+
+        {searched && !loading && !notice && results.length === 0 && (
           <div className="text-center text-gray-400 mt-16">
             <p className="text-sm">Tidak ditemukan hasil untuk <strong>&ldquo;{query}&rdquo;</strong></p>
           </div>
