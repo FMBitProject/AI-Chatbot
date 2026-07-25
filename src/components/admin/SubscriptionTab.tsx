@@ -9,8 +9,13 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
 interface SubData {
+  // plan = what applies right now; purchasedPlan = what was last paid for.
   plan: string;
+  purchasedPlan?: string;
+  status?: "active" | "expiring" | "grace" | "expired";
   planExpiresAt?: string | null;
+  graceEndsAt?: string | null;
+  daysUntilExpiry?: number | null;
   limits: { maxDocuments: number; maxEmployees: number; maxQuestionsPerMonth: number; maxQuestionsPerDay: number };
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
@@ -125,11 +130,30 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
     return v;
   };
 
-  const expiry = data.plan !== "starter" && data.planExpiresAt ? new Date(data.planExpiresAt) : null;
-  const expiryExpired = expiry ? expiry.getTime() < Date.now() : false;
-  const expiryStr = expiry
-    ? expiry.toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { day: "numeric", month: "long", year: "numeric" })
-    : null;
+  const fmtDate = (d: string) =>
+    new Date(d).toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { day: "numeric", month: "long", year: "numeric" });
+
+  const status = data.status ?? "active";
+  const expiryStr = data.planExpiresAt ? fmtDate(data.planExpiresAt) : null;
+  const graceStr = data.graceEndsAt ? fmtDate(data.graceEndsAt) : null;
+  const purchasedLabel = PLAN_LABELS[data.purchasedPlan ?? data.plan] ?? data.plan;
+
+  // One line that always says where the subscription stands, including the two
+  // states the plan badge alone cannot show: grace period and lapsed.
+  const statusLine = !expiryStr ? null
+    : status === "expired"
+      ? { tone: "text-red-600", text: lang === "en"
+          ? `${purchasedLabel} ended on ${expiryStr} — you are now on Free Starter.`
+          : `${purchasedLabel} berakhir pada ${expiryStr} — paket Anda sekarang Free Starter.` }
+    : status === "grace"
+      ? { tone: "text-amber-600", text: lang === "en"
+          ? `Expired on ${expiryStr}. Grace period until ${graceStr} — renew to keep your ${purchasedLabel} limits.`
+          : `Kedaluwarsa pada ${expiryStr}. Masa tenggang sampai ${graceStr} — perpanjang agar batas ${purchasedLabel} tidak hilang.` }
+    : status === "expiring"
+      ? { tone: "text-amber-600", text: lang === "en"
+          ? `Active until ${expiryStr} (${data.daysUntilExpiry} day(s) left)`
+          : `Aktif sampai ${expiryStr} (${data.daysUntilExpiry} hari lagi)` }
+      : { tone: "text-gray-600", text: lang === "en" ? `Active until ${expiryStr}` : `Aktif sampai ${expiryStr}` };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -148,12 +172,8 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           </div>
         </CardHeader>
         <CardContent>
-          {expiry && (
-            <div className={`mb-4 text-sm font-medium ${expiryExpired ? "text-red-600" : "text-gray-600"}`}>
-              {expiryExpired
-                ? (lang === "en" ? `Expired on ${expiryStr}` : `Kedaluwarsa pada ${expiryStr}`)
-                : (lang === "en" ? `Active until ${expiryStr}` : `Aktif sampai ${expiryStr}`)}
-            </div>
+          {statusLine && (
+            <div className={`mb-4 text-sm font-medium ${statusLine.tone}`}>{statusLine.text}</div>
           )}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             {[

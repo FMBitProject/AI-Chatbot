@@ -7,6 +7,7 @@ import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { PersonaTab } from "@/components/admin/PersonaTab";
 import { AuditTab } from "@/components/admin/AuditTab";
 import { OnboardingBanner } from "@/components/admin/OnboardingBanner";
+import { RenewalBanner } from "@/components/admin/RenewalBanner";
 import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
@@ -160,6 +161,7 @@ export default function AdminPage() {
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
+        <RenewalBanner lang={lang} />
         <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
         <Tabs defaultValue="documents">
           <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">

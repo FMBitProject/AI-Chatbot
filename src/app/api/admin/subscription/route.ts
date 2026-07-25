@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { getLimits } from "@/lib/plan-limits";
+import { resolvePlan } from "@/lib/subscription";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
   if (!dbUser || !dbUser.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const { subscription, limits } = await resolvePlan(companyRow);
   const history = await db.select({
     id: transactions.id,
     orderId: transactions.orderId,
@@ -26,11 +27,15 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(transactions.createdAt))
     .limit(10);
 
-  const limits = getLimits(company?.plan ?? "starter");
-
   return NextResponse.json({
-    plan: company?.plan ?? "starter",
-    planExpiresAt: company?.planExpiresAt ?? null,
+    // plan = what applies right now (starter once the grace period is over);
+    // purchasedPlan + status let the UI explain why.
+    plan: subscription.plan,
+    purchasedPlan: subscription.purchasedPlan,
+    status: subscription.status,
+    planExpiresAt: subscription.expiresAt,
+    graceEndsAt: subscription.graceEndsAt,
+    daysUntilExpiry: subscription.daysUntilExpiry,
     limits,
     history,
   });
