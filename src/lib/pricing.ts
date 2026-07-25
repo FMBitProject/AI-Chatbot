@@ -52,6 +52,89 @@ export function isSubscriptionActive(
   return isPaidPlan(plan) && !!expiresAt && expiresAt.getTime() > now.getTime();
 }
 
+// Days after planExpiresAt during which a lapsed paid plan still works in full.
+// A customer whose transfer lands a day or two late keeps working instead of
+// dropping from 300 questions/day to 10 with no warning.
+export const GRACE_PERIOD_DAYS = 7;
+
+// How many days before expiry the renewal banner starts warning the admin.
+export const RENEWAL_WARNING_DAYS = 7;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export type SubscriptionStatus =
+  | "active"    // free starter, or paid and comfortably inside the paid period
+  | "expiring"  // paid and still valid, but expires within RENEWAL_WARNING_DAYS
+  | "grace"     // past expiry but inside the grace window — paid limits still apply
+  | "expired";  // grace used up — starter limits apply
+
+export interface EffectiveSubscription {
+  // The plan whose limits actually apply right now. This — never companies.plan
+  // — is what every quota/feature check must be based on.
+  plan: Plan;
+  // What the company last paid for, regardless of expiry. Used for messaging
+  // ("your Professional plan has ended"), never for granting access.
+  purchasedPlan: Plan;
+  status: SubscriptionStatus;
+  expiresAt: Date | null;
+  graceEndsAt: Date | null;
+  daysUntilExpiry: number | null; // negative once the expiry date has passed
+}
+
+// Single source of truth for "what is this company allowed to do right now".
+// Every channel (chat UI, public API, Slack) and every plan-gated admin route
+// goes through this, so an expired subscription can never keep working in one
+// channel while it is blocked in another.
+export function getEffectiveSubscription(
+  plan: string | null | undefined,
+  expiresAt: Date | null | undefined,
+  now: Date = new Date(),
+): EffectiveSubscription {
+  const purchasedPlan: Plan = isPaidPlan(plan) ? plan : "starter";
+  const daysUntilExpiry = expiresAt
+    ? Math.ceil((expiresAt.getTime() - now.getTime()) / DAY_MS)
+    : null;
+
+  if (purchasedPlan === "starter") {
+    // A starter company that still carries an expiry date is a lapsed customer:
+    // the date is kept on downgrade precisely so we can keep asking them to renew.
+    const lapsed = !!expiresAt && expiresAt.getTime() <= now.getTime();
+    return {
+      plan: "starter",
+      purchasedPlan: "starter",
+      status: lapsed ? "expired" : "active",
+      expiresAt: expiresAt ?? null,
+      graceEndsAt: null,
+      daysUntilExpiry,
+    };
+  }
+
+  // Paid plan granted without an expiry date (seeded or manually set account):
+  // nothing to expire, leave it alone.
+  if (!expiresAt) {
+    return {
+      plan: purchasedPlan, purchasedPlan, status: "active",
+      expiresAt: null, graceEndsAt: null, daysUntilExpiry: null,
+    };
+  }
+
+  const graceEndsAt = new Date(expiresAt.getTime() + GRACE_PERIOD_DAYS * DAY_MS);
+
+  if (now.getTime() < expiresAt.getTime()) {
+    return {
+      plan: purchasedPlan, purchasedPlan,
+      status: daysUntilExpiry !== null && daysUntilExpiry <= RENEWAL_WARNING_DAYS ? "expiring" : "active",
+      expiresAt, graceEndsAt, daysUntilExpiry,
+    };
+  }
+
+  if (now.getTime() < graceEndsAt.getTime()) {
+    return { plan: purchasedPlan, purchasedPlan, status: "grace", expiresAt, graceEndsAt, daysUntilExpiry };
+  }
+
+  return { plan: "starter", purchasedPlan, status: "expired", expiresAt, graceEndsAt, daysUntilExpiry };
+}
+
 // Expiry after a successful payment: when the current subscription is still
 // active, stack a month onto the remaining time (renewal/upgrade keeps unused
 // days); otherwise start a fresh month from now. One month per purchase.

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users, companies } from "@/lib/db/schema";
+import { users } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
-import { getLimits, isUnderLimit } from "@/lib/plan-limits";
+import { isUnderLimit } from "@/lib/plan-limits";
+import { resolvePlanById } from "@/lib/subscription";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -27,13 +28,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Enforce plan limits
-  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  const limits = getLimits(company?.plan ?? "starter");
+  // Enforce the limits of the plan that is in force right now (see resolvePlan).
+  const { subscription, limits } = await resolvePlanById(dbUser.companyId);
   const [{ count: empCount }] = await db.select({ count: count() }).from(users).where(eq(users.companyId, dbUser.companyId));
   if (!isUnderLimit(empCount, limits.maxEmployees)) {
     return NextResponse.json({
-      error: `Batas karyawan paket ${company?.plan ?? "Starter"} sudah tercapai (${limits.maxEmployees} karyawan). Upgrade paket untuk menambah lebih banyak.`,
+      error: `Batas karyawan paket ${subscription.plan} sudah tercapai (${limits.maxEmployees} karyawan). Upgrade paket untuk menambah lebih banyak.`,
     }, { status: 403 });
   }
 

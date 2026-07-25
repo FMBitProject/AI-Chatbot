@@ -4,11 +4,11 @@ import { groq, createGroq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq, count, and, gte, sql, isNull, or, lt } from "drizzle-orm";
+import { eq, count, and, gte, isNull, or, inArray } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
-import { retrieveChunks } from "@/lib/retrieval";
+import { activeDocumentIds, retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
-import { getLimits } from "@/lib/plan-limits";
+import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
 
 function detectLang(text: string): "id" | "en" {
@@ -50,21 +50,19 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Tidak ada pesan." }), { status: 400 });
   }
 
-  // Fetch company and check quotas before doing any heavy processing
-  let [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-
-  // Lazy expiry: downgrade plan if subscription has expired
-  if (company?.planExpiresAt && company.planExpiresAt < new Date() && company.plan !== "starter") {
-    await db.update(companies)
-      .set({ plan: "starter", planExpiresAt: null })
-      .where(eq(companies.id, dbUser.companyId));
-    company = { ...company, plan: "starter", planExpiresAt: null };
-  }
-
-  const { maxQuestionsPerMonth, maxQuestionsPerDay, maxQuestionsPerDayPerUser } = getLimits(company?.plan ?? "starter");
+  // Fetch company and check quotas before doing any heavy processing.
+  // resolvePlan applies the grace period and persists the downgrade once it is
+  // over, so everything below runs on the plan that is actually in force.
+  const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const { company, limits } = await resolvePlan(companyRow);
+  const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
 
   const companyId = dbUser.companyId!;
-  const today = new Date().toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+  // Seats above the effective plan's employee limit are frozen (see isSeatActive).
+  if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+    return new Response(JSON.stringify({ error: "SEAT_FROZEN", message: SEAT_FROZEN_MESSAGE }), { status: 403 });
+  }
 
   // Per-user fairness cap, checked BEFORE the company counter increments so a
   // capped user doesn't burn shared quota. Count-based like the monthly check.
@@ -90,54 +88,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Daily quota: atomic check-and-increment in one UPDATE query.
-  // PostgreSQL executes this atomically — no race condition possible.
-  if (maxQuestionsPerDay !== -1) {
-    const updated = await db.update(companies)
-      .set({
-        dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN daily_question_count + 1 ELSE 1 END`,
-        dailyQuestionDate: today,
-      })
-      .where(and(
-        eq(companies.id, companyId),
-        or(
-          isNull(companies.dailyQuestionDate),
-          sql`daily_question_date != ${today}`,
-          lt(companies.dailyQuestionCount, maxQuestionsPerDay)
-        )
-      ))
-      .returning({ id: companies.id });
-
-    if (updated.length === 0) {
-      return new Response(
-        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerDay, period: "daily" }),
-        { status: 429 }
-      );
-    }
-  }
-
-  // Monthly quota: count-based check (race window is large enough to be negligible)
-  if (maxQuestionsPerMonth !== -1) {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
-
-    const [{ total: monthlyCount }] = await withTenant(companyId, (tx) => tx
-      .select({ total: count() })
-      .from(chatMessages)
-      .innerJoin(chatSessions, eq(chatMessages.sessionId, chatSessions.id))
-      .where(and(
-        eq(chatSessions.companyId, companyId),
-        eq(chatMessages.role, "user"),
-        gte(chatMessages.createdAt, startOfMonth)
-      )));
-
-    if (monthlyCount >= maxQuestionsPerMonth) {
-      return new Response(
-        JSON.stringify({ error: "QUOTA_EXCEEDED", limit: maxQuestionsPerMonth, period: "monthly" }),
-        { status: 429 }
-      );
-    }
+  // Company-wide daily + monthly quota, shared with the public API and Slack.
+  const quotaFailure = await consumeQuestionQuota(companyId, limits);
+  if (quotaFailure) {
+    return new Response(
+      JSON.stringify({ error: "QUOTA_EXCEEDED", limit: quotaFailure.limit, period: quotaFailure.period }),
+      { status: 429 }
+    );
   }
 
   let queryEmbedding: number[];
@@ -157,16 +114,20 @@ export async function POST(req: NextRequest) {
   const { catalogRows, rankedChunks } = await withTenant(companyId, async (tx) => {
     // Every document the user can see (shared or their own department), so the
     // AI can still answer "how many documents?"-style meta-questions even when
-    // no chunk is retrieved.
-    const catalogRows = await tx
-      .select({ name: documents.name })
-      .from(documents)
-      .where(dbUser.department
-        ? and(
-            eq(documents.companyId, companyId),
-            or(isNull(documents.department), eq(documents.department, dbUser.department)),
-          )
-        : eq(documents.companyId, companyId));
+    // no chunk is retrieved. Documents frozen by the plan limit are left out
+    // here too, so the catalog matches what can actually be answered from.
+    const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
+    const catalogConditions = [eq(documents.companyId, companyId)];
+    if (dbUser.department) {
+      catalogConditions.push(or(isNull(documents.department), eq(documents.department, dbUser.department))!);
+    }
+    if (activeIds !== null) {
+      catalogConditions.push(inArray(documents.id, activeIds));
+    }
+
+    const catalogRows = activeIds !== null && activeIds.length === 0
+      ? []
+      : await tx.select({ name: documents.name }).from(documents).where(and(...catalogConditions));
 
     // Relevant chunks via the shared pgvector retriever (department-scoped, 0.5
     // similarity threshold, ordered by the HNSW index in the database).
@@ -175,6 +136,7 @@ export async function POST(req: NextRequest) {
       queryEmbedding,
       department: dbUser.department,
       limit: 30,
+      maxDocuments,
     }, tx);
 
     return { catalogRows, rankedChunks };

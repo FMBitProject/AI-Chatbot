@@ -6,15 +6,20 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
+import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 
 const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
 
-async function runRAG(question: string, companyId: string): Promise<string> {
+async function runRAG(question: string, companyId: string, maxDocuments: number): Promise<string> {
   const queryEmbedding = await getEmbedding(question);
 
-  const scored = (await withTenant(companyId, (tx) => retrieveChunks({ companyId, queryEmbedding }, tx))).slice(0, 3);
+  const scored = (await withTenant(companyId, (tx) => retrieveChunks({
+    companyId,
+    queryEmbedding,
+    maxDocuments,
+  }, tx))).slice(0, 3);
 
   const context = scored.length > 0
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
@@ -82,13 +87,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Same plan rules as the chat UI and the public API (see resolvePlan).
+    const { limits } = await resolvePlanById(companyId);
+
+    if (dbUser && !(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: `❌ ${SEAT_FROZEN_MESSAGE}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    const quotaFailure = await consumeQuestionQuota(companyId, limits);
+    if (quotaFailure) {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: quotaFailure.period === "daily"
+          ? `❌ Kuota pertanyaan harian perusahaan sudah habis (${quotaFailure.limit}/hari). Coba lagi besok atau upgrade paket.`
+          : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     getSlackClient().chat.postMessage({
       channel,
       thread_ts: event.ts,
       text: "⏳ Sedang mencari jawaban dari dokumen internal...",
     }).catch(() => {});
 
-    runRAG(question, companyId).then(async (answer) => {
+    runRAG(question, companyId, limits.maxDocuments).then(async (answer) => {
       await getSlackClient().chat.postMessage({
         channel,
         thread_ts: event.ts,

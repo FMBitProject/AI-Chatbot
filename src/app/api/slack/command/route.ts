@@ -6,6 +6,7 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
+import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 
@@ -41,6 +42,27 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  const companyId = dbUser.companyId;
+
+  // Slack is a full answering channel, so it runs the same plan rules as the
+  // chat UI and the public API: effective plan (with grace period), frozen
+  // seats, company quota and frozen documents.
+  const { limits } = await resolvePlanById(companyId);
+
+  if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+    return NextResponse.json({ response_type: "ephemeral", text: `❌ ${SEAT_FROZEN_MESSAGE}` });
+  }
+
+  const quotaFailure = await consumeQuestionQuota(companyId, limits);
+  if (quotaFailure) {
+    return NextResponse.json({
+      response_type: "ephemeral",
+      text: quotaFailure.period === "daily"
+        ? `❌ Kuota pertanyaan harian perusahaan sudah habis (${quotaFailure.limit}/hari). Coba lagi besok atau upgrade paket.`
+        : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`,
+    });
+  }
+
   fetch(responseUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -49,8 +71,11 @@ export async function POST(req: NextRequest) {
 
   (async () => {
     const queryEmbedding = await getEmbedding(text);
-    const companyId = dbUser.companyId!;
-    const scored = (await withTenant(companyId, (tx) => retrieveChunks({ companyId, queryEmbedding }, tx))).slice(0, 3);
+    const scored = (await withTenant(companyId, (tx) => retrieveChunks({
+      companyId,
+      queryEmbedding,
+      maxDocuments: limits.maxDocuments,
+    }, tx))).slice(0, 3);
 
     const context = scored.length > 0
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")

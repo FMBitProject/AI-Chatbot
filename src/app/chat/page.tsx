@@ -127,6 +127,16 @@ export default function ChatPage() {
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
           return;
         }
+        if (res.status === 403) {
+          const data = await res.json().catch(() => ({ error: "" })) as { error?: string };
+          if (data.error === "SEAT_FROZEN") {
+            const seatMsg = langCode === "en"
+              ? `🔒 **Your account is currently inactive.**\n\nThe number of employees exceeds your company plan's limit. Ask your admin to renew the subscription to reactivate your account.\n\n📧 Contact: ${SUPPORT_EMAIL}`
+              : `🔒 **Akun Anda sedang tidak aktif.**\n\nJumlah karyawan melebihi batas paket perusahaan. Minta admin memperpanjang langganan agar akun Anda aktif kembali.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
+            setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: seatMsg } : m));
+            return;
+          }
+        }
         if (res.status === 503) {
           const data = await res.json().catch(() => ({ error: "AI_ERROR" })) as { error: string; provider: string };
           const isRateLimit = data.error === "AI_RATE_LIMIT";

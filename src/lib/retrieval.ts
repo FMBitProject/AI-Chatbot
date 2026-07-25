@@ -1,6 +1,30 @@
-import { and, cosineDistance, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { documentChunks, documents } from "@/lib/db/schema";
 import type { TenantTx } from "@/lib/db/tenant";
+
+// Documents above the plan's document limit are frozen rather than deleted: the
+// ones uploaded first stay searchable and the rest come back untouched when the
+// company subscribes again. Without this a company could upload 100 documents
+// on one paid month and keep querying all of them forever on the free plan.
+//
+// Returns null when the plan is unlimited (-1), meaning "no filter needed".
+export async function activeDocumentIds(
+  companyId: string,
+  maxDocuments: number,
+  tx: TenantTx,
+): Promise<string[] | null> {
+  if (maxDocuments === -1) return null;
+
+  const rows = await tx
+    .select({ id: documents.id })
+    .from(documents)
+    .where(eq(documents.companyId, companyId))
+    // id breaks ties so the frozen set stays stable between queries.
+    .orderBy(asc(documents.createdAt), asc(documents.id))
+    .limit(maxDocuments);
+
+  return rows.map((r) => r.id);
+}
 
 export interface RetrievedChunk {
   id: string;
@@ -26,8 +50,15 @@ export async function retrieveChunks(opts: {
   department?: string | null;
   limit?: number;
   minScore?: number;
+  // Document limit of the plan that applies right now (-1 = unlimited). Callers
+  // must pass the *effective* plan's limit (see resolvePlan) so an expired
+  // subscription cannot keep querying documents it can no longer hold.
+  maxDocuments?: number;
 }, tx: TenantTx): Promise<RetrievedChunk[]> {
-  const { companyId, queryEmbedding, department = null, limit = 20, minScore = 0.5 } = opts;
+  const { companyId, queryEmbedding, department = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
+
+  const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
+  if (activeIds !== null && activeIds.length === 0) return [];
 
   const distance = cosineDistance(documentChunks.embedding, queryEmbedding);
 
@@ -35,6 +66,9 @@ export async function retrieveChunks(opts: {
     eq(documentChunks.companyId, companyId),
     isNotNull(documentChunks.embedding),
   ];
+  if (activeIds !== null) {
+    conditions.push(inArray(documentChunks.documentId, activeIds));
+  }
   // Employees only see documents with no department (shared) or their own.
   if (department) {
     conditions.push(or(isNull(documents.department), eq(documents.department, department))!);

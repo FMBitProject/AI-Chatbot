@@ -5,9 +5,10 @@ export const maxDuration = 300;
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
-import { documents, documentChunks, users, companies } from "@/lib/db/schema";
+import { documents, documentChunks, users } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
-import { getLimits, isUnderLimit } from "@/lib/plan-limits";
+import { isUnderLimit } from "@/lib/plan-limits";
+import { resolvePlanById } from "@/lib/subscription";
 import { chunkText } from "@/lib/chunker";
 import { getEmbeddings } from "@/lib/embeddings";
 import { generateText } from "ai";
@@ -63,14 +64,14 @@ export async function POST(req: NextRequest) {
 
   const companyId = dbUser.companyId;
 
-  // Enforce plan limits
-  const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
-  const limits = getLimits(company?.plan ?? "starter");
+  // Enforce the limits of the plan that is in force right now, not the one the
+  // company last bought (see resolvePlan).
+  const { subscription, limits } = await resolvePlanById(companyId);
   const [{ count: docCount }] = await withTenant(companyId, (tx) =>
     tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
   if (!isUnderLimit(docCount, limits.maxDocuments)) {
     return NextResponse.json({
-      error: `Batas dokumen paket ${company?.plan ?? "Starter"} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`,
+      error: `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`,
     }, { status: 403 });
   }
 
