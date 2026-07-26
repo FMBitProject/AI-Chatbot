@@ -27,6 +27,52 @@ async function sendMail(opts: { to: string; subject: string; html: string }) {
   console.log(`[mail] sent to=${opts.to} subject="${opts.subject}"`);
 }
 
+// Auth mail goes out before anyone has told us which language they read: the
+// language toggle lives in localStorage, which the server never sees. So every
+// one of these is written twice, English first, rather than guessing wrong at
+// the exact moment someone is trying to get into their account.
+type Bilingual = { en: string; id: string };
+
+function authEmail(opts: {
+  heading: Bilingual;
+  greetingName: string;
+  body: Bilingual;
+  action?: { url: string; label: Bilingual };
+  code?: string;
+  note: Bilingual;
+}): string {
+  // Only the wording repeats. The button and the OTP appear once, so nobody has
+  // to wonder whether the second one is a different link or a different code.
+  const words = (lang: "en" | "id") => `
+    <h3 style="color:#111827;margin:0 0 12px;font-size:18px;">${opts.heading[lang]}</h3>
+    <p style="color:#374151;line-height:1.6;margin:0 0 10px;">${lang === "en" ? "Hi" : "Halo"} <strong>${opts.greetingName}</strong>,</p>
+    <p style="color:#374151;line-height:1.6;margin:0;">${opts.body[lang]}</p>
+  `;
+
+  return `
+    <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
+      <div style="background:white;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <h2 style="color:#0d9488;margin:0 0 24px;">IntelliBase AI</h2>
+        ${words("en")}
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        ${words("id")}
+        ${opts.code ? `
+          <div style="text-align:center;margin:32px 0;">
+            <span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#0d9488;">${opts.code}</span>
+          </div>` : ""}
+        ${opts.action ? `
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${opts.action.url}" style="display:inline-block;background:#0d9488;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">${opts.action.label.en} · ${opts.action.label.id}</a>
+          </div>` : ""}
+        <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0 0 6px;">${opts.note.en}</p>
+        <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0;">${opts.note.id}</p>
+        <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+        <p style="color:#9ca3af;font-size:12px;text-align:center;margin:0;">© 2026 IntelliBase AI</p>
+      </div>
+    </div>
+  `;
+}
+
 export const auth = betterAuth({
   baseURL: appUrl,
   trustedOrigins: [appUrl],
@@ -49,23 +95,20 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await sendMail({
         to: user.email,
-        subject: "Atur Ulang Kata Sandi — IntelliBase AI",
-        html: `
-          <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
-            <div style="background:white;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-              <h2 style="color:#0d9488;margin:0 0 8px;">IntelliBase AI</h2>
-              <h3 style="color:#111827;margin:0 0 16px;">Atur Ulang Kata Sandi</h3>
-              <p style="color:#374151;line-height:1.6;">Halo <strong>${user.name}</strong>,</p>
-              <p style="color:#374151;line-height:1.6;">Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda. Klik tombol di bawah untuk membuat kata sandi baru.</p>
-              <div style="text-align:center;margin:32px 0;">
-                <a href="${url}" style="display:inline-block;background:#0d9488;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">Atur Ulang Kata Sandi</a>
-              </div>
-              <p style="color:#6b7280;font-size:13px;line-height:1.6;">Link ini berlaku selama 1 jam dan hanya bisa dipakai sekali. Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak berubah.</p>
-              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-              <p style="color:#9ca3af;font-size:12px;text-align:center;">© 2026 IntelliBase AI</p>
-            </div>
-          </div>
-        `,
+        subject: "Reset your password / Atur ulang kata sandi — IntelliBase AI",
+        html: authEmail({
+          heading: { en: "Reset your password", id: "Atur Ulang Kata Sandi" },
+          greetingName: user.name,
+          body: {
+            en: "We received a request to reset the password for your account. Click below to choose a new one.",
+            id: "Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda. Klik tombol di bawah untuk membuat kata sandi baru.",
+          },
+          action: { url, label: { en: "Reset password", id: "Atur Ulang Kata Sandi" } },
+          note: {
+            en: "This link is valid for 1 hour and can only be used once. If you didn't request it, ignore this email — your password stays unchanged.",
+            id: "Link ini berlaku selama 1 jam dan hanya bisa dipakai sekali. Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak berubah.",
+          },
+        }),
       });
     },
   },
@@ -75,23 +118,20 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await sendMail({
         to: user.email,
-        subject: "Verifikasi Email Anda — IntelliBase AI",
-        html: `
-          <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
-            <div style="background:white;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-              <h2 style="color:#1d4ed8;margin:0 0 8px;">IntelliBase AI</h2>
-              <h3 style="color:#111827;margin:0 0 16px;">Verifikasi Email Anda</h3>
-              <p style="color:#374151;line-height:1.6;">Halo <strong>${user.name}</strong>,</p>
-              <p style="color:#374151;line-height:1.6;">Terima kasih telah mendaftar. Klik tombol di bawah untuk memverifikasi email Anda dan mulai menggunakan IntelliBase AI.</p>
-              <div style="text-align:center;margin:32px 0;">
-                <a href="${url}" style="display:inline-block;background:#2563eb;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">Verifikasi Email</a>
-              </div>
-              <p style="color:#6b7280;font-size:13px;line-height:1.6;">Link ini berlaku selama 24 jam. Jika Anda tidak mendaftar di IntelliBase AI, abaikan email ini.</p>
-              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-              <p style="color:#9ca3af;font-size:12px;text-align:center;">© 2026 IntelliBase AI</p>
-            </div>
-          </div>
-        `,
+        subject: "Verify your email / Verifikasi email — IntelliBase AI",
+        html: authEmail({
+          heading: { en: "Verify your email", id: "Verifikasi Email Anda" },
+          greetingName: user.name,
+          body: {
+            en: "Thanks for signing up. Click below to verify your email and start using IntelliBase AI.",
+            id: "Terima kasih telah mendaftar. Klik tombol di bawah untuk memverifikasi email Anda dan mulai menggunakan IntelliBase AI.",
+          },
+          action: { url, label: { en: "Verify email", id: "Verifikasi Email" } },
+          note: {
+            en: "This link is valid for 24 hours. If you didn't sign up for IntelliBase AI, you can ignore this email.",
+            id: "Link ini berlaku selama 24 jam. Jika Anda tidak mendaftar di IntelliBase AI, abaikan email ini.",
+          },
+        }),
       });
     },
   },
@@ -134,23 +174,20 @@ export const auth = betterAuth({
         sendOTP: async ({ user, otp }) => {
           await sendMail({
             to: user.email,
-            subject: "Kode Verifikasi Login — IntelliBase AI",
-            html: `
-              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
-                <div style="background:white;border-radius:12px;padding:36px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-                  <h2 style="color:#0d9488;margin:0 0 6px;">IntelliBase AI</h2>
-                  <h3 style="color:#111827;margin:0 0 20px;">Kode Verifikasi Login</h3>
-                  <p style="color:#374151;">Halo <strong>${user.name}</strong>,</p>
-                  <p style="color:#374151;">Gunakan kode berikut untuk menyelesaikan login Anda:</p>
-                  <div style="text-align:center;margin:28px 0;">
-                    <span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#0d9488;">${otp}</span>
-                  </div>
-                  <p style="color:#6b7280;font-size:13px;">Kode ini berlaku selama <strong>3 menit</strong>. Jangan bagikan kode ini kepada siapapun.</p>
-                  <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
-                  <p style="color:#9ca3af;font-size:12px;text-align:center;">© 2026 IntelliBase AI</p>
-                </div>
-              </div>
-            `,
+            subject: "Your login code / Kode login — IntelliBase AI",
+            html: authEmail({
+              heading: { en: "Your login code", id: "Kode Verifikasi Login" },
+              greetingName: user.name,
+              body: {
+                en: "Use this code to finish signing in:",
+                id: "Gunakan kode berikut untuk menyelesaikan login Anda:",
+              },
+              code: otp,
+              note: {
+                en: "The code is valid for 3 minutes. Never share it with anyone.",
+                id: "Kode ini berlaku selama 3 menit. Jangan bagikan kode ini kepada siapa pun.",
+              },
+            }),
           });
         },
       },
