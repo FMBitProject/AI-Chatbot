@@ -43,6 +43,31 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     requireEmailVerification: true,
+    // Company admins have nobody above them to reset their password — an admin
+    // who forgets it would be locked out of a paid account for good without
+    // this. (Employees can always be reset by their own admin.)
+    sendResetPassword: async ({ user, url }) => {
+      await sendMail({
+        to: user.email,
+        subject: "Atur Ulang Kata Sandi — IntelliBase AI",
+        html: `
+          <div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:40px 24px;background:#f9fafb;">
+            <div style="background:white;border-radius:12px;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+              <h2 style="color:#0d9488;margin:0 0 8px;">IntelliBase AI</h2>
+              <h3 style="color:#111827;margin:0 0 16px;">Atur Ulang Kata Sandi</h3>
+              <p style="color:#374151;line-height:1.6;">Halo <strong>${user.name}</strong>,</p>
+              <p style="color:#374151;line-height:1.6;">Kami menerima permintaan untuk mengatur ulang kata sandi akun Anda. Klik tombol di bawah untuk membuat kata sandi baru.</p>
+              <div style="text-align:center;margin:32px 0;">
+                <a href="${url}" style="display:inline-block;background:#0d9488;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:600;font-size:16px;">Atur Ulang Kata Sandi</a>
+              </div>
+              <p style="color:#6b7280;font-size:13px;line-height:1.6;">Link ini berlaku selama 1 jam dan hanya bisa dipakai sekali. Jika Anda tidak meminta ini, abaikan email ini — kata sandi Anda tidak berubah.</p>
+              <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+              <p style="color:#9ca3af;font-size:12px;text-align:center;">© 2026 IntelliBase AI</p>
+            </div>
+          </div>
+        `,
+      });
+    },
   },
   emailVerification: {
     sendOnSignUp: true,
@@ -97,6 +122,9 @@ export const auth = betterAuth({
     customRules: {
       "/sign-in/email": { window: 60, max: 5 },
       "/sign-up/email": { window: 60, max: 5 },
+      // Password-reset mail costs us a send and lands in someone's inbox, so it
+      // is throttled harder than ordinary auth traffic.
+      "/request-password-reset": { window: 60, max: 3 },
       "/two-factor/*": { window: 60, max: 5 },
     },
   },

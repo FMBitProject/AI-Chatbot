@@ -144,6 +144,9 @@ export default function LoginPage() {
               </div>
             )}
             <div className="text-center space-y-3">
+              <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-teal-600 block">
+                {T.forgotPassword}
+              </Link>
               <p className="text-sm text-gray-500">
                 {T.noAccount}{" "}
                 <Link href="/register" className="text-teal-600 hover:underline font-medium">{T.register}</Link>
