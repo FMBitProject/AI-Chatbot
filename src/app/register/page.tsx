@@ -26,15 +26,18 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // Guard before the request, not after it: a rejected password must never
+    // reach the server, or the account gets created and the verification mail
+    // sent while the form still shows an error.
+    if (!isPasswordValid(form.password)) {
+      toast({ variant: "destructive", title: T.registerFailed, description: lang === "en" ? "Password does not meet requirements." : "Password tidak memenuhi persyaratan." });
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register-admin", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
       });
-      if (!isPasswordValid(form.password)) {
-        toast({ variant: "destructive", title: T.registerFailed, description: lang === "en" ? "Password does not meet requirements." : "Password tidak memenuhi persyaratan." });
-        return;
-      }
       const data = await res.json() as { error?: string };
       if (!res.ok) { toast({ variant: "destructive", title: T.registerFailed, description: data.error }); return; }
       setRegisteredEmail(form.email);
@@ -152,7 +155,7 @@ export default function RegisterPage() {
                   )}
                 </label>
               </div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading || !agreed}>
+              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading || !agreed || !isPasswordValid(form.password)}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.registerBtn}
               </Button>

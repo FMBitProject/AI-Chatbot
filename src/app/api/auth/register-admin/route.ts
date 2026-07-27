@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import { isPasswordValid } from "@/lib/password";
 
 // Public endpoint that creates a company + admin — throttle per IP so it can't
 // be used for mass signup spam.
@@ -45,6 +46,15 @@ export async function POST(req: NextRequest) {
 
     if (!name || !email || !password || !companyName) {
       return NextResponse.json({ error: "Semua field wajib diisi." }, { status: 400 });
+    }
+
+    // better-auth only enforces a length minimum, so the strength rules the
+    // form shows have to be repeated here — otherwise a direct POST creates an
+    // account with a password the UI would have rejected.
+    if (!isPasswordValid(password)) {
+      return NextResponse.json({
+        error: "Password minimal 8 karakter dan harus memuat huruf besar, angka, dan karakter spesial.",
+      }, { status: 400 });
     }
 
     const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
