@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { isPasswordValid } from "@/lib/password";
 
 // Keyed by user id: stops a hijacked session from brute-forcing currentPassword.
 const CHANGE_PASSWORD_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
@@ -22,8 +23,10 @@ export async function POST(req: NextRequest) {
     newPassword: string;
   };
 
-  if (!newPassword || newPassword.length < 8) {
-    return NextResponse.json({ error: "Password baru minimal 8 karakter." }, { status: 400 });
+  if (!isPasswordValid(newPassword ?? "")) {
+    return NextResponse.json({
+      error: "Password baru minimal 8 karakter dan harus memuat huruf besar, angka, dan karakter spesial.",
+    }, { status: 400 });
   }
 
   try {

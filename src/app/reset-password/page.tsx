@@ -12,6 +12,8 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { Loader2, ArrowLeft, AlertTriangle } from "lucide-react";
+import { PasswordRequirements } from "@/components/ui/PasswordRequirements";
+import { isPasswordValid } from "@/lib/password";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -25,12 +27,15 @@ function ResetPasswordForm() {
   const [form, setForm] = useState({ password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
 
-  const tooShort = form.password.length > 0 && form.password.length < 8;
+  // Same strength rules as every other password entry point (register, admin
+  // reset, change password) — a reset must not be a way to downgrade to a
+  // password the rest of the app would have refused.
+  const passwordOk = isPasswordValid(form.password);
   const mismatch = form.confirm.length > 0 && form.password !== form.confirm;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!token) return;
+    if (!token || !passwordOk || mismatch) return;
     setLoading(true);
     try {
       const { error } = await authClient.resetPassword({ newPassword: form.password, token });
@@ -79,7 +84,7 @@ function ResetPasswordForm() {
         {lang === "en" ? "Create a new password" : "Buat kata sandi baru"}
       </h1>
       <p className="text-sm text-gray-500 mb-6">
-        {lang === "en" ? "Minimum 8 characters." : "Minimal 8 karakter."}
+        {lang === "en" ? "Choose a strong password." : "Pilih kata sandi yang kuat."}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -87,11 +92,7 @@ function ResetPasswordForm() {
           <Label htmlFor="password">{lang === "en" ? "New password" : "Kata sandi baru"}</Label>
           <Input id="password" type="password" required autoFocus minLength={8}
             value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          {tooShort && (
-            <p className="text-xs text-red-500">
-              {lang === "en" ? "At least 8 characters." : "Minimal 8 karakter."}
-            </p>
-          )}
+          <PasswordRequirements password={form.password} lang={lang} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="confirm">{lang === "en" ? "Repeat password" : "Ulangi kata sandi"}</Label>
@@ -104,7 +105,7 @@ function ResetPasswordForm() {
           )}
         </div>
         <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11"
-          disabled={loading || tooShort || mismatch || !form.password || !form.confirm}>
+          disabled={loading || !passwordOk || mismatch || !form.confirm}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {lang === "en" ? "Save new password" : "Simpan Kata Sandi"}
         </Button>
