@@ -1,12 +1,17 @@
 "use client";
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator } from "lucide-react";
+import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
+
+// https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
+// the embed and its thumbnail to resolve.
+const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 
 const CONTENT = {
   id: {
@@ -18,6 +23,9 @@ const CONTENT = {
     cta1: "Mulai Gratis Sekarang",
     cta2: "Lihat Paket Harga",
     ctaNote: "Gratis selamanya untuk tim kecil · Tidak perlu kartu kredit",
+    videoTitle: "Lihat IntelliBase AI Bekerja",
+    videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
+    videoPlay: "Putar video demo",
     stats: [{ v: "90%", l: "Pengurangan waktu pencarian dokumen" }, { v: "< 3 detik", l: "Rata-rata waktu respons AI" }, { v: "100%", l: "Isolasi data antar perusahaan" }, { v: "10 menit", l: "Waktu setup hingga siap pakai" }],
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
@@ -76,6 +84,9 @@ const CONTENT = {
     cta1: "Start Free Now",
     cta2: "View Pricing",
     ctaNote: "Free forever for small teams · No credit card required",
+    videoTitle: "See IntelliBase AI in Action",
+    videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
+    videoPlay: "Play demo video",
     stats: [{ v: "90%", l: "Reduction in document search time" }, { v: "< 3 sec", l: "Average AI response time" }, { v: "100%", l: "Data isolation between companies" }, { v: "10 min", l: "Setup time until ready" }],
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
@@ -133,6 +144,57 @@ function formatRp(v: number) {
   return `Rp ${(v / 1_000).toFixed(0)}rb`;
 }
 
+// The player is only mounted once the visitor clicks play, so a landing page
+// visit costs a single thumbnail instead of the ~1MB the YouTube embed pulls in.
+// maxresdefault only exists for uploads of 720p and above; hqdefault always does.
+function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; playLabel: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [thumbFallback, setThumbFallback] = useState(false);
+  const thumb = `https://i.ytimg.com/vi/${DEMO_VIDEO_ID}/${thumbFallback ? "hqdefault" : "maxresdefault"}.jpg`;
+
+  return (
+    <section className="pb-20 px-6 bg-white">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-3">{title}</h2>
+          <p className="text-gray-500">{desc}</p>
+        </div>
+        <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-gray-900">
+          {playing ? (
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
+              title={title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setPlaying(true)}
+              aria-label={playLabel}
+              className="group absolute inset-0 h-full w-full cursor-pointer"
+            >
+              <Image
+                src={thumb}
+                alt=""
+                fill
+                sizes="(max-width: 896px) 100vw, 896px"
+                className="object-cover"
+                onError={() => setThumbFallback(true)}
+              />
+              <span className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/10" />
+              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-16 w-16 items-center justify-center rounded-full bg-teal-600 shadow-lg transition-transform group-hover:scale-110">
+                <Play className="h-7 w-7 text-white fill-white translate-x-0.5" />
+              </span>
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function LandingContent() {
   const { lang } = useLang();
   const T = CONTENT[lang];
@@ -172,6 +234,9 @@ export function LandingContent() {
           <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
         </div>
       </section>
+
+      {/* Demo video */}
+      <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
       {/* Stats */}
       <section className="bg-teal-700 py-12 px-6">
