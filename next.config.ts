@@ -20,6 +20,13 @@ const MIDTRANS_API = "https://api.midtrans.com https://api.sandbox.midtrans.com"
 const GA_TAGMANAGER = "https://www.googletagmanager.com";
 const GA_ANALYTICS = "https://*.google-analytics.com https://*.analytics.google.com";
 
+// Demo video embedded on the landing page. The player is framed from the
+// privacy-friendly nocookie host and only mounts after a click, so no YouTube
+// request happens on a plain page view. Its thumbnail is fetched server-side by
+// next/image (see `images.remotePatterns`) and served from our own origin, so
+// img-src needs no YouTube host.
+const YOUTUBE_EMBED = "https://www.youtube-nocookie.com";
+
 // No nonces: per the Next.js CSP guide, nonce-based CSP forces every page into
 // dynamic rendering. 'unsafe-inline' keeps static optimization; the policy
 // still blocks external script injection, exfiltration and framing.
@@ -31,7 +38,7 @@ const csp = [
   `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
   "font-src 'self' data:",
   `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
-  `frame-src ${MIDTRANS_APP}`,
+  `frame-src ${MIDTRANS_APP} ${YOUTUBE_EMBED}`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -71,6 +78,11 @@ const nextConfig: NextConfig = {
         ],
       },
     ];
+  },
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
+    ],
   },
   // Don't bundle pdf-parse — its entry point runs debug code when module.parent
   // is falsy (Turbopack doesn't set it), which tries to open a test PDF file.
