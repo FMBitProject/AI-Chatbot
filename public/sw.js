@@ -31,6 +31,14 @@ self.addEventListener("fetch", (event) => {
   // Cache-first for same-origin static assets, populating the cache on first
   // fetch. A network failure just propagates as a normal failed sub-resource;
   // it can never reject a navigation.
+  //
+  // Response.error() rather than letting the rejection escape: a promise
+  // rejected inside respondWith fails the request *and* surfaces as an
+  // "Uncaught (in promise) TypeError: Failed to fetch" in the page console,
+  // even for requests the browser aborted on purpose — a sub-resource still
+  // loading when its element is removed from the DOM, or any request in flight
+  // while the dev server restarts. Resolving with a network-error response
+  // fails the request exactly the same way, minus the phantom error.
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
@@ -41,6 +49,6 @@ self.addEventListener("fetch", (event) => {
         }
         return res;
       });
-    })
+    }).catch(() => Response.error())
   );
 });
