@@ -9,9 +9,13 @@ import { Suspense, useEffect, useRef, useState } from "react";
 function SuccessContent() {
   const params = useSearchParams();
   const plan = params.get("plan") ?? "professional";
-  const planName = plan === "enterprise" ? "Enterprise" : "Professional";
   const [verifying, setVerifying] = useState(true);
   const [upgraded, setUpgraded] = useState(false);
+  // The plan the server actually settled. The query string is only a hint — it
+  // is missing on some Midtrans callbacks (we then default to professional) and
+  // anyone can edit it — so prefer what verify reports and fall back to it.
+  const [settledPlan, setSettledPlan] = useState<string | null>(null);
+  const planName = (settledPlan ?? plan) === "enterprise" ? "Enterprise" : "Professional";
   // How the *check itself* went, as opposed to whether the payment settled —
   // both used to render the same "sedang diverifikasi" copy, which blamed the
   // customer's payment for our own failures.
@@ -38,9 +42,13 @@ function SuccessContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan }),
         });
-        const data = await res.json() as { upgraded?: boolean };
-        if (res.ok) setUpgraded(data.upgraded ?? false);
-        else setCheckFailed(res.status === 429 || res.status >= 500 ? "retryable" : "unknown");
+        const data = await res.json() as { upgraded?: boolean; plan?: string };
+        if (res.ok) {
+          setUpgraded(data.upgraded ?? false);
+          if (data.plan) setSettledPlan(data.plan);
+        } else {
+          setCheckFailed(res.status === 429 || res.status >= 500 ? "retryable" : "unknown");
+        }
       } catch { setCheckFailed("retryable"); }
       finally { setVerifying(false); }
     }

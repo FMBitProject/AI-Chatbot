@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,11 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   // "Cek Status" at once; a single id let whichever check finished first
   // re-enable a row whose request was still running.
   const [verifying, setVerifying] = useState<string[]>([]);
+  // The same set, kept in a ref so a second click can be rejected before React
+  // has re-rendered the disabled button. State alone would let a fast double
+  // click start two requests and push two entries, and the first one to finish
+  // would then remove both.
+  const inFlight = useRef<Set<string>>(new Set());
   const [byok, setByok] = useState<ByokState>({
     hasGroqKey: false, hasGeminiKey: false,
     groqInput: "", geminiInput: "",
@@ -113,6 +118,8 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   }
 
   async function handleVerify(plan: string, orderId: string) {
+    if (inFlight.current.has(orderId)) return;
+    inFlight.current.add(orderId);
     setVerifying((ids) => [...ids, orderId]);
     try {
       // Send the order id, not just the plan: this button belongs to one row of
@@ -154,7 +161,10 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
         description: "Permintaan tidak dapat diselesaikan. Coba lagi beberapa saat lagi.",
       });
     }
-    finally { setVerifying((ids) => ids.filter((id) => id !== orderId)); }
+    finally {
+      inFlight.current.delete(orderId);
+      setVerifying((ids) => ids.filter((id) => id !== orderId));
+    }
   }
 
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;

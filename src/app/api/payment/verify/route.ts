@@ -5,6 +5,7 @@ import { withTransaction } from "@/lib/db/transaction";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { and, eq, desc, ne } from "drizzle-orm";
 import { computeRenewedExpiry, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
+import { closedTransactionStatus } from "@/lib/midtrans";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 // Every call costs us an outbound Midtrans status request, so cap how fast a
@@ -40,9 +41,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
   }
   if (!isPaidPlan(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-  // An empty string would be falsy below and silently fall through to the
-  // newest-order lookup, answering about some other order than the caller meant.
-  if (orderId !== undefined && (typeof orderId !== "string" || orderId.trim() === "")) {
+  if (orderId !== undefined && typeof orderId !== "string") {
+    return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
+  }
+  // Trim once, then use the trimmed value for the lookup as well. Validating the
+  // trimmed form but querying the raw one would answer "  IB-1  " with a 404 (no
+  // such order) when what it really is, is a malformed request. An empty string
+  // is rejected outright: it is falsy, so it would otherwise slip through to the
+  // newest-order lookup and answer about a different order than the caller meant.
+  const namedOrderId = orderId?.trim();
+  if (namedOrderId === "") {
     return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
   }
 
@@ -58,9 +66,9 @@ export async function POST(req: NextRequest) {
   //
   // Both lookups are scoped to the caller's company, so an order id from another
   // tenant simply resolves to nothing.
-  const [tx] = orderId
+  const [tx] = namedOrderId
     ? await db.select().from(transactions)
-        .where(and(eq(transactions.companyId, companyId), eq(transactions.orderId, orderId)))
+        .where(and(eq(transactions.companyId, companyId), eq(transactions.orderId, namedOrderId)))
         .limit(1)
     : await db.select().from(transactions)
         .where(and(eq(transactions.companyId, companyId), eq(transactions.plan, plan)))
@@ -109,25 +117,25 @@ export async function POST(req: NextRequest) {
     data.transaction_status === "settlement";
 
   if (!isSuccess) {
-    // Record a definitive failure, mirroring the webhook, so an order Midtrans
-    // has already closed doesn't sit in the payment history as "Menunggu"
-    // forever when no notification reaches us. Best-effort: the caller still
-    // gets the status even if this write fails.
-    const isFailed =
-      data.transaction_status === "cancel" ||
-      data.transaction_status === "deny" ||
-      data.transaction_status === "expire";
-    if (isFailed) {
+    // Record a definitive close, mirroring the webhook, so an order Midtrans has
+    // already finished doesn't sit in the payment history as "Menunggu" forever
+    // when no notification reaches us. An order that ran out of time is stored
+    // as "expired" rather than "failed" — both are terminal, but the dashboard
+    // has a distinct badge for each and the distinction is the customer's
+    // (rejected vs. never completed). Best-effort: the caller still gets the
+    // status even if this write fails.
+    const closedStatus = closedTransactionStatus(data.transaction_status);
+    if (closedStatus) {
       await db.update(transactions)
-        .set({ status: "failed" })
+        .set({ status: closedStatus })
         .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
-        .catch((err) => console.error(`[payment/verify] Could not mark order=${tx.orderId} failed:`, err));
+        .catch((err) => console.error(`[payment/verify] Could not mark order=${tx.orderId} ${closedStatus}:`, err));
     }
 
     if (data.transaction_status === "pending") {
-      return NextResponse.json({ ok: true, upgraded: false, status: "pending" });
+      return NextResponse.json({ ok: true, upgraded: false, status: "pending", plan: tx.plan });
     }
-    return NextResponse.json({ ok: true, upgraded: false, status: data.transaction_status });
+    return NextResponse.json({ ok: true, upgraded: false, status: data.transaction_status, plan: tx.plan });
   }
 
   try {
@@ -205,5 +213,8 @@ export async function POST(req: NextRequest) {
   // previous one already committed it. The success page keys its "Pembayaran
   // Berhasil" state off this flag, so reporting false on an order the webhook
   // settled first would tell a paying customer their upgrade is still pending.
-  return NextResponse.json({ ok: true, upgraded: true });
+  //
+  // `plan` is echoed from the transaction row so the caller can name the plan it
+  // actually settled instead of trusting its own query string.
+  return NextResponse.json({ ok: true, upgraded: true, plan: tx.plan });
 }

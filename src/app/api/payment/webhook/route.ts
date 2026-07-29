@@ -5,6 +5,7 @@ import { transactions, companies } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { createHash } from "crypto";
 import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
+import { closedTransactionStatus } from "@/lib/midtrans";
 
 interface MidtransNotification {
   order_id: string;
@@ -57,10 +58,10 @@ export async function POST(req: NextRequest) {
     body.transaction_status === "capture" && body.fraud_status === "accept" ||
     body.transaction_status === "settlement";
 
-  const isFailed =
-    body.transaction_status === "cancel" ||
-    body.transaction_status === "deny" ||
-    body.transaction_status === "expire";
+  // "failed" for a rejected order, "expired" for one that ran out of time, null
+  // while it is still open. Shared with the verify route so both record the same
+  // outcome the same way.
+  const closedStatus = closedTransactionStatus(body.transaction_status);
 
   // Every database failure below returns 500 on purpose: Midtrans retries a
   // notification it could not deliver, and the work here is written to be safe
@@ -128,11 +129,11 @@ export async function POST(req: NextRequest) {
       if (!applied) {
         console.log(`[payment] Duplicate paid notification ignored: order=${body.order_id}`);
       }
-    } else if (isFailed) {
+    } else if (closedStatus) {
       // `status <> 'paid'` on both branches so a late cancel/expire/pending
       // notification can never rewrite an order we already settled and granted.
       await db.update(transactions)
-        .set({ status: "failed" })
+        .set({ status: closedStatus })
         .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")));
     } else if (body.transaction_status === "pending") {
       await db.update(transactions)
