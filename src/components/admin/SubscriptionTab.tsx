@@ -117,9 +117,36 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const d = await res.json() as { upgraded?: boolean };
-      if (d.upgraded) window.location.reload();
-    } catch {}
+      const d = await res.json() as { upgraded?: boolean; status?: string; error?: string };
+
+      // Every failure used to look identical to "not paid yet": the button just
+      // stopped spinning and nothing happened. Say what actually went wrong,
+      // otherwise a throttled or failing check reads as an unpaid invoice.
+      if (!res.ok) {
+        toast({
+          variant: "destructive",
+          title: res.status === 429 ? "Terlalu sering" : "Gagal memeriksa status",
+          description: d.error ?? "Coba lagi beberapa saat lagi.",
+        });
+        return;
+      }
+      if (d.upgraded) {
+        window.location.reload();
+        return;
+      }
+      toast({
+        title: "Pembayaran belum selesai",
+        description: d.status === "pending"
+          ? "Pembayaran masih menunggu penyelesaian di Midtrans."
+          : "Belum ada pembayaran yang berhasil untuk pesanan ini.",
+      });
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Gagal memeriksa status",
+        description: "Periksa koneksi Anda, lalu coba lagi.",
+      });
+    }
     finally { setVerifying(false); }
   }
 

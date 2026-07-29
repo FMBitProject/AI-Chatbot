@@ -12,6 +12,10 @@ function SuccessContent() {
   const planName = plan === "enterprise" ? "Enterprise" : "Professional";
   const [verifying, setVerifying] = useState(true);
   const [upgraded, setUpgraded] = useState(false);
+  // Whether the *check itself* failed (throttled, network, our own error), as
+  // opposed to the payment genuinely not being settled yet. Both used to render
+  // the same "sedang diverifikasi" copy, which blamed the payment for our fault.
+  const [checkFailed, setCheckFailed] = useState(false);
 
   useEffect(() => {
     async function verify() {
@@ -22,8 +26,9 @@ function SuccessContent() {
           body: JSON.stringify({ plan }),
         });
         const data = await res.json() as { upgraded?: boolean };
-        setUpgraded(data.upgraded ?? false);
-      } catch {}
+        if (!res.ok) setCheckFailed(true);
+        else setUpgraded(data.upgraded ?? false);
+      } catch { setCheckFailed(true); }
       finally { setVerifying(false); }
     }
     verify();
@@ -51,6 +56,8 @@ function SuccessContent() {
             <p className="text-gray-500 text-sm mb-1">
               {upgraded
                 ? "Akun Anda telah diupgrade ke paket"
+                : checkFailed
+                ? "Pembayaran Anda tercatat. Kami belum bisa memastikan statusnya saat ini, tapi akun Anda akan diupgrade otomatis ke paket"
                 : "Pembayaran sedang diverifikasi. Akun Anda akan diupgrade ke paket"}
             </p>
             <p className="text-blue-600 font-bold text-lg mb-6">✦ {planName}</p>
