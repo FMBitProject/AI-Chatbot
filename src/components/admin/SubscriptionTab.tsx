@@ -90,7 +90,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
     }
   }
 
-  async function handleResume(snapToken: string, plan: string) {
+  async function handleResume(snapToken: string, plan: string, orderId: string) {
     setResuming(snapToken);
     try {
       const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
@@ -106,8 +106,12 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           document.body.appendChild(script);
         });
       }
+      // We are resuming one specific order, so name it on the success page
+      // instead of letting the server fall back to "newest for this plan".
       (window as unknown as { snap: { pay: (token: string, opts: object) => void } }).snap.pay(snapToken, {
-        onSuccess: () => { window.location.href = `/payment/success?plan=${plan}`; },
+        onSuccess: () => {
+          window.location.href = `/payment/success?plan=${plan}&orderId=${encodeURIComponent(orderId)}`;
+        },
         onPending: () => { window.location.reload(); },
         onError: () => { window.location.href = "/payment/failed"; },
         onClose: () => setResuming(null),
@@ -377,7 +381,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                       <div className="flex gap-1.5">
                         {tx.snapToken && (
                           <Button size="sm" variant="outline" className="text-xs gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
-                            onClick={() => handleResume(tx.snapToken!, tx.plan)} disabled={resuming === tx.snapToken}>
+                            onClick={() => handleResume(tx.snapToken!, tx.plan, tx.orderId)} disabled={resuming === tx.snapToken}>
                             {resuming === tx.snapToken ? <Loader2 className="h-3 w-3 animate-spin" /> : <QrCode className="h-3 w-3" />}
                             {lang === "en" ? "Pay" : "Bayar"}
                           </Button>

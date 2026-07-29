@@ -40,7 +40,7 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json() as { token?: string; message?: string };
+      const data = await res.json() as { token?: string; orderId?: string; message?: string };
       if (!res.ok || !data.token) {
         setLoadingPlan(null);
         alert(data.message ?? "Gagal memulai pembayaran. Silakan coba lagi.");
@@ -62,8 +62,13 @@ export default function PricingPage() {
         });
       }
 
+      // Carry the order id to the success page. Without it that page can only
+      // tell the server "a professional order, probably" and let it guess which
+      // one — see the fallback in /api/payment/verify.
+      const successUrl = `/payment/success?plan=${plan}${data.orderId ? `&orderId=${encodeURIComponent(data.orderId)}` : ""}`;
+
       (window as unknown as { snap: { pay: (token: string, opts: object) => void } }).snap.pay(data.token, {
-        onSuccess: () => { window.location.href = `/payment/success?plan=${plan}`; },
+        onSuccess: () => { window.location.href = successUrl; },
         onPending: () => { window.location.href = "/payment/pending"; },
         onError: () => { window.location.href = "/payment/failed"; },
         onClose: () => setLoadingPlan(null),

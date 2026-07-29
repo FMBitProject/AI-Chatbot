@@ -9,6 +9,10 @@ import { Suspense, useEffect, useRef, useState } from "react";
 function SuccessContent() {
   const params = useSearchParams();
   const plan = params.get("plan") ?? "professional";
+  // Set by the checkout flow, which knows exactly which order was just paid.
+  // Absent on links from before it was carried through, and the server still
+  // falls back to the newest order for the plan in that case.
+  const orderId = params.get("orderId");
   const [verifying, setVerifying] = useState(true);
   const [upgraded, setUpgraded] = useState(false);
   // The plan the server actually settled. The query string is only a hint — it
@@ -28,19 +32,20 @@ function SuccessContent() {
   // React's StrictMode runs effects twice in development, which fired two verify
   // calls per visit. They are idempotent now, so nothing broke — but each one
   // costs a Midtrans request and a slot in the route's rate limit, so only run
-  // once for a given plan.
-  const checkedPlan = useRef<string | null>(null);
+  // once for a given order.
+  const checkedOrder = useRef<string | null>(null);
 
   useEffect(() => {
-    if (checkedPlan.current === plan) return;
-    checkedPlan.current = plan;
+    const checkKey = `${plan}:${orderId ?? ""}`;
+    if (checkedOrder.current === checkKey) return;
+    checkedOrder.current = checkKey;
 
     async function verify() {
       try {
         const res = await fetch("/api/payment/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ plan }),
+          body: JSON.stringify(orderId ? { plan, orderId } : { plan }),
         });
         const data = await res.json() as { upgraded?: boolean; plan?: string };
         if (res.ok) {
@@ -53,7 +58,7 @@ function SuccessContent() {
       finally { setVerifying(false); }
     }
     verify();
-  }, [plan]);
+  }, [plan, orderId]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
