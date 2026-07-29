@@ -126,10 +126,13 @@ export async function POST(req: NextRequest) {
       // configuration mistake here stops every payment from being granted while
       // the money keeps arriving. The dedupe key is global rather than
       // per-order because the plausible causes are systemic — one mail per
-      // window, not one per order caught in the outage.
+      // window, not one per order caught in the outage. The window is short for
+      // the same reason: this is an "is it still broken?" signal, and the
+      // six-hour default was chosen for per-order problems that stay true.
       await alertOps({
         dedupeKey: "payment-status-fetch-failed",
         subject: "Cannot confirm payments with Midtrans — settlements are on hold",
+        windowMs: 15 * 60 * 1000,
         details: {
           order: body.order_id,
           company: tx.companyId,
