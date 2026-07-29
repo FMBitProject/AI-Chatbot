@@ -41,9 +41,10 @@ interface ByokState {
 export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const [data, setData] = useState<SubData | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
-  // Order id currently being checked, so only that row's button shows a spinner
-  // — a single boolean disabled every row's "Cek Status" at once.
-  const [verifying, setVerifying] = useState<string | null>(null);
+  // Order ids currently being checked. A single boolean disabled every row's
+  // "Cek Status" at once; a single id let whichever check finished first
+  // re-enable a row whose request was still running.
+  const [verifying, setVerifying] = useState<string[]>([]);
   const [byok, setByok] = useState<ByokState>({
     hasGroqKey: false, hasGeminiKey: false,
     groqInput: "", geminiInput: "",
@@ -112,7 +113,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   }
 
   async function handleVerify(plan: string, orderId: string) {
-    setVerifying(orderId);
+    setVerifying((ids) => [...ids, orderId]);
     try {
       // Send the order id, not just the plan: this button belongs to one row of
       // the history, and the answer has to be about that order.
@@ -153,7 +154,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
         description: "Permintaan tidak dapat diselesaikan. Coba lagi beberapa saat lagi.",
       });
     }
-    finally { setVerifying(null); }
+    finally { setVerifying((ids) => ids.filter((id) => id !== orderId)); }
   }
 
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;
@@ -372,8 +373,8 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="text-xs gap-1.5 text-green-600 border-green-200 hover:bg-green-50"
-                          onClick={() => handleVerify(tx.plan, tx.orderId)} disabled={verifying === tx.orderId}>
-                          {verifying === tx.orderId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          onClick={() => handleVerify(tx.plan, tx.orderId)} disabled={verifying.includes(tx.orderId)}>
+                          {verifying.includes(tx.orderId) ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                           {lang === "en" ? "Check" : "Cek Status"}
                         </Button>
                       </div>

@@ -17,9 +17,10 @@ interface MidtransNotification {
 
 export async function POST(req: NextRequest) {
   // A body we cannot use will never become usable, so answer 400 rather than
-  // throwing: an unhandled error becomes a 500, which Midtrans would retry
-  // indefinitely. The shape check matters as much as the parse — `null` is valid
-  // JSON, and reading order_id off it would throw on this public endpoint.
+  // throwing: an unhandled error becomes a 500, and Midtrans re-delivers
+  // anything that is not a 2xx. The shape check matters as much as the parse —
+  // `null` is valid JSON, and reading order_id off it would throw on this
+  // public endpoint.
   let body: MidtransNotification;
   try {
     const parsed: unknown = await req.json();
@@ -43,7 +44,14 @@ export async function POST(req: NextRequest) {
   }
 
   const [tx] = await db.select().from(transactions).where(eq(transactions.orderId, body.order_id)).limit(1);
-  if (!tx) return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+  if (!tx) {
+    // 200, not 404: the signature was valid, so this really is Midtrans, but the
+    // order does not exist here and never will — most likely a notification for
+    // another environment sharing this server key. Re-delivering it would change
+    // nothing, so acknowledge it and leave a trail instead.
+    console.warn(`[payment] Notification for an unknown order acknowledged: order=${body.order_id} status=${body.transaction_status}`);
+    return NextResponse.json({ ok: true, ignored: "unknown order" });
+  }
 
   const isSuccess =
     body.transaction_status === "capture" && body.fraud_status === "accept" ||

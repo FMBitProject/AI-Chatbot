@@ -164,6 +164,15 @@ function addOneMonth(date: Date): Date {
 // Expiry after a successful payment: when the current subscription is still
 // active, stack a month onto the remaining time (renewal/upgrade keeps unused
 // days); otherwise start a fresh month from now. One month per purchase.
+//
+// A paid plan carrying no expiry at all (getEffectiveSubscription treats that as
+// active forever) therefore gains a one-month clock the first time the company
+// pays. That is deliberate. Such a row is far more likely to be a data anomaly
+// than an intentional comp, and while it exists the company has an unlimited
+// plan nobody is billing for; a payment is the one moment we can put it back on
+// a normal cycle. Keeping it unbounded here would make the anomaly permanent.
+// If comped accounts ever become a real feature, give them their own flag rather
+// than a null expiry, and skip the grant for it.
 export function computeRenewedExpiry(
   currentExpiresAt: Date | null | undefined,
   now: Date = new Date(),

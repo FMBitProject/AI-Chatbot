@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 function SuccessContent() {
   const params = useSearchParams();
@@ -21,7 +21,16 @@ function SuccessContent() {
   //                 nothing is going to upgrade this account, so don't say it will.
   const [checkFailed, setCheckFailed] = useState<null | "retryable" | "unknown">(null);
 
+  // React's StrictMode runs effects twice in development, which fired two verify
+  // calls per visit. They are idempotent now, so nothing broke — but each one
+  // costs a Midtrans request and a slot in the route's rate limit, so only run
+  // once for a given plan.
+  const checkedPlan = useRef<string | null>(null);
+
   useEffect(() => {
+    if (checkedPlan.current === plan) return;
+    checkedPlan.current = plan;
+
     async function verify() {
       try {
         const res = await fetch("/api/payment/verify", {

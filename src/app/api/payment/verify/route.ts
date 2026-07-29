@@ -40,7 +40,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
   }
   if (!isPaidPlan(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
-  if (orderId !== undefined && typeof orderId !== "string") {
+  // An empty string would be falsy below and silently fall through to the
+  // newest-order lookup, answering about some other order than the caller meant.
+  if (orderId !== undefined && (typeof orderId !== "string" || orderId.trim() === "")) {
     return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
   }
 
@@ -65,7 +67,10 @@ export async function POST(req: NextRequest) {
         .orderBy(desc(transactions.createdAt))
         .limit(1);
 
-  if (!tx) {
+  // The fallback lookup already filters on plan; this also holds the caller to it
+  // when they named an order, so a mismatched pair can never come back as a
+  // success about a plan the caller did not ask about.
+  if (!tx || tx.plan !== plan) {
     return NextResponse.json({ error: "No matching transaction" }, { status: 404 });
   }
 
