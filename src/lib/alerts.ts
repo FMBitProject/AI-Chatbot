@@ -1,5 +1,5 @@
 import { sendMail } from "@/lib/mail";
-import { consumeRateLimit } from "@/lib/rate-limit";
+import { isRateLimited, recordFailure } from "@/lib/rate-limit";
 
 // Where operational alerts go. Unset means log-only, which is what local and
 // preview deployments want — an alert is never a reason for a payment route to
@@ -12,8 +12,13 @@ const ALERT_TO = process.env.ALERT_EMAIL;
 // in ./rate-limit — the point is to blunt a burst, not to guarantee exactly one.
 const ALERT_DEDUPE = { max: 1, windowMs: 6 * 60 * 60 * 1000 };
 
-function escapeHtml(value: string): string {
-  return value
+// Takes unknown, not string: the values ultimately come from a cast Midtrans
+// body, so the compile-time type is a promise the runtime has not made. A
+// non-string here must degrade to its stringified form, never to a TypeError —
+// alertOps documents that it does not throw, and its callers rely on that to
+// keep a payment response's status code intact.
+function escapeHtml(value: unknown): string {
+  return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -43,7 +48,11 @@ export async function alertOps(opts: {
   console.error(`[alert] ${opts.subject} ${summary}`);
 
   if (!ALERT_TO) return;
-  if (!consumeRateLimit(`alert:${opts.dedupeKey}`, ALERT_DEDUPE).ok) return;
+  // Check-then-record rather than consume-up-front: the slot must only be spent
+  // on a mail that actually went out. Consuming before the send meant a Resend
+  // outage burned the window and the next occurrence of the same problem —
+  // possibly hours later, with Resend healthy again — was silently dropped.
+  if (isRateLimited(`alert:${opts.dedupeKey}`, ALERT_DEDUPE)) return;
 
   const rows = Object.entries(opts.details)
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0"><b>${escapeHtml(k)}</b></td><td style="padding:4px 0">${escapeHtml(v)}</td></tr>`)
@@ -55,6 +64,7 @@ export async function alertOps(opts: {
       subject: `[IntelliBase] ${opts.subject}`,
       html: `<p>${escapeHtml(opts.subject)}</p><table>${rows}</table>`,
     });
+    recordFailure(`alert:${opts.dedupeKey}`, ALERT_DEDUPE);
   } catch (err) {
     // sendMail already logged the delivery failure; swallow it so the payment
     // path continues. The console.error above is the fallback record.

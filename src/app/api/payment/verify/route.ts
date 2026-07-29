@@ -94,13 +94,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada pesanan yang cocok." }, { status: 404 });
   }
 
-  // An order Midtrans has already closed cannot change again — a cancelled,
-  // denied or expired order is never paid afterwards. Answer from what we
-  // already know instead of spending an outbound request (and a slot in a
-  // shared rate limit) on a question with a settled answer. "paid" is
-  // deliberately not short-circuited: re-asking is how a later refund or
-  // chargeback on a settled order gets noticed here.
-  if (tx.status === "failed" || tx.status === "expired") {
+  // A cancelled or denied order cannot change again, so answer from what we
+  // already know instead of spending an outbound request on a question with a
+  // settled answer. Only "failed" gets this treatment:
+  //   - "expired" is NOT terminal from where we stand. A bank-transfer payment
+  //     landing right at the deadline can still settle after Midtrans sent us
+  //     the expire notification, and this route is exactly the recovery path
+  //     when that settlement notification never arrives — short-circuiting here
+  //     would lock a paid order out of ever being granted, with no self-serve
+  //     way back for the customer.
+  //   - "paid" still re-asks on purpose: that is how a later refund or
+  //     chargeback on a settled order gets noticed here.
+  if (tx.status === "failed") {
     return NextResponse.json({ ok: true, upgraded: false, status: tx.status, plan: tx.plan });
   }
 

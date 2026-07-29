@@ -117,9 +117,25 @@ export async function POST(req: NextRequest) {
 
     const status = await fetchMidtransStatus(body.order_id, "[payment]");
     if (!status.ok) {
-      // Our own outage or a transient one at Midtrans. 500 so the notification
-      // is re-delivered rather than dropped — the order stays unsettled until
-      // we can confirm it, which is the safe direction to fail.
+      // Our own outage, a misconfiguration (wrong MIDTRANS_ENV, revoked key),
+      // or a transient failure at Midtrans. 500 so the notification is
+      // re-delivered rather than dropped — the order stays unsettled until we
+      // can confirm it, which is the safe direction to fail.
+      //
+      // Alerted, not just logged: settlement now depends on this call, so a
+      // configuration mistake here stops every payment from being granted while
+      // the money keeps arriving. The dedupe key is global rather than
+      // per-order because the plausible causes are systemic — one mail per
+      // window, not one per order caught in the outage.
+      await alertOps({
+        dedupeKey: "payment-status-fetch-failed",
+        subject: "Cannot confirm payments with Midtrans — settlements are on hold",
+        details: {
+          order: body.order_id,
+          company: tx.companyId,
+          notified: String(body.transaction_status),
+        },
+      });
       return NextResponse.json({ error: "Could not confirm payment status" }, { status: 500 });
     }
 
