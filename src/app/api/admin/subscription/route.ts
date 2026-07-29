@@ -9,8 +9,15 @@ export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Admin-only, like every other /api/admin route: the response carries the
+  // company's billing history — order ids, amounts, payment dates — which an
+  // ordinary employee has no reason to see. RenewalBanner calls this too and
+  // simply renders nothing on a non-2xx, so a non-admin loses a banner about a
+  // subscription they cannot renew anyway.
   const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || !dbUser.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const { subscription, limits } = await resolvePlan(companyRow);

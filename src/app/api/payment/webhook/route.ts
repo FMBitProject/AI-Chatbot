@@ -3,9 +3,17 @@ import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { transactions, companies } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
-import { createHash } from "crypto";
 import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
-import { closedTransactionStatus, isReversalStatus } from "@/lib/midtrans";
+import {
+  amountMatches,
+  closedTransactionStatus,
+  fetchMidtransStatus,
+  isReversalStatus,
+  isSettledStatus,
+  isValidNotificationSignature,
+  requireServerKey,
+} from "@/lib/midtrans";
+import { alertOps } from "@/lib/alerts";
 
 interface MidtransNotification {
   order_id: string;
@@ -34,13 +42,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Verify signature
-  const serverKey = process.env.MIDTRANS_SERVER_KEY ?? "";
-  const signatureKey = createHash("sha512")
-    .update(`${body.order_id}${body.status_code}${body.gross_amount}${serverKey}`)
-    .digest("hex");
+  // Verify signature. A missing server key is answered with a 500, never by
+  // falling back to an empty key: see requireServerKey for why that would make
+  // this endpoint forgeable. 500 also means Midtrans keeps retrying, so
+  // notifications that arrive during a misconfiguration are not lost.
+  let serverKey: string;
+  try {
+    serverKey = requireServerKey();
+  } catch {
+    console.error("[payment] MIDTRANS_SERVER_KEY is not set — cannot verify notification");
+    return NextResponse.json({ error: "Payment provider not configured" }, { status: 500 });
+  }
 
-  if (signatureKey !== body.signature_key) {
+  if (!isValidNotificationSignature(body, serverKey)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -54,14 +68,98 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ignored: "unknown order" });
   }
 
-  const isSuccess =
-    body.transaction_status === "capture" && body.fraud_status === "accept" ||
-    body.transaction_status === "settlement";
+  const isSuccess = isSettledStatus(body);
 
   // "failed" for a rejected order, "expired" for one that ran out of time, null
   // while it is still open. Shared with the verify route so both record the same
   // outcome the same way.
   const closedStatus = closedTransactionStatus(body.transaction_status);
+
+  // A notification claiming success is not enough on its own to grant a plan.
+  // The signature covers order_id, status_code and gross_amount — but not
+  // `transaction_status` or `fraud_status`, the two fields that decide whether
+  // the plan is granted. So a body that was legitimately signed once can be
+  // replayed with its status rewritten to "settlement" by anyone who has seen
+  // it (a leaked log, an environment sharing this server key). Two checks close
+  // that: the amount must be the one we charged, and Midtrans must confirm the
+  // outcome over a connection we opened and authenticated ourselves.
+  //
+  // Deliberately before the transaction below opens, never inside it —
+  // withTransaction holds row locks for as long as its callback runs, so a
+  // network call in there would block every concurrent write to the same rows.
+  if (isSuccess) {
+    // An order we already settled needs no confirming: the claim below is
+    // guarded by `status <> 'paid'` and would match zero rows anyway, and the
+    // grant is committed in the same transaction as the claim, so "paid" always
+    // means "granted". Returning here keeps Midtrans' ordinary re-deliveries
+    // from each costing an outbound status request.
+    if (tx.status === "paid") {
+      console.log(`[payment] Duplicate paid notification ignored: order=${body.order_id}`);
+      return NextResponse.json({ ok: true });
+    }
+
+    if (!amountMatches(body.gross_amount, tx.amount)) {
+      await alertOps({
+        dedupeKey: `payment-amount:${body.order_id}`,
+        subject: "Payment notification amount does not match the order",
+        details: {
+          order: body.order_id,
+          company: tx.companyId,
+          plan: tx.plan,
+          notified: String(body.gross_amount),
+          expected: tx.amount,
+        },
+      });
+      // 400 rather than 500: this notification will never become acceptable, so
+      // there is nothing for Midtrans to usefully retry.
+      return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+    }
+
+    const status = await fetchMidtransStatus(body.order_id, "[payment]");
+    if (!status.ok) {
+      // Our own outage or a transient one at Midtrans. 500 so the notification
+      // is re-delivered rather than dropped — the order stays unsettled until
+      // we can confirm it, which is the safe direction to fail.
+      return NextResponse.json({ error: "Could not confirm payment status" }, { status: 500 });
+    }
+
+    if (!isSettledStatus(status.data)) {
+      // Midtrans itself does not agree the order is paid. Either its status API
+      // is briefly lagging behind the notification it just sent, or this body
+      // was forged or replayed. 500 handles both honestly: a lag resolves on the
+      // next re-delivery, and a forgery never gets a plan however often it is
+      // retried. Alerted because the second case is a security event, at the
+      // cost of a false alarm on the rare occasions it is really the first.
+      await alertOps({
+        dedupeKey: `payment-unconfirmed:${body.order_id}`,
+        subject: "Payment notification claims success but Midtrans does not confirm it",
+        details: {
+          order: body.order_id,
+          company: tx.companyId,
+          notified: body.transaction_status,
+          midtrans: status.data.transaction_status ?? "unknown",
+        },
+      });
+      return NextResponse.json({ error: "Payment status not confirmed" }, { status: 500 });
+    }
+
+    if (!amountMatches(status.data.gross_amount, tx.amount)) {
+      // Confirmed paid, but not for the amount we billed. Nothing automated can
+      // resolve that safely.
+      await alertOps({
+        dedupeKey: `payment-amount:${body.order_id}`,
+        subject: "Midtrans confirms a payment for an amount we did not charge",
+        details: {
+          order: body.order_id,
+          company: tx.companyId,
+          plan: tx.plan,
+          paid: String(status.data.gross_amount),
+          expected: tx.amount,
+        },
+      });
+      return NextResponse.json({ error: "Amount mismatch" }, { status: 400 });
+    }
+  }
 
   // Every database failure below returns 500 on purpose: Midtrans retries a
   // notification it could not deliver, and the work here is written to be safe
@@ -140,13 +238,21 @@ export async function POST(req: NextRequest) {
         .set({ status: "pending" })
         .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")));
     } else if (isReversalStatus(body.transaction_status)) {
-      // Deliberately not automated — see isReversalStatus. Logged at error level
-      // so it stands out: money has gone back to the customer while their
-      // subscription is still running, and only a human can decide what to do.
-      console.error(
-        `[payment] MONEY REVERSED, needs manual review: order=${body.order_id} ` +
-        `status=${body.transaction_status} company=${tx.companyId} plan=${tx.plan}`,
-      );
+      // Deliberately not automated — see isReversalStatus. Money has gone back
+      // to the customer while their subscription is still running, so this is
+      // mailed as well as logged: a log line nobody reads means free service
+      // until somebody happens to notice.
+      await alertOps({
+        dedupeKey: `payment-reversal:${body.order_id}`,
+        subject: "Money reversed on a paid order — needs manual review",
+        details: {
+          order: body.order_id,
+          company: tx.companyId,
+          plan: tx.plan,
+          status: body.transaction_status,
+          amount: tx.amount,
+        },
+      });
     } else {
       console.log(`[payment] Notification with no action taken: order=${body.order_id} status=${body.transaction_status}`);
     }

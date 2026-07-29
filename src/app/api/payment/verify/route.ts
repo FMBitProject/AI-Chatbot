@@ -5,7 +5,14 @@ import { withTransaction } from "@/lib/db/transaction";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { and, eq, desc, ne } from "drizzle-orm";
 import { computeRenewedExpiry, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
-import { closedTransactionStatus, isReversalStatus } from "@/lib/midtrans";
+import {
+  amountMatches,
+  closedTransactionStatus,
+  fetchMidtransStatus,
+  isReversalStatus,
+  isSettledStatus,
+} from "@/lib/midtrans";
+import { alertOps } from "@/lib/alerts";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 // Every call costs us an outbound Midtrans status request, so cap how fast a
@@ -87,41 +94,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada pesanan yang cocok." }, { status: 404 });
   }
 
-  // Verify with Midtrans API
-  const serverKey = process.env.MIDTRANS_SERVER_KEY ?? "";
-  const isProduction = process.env.MIDTRANS_ENV === "production";
-  const baseUrl = isProduction
-    ? "https://api.midtrans.com/v2"
-    : "https://api.sandbox.midtrans.com/v2";
-
-  // Only the Midtrans call is guarded here. Database failures below get their
-  // own handler, so an internal error is never reported as "Midtrans API error".
-  let data: { transaction_status?: string; fraud_status?: string };
-  try {
-    const res = await fetch(`${baseUrl}/${tx.orderId}/status`, {
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${serverKey}:`).toString("base64")}`,
-        "Content-Type": "application/json",
-      },
-    });
-    // A 401 (wrong server key) or 5xx still returns a JSON body, just without a
-    // transaction_status. Without this check that body would fall through and be
-    // reported to the admin as "payment still pending", hiding our own outage.
-    if (!res.ok) {
-      console.error(`[payment/verify] Midtrans returned ${res.status} for order=${tx.orderId}`);
-      return NextResponse.json({ error: "Gagal menghubungi Midtrans. Coba lagi beberapa saat lagi." }, { status: 502 });
-    }
-    data = await res.json() as { transaction_status?: string; fraud_status?: string };
-  } catch (err) {
-    console.error(`[payment/verify] Midtrans request failed for order=${tx.orderId}:`, err);
-    return NextResponse.json({ error: "Gagal menghubungi Midtrans. Coba lagi beberapa saat lagi." }, { status: 502 });
+  // An order Midtrans has already closed cannot change again — a cancelled,
+  // denied or expired order is never paid afterwards. Answer from what we
+  // already know instead of spending an outbound request (and a slot in a
+  // shared rate limit) on a question with a settled answer. "paid" is
+  // deliberately not short-circuited: re-asking is how a later refund or
+  // chargeback on a settled order gets noticed here.
+  if (tx.status === "failed" || tx.status === "expired") {
+    return NextResponse.json({ ok: true, upgraded: false, status: tx.status, plan: tx.plan });
   }
 
-  const isSuccess =
-    (data.transaction_status === "capture" && data.fraud_status === "accept") ||
-    data.transaction_status === "settlement";
+  const status = await fetchMidtransStatus(tx.orderId, "[payment/verify]");
+  if (!status.ok) {
+    return NextResponse.json({ error: "Gagal menghubungi Midtrans. Coba lagi beberapa saat lagi." }, { status: 502 });
+  }
+  const data = status.data;
 
-  if (!isSuccess) {
+  if (!isSettledStatus(data)) {
     // Record a definitive close, mirroring the webhook, so an order Midtrans has
     // already finished doesn't sit in the payment history as "Menunggu" forever
     // when no notification reaches us. An order that ran out of time is stored
@@ -139,18 +128,48 @@ export async function POST(req: NextRequest) {
 
     // A refund or chargeback can surface here too, if the admin checks an order
     // whose money has since gone back. Same policy as the webhook: nothing is
-    // automated, but it must not pass unnoticed.
+    // automated, but it must not pass unnoticed. The alert is deduplicated per
+    // order, so repeated "Cek Status" clicks on a refunded order do not turn
+    // into repeated mail.
     if (isReversalStatus(data.transaction_status)) {
-      console.error(
-        `[payment/verify] MONEY REVERSED, needs manual review: order=${tx.orderId} ` +
-        `status=${data.transaction_status} company=${companyId} plan=${tx.plan}`,
-      );
+      await alertOps({
+        dedupeKey: `payment-reversal:${tx.orderId}`,
+        subject: "Money reversed on a paid order — needs manual review",
+        details: {
+          order: tx.orderId,
+          company: companyId,
+          plan: tx.plan,
+          status: data.transaction_status ?? "unknown",
+          amount: tx.amount,
+        },
+      });
     }
 
     if (data.transaction_status === "pending") {
       return NextResponse.json({ ok: true, upgraded: false, status: "pending", plan: tx.plan });
     }
     return NextResponse.json({ ok: true, upgraded: false, status: data.transaction_status, plan: tx.plan });
+  }
+
+  // Midtrans says paid — for the amount we actually billed, or not at all. The
+  // same check the webhook makes, for the same reason: a plan is never granted
+  // off a sum nobody here recognises.
+  if (!amountMatches(data.gross_amount, tx.amount)) {
+    await alertOps({
+      dedupeKey: `payment-amount:${tx.orderId}`,
+      subject: "Midtrans confirms a payment for an amount we did not charge",
+      details: {
+        order: tx.orderId,
+        company: companyId,
+        plan: tx.plan,
+        paid: String(data.gross_amount),
+        expected: tx.amount,
+      },
+    });
+    return NextResponse.json(
+      { error: "Pembayaran perlu diperiksa manual. Tim kami akan menindaklanjuti." },
+      { status: 409 },
+    );
   }
 
   try {
