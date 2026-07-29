@@ -48,8 +48,9 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   // The same set, kept in a ref so a second click can be rejected before React
   // has re-rendered the disabled button. State alone would let a fast double
   // click start two requests and push two entries, and the first one to finish
-  // would then remove both.
-  const inFlight = useRef<Set<string>>(new Set());
+  // would then remove both. Created on first use rather than passed to useRef,
+  // which would allocate a Set on every render just to throw it away.
+  const inFlightRef = useRef<Set<string> | null>(null);
   const [byok, setByok] = useState<ByokState>({
     hasGroqKey: false, hasGeminiKey: false,
     groqInput: "", geminiInput: "",
@@ -122,8 +123,9 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   }
 
   async function handleVerify(plan: string, orderId: string) {
-    if (inFlight.current.has(orderId)) return;
-    inFlight.current.add(orderId);
+    const inFlight = (inFlightRef.current ??= new Set<string>());
+    if (inFlight.has(orderId)) return;
+    inFlight.add(orderId);
     setVerifying((ids) => [...ids, orderId]);
     try {
       // Send the order id, not just the plan: this button belongs to one row of
@@ -166,7 +168,7 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
       });
     }
     finally {
-      inFlight.current.delete(orderId);
+      inFlight.delete(orderId);
       setVerifying((ids) => ids.filter((id) => id !== orderId));
     }
   }

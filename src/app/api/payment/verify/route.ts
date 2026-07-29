@@ -5,7 +5,7 @@ import { withTransaction } from "@/lib/db/transaction";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { and, eq, desc, ne } from "drizzle-orm";
 import { computeRenewedExpiry, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
-import { closedTransactionStatus } from "@/lib/midtrans";
+import { closedTransactionStatus, isReversalStatus } from "@/lib/midtrans";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 // Every call costs us an outbound Midtrans status request, so cap how fast a
@@ -15,13 +15,18 @@ const VERIFY_LIMIT = { max: 10, windowMs: 60 * 1000 };
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // These messages are rendered verbatim in the dashboard's toast, so they are
+  // written in Indonesian like the rest of the user-facing copy. (The webhook's
+  // errors stay English — nothing but Midtrans ever reads them.)
+  if (!session) {
+    return NextResponse.json({ error: "Sesi Anda sudah berakhir. Silakan masuk kembali." }, { status: 401 });
+  }
 
   // Admin-only, like checkout (see payment/create) — this route settles the
   // company's subscription, so an ordinary employee has no business calling it.
   const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
   if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json({ error: "Hanya admin yang bisa memeriksa status pembayaran." }, { status: 403 });
   }
   const companyId = dbUser.companyId;
 
@@ -40,9 +45,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
   }
-  if (!isPaidPlan(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  if (!isPaidPlan(plan)) return NextResponse.json({ error: "Paket tidak dikenali." }, { status: 400 });
   if (orderId !== undefined && typeof orderId !== "string") {
-    return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
+    return NextResponse.json({ error: "ID pesanan tidak valid." }, { status: 400 });
   }
   // Trim once, then use the trimmed value for the lookup as well. Validating the
   // trimmed form but querying the raw one would answer "  IB-1  " with a 404 (no
@@ -51,7 +56,7 @@ export async function POST(req: NextRequest) {
   // newest-order lookup and answer about a different order than the caller meant.
   const namedOrderId = orderId?.trim();
   if (namedOrderId === "") {
-    return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
+    return NextResponse.json({ error: "ID pesanan tidak valid." }, { status: 400 });
   }
 
   // Settle the order the caller actually named. The dashboard's "Cek Status"
@@ -79,7 +84,7 @@ export async function POST(req: NextRequest) {
   // when they named an order, so a mismatched pair can never come back as a
   // success about a plan the caller did not ask about.
   if (!tx || tx.plan !== plan) {
-    return NextResponse.json({ error: "No matching transaction" }, { status: 404 });
+    return NextResponse.json({ error: "Tidak ada pesanan yang cocok." }, { status: 404 });
   }
 
   // Verify with Midtrans API
@@ -104,12 +109,12 @@ export async function POST(req: NextRequest) {
     // reported to the admin as "payment still pending", hiding our own outage.
     if (!res.ok) {
       console.error(`[payment/verify] Midtrans returned ${res.status} for order=${tx.orderId}`);
-      return NextResponse.json({ error: "Midtrans API error" }, { status: 502 });
+      return NextResponse.json({ error: "Gagal menghubungi Midtrans. Coba lagi beberapa saat lagi." }, { status: 502 });
     }
     data = await res.json() as { transaction_status?: string; fraud_status?: string };
   } catch (err) {
     console.error(`[payment/verify] Midtrans request failed for order=${tx.orderId}:`, err);
-    return NextResponse.json({ error: "Midtrans API error" }, { status: 502 });
+    return NextResponse.json({ error: "Gagal menghubungi Midtrans. Coba lagi beberapa saat lagi." }, { status: 502 });
   }
 
   const isSuccess =
@@ -130,6 +135,16 @@ export async function POST(req: NextRequest) {
         .set({ status: closedStatus })
         .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
         .catch((err) => console.error(`[payment/verify] Could not mark order=${tx.orderId} ${closedStatus}:`, err));
+    }
+
+    // A refund or chargeback can surface here too, if the admin checks an order
+    // whose money has since gone back. Same policy as the webhook: nothing is
+    // automated, but it must not pass unnoticed.
+    if (isReversalStatus(data.transaction_status)) {
+      console.error(
+        `[payment/verify] MONEY REVERSED, needs manual review: order=${tx.orderId} ` +
+        `status=${data.transaction_status} company=${companyId} plan=${tx.plan}`,
+      );
     }
 
     if (data.transaction_status === "pending") {

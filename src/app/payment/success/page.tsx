@@ -15,11 +15,11 @@ function SuccessContent() {
   const orderId = params.get("orderId");
   const [verifying, setVerifying] = useState(true);
   const [upgraded, setUpgraded] = useState(false);
-  // The plan the server actually settled. The query string is only a hint — it
-  // is missing on some Midtrans callbacks (we then default to professional) and
-  // anyone can edit it — so prefer what verify reports and fall back to it.
-  const [settledPlan, setSettledPlan] = useState<string | null>(null);
-  const planName = (settledPlan ?? plan) === "enterprise" ? "Enterprise" : "Professional";
+  // The plan on the order the server looked at — reported whatever the outcome
+  // was, so this says nothing about whether anything settled. The query string
+  // is only a hint (it can be absent, and anyone can edit it), so prefer this.
+  const [orderPlan, setOrderPlan] = useState<string | null>(null);
+  const planName = (orderPlan ?? plan) === "enterprise" ? "Enterprise" : "Professional";
   // How the *check itself* went, as opposed to whether the payment settled —
   // both used to render the same "sedang diverifikasi" copy, which blamed the
   // customer's payment for our own failures.
@@ -50,7 +50,7 @@ function SuccessContent() {
         const data = await res.json() as { upgraded?: boolean; plan?: string };
         if (res.ok) {
           setUpgraded(data.upgraded ?? false);
-          if (data.plan) setSettledPlan(data.plan);
+          if (data.plan) setOrderPlan(data.plan);
         } else {
           setCheckFailed(res.status === 429 || res.status >= 500 ? "retryable" : "unknown");
         }

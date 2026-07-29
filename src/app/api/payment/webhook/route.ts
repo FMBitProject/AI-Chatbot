@@ -5,7 +5,7 @@ import { transactions, companies } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
 import { createHash } from "crypto";
 import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
-import { closedTransactionStatus } from "@/lib/midtrans";
+import { closedTransactionStatus, isReversalStatus } from "@/lib/midtrans";
 
 interface MidtransNotification {
   order_id: string;
@@ -139,6 +139,16 @@ export async function POST(req: NextRequest) {
       await db.update(transactions)
         .set({ status: "pending" })
         .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")));
+    } else if (isReversalStatus(body.transaction_status)) {
+      // Deliberately not automated — see isReversalStatus. Logged at error level
+      // so it stands out: money has gone back to the customer while their
+      // subscription is still running, and only a human can decide what to do.
+      console.error(
+        `[payment] MONEY REVERSED, needs manual review: order=${body.order_id} ` +
+        `status=${body.transaction_status} company=${tx.companyId} plan=${tx.plan}`,
+      );
+    } else {
+      console.log(`[payment] Notification with no action taken: order=${body.order_id} status=${body.transaction_status}`);
     }
   } catch (err) {
     console.error(`[payment] Failed to process notification for order=${body.order_id} status=${body.transaction_status}:`, err);

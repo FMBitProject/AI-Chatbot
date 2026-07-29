@@ -34,3 +34,23 @@ export function closedTransactionStatus(
   if (transactionStatus === "expire") return "expired";
   return null;
 }
+
+/**
+ * Money going back to the customer after we already settled the order: a refund
+ * issued from the Midtrans dashboard, or a chargeback raised with their bank.
+ *
+ * Nothing is automated for these. The subscription stays active, and the
+ * transaction keeps its "paid" status on purpose — every idempotency guard in
+ * the payment flow is `status <> 'paid'`, so rewriting it would let a later
+ * duplicate notification re-claim the order and grant another month. Revoking
+ * access is a business decision (the terms say payments are non-refundable), so
+ * these are surfaced in the logs for a human instead of being handled silently.
+ */
+export function isReversalStatus(transactionStatus: string | undefined): boolean {
+  return (
+    transactionStatus === "refund" ||
+    transactionStatus === "partial_refund" ||
+    transactionStatus === "chargeback" ||
+    transactionStatus === "partial_chargeback"
+  );
+}
