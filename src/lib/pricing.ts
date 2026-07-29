@@ -135,6 +135,25 @@ export function getEffectiveSubscription(
   return { plan: "starter", purchasedPlan, status: "expired", expiresAt, graceEndsAt, daysUntilExpiry };
 }
 
+// One calendar month later, clamped to the end of the target month.
+//
+// Date.setMonth() alone overflows: 31 January + 1 month becomes "31 February",
+// which JavaScript rolls forward to 2 or 3 March. Every renewal from the 29th
+// onwards would hand out a few extra days and drift further each time. Setting
+// the day to 1 before moving the month keeps that overflow from happening at
+// all, then the day is put back — capped at the last day the new month actually
+// has, so 31 Jan → 28 Feb (29 in a leap year) and 31 Dec → 31 Jan.
+function addOneMonth(date: Date): Date {
+  const result = new Date(date);
+  const day = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + 1);
+  // Day 0 of the following month is the last day of this one.
+  const lastDayOfMonth = new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate();
+  result.setDate(Math.min(day, lastDayOfMonth));
+  return result;
+}
+
 // Expiry after a successful payment: when the current subscription is still
 // active, stack a month onto the remaining time (renewal/upgrade keeps unused
 // days); otherwise start a fresh month from now. One month per purchase.
@@ -146,8 +165,7 @@ export function computeRenewedExpiry(
     currentExpiresAt && currentExpiresAt.getTime() > now.getTime()
       ? new Date(currentExpiresAt)
       : new Date(now);
-  base.setMonth(base.getMonth() + 1);
-  return base;
+  return addOneMonth(base);
 }
 
 export function isPromoActive(now: Date = new Date()): boolean {
