@@ -41,7 +41,9 @@ interface ByokState {
 export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const [data, setData] = useState<SubData | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
-  const [verifying, setVerifying] = useState(false);
+  // Order id currently being checked, so only that row's button shows a spinner
+  // — a single boolean disabled every row's "Cek Status" at once.
+  const [verifying, setVerifying] = useState<string | null>(null);
   const [byok, setByok] = useState<ByokState>({
     hasGroqKey: false, hasGeminiKey: false,
     groqInput: "", geminiInput: "",
@@ -109,13 +111,15 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
     }
   }
 
-  async function handleVerify(plan: string) {
-    setVerifying(true);
+  async function handleVerify(plan: string, orderId: string) {
+    setVerifying(orderId);
     try {
+      // Send the order id, not just the plan: this button belongs to one row of
+      // the history, and the answer has to be about that order.
       const res = await fetch("/api/payment/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, orderId }),
       });
       const d = await res.json() as { upgraded?: boolean; status?: string; error?: string };
 
@@ -141,13 +145,15 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           : "Belum ada pembayaran yang berhasil untuk pesanan ini.",
       });
     } catch {
+      // Covers both a failed request and a response we could not read, so don't
+      // pin the blame on the user's connection — it may well be our error page.
       toast({
         variant: "destructive",
         title: "Gagal memeriksa status",
-        description: "Periksa koneksi Anda, lalu coba lagi.",
+        description: "Permintaan tidak dapat diselesaikan. Coba lagi beberapa saat lagi.",
       });
     }
-    finally { setVerifying(false); }
+    finally { setVerifying(null); }
   }
 
   if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;
@@ -366,8 +372,8 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                           </Button>
                         )}
                         <Button size="sm" variant="outline" className="text-xs gap-1.5 text-green-600 border-green-200 hover:bg-green-50"
-                          onClick={() => handleVerify(tx.plan)} disabled={verifying}>
-                          {verifying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                          onClick={() => handleVerify(tx.plan, tx.orderId)} disabled={verifying === tx.orderId}>
+                          {verifying === tx.orderId ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                           {lang === "en" ? "Check" : "Cek Status"}
                         </Button>
                       </div>

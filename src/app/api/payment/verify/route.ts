@@ -33,21 +33,37 @@ export async function POST(req: NextRequest) {
   }
 
   let plan: unknown;
+  let orderId: unknown;
   try {
-    ({ plan } = await req.json() as { plan: unknown });
+    ({ plan, orderId } = await req.json() as { plan: unknown; orderId?: unknown });
   } catch {
     return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
   }
   if (!isPaidPlan(plan)) return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  if (orderId !== undefined && typeof orderId !== "string") {
+    return NextResponse.json({ error: "Invalid orderId" }, { status: 400 });
+  }
 
-  // The newest transaction *for this plan*, rather than the newest overall: an
-  // admin who starts a second checkout before the first one settles would
-  // otherwise put the paid order out of reach of this route forever, since it
-  // would only ever look at the newer row.
-  const [tx] = await db.select().from(transactions)
-    .where(and(eq(transactions.companyId, companyId), eq(transactions.plan, plan)))
-    .orderBy(desc(transactions.createdAt))
-    .limit(1);
+  // Settle the order the caller actually named. The dashboard's "Cek Status"
+  // button sits on one specific row, so without this it would check whichever
+  // order happens to be newest — a company with two pending orders for the same
+  // plan could never reach the older one, and the result would be reported as if
+  // it were about the row that was clicked.
+  //
+  // The success page has no order id to send (the Midtrans callback URL only
+  // carries ?plan=, see payment/create), so it still falls back to the newest
+  // order for that plan.
+  //
+  // Both lookups are scoped to the caller's company, so an order id from another
+  // tenant simply resolves to nothing.
+  const [tx] = orderId
+    ? await db.select().from(transactions)
+        .where(and(eq(transactions.companyId, companyId), eq(transactions.orderId, orderId)))
+        .limit(1)
+    : await db.select().from(transactions)
+        .where(and(eq(transactions.companyId, companyId), eq(transactions.plan, plan)))
+        .orderBy(desc(transactions.createdAt))
+        .limit(1);
 
   if (!tx) {
     return NextResponse.json({ error: "No matching transaction" }, { status: 404 });
@@ -137,6 +153,12 @@ export async function POST(req: NextRequest) {
       // nothing stops them reaching this point together; without the row lock
       // both would read the same expiry and the second COMMIT would overwrite
       // the first, silently swallowing a month the customer paid for.
+      //
+      // The lock is held until this transaction commits, which also briefly
+      // blocks the quota counter's UPDATE on the same row (see
+      // consumeQuestionQuota). That is one statement's worth of waiting, and it
+      // cannot deadlock: this path always takes transactions before companies,
+      // and the counter is a single autocommit statement holding one lock.
       const [company] = await dbTx.select().from(companies)
         .where(eq(companies.id, companyId))
         .limit(1)

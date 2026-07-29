@@ -143,6 +143,13 @@ export function getEffectiveSubscription(
 // the day to 1 before moving the month keeps that overflow from happening at
 // all, then the day is put back — capped at the last day the new month actually
 // has, so 31 Jan → 28 Feb (29 in a leap year) and 31 Dec → 31 Jan.
+//
+// Deliberately uses local-time accessors, like the code it replaces.
+// plan_expires_at is a `timestamp` without time zone, which the driver returns as
+// a Date built from local time, so getDate() is the same day-of-month Postgres
+// stored; reading it in UTC would shift the day whenever the server runs off UTC.
+// Vercel runs UTC, so the two agree in production — a developer in another zone
+// can see a one-day difference for expiries falling near midnight.
 function addOneMonth(date: Date): Date {
   const result = new Date(date);
   const day = result.getDate();

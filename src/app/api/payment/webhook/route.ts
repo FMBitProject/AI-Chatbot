@@ -16,13 +16,19 @@ interface MidtransNotification {
 }
 
 export async function POST(req: NextRequest) {
-  // A body we cannot parse will never parse, so answer 400 rather than throwing:
-  // an unhandled error becomes a 500, which Midtrans would retry indefinitely.
+  // A body we cannot use will never become usable, so answer 400 rather than
+  // throwing: an unhandled error becomes a 500, which Midtrans would retry
+  // indefinitely. The shape check matters as much as the parse — `null` is valid
+  // JSON, and reading order_id off it would throw on this public endpoint.
   let body: MidtransNotification;
   try {
-    body = await req.json() as MidtransNotification;
+    const parsed: unknown = await req.json();
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+      throw new Error("notification body is not a JSON object");
+    }
+    body = parsed as MidtransNotification;
   } catch {
-    console.error("[payment] Notification with an unparseable body rejected");
+    console.error("[payment] Notification with an unusable body rejected");
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
