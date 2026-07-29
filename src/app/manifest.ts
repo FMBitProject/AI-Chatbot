@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "IntelliBase AI",
     short_name: "IntelliBase",
-    description: "#1 Internal Knowledge Base Platform in Indonesia",
+    description: "AI Knowledge Base Built for Indonesian Businesses",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",

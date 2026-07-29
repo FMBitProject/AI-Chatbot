@@ -15,7 +15,7 @@ const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 
 const CONTENT = {
   id: {
-    badge: "🚀 Platform Knowledge Base #1 untuk Tim Internal Indonesia",
+    badge: "🚀 Platform Knowledge Base untuk Tim Internal Indonesia",
     hero1: "Karyawan Anda Bisa Tahu Semua",
     hero2: "Kebijakan Perusahaan",
     hero3: "dalam Detik",
@@ -76,7 +76,7 @@ const CONTENT = {
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI" },
   },
   en: {
-    badge: "🚀 #1 Internal Knowledge Base Platform in Indonesia",
+    badge: "🚀 AI Knowledge Base Built for Indonesian Businesses",
     hero1: "Your Employees Can Know All",
     hero2: "Company Policies",
     hero3: "in Seconds",
