@@ -76,12 +76,15 @@ export default function AdminPage() {
       allDocs.push(...data.documents);
       setDocuments((prev) => [...data.documents, ...prev]);
     }
-    const failedCount = allDocs.filter((d) => d.status === "failed").length;
-    if (failedCount > 0) {
+    // Report the reason the server recorded rather than guessing at one. With
+    // several failures the toast stays short and points at the document list,
+    // where each failed row shows its own reason.
+    const failed = allDocs.filter((d) => d.status === "failed");
+    if (failed.length > 0) {
       throw new Error(
-        failedCount === allDocs.length
-          ? "Dokumen gagal diproses. Pastikan format file didukung."
-          : `${failedCount} dari ${allDocs.length} dokumen gagal diproses.`
+        failed.length === 1
+          ? failed[0].errorMessage ?? "Dokumen gagal diproses."
+          : `${failed.length} dari ${allDocs.length} dokumen gagal diproses. Lihat alasannya di daftar dokumen di bawah.`
       );
     }
   }

@@ -84,10 +84,6 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
     ],
   },
-  // Don't bundle pdf-parse — its entry point runs debug code when module.parent
-  // is falsy (Turbopack doesn't set it), which tries to open a test PDF file.
-  // Marking it external lets Node.js require() it at runtime with module.parent set correctly.
-  serverExternalPackages: ["pdf-parse"],
   experimental: {
     serverActions: {
       bodySizeLimit: "10mb",
