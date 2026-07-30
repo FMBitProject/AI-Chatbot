@@ -8,10 +8,55 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
 const DEMO_VIDEO_ID = "DPUYHnEo0cM";
+
+// Product screenshots for the "how it works" steps, in step order. They sit
+// outside CONTENT because the images are the same in both languages, and
+// repeating the paths in each translation is how they drift apart.
+//
+// Each is optional: StepShot falls back to a plain panel when the file is not
+// there, so a missing or misnamed screenshot never renders as a broken image.
+const STEP_SHOTS = [
+  "/screenshots/upload-documents.png",
+  "/screenshots/invite-employees.png",
+  "/screenshots/ask-and-answer.png",
+];
+
+// Screenshots are decorative here — the heading and copy beside each one already
+// carry the meaning, so alt text repeating them would only make a screen reader
+// say everything twice. Hence alt="" and aria-hidden on the fallback.
+function StepShot({ src, icon: Icon }: { src?: string; icon: LucideIcon }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div className="aspect-video rounded-xl border border-dashed bg-white flex items-center justify-center">
+        <Icon className="h-10 w-10 text-teal-200" aria-hidden />
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={src}
+      alt=""
+      width={1400}
+      height={900}
+      // Each row is half the container from md up, full width below it. Without
+      // this, Next assumes 100vw and ships a needlessly large file to desktop.
+      sizes="(min-width: 768px) 50vw, 100vw"
+      // w-full h-auto keeps the file's own aspect ratio, so the three shots can
+      // differ in shape (the employee dialog is nearly square, the dashboard is
+      // wide) without any of them being squashed to a common box.
+      className="w-full h-auto rounded-xl border shadow-sm bg-white"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 const CONTENT = {
   id: {
@@ -257,15 +302,31 @@ export function LandingContent() {
             <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.howTitle}</h2>
             <p className="text-gray-500">{T.howDesc}</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {T.steps.map((s) => (
-              <div key={s.n} className="bg-white rounded-2xl p-8 border text-center relative">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-teal-600 text-white text-sm font-bold flex items-center justify-center">{s.n}</div>
-                <div className="p-3 bg-teal-50 rounded-xl w-fit mx-auto mb-4 mt-2"><s.icon className="h-6 w-6 text-teal-600" /></div>
-                <h3 className="font-bold text-gray-900 mb-2">{s.t}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{s.d}</p>
-              </div>
-            ))}
+          {/* One row per step, screenshot and copy side by side, sides swapping
+              each row. A screenshot only reads at this size if it gets half the
+              container — the previous three-column grid left each one about
+              300px wide, where a dashboard turns to mush. Below md the columns
+              collapse and DOM order puts the copy first, which is why the
+              swapping is done with md:order-* rather than by reordering here. */}
+          <div className="space-y-16 md:space-y-20">
+            {T.steps.map((s, i) => {
+              const shotFirst = i % 2 === 1;
+              return (
+                <div key={s.n} className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+                  <div className={shotFirst ? "md:order-2" : undefined}>
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="h-8 w-8 rounded-full bg-teal-600 text-white text-sm font-bold flex items-center justify-center shrink-0">{s.n}</div>
+                      <div className="p-2 bg-teal-50 rounded-lg"><s.icon className="h-5 w-5 text-teal-600" /></div>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{s.t}</h3>
+                    <p className="text-gray-500 leading-relaxed">{s.d}</p>
+                  </div>
+                  <div className={shotFirst ? "md:order-1" : undefined}>
+                    <StepShot src={STEP_SHOTS[i]} icon={s.icon} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
