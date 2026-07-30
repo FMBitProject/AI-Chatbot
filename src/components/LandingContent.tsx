@@ -8,7 +8,6 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -16,46 +15,31 @@ const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 
 // Product screenshots for the "how it works" steps, in step order. They sit
 // outside CONTENT because the images are the same in both languages, and
-// repeating the paths in each translation is how they drift apart.
+// repeating them per translation is how they drift apart.
 //
-// Each is optional: StepShot falls back to a plain panel when the file is not
-// there, so a missing or misnamed screenshot never renders as a broken image.
-const STEP_SHOTS = [
-  "/screenshots/upload-documents.png",
-  "/screenshots/invite-employees.png",
-  "/screenshots/ask-and-answer.png",
-];
+// Imported rather than referenced by path so Next reads each file's real
+// dimensions at build time: nothing here has to restate them, they cannot drift
+// from the files, and a deleted or renamed screenshot breaks the build instead
+// of quietly shipping a gap in the page.
+import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
+import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
+import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
 
-// Screenshots are decorative here — the heading and copy beside each one already
-// carry the meaning, so alt text repeating them would only make a screen reader
-// say everything twice. Hence alt="" and aria-hidden on the fallback.
-function StepShot({ src, icon: Icon }: { src?: string; icon: LucideIcon }) {
-  const [failed, setFailed] = useState(false);
+const STEP_SHOTS = [uploadDocumentsShot, inviteEmployeesShot, askAndAnswerShot];
 
-  if (!src || failed) {
-    return (
-      <div className="aspect-video rounded-xl border border-dashed bg-white flex items-center justify-center">
-        <Icon className="h-10 w-10 text-teal-200" aria-hidden />
-      </div>
-    );
-  }
+// The "how it works" section's own geometry, needed to describe each
+// screenshot's rendered width to the browser. `sizes` has to state the width the
+// image is *laid out* at, not the width of the file: claiming 1864px when the
+// container never exceeds 1280px makes the browser fetch a variant two steps
+// larger than it can ever display.
+const HOW_CONTENT_MAX = 1280; // max-w-7xl
+const HOW_PADDING_X = 48; // px-6, both sides
 
-  return (
-    <Image
-      src={src}
-      alt=""
-      width={1400}
-      height={900}
-      // Each row is half the container from md up, full width below it. Without
-      // this, Next assumes 100vw and ships a needlessly large file to desktop.
-      sizes="(min-width: 768px) 50vw, 100vw"
-      // w-full h-auto keeps the file's own aspect ratio, so the three shots can
-      // differ in shape (the employee dialog is nearly square, the dashboard is
-      // wide) without any of them being squashed to a common box.
-      className="w-full h-auto rounded-xl border shadow-sm bg-white"
-      onError={() => setFailed(true)}
-    />
-  );
+// Rendered width is the smallest of: the container cap, the viewport minus this
+// section's padding, and the screenshot's own pixels (never upscale).
+function shotSizes(intrinsicWidth: number): string {
+  const cap = Math.min(HOW_CONTENT_MAX, intrinsicWidth);
+  return `(min-width: ${cap + HOW_PADDING_X}px) ${cap}px, calc(100vw - ${HOW_PADDING_X}px)`;
 }
 
 const CONTENT = {
@@ -296,34 +280,45 @@ export function LandingContent() {
       </section>
 
       {/* How it works */}
+      {/* Wider than the rest of the page on purpose: this is the only section
+          that has to make a screenshot legible, and the width is what does it.
+          A 1864px-wide dashboard reads at about 69% here, against 25% when it
+          was sharing a row with the copy. */}
       <section className="py-20 px-6 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-14">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.howTitle}</h2>
             <p className="text-gray-500">{T.howDesc}</p>
           </div>
-          {/* One row per step, screenshot and copy side by side, sides swapping
-              each row. A screenshot only reads at this size if it gets half the
-              container — the previous three-column grid left each one about
-              300px wide, where a dashboard turns to mush. Below md the columns
-              collapse and DOM order puts the copy first, which is why the
-              swapping is done with md:order-* rather than by reordering here. */}
-          <div className="space-y-16 md:space-y-20">
+          <div className="space-y-16 md:space-y-24">
             {T.steps.map((s, i) => {
-              const shotFirst = i % 2 === 1;
+              const shot = STEP_SHOTS[i];
               return (
-                <div key={s.n} className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-                  <div className={shotFirst ? "md:order-2" : undefined}>
-                    <div className="flex items-center gap-3 mb-4">
+                <div key={s.n}>
+                  <div className="max-w-2xl mx-auto text-center mb-8">
+                    <div className="flex items-center justify-center gap-3 mb-4">
                       <div className="h-8 w-8 rounded-full bg-teal-600 text-white text-sm font-bold flex items-center justify-center shrink-0">{s.n}</div>
                       <div className="p-2 bg-teal-50 rounded-lg"><s.icon className="h-5 w-5 text-teal-600" /></div>
                     </div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">{s.t}</h3>
                     <p className="text-gray-500 leading-relaxed">{s.d}</p>
                   </div>
-                  <div className={shotFirst ? "md:order-1" : undefined}>
-                    <StepShot src={STEP_SHOTS[i]} icon={s.icon} />
-                  </div>
+                  <Image
+                    src={shot}
+                    // Decorative: the heading and copy directly above each one
+                    // already say what it shows, so alt text would only make a
+                    // screen reader repeat itself.
+                    alt=""
+                    // Never scale a screenshot past its own pixels — the employee
+                    // dialog is only 684px wide, and stretched to the container it
+                    // would be a blurry 187%. Capping at the intrinsic width keeps
+                    // every shot crisp and centres the narrow one.
+                    style={{ maxWidth: shot.width }}
+                    sizes={shotSizes(shot.width)}
+                    // h-auto keeps each file's own aspect ratio, so the near-square
+                    // dialog and the wide dashboard both stay undistorted.
+                    className="w-full h-auto mx-auto rounded-xl border shadow-sm bg-white"
+                  />
                 </div>
               );
             })}
