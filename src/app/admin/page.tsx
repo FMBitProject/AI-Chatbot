@@ -17,11 +17,13 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
 import { authClient } from "@/lib/auth-client";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function AdminPage() {
-  const { data: session } = authClient.useSession();
-  const user = session?.user as { name?: string } | undefined;
+  const { data: session, isPending } = authClient.useSession();
+  const user = session?.user as { name?: string; role?: string } | undefined;
+  const router = useRouter();
   const { lang } = useLang();
   const T = adminT[lang];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -41,15 +43,31 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    if (isPending || !session) return;
+
+    // proxy.ts only checks that a session cookie exists, not whose it is, so an
+    // employee who opens /admin directly still lands here. Every /api/admin
+    // route then answers 403, and the dashboard renders blank — or crashes,
+    // once an error body reaches state a tab maps over. Send them to the chat
+    // and skip the requests entirely. This is only a redirect, not the security
+    // boundary: each admin route re-reads the role from the database per call.
+    if (user?.role !== "admin") {
+      router.replace("/chat");
+      return;
+    }
+
     fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
-      if (data) setDocuments(data);
+      if (Array.isArray(data)) setDocuments(data);
     }).catch(() => {});
-    fetch("/api/admin/users").then((r) => r.json()).then((data: Employee[]) => setEmployees(data)).catch(() => {});
-    fetch("/api/admin/company").then((r) => r.json()).then((data: { name: string; plan: "starter" | "professional" | "enterprise" }) => {
-      setCompanyName(data?.name ?? "");
-      if (data?.plan) setPlan(data.plan);
+    fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
+      if (Array.isArray(data)) setEmployees(data);
     }).catch(() => {});
-  }, []);
+    fetch("/api/admin/company").then((r) => r.ok ? r.json() : null).then((data: { name?: string; plan?: "starter" | "professional" | "enterprise" } | null) => {
+      if (!data) return;
+      setCompanyName(data.name ?? "");
+      if (data.plan) setPlan(data.plan);
+    }).catch(() => {});
+  }, [isPending, session, user?.role, router]);
 
   useEffect(() => {
     const hasProcessing = documents.some((d) => d.status === "processing");

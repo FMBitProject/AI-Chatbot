@@ -23,9 +23,11 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    // A failed request must leave `logs` an array — an error body reaching it
+    // would throw on the .filter() below rather than showing an empty table.
     fetch("/api/admin/audit")
-      .then((r) => r.json())
-      .then((d: AuditLog[]) => setLogs(d))
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: AuditLog[] | null) => { if (Array.isArray(d)) setLogs(d); })
       .catch(() => {});
   }, []);
 

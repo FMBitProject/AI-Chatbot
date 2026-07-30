@@ -21,8 +21,8 @@ export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
 
   useEffect(() => {
     fetch("/api/admin/analytics")
-      .then((r) => r.json())
-      .then((d: Analytics) => setData(d))
+      .then((r) => r.ok ? r.json() : null)
+      .then((d: Analytics | null) => { if (d) setData(d); })
       .catch(() => {});
   }, []);
 
