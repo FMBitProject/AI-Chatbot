@@ -30,7 +30,6 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
     "@slack/web-api": "^7.16.0",
-    "@types/pdf-parse": "^1.1.5",
     "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.193",
     "better-auth": "^1.6.11",
@@ -46,13 +45,13 @@
     "next": "^16.2.11",
     "officeparser": "^7.1.0",
     "openai": "^6.39.1",
-    "pdf-parse": "^1.1.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-dropzone": "^15.0.0",
     "react-markdown": "^10.1.0",
     "resend": "^6.12.4",
     "tailwind-merge": "^3.6.0",
+    "unpdf": "^1.8.0",
     "ws": "^8.21.1"
   },
   "devDependencies": {

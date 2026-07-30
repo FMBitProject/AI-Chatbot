@@ -15,14 +15,57 @@ import { generateText } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
 
+// Failures an admin can actually act on (a scanned PDF, a corrupt file, a
+// password-protected one) carry a specific message that gets stored on the
+// document row and shown in the admin UI. Everything else falls back to a
+// generic message, with the real detail left in the server log.
+class DocumentError extends Error {}
+
+// pdf.js (bundled inside unpdf) calls Math.sumPrecise, which only lands in
+// Node 24. On older runtimes every page logs a TypeError warning, so provide it
+// before the library loads. Extraction output is identical either way.
+function polyfillSumPrecise() {
+  const M = Math as typeof Math & { sumPrecise?: (values: Iterable<number>) => number };
+  if (typeof M.sumPrecise === "function") return;
+  M.sumPrecise = (values) => {
+    let sum = 0;
+    for (const value of values) sum += value;
+    return sum;
+  };
+}
+
+// Extracted with unpdf, which wraps a current pdf.js. The previous parser
+// (pdf-parse@1.1.1) shipped a frozen copy of pdf.js 1.10.100 from 2018 and
+// rejected ordinary PDFs with lexer-level errors — "bad XRef entry",
+// "FormatError: Illegal character" — that modern pdf.js recovers from.
+async function extractPdfText(buffer: Buffer, fileName: string): Promise<string> {
+  polyfillSumPrecise();
+  const { extractText: extractPdf, getDocumentProxy } = await import("unpdf");
+
+  try {
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    const { text } = await extractPdf(pdf, { mergePages: true });
+    return text;
+  } catch (error) {
+    console.error(`[upload] pdf.js could not parse ${fileName}:`, error);
+    if (error instanceof Error && error.name === "PasswordException") {
+      throw new DocumentError(
+        "PDF ini diproteksi password. Buka proteksinya dulu, lalu upload ulang."
+      );
+    }
+    throw new DocumentError(
+      "PDF ini tidak bisa dibaca — kemungkinan filenya rusak. Coba buka di PDF reader, " +
+      "lalu simpan ulang atau print ke PDF, kemudian upload lagi."
+    );
+  }
+}
+
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const name = file.name.toLowerCase();
 
   if (name.endsWith(".pdf")) {
-    const pdfParse = (await import("pdf-parse")).default as (buf: Buffer) => Promise<{ text: string }>;
-    const data = await pdfParse(buffer);
-    return data.text;
+    return extractPdfText(buffer, file.name);
   }
 
   if (name.endsWith(".docx")) {
@@ -48,7 +91,9 @@ async function extractText(file: File): Promise<string> {
     return text as string;
   }
 
-  throw new Error(`Format file tidak didukung: ${file.name}`);
+  throw new DocumentError(
+    `Format file "${file.name}" tidak didukung. Gunakan PDF, DOCX, XLSX, atau PPTX.`
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -83,7 +128,7 @@ export async function POST(req: NextRequest) {
   }
 
   const MAX_SIZE = 10 * 1024 * 1024;
-  const results: { id: string; name: string; status: string; createdAt: string }[] = [];
+  const results: { id: string; name: string; status: string; errorMessage?: string; createdAt: string }[] = [];
 
   for (const file of files) {
     if (file.size > MAX_SIZE) {
@@ -106,8 +151,28 @@ export async function POST(req: NextRequest) {
       const rawText = await extractText(file);
       const chunks = chunkText(rawText);
 
+      // A file that yields no usable text would otherwise reach insert().values([])
+      // below, which throws a Drizzle error that says nothing about the cause.
+      // The usual reason is a scan or photo saved as a PDF: pages parse fine, but
+      // they hold images rather than a text layer.
+      if (chunks.length === 0) {
+        throw new DocumentError(
+          "Tidak ada teks yang bisa diambil dari file ini. Kalau dokumennya hasil scan " +
+          "atau foto, jalankan OCR dulu supaya teksnya terbaca."
+        );
+      }
+
       // Batch embed all chunks in one API call instead of N sequential calls
-      const embeddings = await getEmbeddings(chunks);
+      let embeddings: number[][];
+      try {
+        embeddings = await getEmbeddings(chunks);
+      } catch (error) {
+        console.error(`[upload] Embedding failed for ${file.name}:`, error);
+        throw new DocumentError(
+          "Gagal membuat index AI untuk dokumen ini — layanan embedding sedang bermasalah " +
+          "atau kuotanya habis. Coba upload lagi beberapa menit lagi."
+        );
+      }
 
       await withTenant(companyId, (tx) => tx.insert(documentChunks).values(
         chunks.map((text, i) => ({
@@ -137,9 +202,14 @@ export async function POST(req: NextRequest) {
 
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
+      // Persist why it failed, so the admin sees the reason in the document list
+      // instead of a bare "Gagal" badge that sends them digging through the logs.
+      const errorMessage = error instanceof DocumentError
+        ? error.message
+        : "Dokumen gagal diproses karena kesalahan tak terduga di server.";
       await withTenant(companyId, (tx) =>
-        tx.update(documents).set({ status: "failed" }).where(eq(documents.id, docId)));
-      results.push({ id: docId, name: file.name, status: "failed", createdAt: new Date().toISOString() });
+        tx.update(documents).set({ status: "failed", errorMessage }).where(eq(documents.id, docId)));
+      results.push({ id: docId, name: file.name, status: "failed", errorMessage, createdAt: new Date().toISOString() });
     }
   }
 

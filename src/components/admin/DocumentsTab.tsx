@@ -6,13 +6,14 @@ import { FileDropzone } from "./FileDropzone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { Trash2, FileText, ChevronDown, ChevronUp, Sparkles, AlertCircle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
 export interface Document {
   id: string;
   name: string;
   status: "processing" | "success" | "failed";
+  errorMessage?: string | null;
   summary?: string | null;
   expiresAt?: string | null;
   createdAt: string;
@@ -129,6 +130,16 @@ export function DocumentsTab({ documents, onUpload, onDelete, lang = "id" }: Doc
                           </Button>
                         </TableCell>
                       </TableRow>
+                      {doc.status === "failed" && doc.errorMessage && (
+                        <TableRow>
+                          <TableCell colSpan={4} className="bg-red-50 border-t-0">
+                            <div className="flex items-start gap-2 py-1">
+                              <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+                              <div className="text-sm text-red-700">{doc.errorMessage}</div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
                       {isExpanded && doc.summary && (
                         <TableRow>
                           <TableCell colSpan={4} className="bg-teal-50 border-t-0">

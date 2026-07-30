@@ -77,6 +77,9 @@ export const documents = pgTable("documents", {
   companyId: text("company_id").references(() => companies.id).notNull(),
   department: text("department"),
   status: text("status").$type<"processing" | "success" | "failed">().default("processing").notNull(),
+  // Why a "failed" document failed, phrased for the admin who uploaded it.
+  // Null for every other status.
+  errorMessage: text("error_message"),
   summary: text("summary"),
   // Full extracted text, kept so a document can be re-chunked later without
   // re-uploading the original file.
