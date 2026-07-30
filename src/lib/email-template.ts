@@ -4,6 +4,20 @@
 // the exact moment someone is trying to get into their account.
 export type Bilingual = { en: string; id: string };
 
+// Names reach these templates straight from whatever someone typed at signup,
+// so they cannot be pasted into the markup raw. Escaping also renders the
+// ordinary case correctly: "PT. Maju & Sejahtera" needs to arrive as "&amp;" to
+// display as "&". Exported because callers that interpolate a name into a `body`
+// string have to escape it before it gets here.
+export function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function authEmail(opts: {
   heading: Bilingual;
   greetingName: string;
@@ -16,7 +30,7 @@ export function authEmail(opts: {
   // to wonder whether the second one is a different link or a different code.
   const words = (lang: "en" | "id") => `
     <h3 style="color:#111827;margin:0 0 12px;font-size:18px;">${opts.heading[lang]}</h3>
-    <p style="color:#374151;line-height:1.6;margin:0 0 10px;">${lang === "en" ? "Hi" : "Halo"} <strong>${opts.greetingName}</strong>,</p>
+    <p style="color:#374151;line-height:1.6;margin:0 0 10px;">${lang === "en" ? "Hi" : "Halo"} <strong>${escapeHtml(opts.greetingName)}</strong>,</p>
     <p style="color:#374151;line-height:1.6;margin:0;">${opts.body[lang]}</p>
   `;
 

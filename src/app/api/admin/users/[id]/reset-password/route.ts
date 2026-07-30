@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { sendMail } from "@/lib/mail";
+import { authEmail, escapeHtml } from "@/lib/email-template";
 
 export async function POST(
   req: NextRequest,
@@ -47,5 +49,42 @@ export async function POST(
     await ctx.internalAdapter.deleteSessions(sessions.map((s) => s.token));
   }
 
-  return NextResponse.json({ ok: true });
+  // Tell the employee their password changed. Not a verification step — the
+  // reset is already done and this carries no link to click. It exists so the
+  // change cannot happen silently: a hijacked admin account could otherwise
+  // reset every employee in the company and lock them all out with nothing
+  // reaching the people it happened to. Being signed out with no explanation
+  // looks identical to an outage from the employee's side.
+  //
+  // Deliberately after the reset, and deliberately not fatal: the password has
+  // already changed by this point, so failing the request over an undelivered
+  // notice would tell the admin their reset failed when it did not. Report
+  // whether it went out instead, so they know to pass the password on by hand.
+  let notified = false;
+  // Escaped here rather than by authEmail: it lands inside `body`, which the
+  // template treats as trusted copy we wrote ourselves.
+  const adminName = escapeHtml(admin.name);
+  try {
+    await sendMail({
+      to: target.email,
+      subject: "Your password was reset / Kata sandi Anda telah diatur ulang — IntelliBase AI",
+      html: authEmail({
+        heading: { en: "Your password was reset", id: "Kata Sandi Anda Telah Diatur Ulang" },
+        greetingName: target.name,
+        body: {
+          en: `An administrator of your company (${adminName}) has just reset the password for your IntelliBase AI account, and you have been signed out on every device. Ask them for your new password to sign back in. If you did not expect this, contact them straight away.`,
+          id: `Administrator perusahaan Anda (${adminName}) baru saja mengatur ulang kata sandi akun IntelliBase AI Anda, dan Anda telah dikeluarkan dari semua perangkat. Mintalah kata sandi baru kepada beliau untuk masuk kembali. Jika Anda tidak menduga hal ini terjadi, segera hubungi beliau.`,
+        },
+        note: {
+          en: "This email is a notification only — there is nothing to click and no action is needed here. We never send your password by email.",
+          id: "Email ini hanya pemberitahuan — tidak ada yang perlu diklik dan tidak ada tindakan yang diperlukan di sini. Kami tidak pernah mengirim kata sandi Anda melalui email.",
+        },
+      }),
+    });
+    notified = true;
+  } catch (error) {
+    console.error(`[reset-password] password reset for ${target.email} succeeded but the notification email did not:`, error);
+  }
+
+  return NextResponse.json({ ok: true, notified });
 }

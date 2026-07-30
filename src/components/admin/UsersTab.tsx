@@ -74,7 +74,18 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
         body: JSON.stringify({ newPassword }),
       });
       if (!res.ok) throw new Error();
-      toast({ title: lang === "en" ? "Password reset successfully." : "Password berhasil direset." });
+      // The reset itself succeeded either way; `notified` only says whether the
+      // employee was told. Say so plainly when it wasn't, so the admin knows to
+      // pass the new password on themselves rather than assume it was mailed.
+      const { notified } = await res.json() as { notified?: boolean };
+      toast(notified === false
+        ? {
+            title: lang === "en" ? "Password reset — employee not notified" : "Password direset — karyawan belum diberi tahu",
+            description: lang === "en"
+              ? "The new password is active, but the notification email could not be sent. Tell them yourself."
+              : "Password baru sudah aktif, tapi email pemberitahuan gagal terkirim. Beri tahu karyawannya langsung.",
+          }
+        : { title: lang === "en" ? "Password reset successfully." : "Password berhasil direset." });
       setResetTarget(null);
       setNewPassword("");
     } catch {
