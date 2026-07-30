@@ -24,13 +24,28 @@ class DocumentError extends Error {}
 // pdf.js (bundled inside unpdf) calls Math.sumPrecise, which only lands in
 // Node 24. On older runtimes every page logs a TypeError warning, so provide it
 // before the library loads. Extraction output is identical either way.
+//
+// Neumaier compensated summation rather than a plain loop, because this is
+// installed on the *global* Math: anything else that feature-detects the method
+// gets this implementation, so it has to be worth having. Be honest about the
+// limit — the specification returns the exactly-rounded sum, and this returns a
+// very close approximation. It is well inside what pdf.js needs for glyph
+// widths, and it is removed the moment the runtime ships its own.
 function polyfillSumPrecise() {
   const M = Math as typeof Math & { sumPrecise?: (values: Iterable<number>) => number };
   if (typeof M.sumPrecise === "function") return;
   M.sumPrecise = (values) => {
     let sum = 0;
-    for (const value of values) sum += value;
-    return sum;
+    let compensation = 0;
+    for (const value of values) {
+      const tentative = sum + value;
+      // Accumulate the low-order bits that `sum + value` just discarded.
+      compensation += Math.abs(sum) >= Math.abs(value)
+        ? (sum - tentative) + value
+        : (value - tentative) + sum;
+      sum = tentative;
+    }
+    return sum + compensation;
   };
 }
 
@@ -60,6 +75,22 @@ async function extractPdfText(buffer: Buffer, fileName: string): Promise<string>
   }
 }
 
+async function unwrapParseError(
+  fileName: string,
+  format: string,
+  parse: () => Promise<string>,
+): Promise<string> {
+  try {
+    return await parse();
+  } catch (error) {
+    console.error(`[upload] ${format} parser could not read ${fileName}:`, error);
+    throw new DocumentError(
+      `File ${format} ini tidak bisa dibaca — kemungkinan filenya rusak atau ekstensinya ` +
+      `tidak sesuai isinya. Coba buka lalu simpan ulang dari aplikasi aslinya, kemudian upload lagi.`
+    );
+  }
+}
+
 async function extractText(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const name = file.name.toLowerCase();
@@ -68,27 +99,38 @@ async function extractText(file: File): Promise<string> {
     return extractPdfText(buffer, file.name);
   }
 
+  // The Office parsers get the same treatment as the PDF path above: their raw
+  // exceptions ("Corrupted zip", "central directory not found") reach the admin
+  // as "kesalahan tak terduga di server", which reads like our bug rather than
+  // their file. Both formats are zip containers, so a truncated or renamed file
+  // is the common cause and the advice is the same for all three.
   if (name.endsWith(".docx")) {
-    const mammoth = await import("mammoth");
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
+    return unwrapParseError(file.name, "DOCX", async () => {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.extractRawText({ buffer });
+      return result.value;
+    });
   }
 
   if (name.endsWith(".xlsx")) {
     // Parsed via officeparser (like pptx below) instead of the abandoned `xlsx`
     // package, which has unpatched prototype-pollution/ReDoS advisories in its
     // parser. The "csv" destination keeps the tabular structure for retrieval.
-    const { parseOffice } = await import("officeparser");
-    const ast = await parseOffice(buffer, { fileType: "xlsx" });
-    const { value: text } = await ast.to("csv");
-    return text as string;
+    return unwrapParseError(file.name, "XLSX", async () => {
+      const { parseOffice } = await import("officeparser");
+      const ast = await parseOffice(buffer, { fileType: "xlsx" });
+      const { value: text } = await ast.to("csv");
+      return text as string;
+    });
   }
 
   if (name.endsWith(".pptx")) {
-    const { parseOffice } = await import("officeparser");
-    const ast = await parseOffice(buffer, { fileType: "pptx" });
-    const { value: text } = await ast.to("text");
-    return text as string;
+    return unwrapParseError(file.name, "PPTX", async () => {
+      const { parseOffice } = await import("officeparser");
+      const ast = await parseOffice(buffer, { fileType: "pptx" });
+      const { value: text } = await ast.to("text");
+      return text as string;
+    });
   }
 
   throw new DocumentError(
@@ -153,12 +195,19 @@ export async function POST(req: NextRequest) {
 
       // A file that yields no usable text would otherwise reach insert().values([])
       // below, which throws a Drizzle error that says nothing about the cause.
-      // The usual reason is a scan or photo saved as a PDF: pages parse fine, but
-      // they hold images rather than a text layer.
+      // Two very different situations end up here and the advice differs, so tell
+      // them apart by whether any text came out at all: nothing means the file
+      // holds images rather than a text layer (a scan or photo saved as a PDF),
+      // while a little means a real but too-short document — chunkText drops
+      // anything under MIN_CHUNK, and OCR would be useless advice for that.
       if (chunks.length === 0) {
         throw new DocumentError(
-          "Tidak ada teks yang bisa diambil dari file ini. Kalau dokumennya hasil scan " +
-          "atau foto, jalankan OCR dulu supaya teksnya terbaca."
+          rawText.trim().length === 0
+            ? "Tidak ada teks yang bisa diambil dari file ini — isinya kemungkinan gambar, " +
+              "bukan teks. Kalau dokumennya hasil scan atau foto, jalankan OCR dulu supaya " +
+              "teksnya terbaca."
+            : "Isi dokumen ini terlalu pendek untuk diindeks. Tambahkan isinya dulu, " +
+              "lalu upload lagi."
         );
       }
 

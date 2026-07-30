@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
 
@@ -21,15 +22,29 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
   const T = adminT[lang];
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState("");
+  // Without this, a failed load renders the "no data yet" empty state, which
+  // reads as "nobody has asked anything" — a wrong answer, not a missing one.
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  // No synchronous setState: `load` runs straight from an effect, where that
+  // cascades an extra render. The flag clears when a retry actually succeeds.
+  const load = useCallback(() => {
     // A failed request must leave `logs` an array — an error body reaching it
     // would throw on the .filter() below rather than showing an empty table.
     fetch("/api/admin/audit")
       .then((r) => r.ok ? r.json() : null)
-      .then((d: AuditLog[] | null) => { if (Array.isArray(d)) setLogs(d); })
-      .catch(() => {});
+      .then((d: AuditLog[] | null) => {
+        if (Array.isArray(d)) {
+          setLogs(d);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = logs.filter((l) =>
     l.role === "user" &&
@@ -54,7 +69,13 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
         />
       </div>
       <div className="space-y-2">
-        {filtered.length === 0 && (
+        {failed && (
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-500 mb-3">{T.loadFailed}</p>
+            <Button variant="outline" size="sm" onClick={load}>{T.retry}</Button>
+          </div>
+        )}
+        {!failed && filtered.length === 0 && (
           <p className="text-center text-gray-400 text-sm py-8">{T.noAudit}</p>
         )}
         {filtered.map((log) => {

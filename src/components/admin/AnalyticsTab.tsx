@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, FileText, Users, TrendingUp, Download, Sheet } from "lucide-react";
@@ -18,13 +18,31 @@ interface Analytics {
 export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
   const T = adminT[lang];
   const [data, setData] = useState<Analytics | null>(null);
+  // Distinct from `data === null`, which cannot tell "still waiting" from "the
+  // request failed" — and reporting a failure as a permanent "Memuat data..."
+  // is a lie the reader has no way to see through.
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
+  // Nothing here sets state synchronously — `load` runs straight from an effect,
+  // and a synchronous setState there cascades an extra render for no reason. The
+  // flag is cleared on the way out of a successful retry instead.
+  const load = useCallback(() => {
     fetch("/api/admin/analytics")
       .then((r) => r.ok ? r.json() : null)
-      .then((d: Analytics | null) => { if (d) setData(d); })
-      .catch(() => {});
+      .then((d: Analytics | null) => {
+        // A 200 carrying an unexpected shape would throw later, in the render
+        // that maps over recentQuestions. Treat it as a failed load here.
+        if (d && Array.isArray(d.recentQuestions)) {
+          setData(d);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
 
   async function handleExportExcel() {
@@ -167,7 +185,15 @@ export function AnalyticsTab({ lang = "id" }: { lang?: Lang }) {
     toast({ title: "PDF berhasil diunduh!" });
   }
 
-  if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat data...</div>;
+  if (failed) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-sm text-gray-500 mb-3">{T.loadFailed}</p>
+        <Button variant="outline" size="sm" onClick={load}>{T.retry}</Button>
+      </div>
+    );
+  }
+  if (!data) return <div className="text-center py-10 text-gray-400 text-sm">{T.loading}</div>;
 
   const stats = [
     { label: T.totalChat, value: data.totalSessions, icon: MessageSquare, color: "text-blue-600 bg-blue-50" },

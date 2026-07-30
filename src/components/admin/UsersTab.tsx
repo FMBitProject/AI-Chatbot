@@ -73,7 +73,13 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // The endpoint rejects for reasons the admin can act on — a password
+        // that fails the rules, or resetting their own account — so pass its
+        // message through instead of flattening every failure into one line.
+        const failure = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(failure?.error);
+      }
       // Past this point the password has already changed and the employee's
       // sessions are gone, so nothing here may report a failure. Parsing is
       // therefore best-effort: an unreadable body costs us the `notified` flag,
@@ -91,8 +97,13 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
         : { title: lang === "en" ? "Password reset successfully." : "Password berhasil direset." });
       setResetTarget(null);
       setNewPassword("");
-    } catch {
-      toast({ variant: "destructive", title: lang === "en" ? "Failed to reset password." : "Gagal mereset password." });
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : undefined;
+      toast({
+        variant: "destructive",
+        title: lang === "en" ? "Failed to reset password." : "Gagal mereset password.",
+        description: detail,
+      });
     } finally {
       setResetting(false);
     }

@@ -5,6 +5,7 @@ import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { sendMail } from "@/lib/mail";
 import { authEmail, escapeHtml } from "@/lib/email-template";
+import { isPasswordValid } from "@/lib/password";
 
 export async function POST(
   req: NextRequest,
@@ -19,15 +20,32 @@ export async function POST(
   }
 
   const { id } = await params;
-  const { newPassword } = await req.json() as { newPassword: string };
+  const body = await req.json().catch(() => null) as { newPassword?: unknown } | null;
+  const newPassword = body?.newPassword;
 
-  if (!newPassword || newPassword.length < 8) {
-    return NextResponse.json({ error: "Password minimal 8 karakter." }, { status: 400 });
+  // The same rule the dialog enforces (isPasswordValid), not a laxer length-only
+  // check. A caller reaching this endpoint directly could otherwise set a weaker
+  // password than the UI would ever accept — and this endpoint is how a
+  // compromised password gets replaced, so it is the last place to be lenient.
+  if (typeof newPassword !== "string" || !isPasswordValid(newPassword)) {
+    return NextResponse.json({
+      error: "Password minimal 8 karakter dan harus memuat huruf besar, angka, dan karakter khusus.",
+    }, { status: 400 });
   }
 
   const [target] = await db.select().from(users).where(eq(users.id, id)).limit(1);
   if (!target || target.companyId !== admin.companyId) {
     return NextResponse.json({ error: "User tidak ditemukan." }, { status: 404 });
+  }
+
+  // Resetting yourself here would delete your own sessions mid-request and sign
+  // you straight out, then mail you a notice naming yourself as the person who
+  // did it. Changing your own password is what /api/user/change-password is for,
+  // and it asks for the current one first.
+  if (target.id === admin.id) {
+    return NextResponse.json({
+      error: "Gunakan menu Ganti Password untuk mengubah kata sandi Anda sendiri.",
+    }, { status: 400 });
   }
 
   // Better Auth has no admin "set password for another user" endpoint, so use
