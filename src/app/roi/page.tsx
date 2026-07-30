@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, formatRupiah, type PaidPlan } from "@/lib/pricing";
+import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
 import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 const CONTENT = {
@@ -66,7 +67,7 @@ const CONTENT = {
       },
     ],
     results: {
-      savingsAI: "Penghematan AI (90%)",
+      savingsAI: `Penghematan AI (${SEARCH_TIME_REDUCTION_LABEL})`,
       subscription: "Biaya Langganan",
       netSaving: "Hemat Bersih / Bulan",
       roi: "ROI",
@@ -79,7 +80,6 @@ const CONTENT = {
       btn: "Coba Gratis Dulu",
       pricing: "Lihat Detail Harga",
     },
-    note: "* Estimasi menggunakan asumsi 90% pengurangan waktu pencarian. Hasil aktual dapat bervariasi.",
   },
   en: {
     nav: { price: "Pricing", login: "Sign In", start: "Start Free" },
@@ -137,7 +137,7 @@ const CONTENT = {
       },
     ],
     results: {
-      savingsAI: "AI Savings (90%)",
+      savingsAI: `AI Savings (${SEARCH_TIME_REDUCTION_LABEL})`,
       subscription: "Subscription Cost",
       netSaving: "Net Savings / Month",
       roi: "ROI",
@@ -150,7 +150,6 @@ const CONTENT = {
       btn: "Try Free First",
       pricing: "View Full Pricing",
     },
-    note: "* Estimate uses 90% search time reduction assumption. Actual results may vary.",
   },
 };
 
@@ -334,20 +333,16 @@ export default function ROIPage() {
     return { ...p, price, priceLabel: `${formatRupiah(price, lang)} / ${lang === "id" ? "bulan" : "month"}` };
   });
 
-  const [employees, setEmployees] = useState(50);
-  const [questionsPerDay, setQuestionsPerDay] = useState(3);
-  const [minutesPerSearch, setMinutesPerSearch] = useState(20);
-  const [salaryPerMonth, setSalaryPerMonth] = useState(6_000_000);
-  const [workingDays, setWorkingDays] = useState(22);
+  const [employees, setEmployees] = useState(ROI_DEFAULTS.employees);
+  const [questionsPerDay, setQuestionsPerDay] = useState(ROI_DEFAULTS.questionsPerDay);
+  const [minutesPerSearch, setMinutesPerSearch] = useState(ROI_DEFAULTS.minutesPerSearch);
+  const [salaryPerMonth, setSalaryPerMonth] = useState(ROI_DEFAULTS.salaryPerMonth);
+  const [workingDays, setWorkingDays] = useState(ROI_DEFAULTS.workingDays);
 
-  const results = useMemo(() => {
-    const minutesPerMonth = employees * questionsPerDay * minutesPerSearch * workingDays;
-    const hoursPerMonth = minutesPerMonth / 60;
-    const hourlyRate = salaryPerMonth / (workingDays * 8);
-    const costLost = hoursPerMonth * hourlyRate;
-    const savingsWithAI = costLost * 0.9;
-    return { hoursPerMonth, costLost, savingsWithAI };
-  }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
+  const results = useMemo(
+    () => calculateRoi({ employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays }),
+    [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays],
+  );
 
   const recommendedPlan = employees > 50 ? plans[1] : plans[0];
   const bestNet = Math.max(0, results.savingsWithAI - recommendedPlan.price);
@@ -479,7 +474,7 @@ export default function ROIPage() {
             />
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-6 text-center">{T.note}</p>
+        <p className="text-xs text-gray-400 mt-6 text-center">{ESTIMATE_NOTE[lang]}</p>
       </section>
 
       {/* CTA */}

@@ -7,6 +7,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
+import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
 import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
@@ -46,6 +47,14 @@ type Step = {
   icon: typeof FileText;
 };
 
+// A stat we assume rather than measure sets `estimate`. The marker and the
+// footnote are both rendered from that flag, so a figure cannot end up starred
+// with no note or hedged with no star — and the copy stays free of the marker,
+// which a screen reader would otherwise read out as part of the label.
+type Stat = { v: string; l: string; estimate?: true };
+
+const STATS_NOTE_ID = "landing-stats-estimate-note";
+
 // The "how it works" section's own geometry, needed to describe each
 // screenshot's rendered width to the browser. `sizes` has to state the width the
 // image is *laid out* at, not the width of the file: claiming 1864px when the
@@ -74,8 +83,12 @@ const CONTENT = {
     videoTitle: "Lihat IntelliBase AI Bekerja",
     videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
     videoPlay: "Putar video demo",
-    stats: [{ v: "90%", l: "Pengurangan waktu pencarian dokumen *" }, { v: "< 3 detik", l: "Rata-rata waktu respons AI" }, { v: "100%", l: "Isolasi data antar perusahaan" }, { v: "10 menit", l: "Waktu setup hingga siap pakai" }],
-    statsNote: "* Estimasi menggunakan asumsi 90% pengurangan waktu pencarian. Hasil aktual dapat bervariasi.",
+    stats: [
+      { v: SEARCH_TIME_REDUCTION_LABEL, l: "Pengurangan waktu pencarian dokumen", estimate: true },
+      { v: "< 3 detik", l: "Rata-rata waktu respons AI", estimate: true },
+      { v: "100%", l: "Isolasi data antar perusahaan" },
+      { v: "10 menit", l: "Waktu setup hingga siap pakai" },
+    ] satisfies Stat[],
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
     steps: [
@@ -130,8 +143,12 @@ const CONTENT = {
     videoTitle: "See IntelliBase AI in Action",
     videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
     videoPlay: "Play demo video",
-    stats: [{ v: "90%", l: "Reduction in document search time *" }, { v: "< 3 sec", l: "Average AI response time" }, { v: "100%", l: "Data isolation between companies" }, { v: "10 min", l: "Setup time until ready" }],
-    statsNote: "* Estimate uses a 90% search-time reduction assumption. Actual results may vary.",
+    stats: [
+      { v: SEARCH_TIME_REDUCTION_LABEL, l: "Reduction in document search time", estimate: true },
+      { v: "< 3 sec", l: "Average AI response time", estimate: true },
+      { v: "100%", l: "Data isolation between companies" },
+      { v: "10 min", l: "Setup time until ready" },
+    ] satisfies Stat[],
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
     steps: [
@@ -236,9 +253,11 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
 export function LandingContent() {
   const { lang } = useLang();
   const T = CONTENT[lang];
-  const [teaserEmployees, setTeaserEmployees] = useState(50);
-  const teaserLost = teaserEmployees * 3 * 20 * 22 / 60 * (6_000_000 / (22 * 8));
-  const teaserSaving = teaserLost * 0.9;
+  const [teaserEmployees, setTeaserEmployees] = useState(ROI_DEFAULTS.employees);
+  // Same arithmetic and same assumptions as /roi, with headcount as the only
+  // input the visitor moves — so the teaser and the calculator it links to
+  // cannot quote different numbers for the same company size.
+  const teaser = calculateRoi({ ...ROI_DEFAULTS, employees: teaserEmployees });
 
   return (
     <div className="min-h-screen bg-white">
@@ -281,16 +300,21 @@ export function LandingContent() {
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {T.stats.map((s) => (
-              <div key={s.l} className="text-center">
+              // aria-describedby, not a bare "*": it points a screen reader at
+              // the footnote instead of announcing a star with no explanation.
+              <div key={s.l} className="text-center" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
                 <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
-                <p className="text-teal-100 text-sm">{s.l}</p>
+                <p className="text-teal-100 text-sm">
+                  {s.l}
+                  {s.estimate && <sup aria-hidden="true"> *</sup>}
+                </p>
               </div>
             ))}
           </div>
-          {/* The 90% figure is our own assumption, not a measured customer
-              result, so it carries the same disclaimer the ROI calculator
-              already shows rather than reading as something we've observed. */}
-          <p className="text-teal-200/80 text-xs text-center mt-8">{T.statsNote}</p>
+          {/* teal-100 rather than a dimmed teal-200: at text-xs on teal-700 the
+              dimmed version sits at ~3.4:1, so the one line on the page whose
+              whole job is to be read honestly was the hardest to read. */}
+          <p id={STATS_NOTE_ID} className="text-teal-100 text-xs text-center mt-8">{ESTIMATE_NOTE[lang]}</p>
         </div>
       </section>
 
@@ -388,11 +412,11 @@ export function LandingContent() {
             <div className="grid sm:grid-cols-2 gap-4 mb-8">
               <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-5 text-center">
                 <p className="text-red-400 text-xs font-medium mb-2">{T.roiTeaser.lostLabel}</p>
-                <p className="text-3xl font-bold text-red-400">{formatRp(teaserLost)}</p>
+                <p className="text-3xl font-bold text-red-400">{formatRp(teaser.costLost)}</p>
               </div>
               <div className="bg-green-900/30 border border-green-800/50 rounded-xl p-5 text-center">
                 <p className="text-green-400 text-xs font-medium mb-2">{T.roiTeaser.savingLabel}</p>
-                <p className="text-3xl font-bold text-green-400">{formatRp(teaserSaving)}</p>
+                <p className="text-3xl font-bold text-green-400">{formatRp(teaser.savingsWithAI)}</p>
               </div>
             </div>
             <div className="text-center">
