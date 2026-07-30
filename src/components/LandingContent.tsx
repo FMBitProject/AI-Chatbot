@@ -74,7 +74,8 @@ const CONTENT = {
     videoTitle: "Lihat IntelliBase AI Bekerja",
     videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
     videoPlay: "Putar video demo",
-    stats: [{ v: "90%", l: "Pengurangan waktu pencarian dokumen" }, { v: "< 3 detik", l: "Rata-rata waktu respons AI" }, { v: "100%", l: "Isolasi data antar perusahaan" }, { v: "10 menit", l: "Waktu setup hingga siap pakai" }],
+    stats: [{ v: "90%", l: "Pengurangan waktu pencarian dokumen *" }, { v: "< 3 detik", l: "Rata-rata waktu respons AI" }, { v: "100%", l: "Isolasi data antar perusahaan" }, { v: "10 menit", l: "Waktu setup hingga siap pakai" }],
+    statsNote: "* Estimasi menggunakan asumsi 90% pengurangan waktu pencarian. Hasil aktual dapat bervariasi.",
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
     steps: [
@@ -91,12 +92,6 @@ const CONTENT = {
       { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Pantau pertanyaan terpopuler dan siapa bertanya apa untuk insight bisnis." },
       { icon: Zap, t: "Jawaban Instan", d: "Tidak perlu buka dokumen satu per satu. Tanya langsung, dapat jawaban dalam detik." },
-    ],
-    testiTitle: "Dipercaya oleh Tim HR & IT di Indonesia",
-    testimonials: [
-      { name: "Budi Santoso", role: "HR Manager", company: "PT. Maju Bersama", text: "IntelliBase memangkas waktu karyawan mencari SOP dari 30 menit menjadi 30 detik." },
-      { name: "Siti Rahayu", role: "IT Director", company: "CV. Teknologi Nusantara", text: "Onboarding karyawan baru jadi jauh lebih mudah. Semua panduan IT bisa diakses lewat chat." },
-      { name: "Ahmad Fauzi", role: "Operations Head", company: "PT. Sukses Abadi", text: "Akhirnya ada solusi yang benar-benar bisa dipakai tim tanpa perlu training panjang." },
     ],
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
@@ -135,7 +130,8 @@ const CONTENT = {
     videoTitle: "See IntelliBase AI in Action",
     videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
     videoPlay: "Play demo video",
-    stats: [{ v: "90%", l: "Reduction in document search time" }, { v: "< 3 sec", l: "Average AI response time" }, { v: "100%", l: "Data isolation between companies" }, { v: "10 min", l: "Setup time until ready" }],
+    stats: [{ v: "90%", l: "Reduction in document search time *" }, { v: "< 3 sec", l: "Average AI response time" }, { v: "100%", l: "Data isolation between companies" }, { v: "10 min", l: "Setup time until ready" }],
+    statsNote: "* Estimate uses a 90% search-time reduction assumption. Actual results may vary.",
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
     steps: [
@@ -152,12 +148,6 @@ const CONTENT = {
       { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Monitor top questions and who asked what for business insights." },
       { icon: Zap, t: "Instant Answers", d: "No need to open documents one by one. Ask directly, get answers in seconds." },
-    ],
-    testiTitle: "Trusted by HR & IT Teams in Indonesia",
-    testimonials: [
-      { name: "Budi Santoso", role: "HR Manager", company: "PT. Maju Bersama", text: "IntelliBase cut employee SOP search time from 30 minutes to 30 seconds." },
-      { name: "Siti Rahayu", role: "IT Director", company: "CV. Teknologi Nusantara", text: "New employee onboarding is much easier. All IT guides can be accessed through chat." },
-      { name: "Ahmad Fauzi", role: "Operations Head", company: "PT. Sukses Abadi", text: "Finally a solution the team can actually use without lengthy training." },
     ],
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
@@ -288,13 +278,19 @@ export function LandingContent() {
 
       {/* Stats */}
       <section className="bg-teal-700 py-12 px-6">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          {T.stats.map((s) => (
-            <div key={s.l} className="text-center">
-              <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
-              <p className="text-teal-100 text-sm">{s.l}</p>
-            </div>
-          ))}
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {T.stats.map((s) => (
+              <div key={s.l} className="text-center">
+                <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
+                <p className="text-teal-100 text-sm">{s.l}</p>
+              </div>
+            ))}
+          </div>
+          {/* The 90% figure is our own assumption, not a measured customer
+              result, so it carries the same disclaimer the ROI calculator
+              already shows rather than reading as something we've observed. */}
+          <p className="text-teal-200/80 text-xs text-center mt-8">{T.statsNote}</p>
         </div>
       </section>
 
