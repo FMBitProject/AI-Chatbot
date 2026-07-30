@@ -44,7 +44,7 @@ function shotSizes(intrinsicWidth: number): string {
 
 const CONTENT = {
   id: {
-    badge: "🚀 Platform Knowledge Base untuk Tim Internal Indonesia",
+    badge: "🚀 Platform Knowledge Base AI untuk Perusahaan Indonesia",
     hero1: "Karyawan Anda Bisa Tahu Semua",
     hero2: "Kebijakan Perusahaan",
     hero3: "dalam Detik",
