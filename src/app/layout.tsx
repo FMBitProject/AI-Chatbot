@@ -12,9 +12,17 @@ const geistSans = Geist({
   subsets: ["latin"],
 });
 
+// preload: false because this is the root layout, where Next preloads a font on
+// every single route — but font-mono is used on almost none of them (an API key
+// field and a masked key row, both inside the admin subscription area). Every
+// other page was downloading a font it never drew, and the browser said so:
+// "resource was preloaded using link preload but not used". The @font-face still
+// ships, so the few places that do use it still get Geist Mono; it is fetched
+// when something actually needs it rather than ahead of every page.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
