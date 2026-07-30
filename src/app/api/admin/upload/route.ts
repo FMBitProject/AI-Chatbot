@@ -174,6 +174,21 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // The insert below pairs chunk i with embedding i. A short array would not
+      // error — `embedding` is nullable, so the missing tail would be stored as
+      // NULL and the document would be marked "success" while part of it stayed
+      // invisible to every search. Fail loudly instead; a silent half-indexed
+      // document is worse than a failed upload the admin can retry.
+      if (embeddings.length !== chunks.length) {
+        console.error(
+          `[upload] Embedding count mismatch for ${file.name}: got ${embeddings.length} for ${chunks.length} chunks`
+        );
+        throw new DocumentError(
+          "Index AI dokumen ini tidak lengkap terbentuk, jadi tidak disimpan supaya " +
+          "isinya tidak sebagian-sebagian saat dicari. Coba upload lagi."
+        );
+      }
+
       await withTenant(companyId, (tx) => tx.insert(documentChunks).values(
         chunks.map((text, i) => ({
           id: randomUUID(),
@@ -207,8 +222,16 @@ export async function POST(req: NextRequest) {
       const errorMessage = error instanceof DocumentError
         ? error.message
         : "Dokumen gagal diproses karena kesalahan tak terduga di server.";
-      await withTenant(companyId, (tx) =>
-        tx.update(documents).set({ status: "failed", errorMessage }).where(eq(documents.id, docId)));
+      // This runs inside a catch, so a throw here would escape the handler: the
+      // request would 500, the remaining files in the batch would never be
+      // processed, and the caller would lose the per-file results collected so
+      // far. Recording why it failed is a nicety; not derailing the batch is not.
+      try {
+        await withTenant(companyId, (tx) =>
+          tx.update(documents).set({ status: "failed", errorMessage }).where(eq(documents.id, docId)));
+      } catch (updateError) {
+        console.error(`[upload] Could not mark ${file.name} as failed:`, updateError);
+      }
       results.push({ id: docId, name: file.name, status: "failed", errorMessage, createdAt: new Date().toISOString() });
     }
   }

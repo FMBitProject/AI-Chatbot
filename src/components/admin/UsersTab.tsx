@@ -74,11 +74,14 @@ export function UsersTab({ employees, companyName, onAddEmployee, lang = "id" }:
         body: JSON.stringify({ newPassword }),
       });
       if (!res.ok) throw new Error();
-      // The reset itself succeeded either way; `notified` only says whether the
-      // employee was told. Say so plainly when it wasn't, so the admin knows to
-      // pass the new password on themselves rather than assume it was mailed.
-      const { notified } = await res.json() as { notified?: boolean };
-      toast(notified === false
+      // Past this point the password has already changed and the employee's
+      // sessions are gone, so nothing here may report a failure. Parsing is
+      // therefore best-effort: an unreadable body costs us the `notified` flag,
+      // not the outcome. `notified` only says whether the employee was told —
+      // when it is false, say so, so the admin passes the password on by hand
+      // instead of assuming it was mailed.
+      const body = await res.json().catch(() => null) as { notified?: boolean } | null;
+      toast(body?.notified === false
         ? {
             title: lang === "en" ? "Password reset — employee not notified" : "Password direset — karyawan belum diberi tahu",
             description: lang === "en"

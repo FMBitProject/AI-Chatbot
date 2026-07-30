@@ -5,17 +5,31 @@ import { users, companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
 
-async function getAuthedAdmin(req: NextRequest) {
+// Returns the admin, or the response to send instead. "Not signed in" and
+// "signed in but not an admin" are different answers and every other route under
+// /api/admin already distinguishes them — this one used to fold both into 401,
+// which left a logged-in employee looking like an anonymous visitor. The admin
+// dashboard reads these codes to decide between /login and /chat, so collapsing
+// them sent employees to a login page they were already past.
+type AdminOrResponse =
+  | { admin: typeof users.$inferSelect; response?: never }
+  | { admin?: never; response: NextResponse };
+
+async function getAuthedAdmin(req: NextRequest): Promise<AdminOrResponse> {
   const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return null;
+  if (!session) {
+    return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
   const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) return null;
-  return dbUser;
+  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
+    return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  return { admin: dbUser };
 }
 
 export async function GET(req: NextRequest) {
-  const dbUser = await getAuthedAdmin(req);
-  if (!dbUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { admin: dbUser, response } = await getAuthedAdmin(req);
+  if (response) return response;
 
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId!)).limit(1);
   if (!companyRow) return NextResponse.json(null);
@@ -35,8 +49,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const dbUser = await getAuthedAdmin(req);
-  if (!dbUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { admin: dbUser, response } = await getAuthedAdmin(req);
+  if (response) return response;
 
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId!)).limit(1);
   if (!companyRow) return NextResponse.json({ error: "Company not found" }, { status: 404 });

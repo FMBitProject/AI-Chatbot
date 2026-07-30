@@ -21,9 +21,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 export default function AdminPage() {
-  const { data: session, isPending } = authClient.useSession();
-  const user = session?.user as { name?: string; role?: string } | undefined;
+  const { data: session } = authClient.useSession();
+  const user = session?.user as { name?: string } | undefined;
   const router = useRouter();
+  // Whether this visitor may see the dashboard, decided by the server rather
+  // than by session.user.role: that field is served from a 7-day cookie cache
+  // (see auth.ts), so a freshly promoted admin would read as an employee and be
+  // bounced for a week. "denied" also keeps the banners and tabs unmounted, so a
+  // non-admin never fires their fetches or sees a flash of the dashboard.
+  const [access, setAccess] = useState<"checking" | "granted" | "denied">("checking");
   const { lang } = useLang();
   const T = adminT[lang];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -36,38 +42,71 @@ export default function AdminPage() {
 
   async function loadDocuments() {
     const res = await fetch("/api/admin/documents").catch(() => null);
-    if (res?.ok) {
-      const data = await res.json() as Document[];
-      setDocuments(data);
-    }
+    if (!res?.ok) return;
+    const data = await res.json().catch(() => null) as Document[] | null;
+    if (Array.isArray(data)) setDocuments(data);
   }
 
   useEffect(() => {
-    if (isPending || !session) return;
+    let cancelled = false;
 
-    // proxy.ts only checks that a session cookie exists, not whose it is, so an
-    // employee who opens /admin directly still lands here. Every /api/admin
-    // route then answers 403, and the dashboard renders blank — or crashes,
-    // once an error body reaches state a tab maps over. Send them to the chat
-    // and skip the requests entirely. This is only a redirect, not the security
-    // boundary: each admin route re-reads the role from the database per call.
-    if (user?.role !== "admin") {
-      router.replace("/chat");
-      return;
+    // A request that never settles would otherwise strand the page on its
+    // loading state, which is the same dead dashboard this gate exists to
+    // prevent. Feature-detected because AbortSignal.timeout throws on older
+    // browsers, and it is evaluated as an argument — outside the reach of the
+    // .catch() on the fetch itself.
+    const timeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(8000)
+      : undefined;
+
+    async function start() {
+      // proxy.ts guards /admin on the presence of a session cookie, not on whose
+      // it is, so an employee who types the URL still lands here. /api/admin/company
+      // gives the authoritative answer — it re-reads the role from the database —
+      // and doubles as the request that fills the header, so this costs no extra
+      // round trip.
+      const res = await fetch("/api/admin/company", { signal: timeout }).catch(() => null);
+      if (cancelled) return;
+
+      if (res && (res.status === 401 || res.status === 403)) {
+        setAccess("denied");
+        router.replace(res.status === 401 ? "/login" : "/chat");
+        return;
+      }
+
+      // Every other outcome — a timeout, a network error, a 500 — falls through
+      // to "granted" on purpose. This gate exists to spare a non-admin a broken
+      // dashboard, not to enforce anything; the API is the boundary and answers
+      // for itself on every call. Failing it closed would let one flaky request
+      // lock a legitimate admin out of their own dashboard.
+      setAccess("granted");
+
+      if (res?.ok) {
+        const data = await res.json().catch(() => null) as
+          { name?: string; plan?: "starter" | "professional" | "enterprise" } | null;
+        if (!cancelled && data) {
+          setCompanyName(data.name ?? "");
+          if (data.plan) setPlan(data.plan);
+        }
+      }
+
+      if (cancelled) return;
+      fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
+        if (!cancelled && Array.isArray(data)) setDocuments(data);
+      }).catch(() => {});
+      fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
+        if (!cancelled && Array.isArray(data)) setEmployees(data);
+      }).catch(() => {});
     }
 
-    fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
-      if (Array.isArray(data)) setDocuments(data);
-    }).catch(() => {});
-    fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
-      if (Array.isArray(data)) setEmployees(data);
-    }).catch(() => {});
-    fetch("/api/admin/company").then((r) => r.ok ? r.json() : null).then((data: { name?: string; plan?: "starter" | "professional" | "enterprise" } | null) => {
-      if (!data) return;
-      setCompanyName(data.name ?? "");
-      if (data.plan) setPlan(data.plan);
-    }).catch(() => {});
-  }, [isPending, session, user?.role, router]);
+    // Last resort: anything unexpected thrown in there must still leave the page
+    // usable rather than stuck on "checking" forever.
+    start().catch((error) => {
+      console.error("[admin] access check failed:", error);
+      if (!cancelled) setAccess("granted");
+    });
+    return () => { cancelled = true; };
+  }, [router]);
 
   useEffect(() => {
     const hasProcessing = documents.some((d) => d.status === "processing");
@@ -182,6 +221,16 @@ export default function AdminPage() {
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
+        {access !== "granted" ? (
+          // Nothing below this point may mount before access is settled: the
+          // banners and tabs each fetch their own admin endpoint on mount, so
+          // rendering them for a visitor on their way out to /chat is a burst of
+          // 403s and a flash of a dashboard that was never theirs.
+          <div className="text-center py-16 text-gray-400 text-sm">
+            {access === "checking" ? T.loading : null}
+          </div>
+        ) : (
+        <>
         <RenewalBanner lang={lang} />
         <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
         <Tabs defaultValue="documents">
@@ -230,6 +279,8 @@ export default function AdminPage() {
             <SubscriptionTab lang={lang} />
           </TabsContent>
         </Tabs>
+        </>
+        )}
       </main>
     </div>
   );
