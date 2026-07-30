@@ -13,9 +13,10 @@ import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare
 // the embed and its thumbnail to resolve.
 const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 
-// Product screenshots for the "how it works" steps, in step order. They sit
-// outside CONTENT because the images are the same in both languages, and
-// repeating them per translation is how they drift apart.
+// Product screenshots for the "how it works" steps, keyed by name rather than
+// step order — each translation's step names which shot it wants (see `Step`
+// below). They sit outside CONTENT because the images are the same in both
+// languages, and repeating them per translation is how they drift apart.
 //
 // Imported rather than referenced by path so Next reads each file's real
 // dimensions at build time: nothing here has to restate them, they cannot drift
@@ -25,7 +26,25 @@ import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
 import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
 import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
 
-const STEP_SHOTS = [uploadDocumentsShot, inviteEmployeesShot, askAndAnswerShot];
+const STEP_SHOTS = {
+  upload: uploadDocumentsShot,
+  invite: inviteEmployeesShot,
+  ask: askAndAnswerShot,
+};
+
+// Each step names its own screenshot instead of being paired to one by array
+// position. Position pairing has no way to complain: reorder the steps and every
+// screenshot silently describes the wrong step, add a fourth step and there is no
+// fourth image, so `shot.width` throws and takes the whole landing page with it
+// (this is a client component). Naming makes both mistakes a type error at the
+// step itself — which is what `satisfies Step[]` on each translation below is for.
+type Step = {
+  n: string;
+  shot: keyof typeof STEP_SHOTS;
+  t: string;
+  d: string;
+  icon: typeof FileText;
+};
 
 // The "how it works" section's own geometry, needed to describe each
 // screenshot's rendered width to the browser. `sizes` has to state the width the
@@ -59,10 +78,10 @@ const CONTENT = {
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
     steps: [
-      { n: "1", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, atau panduan IT dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
-      { n: "2", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
-      { n: "3", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan.", icon: MessageSquare },
-    ],
+      { n: "1", shot: "upload", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, atau panduan IT dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
+      { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
+      { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan.", icon: MessageSquare },
+    ] satisfies Step[],
     featTitle: "Semua yang Dibutuhkan Tim Anda",
     featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
     features: [
@@ -120,10 +139,10 @@ const CONTENT = {
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
     steps: [
-      { n: "1", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, or IT guidelines in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
-      { n: "2", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
-      { n: "3", t: "Ask & Get Answers", d: "Employees type questions in chat. AI answers based on official company documents.", icon: MessageSquare },
-    ],
+      { n: "1", shot: "upload", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, or IT guidelines in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
+      { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
+      { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. AI answers based on official company documents.", icon: MessageSquare },
+    ] satisfies Step[],
     featTitle: "Everything Your Team Needs",
     featDesc: "A complete platform for internal company knowledge management",
     features: [
@@ -291,8 +310,8 @@ export function LandingContent() {
             <p className="text-gray-500">{T.howDesc}</p>
           </div>
           <div className="space-y-16 md:space-y-24">
-            {T.steps.map((s, i) => {
-              const shot = STEP_SHOTS[i];
+            {T.steps.map((s) => {
+              const shot = STEP_SHOTS[s.shot];
               return (
                 <div key={s.n}>
                   <div className="max-w-2xl mx-auto text-center mb-8">
