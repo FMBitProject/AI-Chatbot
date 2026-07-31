@@ -17,7 +17,7 @@ function getStoredResponseLang(): ResponseLang {
   return (saved === "auto" || saved === "id" || saved === "en") ? saved : "auto";
 }
 
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "intellibaseaisupport@gmail.com";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@intellibaseai.com";
 
 export default function ChatPage() {
   const { data: session } = authClient.useSession();
