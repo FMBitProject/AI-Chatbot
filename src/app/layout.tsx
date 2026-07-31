@@ -5,7 +5,7 @@ import { LanguageProvider } from "@/lib/language-context";
 import { CookieConsent } from "@/components/CookieConsent";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AnalyticsConsent } from "@/components/AnalyticsConsent";
-import { Analytics } from "@vercel/analytics/next";
+import { VercelAnalytics } from "@/components/VercelAnalytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,7 +72,7 @@ export default function RootLayout({
           <WhatsAppButton />
           <AnalyticsConsent />
         </LanguageProvider>
-        <Analytics />
+        <VercelAnalytics />
       </body>
     </html>
   );
