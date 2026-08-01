@@ -218,7 +218,10 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
   const thumb = `https://i.ytimg.com/vi/${DEMO_VIDEO_ID}/${thumbFallback ? "hqdefault" : "maxresdefault"}.jpg`;
 
   return (
-    <section className="pb-20 px-6 bg-white">
+    // pt of its own rather than borrowing the previous section's: this used to
+    // sit directly under the hero and lean on its py-24, which quietly made the
+    // spacing here a property of whatever happens to be rendered above.
+    <section className="pt-16 pb-20 px-6 bg-white">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-10">
           <h2 className="text-3xl font-bold text-gray-900 mb-3">{title}</h2>
@@ -302,39 +305,19 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* Demo video */}
-      <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
-
-      {/* Stats */}
-      <section className="bg-teal-700 py-12 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {T.stats.map((s) => (
-              // aria-describedby, not a bare "*": it points a screen reader at
-              // the footnote instead of announcing a star with no explanation.
-              <div key={s.l} className="text-center" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
-                <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
-                <p className="text-teal-100 text-sm">
-                  {s.l}
-                  {s.estimate && <sup aria-hidden="true"> *</sup>}
-                </p>
-              </div>
-            ))}
-          </div>
-          {/* teal-100 rather than a dimmed teal-200: at text-xs on teal-700 the
-              dimmed version sits at ~3.4:1, so the one line on the page whose
-              whole job is to be read honestly was the hardest to read. */}
-          <p id={STATS_NOTE_ID} className="text-teal-100 text-xs text-center mt-8">{ESTIMATE_NOTE[lang]}</p>
-        </div>
-      </section>
-
       {/* Industries */}
       {/* Deliberately a strip rather than a full section: the page already runs
           hero → video → stats → how-it-works → features → ROI → pricing → CTA,
           and this only has to answer "is this for my documents?" before the
           visitor commits to the long scroll. Hence one row of short cards and
-          no illustrations. */}
-      <section className="py-12 px-6 border-b">
+          no illustrations.
+
+          Sits directly under the hero, so it qualifies the pitch ("…and yes,
+          that includes your clinical pathways") before the visitor decides
+          whether the demo video is worth their time. No top padding on purpose:
+          it reads as a closing line of the hero, so the hero's own py-24 is the
+          gap it wants. */}
+      <section className="pb-12 px-6 border-b">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-lg font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
@@ -368,6 +351,32 @@ export function LandingContent() {
               );
             })}
           </div>
+        </div>
+      </section>
+
+      {/* Demo video */}
+      <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
+
+      {/* Stats */}
+      <section className="bg-teal-700 py-12 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {T.stats.map((s) => (
+              // aria-describedby, not a bare "*": it points a screen reader at
+              // the footnote instead of announcing a star with no explanation.
+              <div key={s.l} className="text-center" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
+                <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
+                <p className="text-teal-100 text-sm">
+                  {s.l}
+                  {s.estimate && <sup aria-hidden="true"> *</sup>}
+                </p>
+              </div>
+            ))}
+          </div>
+          {/* teal-100 rather than a dimmed teal-200: at text-xs on teal-700 the
+              dimmed version sits at ~3.4:1, so the one line on the page whose
+              whole job is to be read honestly was the hardest to read. */}
+          <p id={STATS_NOTE_ID} className="text-teal-100 text-xs text-center mt-8">{ESTIMATE_NOTE[lang]}</p>
         </div>
       </section>
 
