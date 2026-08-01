@@ -8,6 +8,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
+import { INDUSTRIES } from "@/lib/industries";
 import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
@@ -76,7 +77,7 @@ const CONTENT = {
     hero1: "Karyawan Anda Bisa Tahu Semua",
     hero2: "Kebijakan Perusahaan",
     hero3: "dalam Detik",
-    heroDesc: "IntelliBase AI mengubah dokumen SOP, regulasi HR, panduan IT, kebijakan keuangan, kontrak, manual produk, dan dokumen internal lainnya menjadi asisten AI yang bisa menjawab pertanyaan karyawan secara instan — kapanpun, dimanapun.",
+    heroDesc: "IntelliBase AI mengubah dokumen SOP, regulasi HR, panduan IT, clinical pathway rumah sakit, kebijakan keuangan, kontrak, manual produk, dan dokumen internal lainnya menjadi asisten AI yang bisa menjawab pertanyaan karyawan secara instan — kapanpun, dimanapun.",
     cta1: "Mulai Gratis Sekarang",
     cta2: "Lihat Paket Harga",
     ctaNote: "Gratis selamanya untuk tim kecil · Tidak perlu kartu kredit",
@@ -89,10 +90,16 @@ const CONTENT = {
       { v: "100%", l: "Isolasi data antar perusahaan" },
       { v: "10 menit", l: "Waktu setup hingga siap pakai" },
     ] satisfies Stat[],
+    // "Cocok untuk", not "dipakai oleh": we have no customers in these
+    // industries to point at yet, and the strip only claims the product fits
+    // their documents — which is what the doc types under each name show.
+    industriesTitle: "Cocok untuk berbagai industri",
+    industriesDesc: "Setiap industri punya istilah dokumennya sendiri. AI menjawab dari dokumen resmi Anda, apapun namanya.",
+    industriesMore: "Selengkapnya",
     howTitle: "Cara Kerja IntelliBase",
     howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
     steps: [
-      { n: "1", shot: "upload", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, atau panduan IT dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
+      { n: "1", shot: "upload", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, panduan IT, atau clinical pathway dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
       { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
       { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan.", icon: MessageSquare },
     ] satisfies Step[],
@@ -100,7 +107,7 @@ const CONTENT = {
     featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
     features: [
       { icon: MessageSquare, t: "Chat AI Berbasis RAG", d: "Jawaban akurat dari dokumen internal Anda — bukan dari internet umum." },
-      { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT. AI langsung mengindeks dan siap menjawab." },
+      { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT, clinical pathway. AI langsung mengindeks dan siap menjawab." },
       { icon: ShieldCheck, t: "Isolasi Data Multi-Tenant", d: "Data tiap perusahaan terisolasi penuh. Tidak ada kebocoran ke tenant lain." },
       { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Pantau pertanyaan terpopuler dan siapa bertanya apa untuk insight bisnis." },
@@ -136,7 +143,7 @@ const CONTENT = {
     hero1: "Your Employees Can Know All",
     hero2: "Company Policies",
     hero3: "in Seconds",
-    heroDesc: "IntelliBase AI transforms your SOPs, HR regulations, IT guidelines, finance policies, contracts, product manuals, and any internal documents into an AI assistant that answers employee questions instantly — anytime, anywhere.",
+    heroDesc: "IntelliBase AI transforms your SOPs, HR regulations, IT guidelines, hospital clinical pathways, finance policies, contracts, product manuals, and any internal documents into an AI assistant that answers employee questions instantly — anytime, anywhere.",
     cta1: "Start Free Now",
     cta2: "View Pricing",
     ctaNote: "Free forever for small teams · No credit card required",
@@ -149,10 +156,13 @@ const CONTENT = {
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
     ] satisfies Stat[],
+    industriesTitle: "Fits any industry",
+    industriesDesc: "Every industry has its own document vocabulary. The AI answers from your official documents, whatever you call them.",
+    industriesMore: "Learn more",
     howTitle: "How IntelliBase Works",
     howDesc: "Setup in 10 minutes, ready for the whole team immediately",
     steps: [
-      { n: "1", shot: "upload", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, or IT guidelines in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
+      { n: "1", shot: "upload", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, IT guidelines, or clinical pathways in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
       { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
       { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. AI answers based on official company documents.", icon: MessageSquare },
     ] satisfies Step[],
@@ -160,7 +170,7 @@ const CONTENT = {
     featDesc: "A complete platform for internal company knowledge management",
     features: [
       { icon: MessageSquare, t: "RAG-based AI Chat", d: "Accurate answers from your internal documents — not from the general internet." },
-      { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines. AI indexes instantly and is ready to answer." },
+      { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines, clinical pathways. AI indexes instantly and is ready to answer." },
       { icon: ShieldCheck, t: "Multi-Tenant Data Isolation", d: "Each company's data is fully isolated. No leaks to other tenants." },
       { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
       { icon: BarChart2, t: "Analytics & Audit Log", d: "Monitor top questions and who asked what for business insights." },
@@ -315,6 +325,49 @@ export function LandingContent() {
               dimmed version sits at ~3.4:1, so the one line on the page whose
               whole job is to be read honestly was the hardest to read. */}
           <p id={STATS_NOTE_ID} className="text-teal-100 text-xs text-center mt-8">{ESTIMATE_NOTE[lang]}</p>
+        </div>
+      </section>
+
+      {/* Industries */}
+      {/* Deliberately a strip rather than a full section: the page already runs
+          hero → video → stats → how-it-works → features → ROI → pricing → CTA,
+          and this only has to answer "is this for my documents?" before the
+          visitor commits to the long scroll. Hence one row of short cards and
+          no illustrations. */}
+      <section className="py-12 px-6 border-b">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
+            <p className="text-sm text-gray-500 max-w-2xl mx-auto">{T.industriesDesc}</p>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {INDUSTRIES.map((ind) => {
+              const body = (
+                <>
+                  <p className="font-semibold text-sm text-gray-900 mb-1">
+                    {ind.name[lang]}
+                    {ind.href && <ArrowRight className="h-3.5 w-3.5 inline-block ml-1 -mt-0.5 text-teal-600" />}
+                  </p>
+                  <p className="text-xs text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
+                </>
+              );
+              // An industry with a page of its own is the only one that reads as
+              // clickable — tinted, hoverable, and carrying the arrow above. The
+              // rest are plain cards, so nothing invites a click that goes nowhere.
+              return ind.href ? (
+                <Link
+                  key={ind.key}
+                  href={ind.href}
+                  className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 block hover:border-teal-300 hover:shadow-sm transition-all"
+                  aria-label={`${ind.name[lang]} — ${T.industriesMore}`}
+                >
+                  {body}
+                </Link>
+              ) : (
+                <div key={ind.key} className="rounded-xl border p-4">{body}</div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
