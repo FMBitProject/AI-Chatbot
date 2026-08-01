@@ -2,8 +2,7 @@
 import { useState } from "react";
 import { Mail, X } from "lucide-react";
 import { useLang } from "@/lib/language-context";
-
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@intellibaseai.com";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 
 export function WhatsAppButton() {
   const { lang } = useLang();
