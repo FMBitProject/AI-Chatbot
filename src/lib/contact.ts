@@ -16,11 +16,14 @@ export const SUPPORT_EMAIL =
 // one sentence in the founder's own voice — why this was built — and should
 // stay first-person; a third-person bio undoes the point of the section.
 export const FOUNDER = {
-  name: "",
+  name: "Ferel Manuputty",
   role: { id: "Pendiri IntelliBase AI", en: "Founder, IntelliBase AI" },
+  // Deliberately claims nothing biographical — no years of experience, no
+  // former employer, no client count. It says why the product exists and stops
+  // there, which is the one thing that cannot be wrong.
   intro: {
-    id: "",
-    en: "",
+    id: "Saya membangun IntelliBase karena melihat pola yang sama berulang kali: dokumen dan SOP perusahaan sebenarnya sudah lengkap, tapi jawaban di dalamnya tetap sulit ditemukan justru ketika sedang dibutuhkan. Menurut saya karyawan tidak seharusnya menghabiskan setengah jam mencari satu aturan yang sudah ditulis rapi bertahun-tahun lalu.",
+    en: "I built IntelliBase after seeing the same pattern over and over: a company's documents and SOPs are all there, yet the answer inside them is still hard to find at the exact moment someone needs it. Nobody should spend half an hour hunting for a rule that was written down properly years ago.",
   },
 };
 
