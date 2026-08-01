@@ -28,7 +28,7 @@ export const INDUSTRIES: Industry[] = [
     name: { id: "Rumah Sakit & Klinik", en: "Hospitals & Clinics" },
     docs: {
       id: "Clinical pathway, SPO, PPK, panduan akreditasi",
-      en: "Clinical pathways, SOPs, clinical practice guidelines, accreditation docs",
+      en: "Clinical pathways, SOPs, practice guidelines, accreditation docs",
     },
   },
   {

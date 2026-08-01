@@ -317,21 +317,27 @@ export function LandingContent() {
           whether the demo video is worth their time. No top padding on purpose:
           it reads as a closing line of the hero, so the hero's own py-24 is the
           gap it wants. */}
-      <section className="pb-12 px-6 border-b">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
-            <p className="text-sm text-gray-500 max-w-2xl mx-auto">{T.industriesDesc}</p>
+      {/* Type sizes are one step below the page's full sections (text-2xl
+          heading against their text-3xl, text-base body against their text-lg)
+          rather than two. Two steps read as fine print next to the hero
+          directly above it, which is the wrong signal for the one band whose
+          job is to be scanned. max-w-7xl, matching "how it works", so five
+          columns of the enlarged text still get a sane line length. */}
+      <section className="pb-16 px-6 border-b">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
+            <p className="text-base text-gray-500 max-w-2xl mx-auto">{T.industriesDesc}</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {INDUSTRIES.map((ind) => {
               const body = (
                 <>
-                  <p className="font-semibold text-sm text-gray-900 mb-1">
+                  <p className="font-semibold text-base text-gray-900 mb-1.5">
                     {ind.name[lang]}
-                    {ind.href && <ArrowRight className="h-3.5 w-3.5 inline-block ml-1 -mt-0.5 text-teal-600" />}
+                    {ind.href && <ArrowRight className="h-4 w-4 inline-block ml-1 -mt-0.5 text-teal-600" />}
                   </p>
-                  <p className="text-xs text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
+                  <p className="text-sm text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
                 </>
               );
               // An industry with a page of its own is the only one that reads as
@@ -341,13 +347,13 @@ export function LandingContent() {
                 <Link
                   key={ind.key}
                   href={ind.href}
-                  className="rounded-xl border border-teal-200 bg-teal-50/60 p-4 block hover:border-teal-300 hover:shadow-sm transition-all"
+                  className="rounded-xl border border-teal-200 bg-teal-50/60 p-5 block hover:border-teal-300 hover:shadow-sm transition-all"
                   aria-label={`${ind.name[lang]} — ${T.industriesMore}`}
                 >
                   {body}
                 </Link>
               ) : (
-                <div key={ind.key} className="rounded-xl border p-4">{body}</div>
+                <div key={ind.key} className="rounded-xl border p-5">{body}</div>
               );
             })}
           </div>
