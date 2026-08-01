@@ -9,7 +9,9 @@ import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
 import { INDUSTRIES } from "@/lib/industries";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play } from "lucide-react";
+import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play, Mail } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -101,12 +103,15 @@ const CONTENT = {
     steps: [
       { n: "1", shot: "upload", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, panduan IT, atau clinical pathway dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
       { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
-      { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan.", icon: MessageSquare },
+      { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan, lengkap dengan daftar dokumen sumber yang bisa dibuka untuk mengecek.", icon: MessageSquare },
     ] satisfies Step[],
     featTitle: "Semua yang Dibutuhkan Tim Anda",
     featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
     features: [
-      { icon: MessageSquare, t: "Chat AI Berbasis RAG", d: "Jawaban akurat dari dokumen internal Anda — bukan dari internet umum." },
+      // The product has returned source citations since day one and the landing
+      // page never said so — while "nanti AI-nya ngarang" is the first objection
+      // every buyer raises. Naming the mechanism answers it; "akurat" does not.
+      { icon: MessageSquare, t: "Setiap Jawaban Menyebut Sumbernya", d: "Jawaban datang bersama nama dokumen dan potongan teks yang dipakai, jadi bisa langsung dicek ke dokumen aslinya — bukan jawaban dari internet umum." },
       { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT, clinical pathway. AI langsung mengindeks dan siap menjawab." },
       { icon: ShieldCheck, t: "Isolasi Data Multi-Tenant", d: "Data tiap perusahaan terisolasi penuh. Tidak ada kebocoran ke tenant lain." },
       { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
@@ -121,22 +126,69 @@ const CONTENT = {
       { name: "Enterprise", price: "Rp 500rb/bln", desc: "Tidak terbatas", promo: true },
     ],
     priceBtn: "Lihat Detail Harga",
+    // Every answer here is checked against what the product actually does and
+    // against /privacy — this is the section a cautious buyer reads hardest, so
+    // a claim that overshoots costs more here than anywhere else on the page.
+    faqTitle: "Pertanyaan yang Biasanya Muncul Duluan",
+    faqDesc: "Sebelum mengunggah dokumen internal, ini biasanya yang ingin dipastikan lebih dulu.",
+    faq: [
+      {
+        q: "Dokumen internal kami disimpan di mana, dan siapa yang bisa membukanya?",
+        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap perusahaan punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi — jadi pertanyaan karyawan Anda tidak pernah bisa menyentuh dokumen perusahaan lain. Di dalam perusahaan Anda sendiri, admin yang menentukan dokumen mana bisa diakses departemen mana.",
+      },
+      {
+        q: "Apakah dokumen kami dipakai untuk melatih AI?",
+        a: "Kami tidak menjual atau membagikan dokumen Anda ke perusahaan lain. Saat menjawab sebuah pertanyaan, hanya potongan teks yang relevan yang dikirim ke penyedia model AI (Groq dan Google Gemini) untuk diproses, dan potongan itu tidak disimpan permanen di sana. Rincian lengkapnya ada di Kebijakan Privasi.",
+      },
+      {
+        q: "Bagaimana kalau AI-nya mengarang jawaban?",
+        a: "Setiap jawaban datang dengan daftar dokumen sumbernya — nama dokumen beserta potongan teks yang dipakai — sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen perusahaan yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
+      },
+      {
+        q: "Kalau kami berhenti berlangganan, dokumen kami hilang?",
+        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan — tersimpan tetapi tidak ikut dicari — sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
+      },
+      {
+        q: "Siapa yang bisa melihat pertanyaan yang diajukan karyawan?",
+        a: "Admin perusahaan Anda bisa melihat pertanyaan-pertanyaan yang masuk lewat menu Analytics — memang dirancang begitu, supaya Anda tahu dokumen mana yang paling sering dicari dan mana yang ternyata belum ada. Kami sarankan menyampaikan hal ini ke karyawan sejak awal.",
+      },
+      {
+        q: "Format dokumen apa saja yang didukung, dan berapa lama setupnya?",
+        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah — tidak ada tagging manual — dan sebagian besar perusahaan sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
+      },
+      {
+        q: "Bisa dicoba dulu tanpa bayar?",
+        a: "Bisa. Paket Starter gratis selamanya untuk 5 karyawan dan 10 dokumen, tanpa kartu kredit. Kalau ingin mencoba dengan dokumen asli perusahaan tapi ragu memulai sendiri, kirim email ke kami dan kami bantu menyiapkannya.",
+      },
+    ],
+    founderTitle: "Siapa di balik IntelliBase",
+    faqMore: "Masih ada yang ingin ditanyakan?",
+    faqMoreCta: "Email kami langsung",
+    privacyLink: "Baca Kebijakan Privasi",
     ctaTitle: "Mulai Transformasi Knowledge Base Anda Hari Ini",
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
     ctaBtn1: "Mulai Gratis Sekarang",
-    ctaBtn2: "Lihat Paket Harga",
+    ctaBtn2: "Konsultasi Gratis Dulu",
+    // The register button assumes a visitor ready to hand over documents. This
+    // is the exit for everyone else — cheaper than signing up, and the only way
+    // an unconvinced visitor leaves a trace instead of just leaving.
+    consult: "Belum yakin? Konsultasi gratis dulu",
+    consultNote: "Balasan lewat email · Tanpa biaya, tanpa komitmen",
     roiTeaser: {
       badge: "💡 Hitung Sendiri",
       title: "Berapa Kerugian Perusahaan Anda Setiap Bulan?",
       desc: "Geser slider untuk melihat estimasi biaya waktu yang terbuang karyawan Anda saat mencari dokumen internal.",
       label: "Jumlah Karyawan",
+      // Was hardcoded next to the slider value, so the English page counted its
+      // headcount in "orang".
+      unit: "orang",
       lostLabel: "Biaya waktu terbuang / bulan",
       savingLabel: "Potensi hemat dengan IntelliBase",
       cta: "Hitung Penghematan Lengkap",
       ctaNote: "Gratis · Tidak perlu daftar",
     },
     nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
-    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI" },
+    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak" },
   },
   en: {
     badge: "🚀 AI Knowledge Base Built for Indonesian Businesses",
@@ -164,12 +216,12 @@ const CONTENT = {
     steps: [
       { n: "1", shot: "upload", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, IT guidelines, or clinical pathways in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
       { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
-      { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. AI answers based on official company documents.", icon: MessageSquare },
+      { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. The AI answers from official company documents, listing the source documents they can open to check.", icon: MessageSquare },
     ] satisfies Step[],
     featTitle: "Everything Your Team Needs",
     featDesc: "A complete platform for internal company knowledge management",
     features: [
-      { icon: MessageSquare, t: "RAG-based AI Chat", d: "Accurate answers from your internal documents — not from the general internet." },
+      { icon: MessageSquare, t: "Every Answer Names Its Source", d: "Answers arrive with the document name and the excerpt used, so any answer can be checked against the original — not answers from the general internet." },
       { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines, clinical pathways. AI indexes instantly and is ready to answer." },
       { icon: ShieldCheck, t: "Multi-Tenant Data Isolation", d: "Each company's data is fully isolated. No leaks to other tenants." },
       { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
@@ -184,22 +236,61 @@ const CONTENT = {
       { name: "Enterprise", price: "Rp 500k/mo", desc: "Unlimited", promo: true },
     ],
     priceBtn: "View Full Pricing",
+    faqTitle: "The Questions That Come Up First",
+    faqDesc: "Before uploading internal documents, this is usually what people want settled.",
+    faq: [
+      {
+        q: "Where are our internal documents stored, and who can open them?",
+        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each company gets its own data space, separated at the database level rather than merely filtered in the application — so your employees' questions can never reach another company's documents. Within your own company, your admin decides which departments can access which documents.",
+      },
+      {
+        q: "Are our documents used to train the AI?",
+        a: "We do not sell or share your documents with other companies. When answering a question, only the relevant text excerpts are sent to the AI providers (Groq and Google Gemini) for processing, and those excerpts are not stored permanently there. The full detail is in our Privacy Policy.",
+      },
+      {
+        q: "What if the AI makes an answer up?",
+        a: "Every answer arrives with its source documents listed — the document name plus the excerpt it used — so any answer can be checked against the original. When no company document is relevant to the question, the AI says it could not find one rather than guessing from general internet knowledge.",
+      },
+      {
+        q: "If we stop subscribing, do we lose our documents?",
+        a: "Nothing is deleted. There is a 7-day grace period after expiry during which your previous plan's limits still apply in full. After that the Starter limits apply, and documents above that limit are frozen — still stored, but left out of search — until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
+      },
+      {
+        q: "Who can see the questions employees ask?",
+        a: "Your company's admin can see the questions that come in, via the Analytics tab — that is by design, so you can see which documents are searched most and which ones turn out to be missing. We recommend telling your employees this up front.",
+      },
+      {
+        q: "Which document formats are supported, and how long is setup?",
+        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload — no manual tagging — and most companies are asking their first questions within about 10 minutes of creating an account.",
+      },
+      {
+        q: "Can we try it without paying?",
+        a: "Yes. The Starter plan is free forever for 5 employees and 10 documents, no credit card. If you would rather try it with your real documents but do not want to set it up alone, email us and we will help you get started.",
+      },
+    ],
+    founderTitle: "Who is behind IntelliBase",
+    faqMore: "Still have a question?",
+    faqMoreCta: "Email us directly",
+    privacyLink: "Read the Privacy Policy",
     ctaTitle: "Start Transforming Your Knowledge Base Today",
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
     ctaBtn1: "Start Free Now",
-    ctaBtn2: "View Pricing",
+    ctaBtn2: "Talk to Us First",
+    consult: "Not sure yet? Book a free consultation",
+    consultNote: "We reply by email · Free, no commitment",
     roiTeaser: {
       badge: "💡 Calculate Yourself",
       title: "How Much Is Your Company Losing Every Month?",
       desc: "Drag the slider to see the estimated cost of time wasted when employees manually search for internal documents.",
       label: "Number of Employees",
+      unit: "people",
       lostLabel: "Cost of wasted time / month",
       savingLabel: "Potential savings with IntelliBase",
       cta: "Calculate Full Savings",
       ctaNote: "Free · No sign-up required",
     },
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
-    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator" },
+    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact" },
   },
 };
 
@@ -302,6 +393,16 @@ export function LandingContent() {
             <Link href="/pricing"><Button size="lg" className="bg-gray-900 hover:bg-gray-700 text-white gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4" /></Button></Link>
           </div>
           <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
+          {/* A quiet third path, deliberately not a button: both buttons above
+              ask a stranger to hand over internal documents before anyone has
+              spoken to them, and that is the wrong first step for most of the
+              companies being pitched. Kept as a text link so it stays an exit
+              for the unconvinced rather than competing with the primary CTA. */}
+          <p className="mt-6">
+            <a href={consultationMailto(lang)} className="text-sm text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
+              {T.consult}
+            </a>
+          </p>
         </div>
       </section>
 
@@ -467,7 +568,7 @@ export function LandingContent() {
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-medium text-gray-300">{T.roiTeaser.label}</label>
-                <span className="text-2xl font-bold text-white">{teaserEmployees} <span className="text-base font-normal text-gray-400">orang</span></span>
+                <span className="text-2xl font-bold text-white">{teaserEmployees} <span className="text-base font-normal text-gray-400">{T.roiTeaser.unit}</span></span>
               </div>
               <input
                 type="range" min={5} max={500} step={5}
@@ -525,14 +626,100 @@ export function LandingContent() {
         </div>
       </section>
 
+      {/* FAQ */}
+      {/* Placed after pricing and before the final CTA on purpose: these are
+          the objections that surface once someone has decided they want it and
+          started imagining their own SOPs sitting on someone else's server, so
+          they belong between the price and the ask — not earlier, where they
+          would plant doubts the visitor did not have yet. */}
+      <section className="py-20 px-6 bg-gray-50 border-t">
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.faqTitle}</h2>
+            <p className="text-gray-500">{T.faqDesc}</p>
+          </div>
+          {/* Radix unmounts a closed panel, so the answers are not in the DOM
+              for a crawler to read. This mirrors them as structured data —
+              which is also what makes them eligible to appear directly in
+              search results, where the objection gets answered before the
+              visitor even arrives. */}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{
+              __html: JSON.stringify({
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                mainEntity: T.faq.map((f) => ({
+                  "@type": "Question",
+                  name: f.q,
+                  acceptedAnswer: { "@type": "Answer", text: f.a },
+                })),
+              }).replace(/</g, "\\u003c"),
+            }}
+          />
+          <Accordion type="single" collapsible className="bg-white rounded-2xl border px-6">
+            {T.faq.map((f) => (
+              <AccordionItem key={f.q} value={f.q} className="last:border-b-0">
+                <AccordionTrigger className="text-left text-base font-semibold text-gray-900 hover:no-underline py-5">
+                  {f.q}
+                </AccordionTrigger>
+                <AccordionContent className="text-gray-600 leading-relaxed pr-6">
+                  {f.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+          <div className="text-center mt-8">
+            <p className="text-sm text-gray-500">
+              {T.faqMore}{" "}
+              <a href={consultationMailto(lang)} className="text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
+                {T.faqMoreCta}
+              </a>
+            </p>
+            <Link href="/privacy" className="inline-block text-xs text-gray-400 hover:text-gray-600 mt-3 underline underline-offset-4">
+              {T.privacyLink}
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Who is behind this */}
+      {/* Renders only once `FOUNDER` is filled in — an empty block here would
+          be worse than none, since the whole point is answering "who am I
+          handing my documents to". Sits after the FAQ and before the final ask:
+          the objections are settled, and this is the last thing read before
+          the visitor decides. */}
+      {FOUNDER.name && (
+        <section className="py-16 px-6 border-t">
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
+            <p className="font-semibold text-gray-900">{FOUNDER.name}</p>
+            <p className="text-sm text-gray-500">{FOUNDER.role[lang]}</p>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium mt-4">
+              <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
+            </a>
+          </div>
+        </section>
+      )}
+
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
         <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register"><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
-          <Link href="/pricing"><Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">{T.ctaBtn2}</Button></Link>
+          {/* Was a second "view pricing" button, sitting one section below the
+              pricing teaser and a scroll below the pricing link in the nav. The
+              page's last word is better spent on the visitor who has read
+              everything and still wants to talk to a person first. */}
+          <a href={consultationMailto(lang)}>
+            <Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8 gap-2">
+              <Mail className="h-4 w-4" />{T.ctaBtn2}
+            </Button>
+          </a>
         </div>
+        <p className="text-teal-200/80 text-xs mt-5">{T.consultNote}</p>
       </section>
 
       {/* Footer */}
@@ -540,7 +727,12 @@ export function LandingContent() {
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
           <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
-          <div className="flex gap-6 text-sm text-gray-400">
+          {/* The support address was reachable only through the floating
+              button, which a visitor has to notice and open. A vendor asking
+              for a company's internal documents should state a way to reach it
+              in plain text on the page. */}
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-gray-600">{T.footer.contact}: {SUPPORT_EMAIL}</a>
             <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>
             <Link href="/pricing" className="hover:text-gray-600">{T.footer.price}</Link>
             <Link href="/login" className="hover:text-gray-600">{T.footer.login}</Link>

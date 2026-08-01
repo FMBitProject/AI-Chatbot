@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";
 import { Send, Download, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { SUPPORT_EMAIL } from "@/lib/contact";
 import { cn } from "@/lib/utils";
 
 type ResponseLang = "auto" | "id" | "en";
@@ -16,8 +17,6 @@ function getStoredResponseLang(): ResponseLang {
   const saved = localStorage.getItem("responseLang") as ResponseLang | null;
   return (saved === "auto" || saved === "id" || saved === "en") ? saved : "auto";
 }
-
-const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@intellibaseai.com";
 
 export default function ChatPage() {
   const { data: session } = authClient.useSession();
