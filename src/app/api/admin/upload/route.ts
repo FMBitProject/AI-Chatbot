@@ -12,7 +12,7 @@ import { resolvePlanById } from "@/lib/subscription";
 import { chunkText } from "@/lib/chunker";
 import { getEmbeddings } from "@/lib/embeddings";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { groq, createGroq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
 
 // Failures an admin can actually act on (a scanned PDF, a corrupt file, a
@@ -153,7 +153,9 @@ export async function POST(req: NextRequest) {
 
   // Enforce the limits of the plan that is in force right now, not the one the
   // company last bought (see resolvePlan).
-  const { subscription, limits } = await resolvePlanById(companyId);
+  // `company` comes free with the plan lookup — it is the same row — and is
+  // needed here for the BYOK embedding key, not just for the limits.
+  const { company, subscription, limits } = await resolvePlanById(companyId);
   const [{ count: docCount }] = await withTenant(companyId, (tx) =>
     tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
   if (!isUnderLimit(docCount, limits.maxDocuments)) {
@@ -214,7 +216,7 @@ export async function POST(req: NextRequest) {
       // Batch embed all chunks in one API call instead of N sequential calls
       let embeddings: number[][];
       try {
-        embeddings = await getEmbeddings(chunks);
+        embeddings = await getEmbeddings(chunks, company?.geminiApiKey);
       } catch (error) {
         console.error(`[upload] Embedding failed for ${file.name}:`, error);
         throw new DocumentError(
@@ -249,12 +251,16 @@ export async function POST(req: NextRequest) {
         }))
       ));
 
-      // Auto-generate document summary
+      // Auto-generate document summary. Uses the company's own Groq key when
+      // there is one, like every other generation call: this prompt carries the
+      // opening 2000 characters of the uploaded file, so it is document content
+      // leaving the server, not metadata.
       const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
       let summary: string | null = null;
       try {
+        const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
         const { text } = await generateText({
-          model: groq("llama-3.3-70b-versatile"),
+          model: groqClient("llama-3.3-70b-versatile"),
           prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${file.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
         });
         summary = text.trim();

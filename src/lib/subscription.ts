@@ -4,7 +4,9 @@ import { companies, users } from "@/lib/db/schema";
 import { getLimits } from "@/lib/plan-limits";
 import { getEffectiveSubscription, type EffectiveSubscription } from "@/lib/pricing";
 
-type Company = typeof companies.$inferSelect;
+// Exported because the question-answering channels now pass the row itself
+// around (for the BYOK keys on it), not just the ids and limits derived from it.
+export type Company = typeof companies.$inferSelect;
 
 export interface ResolvedPlan {
   // The company row after any expiry downgrade has been applied.

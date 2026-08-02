@@ -23,12 +23,12 @@ export async function GET(req: NextRequest) {
   // as chat: a frozen seat gets nothing, and documents frozen by the plan's
   // document limit stay out of the results. No question quota here — search
   // asks the AI nothing, it only embeds the query.
-  const { limits } = await resolvePlanById(companyId);
+  const { company, limits } = await resolvePlanById(companyId);
   if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
     return NextResponse.json({ error: "SEAT_FROZEN", message: SEAT_FROZEN_MESSAGE }, { status: 403 });
   }
 
-  const queryEmbedding = await getEmbedding(q);
+  const queryEmbedding = await getEmbedding(q, company?.geminiApiKey);
 
   // Search is permissive (minScore 0) so it still surfaces weaker matches; it's
   // department-scoped like chat so employees only see documents they may access.
