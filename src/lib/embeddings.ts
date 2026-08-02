@@ -51,10 +51,29 @@ function parseRetryDelay(err: unknown): number {
 // clinical pathways — and for a long time this function ignored the key and
 // pushed every chunk through the platform account instead. The single question
 // in `getEmbedding` was isolated; the entire document was not.
+// Raised when the retry budget runs out, so the caller can tell "the provider
+// kept saying slow down" apart from "the provider rejected us".
+export class EmbeddingBudgetExceededError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EmbeddingBudgetExceededError";
+  }
+}
+
+// How long this function may spend sleeping between 429 retries, across the
+// whole call. Per batch the old code could sleep 5 × ~35s, and a document is
+// many batches — enough to run past the upload route's own 300s limit and get
+// the request killed mid-write, which leaves the document row stranded in
+// "processing" because a killed function runs neither the success path nor the
+// catch. Failing on our own terms while there is still time to record it is
+// strictly better than being cut off.
+const RETRY_BUDGET_MS = 120_000;
+
 export async function getEmbeddings(texts: string[], apiKey?: string | null): Promise<number[][]> {
   const google = getGoogle(apiKey);
   const BATCH_SIZE = 100;
   const results: number[][] = [];
+  let sleptMs = 0;
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE).map((t) => t.replace(/\n/g, " "));
@@ -79,6 +98,14 @@ export async function getEmbeddings(texts: string[], apiKey?: string | null): Pr
           err instanceof Error && err.message.includes("429");
         if (!isRateLimit) throw err;
         const delay = parseRetryDelay(err) * 1000;
+        // Checked before sleeping, not after: a sleep that would overrun the
+        // budget is one we should never start.
+        if (sleptMs + delay > RETRY_BUDGET_MS) {
+          throw new EmbeddingBudgetExceededError(
+            `Embedding rate-limited for more than ${Math.round(RETRY_BUDGET_MS / 1000)}s (chunk ${i} of ${texts.length})`,
+          );
+        }
+        sleptMs += delay;
         await new Promise((r) => setTimeout(r, delay));
       }
     }

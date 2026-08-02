@@ -334,7 +334,10 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                             {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                         </div>
-                        <Button size="sm" disabled={!input || byok.saving} onClick={() => saveByokKey(provider, input)}
+                        {/* Trimmed here as well as on the server, so the
+                            disabled state agrees with what will be saved: a box
+                            holding only spaces is not a key. */}
+                        <Button size="sm" disabled={!input.trim() || byok.saving} onClick={() => saveByokKey(provider, input.trim())}
                           className="bg-violet-600 hover:bg-violet-700 shrink-0">
                           {byok.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === "en" ? "Save" : "Simpan")}
                         </Button>

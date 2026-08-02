@@ -6,11 +6,11 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
 import { documents, documentChunks, users } from "@/lib/db/schema";
-import { eq, count } from "drizzle-orm";
+import { eq, count, and, lt } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
 import { chunkText } from "@/lib/chunker";
-import { getEmbeddings } from "@/lib/embeddings";
+import { getEmbeddings, EmbeddingBudgetExceededError } from "@/lib/embeddings";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
@@ -174,6 +174,32 @@ export async function POST(req: NextRequest) {
   const MAX_SIZE = 10 * 1024 * 1024;
   const results: { id: string; name: string; status: string; errorMessage?: string; createdAt: string }[] = [];
 
+  // Built once: `company` is fixed for the whole request, so rebuilding this
+  // per file said the key might vary between files in one upload.
+  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+
+  // A document row is written as "processing" before the work starts and only
+  // moves to "success"/"failed" inside the try/catch below. A serverless
+  // timeout is not an exception, so a request killed at the 300s limit runs
+  // neither — and the row sits in "processing" forever, with nothing in the
+  // admin UI able to clear it. Sweeping them on the next upload is the cheapest
+  // recovery: the cutoff is well past maxDuration, so a genuinely running
+  // upload in a parallel request can never be caught by it.
+  const STUCK_AFTER_MS = 10 * 60 * 1000;
+  try {
+    await withTenant(companyId, (tx) =>
+      tx.update(documents)
+        .set({ status: "failed", errorMessage: "Pemrosesan terhenti sebelum selesai (kemungkinan melebihi batas waktu). Silakan upload ulang dokumen ini." })
+        .where(and(
+          eq(documents.companyId, companyId),
+          eq(documents.status, "processing"),
+          lt(documents.createdAt, new Date(Date.now() - STUCK_AFTER_MS)),
+        )));
+  } catch (sweepError) {
+    // Never let housekeeping block an upload the admin actually asked for.
+    console.error("[upload] Could not sweep stuck documents:", sweepError);
+  }
+
   for (const file of files) {
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
@@ -219,9 +245,32 @@ export async function POST(req: NextRequest) {
         embeddings = await getEmbeddings(chunks, company?.geminiApiKey);
       } catch (error) {
         console.error(`[upload] Embedding failed for ${file.name}:`, error);
+        // Name the thing the admin can actually act on. A company running its
+        // own Gemini key is the likeliest source of both a rejection and a rate
+        // limit, and telling that admin "the embedding service is having
+        // trouble" sends them off to wait for someone else to fix what is
+        // theirs to fix.
+        const ownKey = !!company?.geminiApiKey;
+        // Any 429 counts as rate limiting, not just the budget error: when the
+        // provider's retry-after is short, five attempts can be spent inside the
+        // budget and the raw 429 propagates instead. Both mean "too fast", and
+        // neither means "your key is wrong" — which is the one message that
+        // would send an admin to revoke a perfectly good key.
+        const isRateLimit =
+          error instanceof EmbeddingBudgetExceededError ||
+          (error instanceof Error && error.message.includes("429"));
         throw new DocumentError(
-          "Gagal membuat index AI untuk dokumen ini — layanan embedding sedang bermasalah " +
-          "atau kuotanya habis. Coba upload lagi beberapa menit lagi."
+          isRateLimit
+            ? (ownKey
+              ? "Gagal membuat index AI — API key Gemini perusahaan Anda terus kena rate limit. " +
+                "Coba lagi nanti, upload dokumen lebih sedikit sekaligus, atau naikkan kuota key tersebut."
+              : "Gagal membuat index AI — layanan embedding sedang penuh dan terus menolak permintaan. " +
+                "Coba upload lagi beberapa menit lagi, atau upload dokumen lebih sedikit sekaligus.")
+            : (ownKey
+              ? "Gagal membuat index AI — API key Gemini perusahaan Anda ditolak atau sudah tidak berlaku. " +
+                "Periksa key tersebut di tab Langganan, atau hapus key-nya untuk kembali memakai layanan bawaan."
+              : "Gagal membuat index AI untuk dokumen ini — layanan embedding sedang bermasalah " +
+                "atau kuotanya habis. Coba upload lagi beberapa menit lagi.")
         );
       }
 
@@ -258,13 +307,19 @@ export async function POST(req: NextRequest) {
       const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
       let summary: string | null = null;
       try {
-        const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
         const { text } = await generateText({
           model: groqClient("llama-3.3-70b-versatile"),
           prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${file.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
         });
         summary = text.trim();
-      } catch {}
+      } catch (summaryError) {
+        // Still swallowed — the summary is a nicety and must not fail an upload
+        // whose index is already written. But logged: with a company Groq key in
+        // play this can now fail for every document of one tenant, and a bare
+        // `catch {}` made that indistinguishable from a model that simply had
+        // nothing to say.
+        console.error(`[upload] Summary generation failed for ${file.name}:`, summaryError);
+      }
 
       await withTenant(companyId, (tx) =>
         tx.update(documents).set({ status: "success", summary, rawText }).where(eq(documents.id, docId)));

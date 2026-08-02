@@ -57,8 +57,14 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json() as { groqApiKey?: string | null; geminiApiKey?: string | null };
   const update: { groqApiKey?: string | null; geminiApiKey?: string | null } = {};
-  if (body.groqApiKey !== undefined) update.groqApiKey = body.groqApiKey || null;
-  if (body.geminiApiKey !== undefined) update.geminiApiKey = body.geminiApiKey || null;
+  // Trimmed, and whitespace-only counts as removal. Keys are pasted from a
+  // provider console, which is how a trailing newline gets in — and the
+  // embedding client treats any non-empty string as a real key, so an untrimmed
+  // one never falls back to the platform account — it is simply rejected
+  // upstream. Since these keys now also index uploaded documents, that turns a
+  // stray newline into every upload failing.
+  if (body.groqApiKey !== undefined) update.groqApiKey = body.groqApiKey?.trim() || null;
+  if (body.geminiApiKey !== undefined) update.geminiApiKey = body.geminiApiKey?.trim() || null;
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
 
   // Storing a key is the Enterprise feature (judged on the plan in force right
