@@ -28,7 +28,20 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "SEAT_FROZEN", message: SEAT_FROZEN_MESSAGE }, { status: 403 });
   }
 
-  const queryEmbedding = await getEmbedding(q, company?.geminiApiKey);
+  // Same shape of failure as chat, so it gets the same shape of answer: an
+  // unwrapped throw here became a bare 500 with nothing the UI could show,
+  // while /api/chat has always returned a typed reason for the identical call.
+  let queryEmbedding: number[];
+  try {
+    queryEmbedding = await getEmbedding(q, company?.geminiApiKey);
+  } catch (err) {
+    console.error("[search] Embedding failed:", err);
+    const is429 = err instanceof Error && err.message.includes("429");
+    return NextResponse.json(
+      { error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" },
+      { status: 503 },
+    );
+  }
 
   // Search is permissive (minScore 0) so it still surfaces weaker matches; it's
   // department-scoped like chat so employees only see documents they may access.
