@@ -138,7 +138,7 @@ const CONTENT = {
       },
       {
         q: "Apakah dokumen kami dipakai untuk melatih AI?",
-        a: "Kami tidak menjual atau membagikan dokumen Anda ke perusahaan lain. Saat menjawab sebuah pertanyaan, hanya potongan teks yang relevan yang dikirim ke penyedia model AI (Groq dan Google Gemini) untuk diproses, dan potongan itu tidak disimpan permanen di sana. Rincian lengkapnya ada di Kebijakan Privasi.",
+        a: "IntelliBase tidak melatih model AI apa pun dengan dokumen Anda, dan tidak menjual atau membagikannya ke perusahaan lain. Yang perlu Anda tahu apa adanya: saat dokumen diunggah, isinya dikirim ke Google (Gemini API) untuk diubah menjadi indeks pencarian, dan saat pertanyaan dijawab, potongan teks yang relevan dikirim ke Groq. Groq menyatakan tidak memakai data API pelanggan untuk melatih modelnya. Akun Gemini kami saat ini masih di tier gratis, dan ketentuan Google untuk tier itu mengizinkan mereka memakai konten untuk meningkatkan layanannya. Kalau kebijakan dokumen perusahaan Anda tidak mengizinkan hal tersebut, hubungi kami sebelum mengunggah — pemrosesan bisa dipindahkan ke tier berbayar yang tidak memakai konten pelanggan. Rincian lengkapnya ada di Kebijakan Privasi.",
       },
       {
         q: "Bagaimana kalau AI-nya mengarang jawaban?",
@@ -245,7 +245,7 @@ const CONTENT = {
       },
       {
         q: "Are our documents used to train the AI?",
-        a: "We do not sell or share your documents with other companies. When answering a question, only the relevant text excerpts are sent to the AI providers (Groq and Google Gemini) for processing, and those excerpts are not stored permanently there. The full detail is in our Privacy Policy.",
+        a: "IntelliBase does not train any AI model on your documents, and does not sell or share them with other companies. What you should know plainly: when a document is uploaded, its contents are sent to Google (Gemini API) to be turned into a search index, and when a question is answered, the relevant excerpts are sent to Groq. Groq states that it does not use customer API data to train its models. Our Gemini account is currently on the free tier, and Google's terms for that tier allow them to use content to improve their services. If your company's document policy does not permit that, contact us before uploading — processing can be moved to a paid tier that does not use customer content. The full detail is in our Privacy Policy.",
       },
       {
         q: "What if the AI makes an answer up?",
