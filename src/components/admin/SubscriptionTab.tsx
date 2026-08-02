@@ -270,14 +270,19 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                 <CardTitle className="text-base">
                   {lang === "en" ? "Dedicated AI Capacity" : "Kapasitas AI Dedicated"}
                 </CardTitle>
+                {/* Says which traffic the key covers, not just that it exists.
+                    Companies switch BYOK on for data governance as often as for
+                    capacity, and "unlimited capacity" answered neither question
+                    — least of all the one that matters most, whether uploaded
+                    documents go through their account or ours. */}
                 <p className="text-xs text-gray-500 mt-0.5">
                   {canEditKeys
                     ? (lang === "en"
-                      ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity."
-                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas.")
+                      ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
+                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
                     : (lang === "en"
-                      ? "Your stored key is still used to answer questions. Adding or replacing a key requires Enterprise — removing one is always yours to do."
-                      : "Key Anda yang tersimpan masih dipakai untuk menjawab pertanyaan. Menambah atau mengganti key hanya di paket Enterprise — menghapus selalu bisa Anda lakukan.")}
+                      ? "Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires Enterprise — removing one is always yours to do."
+                      : "Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket Enterprise — menghapus selalu bisa Anda lakukan.")}
                 </p>
               </div>
             </div>

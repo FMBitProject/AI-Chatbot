@@ -44,8 +44,15 @@ function parseRetryDelay(err: unknown): number {
 // Batch embed multiple texts in one API call instead of N sequential calls.
 // Gemini embedding API supports up to 100 texts per batch request.
 // Retries with the delay specified in the API's 429 response (typically 30s).
-export async function getEmbeddings(texts: string[]): Promise<number[][]> {
-  const google = getGoogle();
+//
+// Takes the company key for the same reason `getEmbedding` does, and it matters
+// more here: this is the document side. A company that supplies its own key is
+// buying isolation for the text it cares about most — whole SOPs, contracts,
+// clinical pathways — and for a long time this function ignored the key and
+// pushed every chunk through the platform account instead. The single question
+// in `getEmbedding` was isolated; the entire document was not.
+export async function getEmbeddings(texts: string[], apiKey?: string | null): Promise<number[][]> {
+  const google = getGoogle(apiKey);
   const BATCH_SIZE = 100;
   const results: number[][] = [];
 

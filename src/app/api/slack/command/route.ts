@@ -8,7 +8,7 @@ import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { groq, createGroq } from "@ai-sdk/groq";
 
 const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
   // Slack is a full answering channel, so it runs the same plan rules as the
   // chat UI and the public API: effective plan (with grace period), frozen
   // seats, company quota and frozen documents.
-  const { limits } = await resolvePlanById(companyId);
+  const { company, limits } = await resolvePlanById(companyId);
 
   if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
     return NextResponse.json({ response_type: "ephemeral", text: `❌ ${SEAT_FROZEN_MESSAGE}` });
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   (async () => {
-    const queryEmbedding = await getEmbedding(text);
+    const queryEmbedding = await getEmbedding(text, company?.geminiApiKey);
     const scored = (await withTenant(companyId, (tx) => retrieveChunks({
       companyId,
       queryEmbedding,
@@ -81,8 +81,9 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen tersedia.";
 
+    const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
     const { text: answer } = await generateText({
-      model: groq("llama-3.3-70b-versatile"),
+      model: groqClient("llama-3.3-70b-versatile"),
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
       prompt: text,
     });

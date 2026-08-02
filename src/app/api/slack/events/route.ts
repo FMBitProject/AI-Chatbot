@@ -6,14 +6,19 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
-import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
+import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE, type Company } from "@/lib/subscription";
 import { generateText } from "ai";
-import { groq } from "@ai-sdk/groq";
+import { groq, createGroq } from "@ai-sdk/groq";
 
 const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
 
-async function runRAG(question: string, companyId: string, maxDocuments: number): Promise<string> {
-  const queryEmbedding = await getEmbedding(question);
+// Takes the whole company row rather than just its id: Slack is a full
+// question-answering channel like the chat UI and the public API, so it has to
+// honour the same BYOK keys. It previously used the platform key for both the
+// embedding and the generation, which meant an Enterprise customer's Slack
+// traffic quietly bypassed the keys they had configured.
+async function runRAG(question: string, companyId: string, maxDocuments: number, company: Company | undefined): Promise<string> {
+  const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
 
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
@@ -25,8 +30,9 @@ async function runRAG(question: string, companyId: string, maxDocuments: number)
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
+  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
   const { text } = await generateText({
-    model: groq("llama-3.3-70b-versatile"),
+    model: groqClient("llama-3.3-70b-versatile"),
     system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
     prompt: question,
   });
@@ -88,7 +94,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Same plan rules as the chat UI and the public API (see resolvePlan).
-    const { limits } = await resolvePlanById(companyId);
+    const { company, limits } = await resolvePlanById(companyId);
 
     if (dbUser && !(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
       await getSlackClient().chat.postMessage({
@@ -117,7 +123,7 @@ export async function POST(req: NextRequest) {
       text: "⏳ Sedang mencari jawaban dari dokumen internal...",
     }).catch(() => {});
 
-    runRAG(question, companyId, limits.maxDocuments).then(async (answer) => {
+    runRAG(question, companyId, limits.maxDocuments, company).then(async (answer) => {
       await getSlackClient().chat.postMessage({
         channel,
         thread_ts: event.ts,
