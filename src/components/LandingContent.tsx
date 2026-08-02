@@ -658,8 +658,15 @@ export function LandingContent() {
             }}
           />
           <Accordion type="single" collapsible className="bg-white rounded-2xl border px-6">
-            {T.faq.map((f) => (
-              <AccordionItem key={f.q} value={f.q} className="last:border-b-0">
+            {T.faq.map((f, i) => (
+              // Keyed by position, not by the question text: `value` is the
+              // item's identity to Radix, and two entries that happen to share
+              // wording — easy to introduce while editing copy, and invisible
+              // when it happens — would open and close as one. The list is
+              // static and never reordered at runtime, and an index cannot
+              // collide or drift between the two translations the way a
+              // hand-written id in both arrays would.
+              <AccordionItem key={i} value={`faq-${i}`} className="last:border-b-0">
                 <AccordionTrigger className="text-left text-base font-semibold text-gray-900 hover:no-underline py-5">
                   {f.q}
                 </AccordionTrigger>
@@ -674,7 +681,11 @@ export function LandingContent() {
               {T.faqMore}{" "}
               <a href={consultationMailto(lang)} className="text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
                 {T.faqMoreCta}
-              </a>
+              </a>{" "}
+              {/* Plain text, deliberately not a second link: same reason as the
+                  final CTA — the address has to be readable when the mailto
+                  does nothing. */}
+              <span className="text-gray-400">— {SUPPORT_EMAIL}</span>
             </p>
             <Link href="/privacy" className="inline-block text-xs text-gray-400 hover:text-gray-600 mt-3 underline underline-offset-4">
               {T.privacyLink}
@@ -684,12 +695,14 @@ export function LandingContent() {
       </section>
 
       {/* Who is behind this */}
-      {/* Renders only once `FOUNDER` is filled in — an empty block here would
-          be worse than none, since the whole point is answering "who am I
-          handing my documents to". Sits after the FAQ and before the final ask:
+      {/* Renders only once `FOUNDER` carries both a name and a sentence in the
+          language being shown — a half-filled entry would put a pair of empty
+          quotation marks above the name, which is worse than showing nothing at
+          all, since the whole point is answering "who am I handing my documents
+          to". Sits after the FAQ and before the final ask:
           the objections are settled, and this is the last thing read before
           the visitor decides. */}
-      {FOUNDER.name && (
+      {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
         <section className="py-16 px-6 border-t">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
@@ -713,13 +726,24 @@ export function LandingContent() {
               pricing teaser and a scroll below the pricing link in the nav. The
               page's last word is better spent on the visitor who has read
               everything and still wants to talk to a person first. */}
-          <a href={consultationMailto(lang)}>
-            <Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8 gap-2">
+          {/* asChild so the anchor *is* the button: wrapping a <button> in an
+              <a> nests interactive content, which gives keyboard and screen
+              reader users two stops for one action. */}
+          <Button asChild size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8 gap-2">
+            <a href={consultationMailto(lang)}>
               <Mail className="h-4 w-4" />{T.ctaBtn2}
-            </Button>
-          </a>
+            </a>
+          </Button>
         </div>
-        <p className="text-teal-200/80 text-xs mt-5">{T.consultNote}</p>
+        {/* The address in plain text, not only behind the mailto: a browser
+            with no mail handler registered does nothing at all when that link
+            is clicked — no error, no window — and this is the one CTA on the
+            page for visitors not ready to sign up. Reading the address is the
+            fallback for a click that silently goes nowhere. */}
+        <p className="text-teal-200/80 text-xs mt-5">
+          {T.consultNote} ·{" "}
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-4 hover:text-white">{SUPPORT_EMAIL}</a>
+        </p>
       </section>
 
       {/* Footer */}

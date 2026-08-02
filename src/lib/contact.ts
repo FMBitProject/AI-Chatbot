@@ -3,8 +3,14 @@
 // components, which is how a stale value ends up live in one surface and not
 // the others — and this address is now printed on the landing page, where a
 // wrong one is a lead that never arrives.
+//
+// `||` and a trim rather than `??`: a dashboard env var that exists but holds
+// an empty string is far more likely than one that is truly unset, and `??`
+// passes that empty string straight through — which here would print
+// "Kontak: " with nothing after it and hand every CTA a `mailto:` with no
+// recipient, silently, with no error anywhere.
 export const SUPPORT_EMAIL =
-  process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "hello@intellibaseai.com";
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "hello@intellibaseai.com";
 
 // Who is behind IntelliBase. A company asked to upload its internal SOPs to a
 // vendor it has never met wants to know there is a person on the other end, and

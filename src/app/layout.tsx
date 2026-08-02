@@ -25,13 +25,35 @@ const geistMono = Geist_Mono({
   preload: false,
 });
 
+const CANONICAL_ORIGIN = "https://www.intellibaseai.com";
+
+// `new URL()` throws on an empty string and on anything without a scheme
+// ("intellibaseai.com" included), and this runs while the *root layout* module
+// is evaluated — so a mistyped or blanked-out dashboard value would not break
+// the metadata, it would take down every route in the app. A misconfigured
+// origin is worth a wrong OG image; it is not worth a dead site, so the bad
+// value is discarded and reported instead of thrown.
+function resolveSiteOrigin(): string {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!configured) return CANONICAL_ORIGIN;
+  try {
+    return new URL(configured).toString();
+  } catch {
+    console.warn(
+      `[metadata] NEXT_PUBLIC_APP_URL is not a valid absolute URL (${JSON.stringify(configured)}); ` +
+        `falling back to ${CANONICAL_ORIGIN}. Social cards will point at the fallback origin.`,
+    );
+    return CANONICAL_ORIGIN;
+  }
+}
+
 export const metadata: Metadata = {
   // Without this, every URL-based metadata field has to be an absolute string
   // and `opengraph-image` has no origin to resolve against — which is how a
   // shared link ends up advertising an image nobody can load. The env var is
   // what production already uses for auth callbacks, so the canonical domain
   // is stated in one place; the literal is the fallback for local builds.
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://www.intellibaseai.com"),
+  metadataBase: new URL(resolveSiteOrigin()),
   title: { default: "IntelliBase AI", template: "%s — IntelliBase AI" },
   description: "Platform RAG untuk akses SOP, regulasi, dan panduan perusahaan secara instan melalui AI chat. Multi-tenant, aman, dan mudah digunakan.",
   keywords: ["knowledge base", "AI chat", "internal dokumen", "SOP", "RAG", "perusahaan", "HR"],
