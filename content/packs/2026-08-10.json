@@ -1,13 +1,71 @@
 {
   "weekOf": "2026-08-10",
-  "generatedAt": "2026-08-04T07:20:06.121Z",
+  "generatedAt": "2026-08-04T07:45:12.501Z",
   "provider": "google",
   "model": "gemini-3.6-flash",
   "theme": {
+    "instagram": "Transparansi dan realita penggunaan AI dokumen internal untuk efisiensi operasional perusahaan.",
     "linkedin": "Transparansi teknis dan efisiensi pengelolaan dokumen internal perusahaan.",
-    "youtube": "Transparansi dan solusi praktis tata kelola dokumen internal dengan asisten AI IntelliBase.",
-    "instagram": "Transparansi teknis dan solusi praktis atas masalah dokumen internal perusahaan."
+    "youtube": "Transparansi dan solusi praktis tata kelola dokumen internal dengan asisten AI IntelliBase."
   },
+  "instagram": [
+    {
+      "day": "Senin",
+      "slot": "sore",
+      "angle": "HR lelah menjawab pertanyaan SOP berulang dari karyawan.",
+      "caption": "Setiap awal pekan, tim HR sering kali menghabiskan waktu menjawab pertanyaan berulang seputar klaim medis, cuti, atau SOP operasional. Padahal berkasnya sudah pernah dibagikan. Kami membangun IntelliBase agar karyawan bisa bertanya langsung dengan bahasa biasa ke dokumen perusahaan. Jawaban diambil dari berkas resmi Anda, lengkap dengan sitasi sumbernya. Apakah tim Anda juga mengalami hal serupa minggu ini?",
+      "cardText": "Berapa kali Anda menjawab pertanyaan SOP yang sama minggu ini?",
+      "imageIdea": "Kartu teks berlatar teal dengan tipografi tebal yang bersih dan profesional."
+    },
+    {
+      "day": "Selasa",
+      "slot": "sore",
+      "angle": "Kejujuran lokasi pemrosesan data dokumen pada sistem AI.",
+      "caption": "Banyak vendor AI menyembunyikan cara kerja sistem mereka. Kami memilih untuk terbuka: dokumen perusahaan Anda dikirim ke Google Gemini untuk proses indeks dan ke Groq untuk menghasilkan jawaban. Kami tidak mengolah semuanya di server sendiri. Namun, isolasi data dijaga ketat di level database dengan Postgres Row Level Security. Bagaimana kebijakan transparansi vendor AI di perusahaan Anda?",
+      "cardText": "Ke mana dokumen perusahaan Anda pergi saat memakai AI?",
+      "imageIdea": "Kartu teks berlatar teal dengan penekanan pada kata kunci keamanan data."
+    },
+    {
+      "day": "Rabu",
+      "slot": "sore",
+      "angle": "Pentingnya sitasi dokumen sumber pada jawaban AI internal.",
+      "caption": "Saat karyawan bertanya soal prosedur operasional atau regulasi internal, jawaban yang ambigu bisa menimbulkan risiko. Itu sebabnya IntelliBase selalu menyertakan sitasi langsung ke dokumen sumber. Karyawan bisa mengecek halaman dan paragraf aslinya secara mandiri. Kami percaya AI internal harus bisa diverifikasi, bukan sekadar dipercaya mentah-mentah. Bagaimana cara tim Anda memverifikasi kebenaran informasi internal?",
+      "cardText": "Jawaban AI tanpa bukti dokumen hanya menambah keraguan.",
+      "imageIdea": "Kartu teks berlatar teal dengan desain minimalis tanpa ornamen berlebihan."
+    },
+    {
+      "day": "Kamis",
+      "slot": "sore",
+      "angle": "Transparansi harga software tanpa biaya tersembunyi.",
+      "caption": "Banyak perusahaan enggan mencoba AI karena khawatir biaya membengkak. Kami menyediakan paket Starter gratis untuk 5 pengguna dan 10 dokumen. Jika butuh ruang lebih besar, paket Professional kami tawarkan seharga Rp200.000/bulan (harga promo peluncuran hingga 31 Desember 2026). Tanpa kontrak jangka panjang yang mengikat. Apakah anggaran software di tempat Anda cukup fleksibel untuk mencoba alat baru?",
+      "cardText": "Fitur AI internal tidak harus mahal atau tersembunyi biayanya.",
+      "imageIdea": "Kartu teks berlatar teal fokus pada pernyataan nilai transparan."
+    },
+    {
+      "day": "Jumat",
+      "slot": "sore",
+      "angle": "Dukungan berbagai format berkas internal tanpa ubah format.",
+      "caption": "Dokumen operasional jarang terkumpul dalam satu format rapi. Kebijakan HR ada di PDF, daftar harga di XLSX, dan panduan produk di PPTX atau DOCX. IntelliBase mendukung semua format tersebut tanpa perlu Anda ubah secara manual. Cukup unggah berkas yang ada, lalu biarkan tim Anda bertanya dalam bahasa sehari-hari. Format dokumen mana yang paling banyak digunakan di kantor Anda?",
+      "cardText": "Aturan operasional terpisah di PDF, Excel, dan PPTX?",
+      "imageIdea": "Kartu teks berlatar teal menonjolkan pertanyaan seputar format dokumen."
+    },
+    {
+      "day": "Sabtu",
+      "slot": "sore",
+      "angle": "Isolasi data antar pelanggan di tingkat database.",
+      "caption": "Keamanan data adalah perhatian utama saat menggunakan layanan cloud. Kami menerapkan isolasi data antar perusahaan di level database menggunakan Postgres Row Level Security (RLS) yang sudah diverifikasi lewat pengujian. Langkah ini memastikan data Anda tidak bercampur atau terakses pihak lain. Apakah tim IT Anda memiliki kriteria khusus sebelum menyetujui alat baru?",
+      "cardText": "Bagaimana cara memastikan data antar perusahaan tidak tercampur?",
+      "imageIdea": "Kartu teks berlatar teal dengan gaya pertanyaan teknis yang tegas."
+    },
+    {
+      "day": "Minggu",
+      "slot": "sore",
+      "angle": "Kesesuaian asisten AI untuk operasional berbagai industri.",
+      "caption": "Di industri seperti rumah sakit, ritel, F&B, dan manufaktur, staf lapangan butuh acuan prosedur yang cepat. Mencari berkas fisik atau file PDF tebal saat bekerja sering kali memperlambat proses. IntelliBase cocok untuk kebutuhan operasional ini, membantu staf menemukan rujukan dokumen internal secara mandiri. Bagaimana tim operasional Anda mengakses panduan kerja saat ini?",
+      "cardText": "Tim operasional butuh akses cepat ke panduan kerja.",
+      "imageIdea": "Kartu teks berlatar teal dengan kalimat pancingan langsung."
+    }
+  ],
   "linkedin": [
     {
       "day": "Senin",
@@ -136,57 +194,6 @@
       "script": "Kami memilih menampilkan harga secara terbuka tanpa sembunyi-sembunyi. Selain paket Starter gratis, kami menyediakan paket Professional seharga dua ratus ribu rupiah per bulan dan paket Enterprise seharga lima ratus ribu rupiah per bulan. Harga promo peluncuran ini berlaku sampai 31 Desember 2026. Tidak ada biaya tersembunyi dan tidak ada negosiasi yang berbelit-belit. Anda bisa mempelajari rincian lengkapnya langsung di situs kami.",
       "description": "Skema harga promo IntelliBase: Professional Rp200.000/bulan dan Enterprise Rp500.000/bulan berlaku hingga 31 Desember 2026.",
       "shotNote": "Layar komputer menampilkan halaman tabel harga di intellibaseai.com dengan kursor menunjuk paket Professional dan Enterprise."
-    }
-  ],
-  "instagram": [
-    {
-      "day": "Senin",
-      "slot": "sore",
-      "angle": "Mengurangi beban HR dari pertanyaan berulang terkait kebijakan internal.",
-      "caption": "Menjawab pertanyaan cuti atau klaim medis yang sama puluhan kali seminggu menyita waktu tim HR. Kebijakan sebenarnya sudah ada di PDF, tapi karyawan enggan membaca puluhan halaman. Kami membangun IntelliBase untuk menyelesaikan masalah ini. Dokumen internal seperti PDF atau DOCX kebijakan perusahaan diindeks agar karyawan bisa bertanya dengan bahasa sehari-hari. Jawaban yang keluar selalu menyertakan sitasi ke dokumen sumber. Bagaimana tim HR di tempat Anda mengelola pertanyaan berulang saat ini? #HRIndonesia #SistemOperasional #IntelliBase",
-      "imageIdea": "Foto meja kerja dengan laptop yang menampilkan dokumen PDF kebijakan HR dan tab browser berisi antarmuka IntelliBase."
-    },
-    {
-      "day": "Selasa",
-      "slot": "sore",
-      "angle": "Kejujuran mengenai infrastruktur pemrosesan data dan penggunaan AI pihak ketiga.",
-      "caption": "Banyak vendor AI berjanji manis tanpa menjelaskan cara kerja pemrosesan data. Kami memilih terbuka: dokumen yang Anda unggah ke IntelliBase dikirim ke Google Gemini untuk proses indeks dan ke Groq untuk menghasilkan jawaban. Kami tidak berpura-pura mengolah semuanya di server sendiri. Namun, keamanan akses antar perusahaan tetap terjaga di level database menggunakan Postgres Row Level Security. Transparansi seperti ini penting bagi tim IT perusahaan Anda sebelum mengadopsi AI. Apa pertimbangan utama tim IT Anda saat memilih alat AI? #KeamananInformasi #InfrastrukturIT #AIIndonesia",
-      "imageIdea": "Teks tebal hitam di atas latar belakang putih polos: 'Ke mana dokumen Anda pergi saat menggunakan AI?'"
-    },
-    {
-      "day": "Rabu",
-      "slot": "sore",
-      "angle": "Penerapan IntelliBase untuk akses cepat SOP di industri retail dan F&B.",
-      "caption": "Di industri retail dan F&B, pergantian staf cukup tinggi. Memastikan setiap anggota tim memahami SOP resep atau penanganan keluhan pelanggan butuh waktu. IntelliBase cocok untuk menyimpan file SOP format PDF, DOCX, hingga XLSX. Karyawan tinggal mengetik pertanyaan, dan sistem menjawab langsung berdasarkan dokumen resmi perusahaan. Tidak ada tebak-tebakan, karena setiap jawaban menampilkan sitasi dokumen aslinya. Berapa lama biasanya waktu yang dibutuhkan staf baru di tempat Anda untuk memahami seluruh SOP? #RetailIndonesia #FNBIndonesia #ManajemenSOP",
-      "imageIdea": "Tangkapan layar antarmuka IntelliBase yang menunjukkan jawaban beserta sitasi nomor halaman dari file XLSX SOP Toko."
-    },
-    {
-      "day": "Kamis",
-      "slot": "sore",
-      "angle": "Skema harga transparan tanpa biaya tersembunyi dan paket Starter gratis.",
-      "caption": "Kami percaya perusahaan harus bisa mencoba sistem sebelum mengeluarkan anggaran. Itu sebabnya IntelliBase menyediakan paket Starter gratis: 5 pengguna, 10 dokumen, dan 100 pertanyaan per bulan. Jika butuh ruang lebih, paket Professional seharga Rp200.000/bulan dan Enterprise Rp500.000/bulan berlaku sebagai harga promo hingga 31 Desember 2026. Tanpa biaya tersembunyi atau kontrak mengikat. Berapa dokumen kebijakan internal yang paling sering ditanyakan di kantor Anda saat ini? #SaaSIndonesia #EfisiensiKerja #IntelliBase",
-      "imageIdea": "Grafik teks sederhana pada latar belakang abu-abu: 'Paket Starter Gratis: Rp0. Tanpa kartu kredit.'"
-    },
-    {
-      "day": "Jumat",
-      "slot": "sore",
-      "angle": "Pentingnya sitasi dokumen untuk mencegah kebohongan atau halusinasi AI.",
-      "caption": "Masalah utama AI generik adalah kecenderungan memberikan jawaban yang tampak yakin padahal keliru. Untuk dokumen perusahaan, kesalahan kecil bisa berdampak fatal. Di IntelliBase, kami memastikan setiap jawaban wajib mencantumkan sitasi dokumen sumber. Jika karyawan bertanya tentang jaminan kesehatan, sistem akan menunjuk ke paragraf spesifik di file PDF kebijakan HR Anda. Jadi, staf Anda bisa langsung memverifikasi kebenarannya. Apakah tim Anda pernah mendapati informasi keliru dari alat AI biasa? #AkurasiData #TeknologiKantor #ManajemenPengetahuan",
-      "imageIdea": "Tangkapan layar kotak jawaban IntelliBase dengan sorotan warna pada teks sitasi dokumen PDF."
-    },
-    {
-      "day": "Sabtu",
-      "slot": "sore",
-      "angle": "Keamanan isolasi data antar perusahaan menggunakan Postgres RLS.",
-      "caption": "Saat menggunakan platform SaaS, kekhawatiran terbesar tim IT adalah kebocoran data antar pengguna. Kami menangani isolasi data pelanggan menggunakan Postgres Row Level Security (RLS) di tingkat database. Pengujian ketat kami memastikan dokumen Perusahaan A tidak akan pernah bisa diakses atau memengaruhi jawaban untuk Perusahaan B. Keamanan data bukan sekadar janji, melainkan arsitektur teknis yang teruji. Bagaimana tim IT Anda biasanya memverifikasi standar keamanan aplikasi pihak ketiga? #DataSecurity #PostgresRLS #SaaSManajemen",
-      "imageIdea": "Foto konseptual sederhana: Dua folder fisik di atas meja kerja dengan label nama yang berbeda, memvisualisasikan pemisahan data."
-    },
-    {
-      "day": "Minggu",
-      "slot": "sore",
-      "angle": "Dukungan berbagai format file internal tanpa perlu konversi manual.",
-      "caption": "Mengubah format puluhan dokumen perusahaan ke teks polos demi menggunakan AI adalah pekerjaan buang waktu. IntelliBase mendukung format file yang sudah biasa Anda gunakan sehari-hari: PDF, DOCX, XLSX, hingga PPTX. Unggah file pedoman kerja, laporan, atau slide presentasi Anda tanpa perlu konversi manual. Sistem kami siap mengindeksnya agar langsung bisa ditanyakan oleh tim Anda. Format dokumen apa yang paling banyak menumpuk di server internal kantor Anda? #ProduktivitasKerja #DokumenKantor #DigitalisasiSOP",
-      "imageIdea": "Teks di latar kuning lembut yang mendaftar ikon tulisan: PDF, DOCX, XLSX, PPTX."
     }
   ]
 }

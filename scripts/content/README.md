@@ -39,10 +39,17 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```bash
 npm run content:generate     # tulis paket untuk Senin minggu depan
                              # -> content/packs/<senin>.md  <- baca ini
-npm run content:push         # kirim 7 post LinkedIn ke Buffer sebagai draft
+npm run content:cards        # render 7 kartu gambar Instagram -> public/social/
+git add -A && git commit && git push     # deploy kartunya (Vercel auto-deploy)
+npm run content:push         # 7 LinkedIn + 7 Instagram -> Buffer sebagai draft
 ```
 
 Lalu buka <https://publish.buffer.com/drafts>, baca, approve.
+
+**Urutannya penting.** Buffer mengambil gambar Instagram saat post *terbit*, bukan
+saat draft dibuat — jadi kartunya harus sudah ter-deploy dulu. `content:push` akan
+menolak jalan (exit 1) kalau URL kartunya belum bisa diakses, supaya kegagalannya
+muncul sekarang, bukan diam-diam beberapa hari lagi setelah Anda approve.
 
 Opsi lain:
 
@@ -52,20 +59,30 @@ npm run content:push -- --dry-run     # lihat isinya tanpa kirim
 npm run content:lint content/packs/2026-08-10.json
 ```
 
-## Kenapa YouTube & Instagram tidak ikut dikirim
+## Instagram: gambarnya dari mana
 
-Buffer **tidak punya endpoint upload media**. Gambar/video harus sudah berada di
-URL publik yang tetap bisa diakses sampai post terbit
-([dokumentasi](https://developers.buffer.com/guides/hosting-media.html)).
-Instagram tidak menerima post tanpa gambar, dan YouTube jelas butuh file video.
+Buffer **tidak punya endpoint upload media** — gambar harus sudah berada di URL
+publik yang tetap hidup sampai post terbit
+([dokumentasi](https://developers.buffer.com/guides/hosting-media.html)), dan
+Instagram menolak post tanpa gambar sama sekali:
 
-Jadi untuk dua platform itu Claude menulis semuanya — skrip, judul, deskripsi,
-caption, plus catatan apa yang perlu direkam/difoto — dan hasilnya menunggu di
-file `.md`. Anda tinggal bikin medianya lalu tempel.
+```
+Instagram posts require at least one image or video.
+Instagram posts require a type (post, story, or reel).
+```
 
-Kalau nanti Instagram mau 100% otomatis: perlu generator gambar (kartu kutipan)
-+ hosting (Cloudflare R2 / Cloudinary), lalu `assets` di `push-buffer.mjs` diisi
-URL-nya.
+Jadi `content:cards` merender kartu teks 1080×1080 berlatar teal dari field
+`cardText`, menyimpannya ke `public/social/<minggu>/`, dan situs kita sendiri yang
+melayaninya setelah di-deploy. Tanpa akun object storage, tanpa API key tambahan.
+
+Rendernya pakai `next/og` (Satori + resvg) yang sudah ikut Next, lengkap dengan
+font Geist — tidak menambah dependency, dan tidak bergantung pada font sistem.
+
+## Kenapa YouTube tetap manual
+
+YouTube butuh file video sungguhan; tidak ada yang bisa di-render. Skrip, judul,
+deskripsi, dan catatan "apa yang perlu direkam" tetap dibuat dan menunggu di file
+`.md` — Anda tinggal merekam lalu unggah sendiri.
 
 ## Kenapa draft, bukan langsung terjadwal
 
