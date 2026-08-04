@@ -78,8 +78,25 @@ const RULES = [
   },
   {
     id: "vague-customer-count",
-    pattern: /\b(ratusan|puluhan|ribuan|banyak)\s+(perusahaan|klien|pelanggan|tim)\b/i,
+    // Needs an adoption verb, same as customer-count. Describing the market —
+    // "di banyak perusahaan skala 20-200 karyawan", "banyak tim HR ragu
+    // berinvestasi" — is normal, useful copy and says nothing about who our
+    // customers are. Only a usage claim about those companies is a problem.
+    pattern:
+      /\b(ratusan|puluhan|ribuan|banyak)\s+(perusahaan|klien|pelanggan|tim)\s+(sudah|telah|kami|mempercayai|memakai|menggunakan|berlangganan)\b|\b(di(?:pakai|gunakan|percaya)|melayani|berlangganan)\s+(oleh\s+)?(ratusan|puluhan|ribuan|banyak)\s+(perusahaan|klien|pelanggan|tim)\b/i,
     why: "Menyiratkan basis pelanggan yang tidak ada.",
+  },
+  {
+    id: "founder-voice",
+    // The LinkedIn channel is a company page, not a personal profile, so
+    // first-person singular is always wrong there — "Saya membangun IntelliBase"
+    // reads as if the company account were one person. Caught mechanically
+    // because the first real pack was full of it and it reads plausibly enough
+    // to slip past a skim.
+    pattern: /\bsaya\b|\bsebagai\s+(seorang\s+)?(pendiri|founder)\b|\bperjalanan\s+saya\b/i,
+    why: 'Ini halaman perusahaan, bukan profil pribadi. Pakai "kami", jangan "saya"/"sebagai pendiri".',
+    // "tidak" nearby shouldn't excuse it — the voice is wrong either way.
+    negationAware: false,
   },
   {
     id: "testimonial",
