@@ -88,10 +88,12 @@ const targets = only ?? PLATFORMS;
 // --- what we already published ----------------------------------------------
 function recentAngles(limit = 2) {
   if (!existsSync(PACKS_DIR)) return [];
-  // Same `.rejected.json` trap as in push-buffer.mjs — a rejected dump is not a
-  // published week and its angles shouldn't count as already used.
+  // Two exclusions. A `.rejected.json` dump is not a published week, so its
+  // angles shouldn't count as used (same trap as in push-buffer.mjs). And
+  // neither should this same week's earlier attempt — regenerating a week to
+  // fix its voice or tone shouldn't also force every angle to change.
   const files = readdirSync(PACKS_DIR)
-    .filter((f) => f.endsWith(".json") && !f.endsWith(".rejected.json"))
+    .filter((f) => f.endsWith(".json") && !f.endsWith(".rejected.json") && f !== `${weekOf}.json`)
     .sort()
     .slice(-limit);
   return files.flatMap((f) => {
@@ -171,7 +173,9 @@ pendek — satu observasi atau satu pertanyaan, bukan pengulangan post sebelumny
 
 const PLATFORM_BRIEF = {
   linkedin: `${PER_PLATFORM} post LinkedIn, satu per hari.${MULTI_SLOT_NOTE}
-Sabtu & Minggu jauh lebih santai: refleksi membangun produk, bukan edukasi produk.`,
+Sabtu & Minggu lebih ringan: satu pengamatan tentang cara kerja tim HR/Ops, atau
+satu catatan teknis singkat — bukan edukasi produk, dan BUKAN refleksi pribadi
+pendiri (ini halaman perusahaan).`,
   youtube: `${PER_PLATFORM} YouTube Shorts, satu per hari. Satu ide per video, hook di 3
 detik pertama.${MULTI_SLOT_NOTE}
 Karena videonya direkam manual, tulis shotNote sekonkret mungkin — sebutkan apa
