@@ -107,7 +107,11 @@ function loadPack() {
     console.error(`Belum ada paket di ${PACKS_DIR}. Jalankan \`npm run content:generate\` dulu.`);
     process.exit(2);
   }
-  const files = readdirSync(PACKS_DIR).filter((f) => f.endsWith(".json")).sort();
+  // isPack, not just .json: a rejected dump is `<week>.rejected.json`, which
+  // ends in .json and sorts *after* the real pack — picking the newest .json
+  // would publish exactly the content the lint refused to save.
+  const isPack = (f) => f.endsWith(".json") && !f.endsWith(".rejected.json");
+  const files = readdirSync(PACKS_DIR).filter(isPack).sort();
   const file = week ? `${week}.json` : files[files.length - 1];
   if (!file || !existsSync(join(PACKS_DIR, file))) {
     console.error(`Paket ${file ?? "(kosong)"} tidak ditemukan di ${PACKS_DIR}.`);

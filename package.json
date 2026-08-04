@@ -14,14 +14,15 @@
     "content:generate": "node scripts/content/generate.mjs",
     "content:lint": "node scripts/content/lint.mjs",
     "content:channels": "node scripts/content/push-buffer.mjs --channels",
-    "content:push": "node scripts/content/push-buffer.mjs"
+    "content:push": "node scripts/content/push-buffer.mjs",
+    "content:models": "node scripts/content/generate.mjs --list-models"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^4.0.29",
     "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/groq": "^3.0.39",
     "@ai-sdk/openai": "^3.0.66",
     "@ai-sdk/react": "^3.0.195",
-    "@anthropic-ai/sdk": "^0.115.0",
     "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.1.0",
     "@next/third-parties": "16.2.10",

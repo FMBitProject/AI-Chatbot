@@ -2,7 +2,10 @@
 // untuk LinkedIn + YouTube + Instagram (42 item).
 //
 //   node scripts/content/generate.mjs [--week 2026-08-10] [--topic "..."]
-//                                     [--only linkedin,instagram]
+//                                     [--only linkedin,instagram] [--list-models]
+//
+// Runs on Gemini's free tier by default — see provider.mjs for why that is safe
+// here and how to swap to Claude.
 //
 // Writes two files to content/packs/:
 //   <monday>.json  — machine-readable, consumed by push-buffer.mjs
@@ -16,16 +19,16 @@
 // Packs are committed on purpose: the last few weeks are fed back into the
 // prompt so the model stops re-pitching the same angle.
 
-import Anthropic from "@anthropic-ai/sdk";
+import { generateObject, jsonSchema } from "ai";
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { buildSystemPrompt } from "./brand-facts.mjs";
-import { lintPack, formatProblems } from "./lint.mjs";
+import { lintPack, formatProblems, splitProblems } from "./lint.mjs";
 import { DAYS, SLOTS, SLOT_IDS, PLATFORMS, PER_PLATFORM, grid } from "./schedule.mjs";
+import { resolveModel, listGoogleModels, PROVIDERS } from "./provider.mjs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const PACKS_DIR = join(ROOT, "content", "packs");
-const MODEL = "claude-opus-5";
 
 function fromEnvFile(key) {
   try {
@@ -38,6 +41,7 @@ function fromEnvFile(key) {
   } catch {}
   return undefined;
 }
+const readEnv = (key) => process.env[key] || fromEnvFile(key);
 
 // --- args -------------------------------------------------------------------
 const args = process.argv.slice(2);
@@ -45,6 +49,21 @@ const arg = (n) => {
   const i = args.indexOf(`--${n}`);
   return i !== -1 ? args[i + 1] : undefined;
 };
+
+// Model IDs churn; a 404 on an unknown name is the likeliest first-run failure.
+if (args.includes("--list-models")) {
+  const key = readEnv(PROVIDERS.google.envKey);
+  if (!key) {
+    console.error(`${PROVIDERS.google.envKey} tidak diset (cek .env.local).`);
+    process.exit(2);
+  }
+  const models = await listGoogleModels(key);
+  console.log(`Model Gemini yang bisa dipakai key ini (${models.length}):\n`);
+  for (const m of models) console.log(`  ${m}`);
+  console.log(`\nDefault sekarang: ${PROVIDERS.google.defaultModel}`);
+  console.log(`Ganti lewat CONTENT_MODEL=<id> di .env.local.`);
+  process.exit(0);
+}
 
 function nextMonday(from = new Date()) {
   const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
@@ -69,7 +88,12 @@ const targets = only ?? PLATFORMS;
 // --- what we already published ----------------------------------------------
 function recentAngles(limit = 2) {
   if (!existsSync(PACKS_DIR)) return [];
-  const files = readdirSync(PACKS_DIR).filter((f) => f.endsWith(".json")).sort().slice(-limit);
+  // Same `.rejected.json` trap as in push-buffer.mjs — a rejected dump is not a
+  // published week and its angles shouldn't count as already used.
+  const files = readdirSync(PACKS_DIR)
+    .filter((f) => f.endsWith(".json") && !f.endsWith(".rejected.json"))
+    .sort()
+    .slice(-limit);
   return files.flatMap((f) => {
     try {
       const pack = JSON.parse(readFileSync(join(PACKS_DIR, f), "utf8"));
@@ -98,9 +122,13 @@ const ITEM_SCHEMAS = {
       day: dayField,
       slot: slotField,
       angle: { type: "string", description: "Sudut pandang post ini, 5-10 kata." },
-      text: { type: "string", description: "Isi post lengkap siap posting, 120-200 kata, diakhiri satu pertanyaan terbuka." },
+      body: { type: "string", description: "Isi post, 120-200 kata, TANPA pertanyaan penutup." },
+      question: {
+        type: "string",
+        description: "Satu pertanyaan terbuka penutup, diakhiri tanda tanya. Ini yang memancing komentar.",
+      },
     },
-    required: ["day", "slot", "angle", "text"],
+    required: ["day", "slot", "angle", "body", "question"],
     additionalProperties: false,
   },
   youtube: {
@@ -156,12 +184,7 @@ ilustrasi yang butuh desainer.`,
 };
 
 // --- generate ---------------------------------------------------------------
-const apiKey = process.env.ANTHROPIC_API_KEY || fromEnvFile("ANTHROPIC_API_KEY");
-if (!apiKey) {
-  console.error("ANTHROPIC_API_KEY tidak diset (cek .env.local). Ambil di https://console.anthropic.com/settings/keys");
-  process.exit(2);
-}
-const client = new Anthropic({ apiKey });
+const { model, providerName, modelId } = resolveModel(readEnv);
 
 const previous = recentAngles();
 const gridLines = grid().map(({ day, slot }) => `- ${day} / ${slot}`).join("\n");
@@ -184,39 +207,55 @@ async function generatePlatform(platform) {
       : "",
   ].join("\n");
 
-  const stream = client.messages.stream({
-    model: MODEL,
-    max_tokens: 32000,
-    system: buildSystemPrompt(),
-    messages: [{ role: "user", content: userPrompt }],
-    output_config: {
-      format: {
-        type: "json_schema",
-        schema: {
-          type: "object",
-          properties: {
-            theme: { type: "string", description: "Benang merah minggu ini untuk platform ini, satu kalimat." },
-            items: { type: "array", items: ITEM_SCHEMAS[platform] },
-          },
-          required: ["theme", "items"],
-          additionalProperties: false,
+  let result;
+  try {
+    result = await generateObject({
+      model,
+      system: buildSystemPrompt(),
+      prompt: userPrompt,
+      maxOutputTokens: 32000,
+      schema: jsonSchema({
+        type: "object",
+        properties: {
+          theme: { type: "string", description: "Benang merah minggu ini untuk platform ini, satu kalimat." },
+          items: { type: "array", items: ITEM_SCHEMAS[platform] },
         },
-      },
-    },
-  });
+        required: ["theme", "items"],
+        additionalProperties: false,
+      }),
+    });
+  } catch (err) {
+    // A wrong/retired model ID is the most common first-run failure, and the
+    // raw provider 404 doesn't say what to do about it.
+    if (/not found|404|NOT_FOUND/i.test(err.message ?? "")) {
+      throw new Error(
+        `${platform}: model "${modelId}" tidak ditemukan.` +
+          (providerName === "google" ? ` Jalankan \`npm run content:models\` untuk melihat daftar yang valid.` : ""),
+      );
+    }
+    throw new Error(`${platform}: ${err.message}`);
+  }
 
-  const message = await stream.finalMessage();
-  if (message.stop_reason === "refusal") throw new Error(`${platform}: model menolak permintaan ini.`);
-  if (message.stop_reason === "max_tokens") throw new Error(`${platform}: output terpotong — naikkan max_tokens.`);
+  if (result.finishReason === "length") {
+    throw new Error(`${platform}: output terpotong — naikkan maxOutputTokens.`);
+  }
 
-  const textBlock = message.content.find((b) => b.type === "text");
-  if (!textBlock) throw new Error(`${platform}: tidak ada teks di respons model.`);
-  const parsed = JSON.parse(textBlock.text);
-  return { platform, ...parsed, usage: message.usage };
+  const items = result.object.items ?? [];
+  if (platform === "linkedin") {
+    // Compose the post from its two parts rather than trusting the model to
+    // remember the closing question — asking for it in the prompt produced 0/7
+    // on the first real run. Making it a separate required field and joining it
+    // here turns "usually ends in a question" into a structural guarantee.
+    for (const item of items) {
+      const question = (item.question ?? "").trim();
+      item.text = question ? `${item.body.trim()}\n\n${question}` : item.body.trim();
+    }
+  }
+  return { platform, ...result.object, items, usage: result.usage };
 }
 
 console.log(`Menulis paket minggu ${weekOf} — ${DAYS.length} hari × ${SLOTS.length} slot × ${targets.length} platform = ${PER_PLATFORM * targets.length} item`);
-console.log(`Model ${MODEL}, ${targets.length} panggilan paralel (${targets.join(", ")})...`);
+console.log(`Provider ${providerName} / ${modelId}, ${targets.length} panggilan paralel (${targets.join(", ")})...`);
 if (previous.length) console.log(`(menghindari ${previous.length} sudut pandang lama)`);
 
 const settled = await Promise.allSettled(targets.map(generatePlatform));
@@ -232,7 +271,8 @@ const results = settled.map((r) => r.value);
 const pack = {
   weekOf,
   generatedAt: new Date().toISOString(),
-  model: MODEL,
+  provider: providerName,
+  model: modelId,
   theme: Object.fromEntries(results.map((r) => [r.platform, r.theme])),
 };
 for (const r of results) pack[r.platform] = r.items;
@@ -274,11 +314,24 @@ if (missingQuestion.length) {
   console.warn(`⚠ ${missingQuestion.length} post LinkedIn tidak diakhiri pertanyaan: ${missingQuestion.map((p) => `${p.day}/${p.slot}`).join(", ")}`);
 }
 
-const problems = lintPack(pack);
-if (problems.length) {
+const { blocking, warnings } = splitProblems(lintPack(pack));
+if (warnings.length) {
+  console.warn(`\n⚠ ${warnings.length} kalimat menyebut klaim terlarang untuk MENYANGKALNYA — dibiarkan lewat, cek sekilas saat baca:`);
+  console.warn(formatProblems(warnings, "⚠"));
+}
+if (blocking.length) {
+  const problems = blocking;
+  // Dump the rejected pack: without it the only way to see what tripped the
+  // lint is to spend another generation, and most rejections need a look at the
+  // surrounding sentence to tell a real violation from a rule that's too broad.
+  mkdirSync(PACKS_DIR, { recursive: true });
+  const rejectedPath = join(PACKS_DIR, `${weekOf}.rejected.json`);
+  writeFileSync(rejectedPath, JSON.stringify(pack, null, 2) + "\n");
+
   console.error("\nPaket DITOLAK — ada klaim yang dilarang:\n");
   console.error(formatProblems(problems));
-  console.error("\nTidak disimpan. Jalankan ulang; kalau berulang, perketat brand-facts.mjs.");
+  console.error(`\nTidak disimpan sebagai paket aktif. Isinya bisa diperiksa di:\n  ${rejectedPath}`);
+  console.error("Jalankan ulang; kalau berulang, perketat brand-facts.mjs.");
   process.exit(1);
 }
 
@@ -294,7 +347,7 @@ const md = [
   ``,
   ...PLATFORMS.filter((p) => pack.theme?.[p]).map((p) => `**Tema ${p}:** ${pack.theme[p]}`),
   ``,
-  `> Dibuat ${new Date(pack.generatedAt).toLocaleString("id-ID")} dengan ${pack.model}.`,
+  `> Dibuat ${new Date(pack.generatedAt).toLocaleString("id-ID")} dengan ${pack.provider ?? "?"} / ${pack.model}.`,
   `> LinkedIn dikirim ke Buffer sebagai draft lewat \`npm run content:push\`.`,
   `> YouTube & Instagram butuh video/gambar dulu — Buffer tidak bisa upload media.`,
   ``,
@@ -340,8 +393,9 @@ const md = [
 ].join("\n");
 writeFileSync(join(PACKS_DIR, `${weekOf}.md`), md);
 
-const totalIn = results.reduce((s, r) => s + r.usage.input_tokens, 0);
-const totalOut = results.reduce((s, r) => s + r.usage.output_tokens, 0);
+const sumUsage = (field) => results.reduce((sum, r) => sum + (r.usage?.[field] ?? 0), 0);
+const totalIn = sumUsage("inputTokens");
+const totalOut = sumUsage("outputTokens");
 console.log(`\n✓ Tersimpan:\n  ${join(PACKS_DIR, `${weekOf}.md`)}   <- baca ini\n  ${existingPath}`);
 console.log(`  token: ${totalIn} in / ${totalOut} out`);
 console.log(`\nLangkah berikutnya: baca ${weekOf}.md, lalu \`npm run content:push\` untuk kirim ${(pack.linkedin ?? []).length} post LinkedIn ke Buffer sebagai draft.`);

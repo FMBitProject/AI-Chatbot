@@ -13,12 +13,26 @@ membaca bentuknya dari sana.
 
 ## Setup (sekali)
 
-1. Isi di `.env.local`:
-   - `ANTHROPIC_API_KEY` — <https://console.anthropic.com/settings/keys>
-   - `BUFFER_API_KEY` — <https://publish.buffer.com/settings/api> (harus owner
-     organisasi Buffer; paket gratis dapat 1 key)
+1. Isi `BUFFER_API_KEY` di `.env.local` — <https://publish.buffer.com/settings/api>
+   (harus owner organisasi Buffer; paket gratis dapat 1 key, dan API-nya **tidak
+   butuh billing**).
 2. `npm run content:channels` → salin ID channel LinkedIn ke
    `BUFFER_LINKEDIN_CHANNEL_ID` di `.env.local`.
+
+Model penulisnya **default ke Gemini free tier**, memakai
+`GOOGLE_GENERATIVE_AI_API_KEY` yang sudah ada di project. Gratis, dan aman di sini
+karena script ini hanya memproses materi marketing kita sendiri — bukan dokumen
+pelanggan, jadi pertimbangan free-tier yang berlaku di produk tidak berlaku di sini.
+
+Mau pindah ke Claude (berbayar, instruction-following lebih ketat)? Di `.env.local`:
+
+```
+CONTENT_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+`npm run content:models` menampilkan model Gemini yang valid untuk key Anda;
+`CONTENT_MODEL=<id>` untuk memaksa salah satunya.
 
 ## Alur mingguan
 
@@ -69,8 +83,10 @@ itu sudah menghitung konversi WIB→UTC (16.15 WIB = `T09:15:00.000Z`).
 
 | File | Isi |
 |---|---|
+| `schedule.mjs` | Hari, slot, jam tayang. Satu-satunya tempat cadence didefinisikan. |
+| `provider.mjs` | Pilihan model (Gemini free / Claude) + daftar model. |
 | `brand-facts.mjs` | Fakta yang boleh diklaim, klaim yang dilarang, harga (sinkron dengan `src/lib/pricing.ts`). Ini system prompt-nya. |
-| `lint.mjs` | Pemeriksa klaim terlarang. Dipakai otomatis oleh `generate.mjs` sebelum menyimpan. |
+| `lint.mjs` | Pemeriksa klaim terlarang. Dipakai otomatis oleh `generate.mjs` sebelum menyimpan. Sadar negasi: kalimat yang *menyangkal* klaim (mis. "kami tidak mengklaim 100% aman") jadi peringatan, bukan penolakan. |
 | `generate.mjs` | Panggil Claude, validasi, tulis `content/packs/<senin>.{json,md}`. |
 | `push-buffer.mjs` | Kirim LinkedIn ke Buffer via GraphQL sebagai draft. |
 
