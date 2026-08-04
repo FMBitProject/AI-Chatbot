@@ -24,15 +24,18 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // and never gets crawled.
   const verticals = INDUSTRIES.filter((i) => i.href).map((i) => ({
     url: absoluteUrl(i.href!),
-    lastModified: new Date(),
     changeFrequency: "monthly" as const,
     priority: 0.8,
   }));
 
+  // No `lastModified`. This file is prerendered at build time, so `new Date()`
+  // would stamp every deploy onto all six URLs — including /terms, whose own
+  // page states when it was last revised. Google discounts a lastmod that is
+  // demonstrably wrong, so an absent one is worth more than a fabricated one.
+  // Add it back per route when there is a real revision date to read.
   return [
     ...STATIC_ROUTES.map((r) => ({
       url: absoluteUrl(r.path),
-      lastModified: new Date(),
       changeFrequency: r.changeFrequency,
       priority: r.priority,
     })),

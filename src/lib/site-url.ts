@@ -22,7 +22,17 @@ const CANONICAL_ORIGIN = "https://www.intellibaseai.com";
  * misconfigured origin is worth a wrong OG image; it is not worth a dead site,
  * so the bad value is discarded and reported instead of thrown.
  */
+let cached: string | undefined;
+
 export function siteOrigin(): string {
+  // Resolved once: sitemap.ts alone calls this per URL, and a misconfigured env
+  // var would otherwise print the same warning seven times in one build.
+  if (cached !== undefined) return cached;
+  cached = resolveOrigin();
+  return cached;
+}
+
+function resolveOrigin(): string {
   const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (!configured) return CANONICAL_ORIGIN;
   try {

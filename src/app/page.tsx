@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   // separate page to a crawler, splitting the ranking signal of one page across
   // several near-identical URLs.
   alternates: { canonical: "/" },
-  openGraph: { url: "/" },
+  // Deliberately no `openGraph` key. Nested metadata objects are not merged —
+  // a child segment that defines `openGraph` replaces the parent's entirely, so
+  // setting just a `url` here silently dropped the card's title, description,
+  // site_name, locale, and the image resolved from opengraph-image.tsx.
 };
 
 export default function HomePage() {

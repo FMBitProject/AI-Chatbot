@@ -44,8 +44,14 @@ export const metadata: Metadata = {
     siteName: "IntelliBase AI",
     // No `url` here. Root-layout metadata is inherited by every route that does
     // not override it, so a literal "/" made /pricing and every solusi page
-    // advertise the homepage as their own canonical social URL. Each page sets
-    // its own alongside `alternates.canonical`.
+    // advertise the homepage as their own social URL.
+    //
+    // Nor is it set per page: nested metadata objects are replaced rather than
+    // merged, so a page defining `openGraph` just to carry a `url` loses this
+    // card's title, description, site_name, locale, and its image. An absent
+    // og:url costs nothing — platforms fall back to the URL actually shared —
+    // while a missing image is a visibly broken link preview. The per-page
+    // signal that matters is `alternates.canonical`, which merges cleanly.
   },
   // summary_large_image, not the default summary: the card is 1200×630, and
   // the small variant crops it to a square thumbnail that cuts the headline in

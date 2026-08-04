@@ -13,8 +13,9 @@ export const metadata: Metadata = {
   title: "Knowledge Base AI untuk Rumah Sakit & Klinik",
   description:
     "Clinical pathway, SPO, PPK, panduan akreditasi, dan formularium rumah sakit Anda jadi asisten AI yang menjawab pertanyaan staf dalam hitungan detik. Data tiap rumah sakit terisolasi penuh.",
+  // No `openGraph` key — see the note in src/app/page.tsx. This page is a link
+  // worth sharing, and defining one here cost it its social card image.
   alternates: { canonical: "/solusi/rumah-sakit" },
-  openGraph: { url: "/solusi/rumah-sakit" },
 };
 
 export default function HospitalSolutionPage() {

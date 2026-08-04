@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   title: "Syarat & Ketentuan",
   description:
     "Syarat dan ketentuan penggunaan layanan IntelliBase AI: ketentuan akun, deskripsi layanan, pembayaran dan langganan, serta batasan tanggung jawab.",
+  // No `openGraph` key — see the note in src/app/page.tsx.
   alternates: { canonical: "/terms" },
-  openGraph: { url: "/terms" },
 };
 
 export default function TermsLayout({ children }: { children: React.ReactNode }) {

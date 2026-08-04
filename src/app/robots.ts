@@ -19,11 +19,13 @@ const DISALLOWED = [
   "/two-factor",
   "/payment/",
   "/api/",
-  // Already `noindex` via their own metadata; listed so they are not crawled at
-  // all rather than crawled and then discarded.
-  "/maintenance",
-  "/analytics-optout",
 ];
+
+// Deliberately absent from DISALLOWED: /maintenance and /analytics-optout.
+// Both already carry `robots: { index: false }` in their own metadata, and
+// disallowing a page is what stops a crawler from ever fetching it — which
+// means never reading the noindex either. A blocked URL that someone links to
+// can still surface as a bare result; a crawlable one carrying noindex cannot.
 
 export default function robots(): MetadataRoute.Robots {
   return {

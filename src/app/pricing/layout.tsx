@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   title: "Harga & Paket Langganan",
   description:
     "Paket Starter gratis, Professional, dan Enterprise untuk knowledge base internal berbasis AI. Semua paket termasuk enkripsi data dan isolasi multi-tenant per perusahaan.",
+  // No `openGraph` key — see the note in src/app/page.tsx.
   alternates: { canonical: "/pricing" },
-  openGraph: { url: "/pricing" },
 };
 
 export default function PricingLayout({ children }: { children: React.ReactNode }) {
