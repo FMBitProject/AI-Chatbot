@@ -165,9 +165,12 @@ const PLATFORMS = {
     // Instagram rejects a post without media *and* without a type — verified
     // against the API: "Instagram posts require at least one image or video.,
     // Instagram posts require a type (post, story, or reel)."
+    // shouldShareToFeed is `Boolean!` — non-null, so it must be sent even for a
+    // plain feed post where it reads as redundant. Omitting it fails schema
+    // validation before any draft is created.
     extra: (item, weekOf) => ({
       assets: [{ image: { url: cardUrl(weekOf, item.day) } }],
-      metadata: { instagram: { type: "post" } },
+      metadata: { instagram: { type: "post", shouldShareToFeed: true } },
     }),
   },
 };
