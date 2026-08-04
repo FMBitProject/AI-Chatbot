@@ -155,9 +155,14 @@ const ITEM_SCHEMAS = {
       slot: slotField,
       angle: { type: "string", description: "Sudut pandang post ini, 5-10 kata." },
       caption: { type: "string", description: "Caption 60-100 kata." },
-      imageIdea: { type: "string", description: "Visual yang perlu dibuat/difoto — sekonkret mungkin." },
+      cardText: {
+        type: "string",
+        description:
+          "Teks yang DICETAK di gambar kartu, maksimal 90 karakter. Satu kalimat pancingan atau pertanyaan yang berdiri sendiri — bukan deskripsi visual, bukan instruksi. Ini yang dibaca orang di feed.",
+      },
+      imageIdea: { type: "string", description: "Catatan arahan visual singkat (untuk manusia, tidak dicetak)." },
     },
-    required: ["day", "slot", "angle", "caption", "imageIdea"],
+    required: ["day", "slot", "angle", "caption", "cardText", "imageIdea"],
     additionalProperties: false,
   },
 };
@@ -180,11 +185,10 @@ pendiri (ini halaman perusahaan).`,
 detik pertama.${MULTI_SLOT_NOTE}
 Karena videonya direkam manual, tulis shotNote sekonkret mungkin — sebutkan apa
 yang terlihat di layar, bukan sekadar "rekam wajah".`,
-  instagram: `${PER_PLATFORM} caption Instagram, satu per hari. Lebih personal dan lebih
-pendek dari LinkedIn.${MULTI_SLOT_NOTE}
-Karena gambarnya dibuat manual, imageIdea harus konkret dan realistis dibuat
-sendiri (screenshot produk, teks di latar polos, foto meja kerja) — bukan
-ilustrasi yang butuh desainer.`,
+  instagram: `${PER_PLATFORM} caption Instagram, satu per hari. Lebih pendek dari LinkedIn.${MULTI_SLOT_NOTE}
+Gambarnya dirender otomatis sebagai kartu teks berlatar teal, jadi cardText itu
+SATU kalimat yang akan tercetak besar di gambar — tulis yang bikin orang berhenti
+scroll, maksimal 90 karakter, dan jangan mengulang kalimat pertama caption.`,
 };
 
 // --- generate ---------------------------------------------------------------

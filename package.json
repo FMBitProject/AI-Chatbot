@@ -15,7 +15,8 @@
     "content:lint": "node scripts/content/lint.mjs",
     "content:channels": "node scripts/content/push-buffer.mjs --channels",
     "content:push": "node scripts/content/push-buffer.mjs",
-    "content:models": "node scripts/content/generate.mjs --list-models"
+    "content:models": "node scripts/content/generate.mjs --list-models",
+    "content:cards": "node scripts/content/render-cards.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.29",

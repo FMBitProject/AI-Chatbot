@@ -1,23 +1,27 @@
-// Pushes the LinkedIn half of a content pack into Buffer as DRAFTS.
+// Pushes a content pack into Buffer as DRAFTS — LinkedIn and Instagram.
 //
 //   node scripts/content/push-buffer.mjs --channels        # list channel IDs
 //   node scripts/content/push-buffer.mjs                   # push newest pack
 //   node scripts/content/push-buffer.mjs --week 2026-08-10
+//   node scripts/content/push-buffer.mjs --only linkedin
 //   node scripts/content/push-buffer.mjs --dry-run
 //
-// Drafts, not scheduled posts: this is AI-written copy going onto a personal
-// founder account, and the whole point of the claim lint is that we do not
-// fully trust generated text. You approve in Buffer before anything publishes.
+// Drafts, not scheduled posts: this is AI-written copy going onto the company's
+// own accounts, and the whole point of the claim lint is that we do not fully
+// trust generated text. You approve in Buffer before anything publishes.
 //
-// YouTube and Instagram are intentionally NOT pushed. Buffer's API has no media
-// upload — assets must already be at a public URL that stays reachable until
-// publish time — and neither network accepts a text-only post. Those two live
-// in the pack's .md until you have the video/image.
+// Instagram needs its card rendered and deployed FIRST — Buffer has no media
+// upload, so it fetches the image from our own site at publish time:
+//   npm run content:cards  ->  commit + push to main  ->  npm run content:push
+// The push refuses to run if the cards aren't reachable yet.
+//
+// YouTube is still not pushed: it needs an actual video file, which no amount of
+// rendering produces. Its script and metadata live in the pack's .md.
 // https://developers.buffer.com/guides/hosting-media.html
 
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join } from "path";
-import { grid } from "./schedule.mjs";
+import { grid, DAYS } from "./schedule.mjs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const PACKS_DIR = join(ROOT, "content", "packs");
@@ -144,45 +148,110 @@ const CREATE_POST = `
   }
 `;
 
-async function pushLinkedIn() {
-  const channelId = process.env.BUFFER_LINKEDIN_CHANNEL_ID || fromEnvFile("BUFFER_LINKEDIN_CHANNEL_ID");
+// Apex redirects 308 to www, so address www directly rather than relying on
+// Buffer's fetcher to follow redirects when it pulls the image at publish time.
+const ASSET_BASE = process.env.SOCIAL_ASSET_BASE_URL || fromEnvFile("SOCIAL_ASSET_BASE_URL") || "https://www.intellibaseai.com";
+
+const PLATFORMS = {
+  linkedin: {
+    envKey: "BUFFER_LINKEDIN_CHANNEL_ID",
+    text: (item) => item.text,
+    // LinkedIn accepts text-only posts, so nothing else is required.
+    extra: () => ({ assets: [] }),
+  },
+  instagram: {
+    envKey: "BUFFER_INSTAGRAM_CHANNEL_ID",
+    text: (item) => item.caption,
+    // Instagram rejects a post without media *and* without a type — verified
+    // against the API: "Instagram posts require at least one image or video.,
+    // Instagram posts require a type (post, story, or reel)."
+    extra: (item, weekOf) => ({
+      assets: [{ image: { url: cardUrl(weekOf, item.day) } }],
+      metadata: { instagram: { type: "post" } },
+    }),
+  },
+};
+
+function cardUrl(weekOf, day) {
+  const index = String(DAYS.indexOf(day) + 1).padStart(2, "0");
+  return `${ASSET_BASE}/social/${weekOf}/${index}-${day.toLowerCase()}.png`;
+}
+
+/**
+ * Buffer fetches the image when the post *publishes*, not when it is created —
+ * so a card that hasn't been deployed yet fails silently, days later, with the
+ * post already approved. Checking now turns that into an error you can act on.
+ */
+async function assertCardsLive(items, weekOf) {
+  const missing = [];
+  for (const item of items) {
+    const url = cardUrl(weekOf, item.day);
+    try {
+      const res = await fetch(url, { method: "HEAD", redirect: "follow" });
+      if (!res.ok) missing.push(`${url} (HTTP ${res.status})`);
+    } catch (err) {
+      missing.push(`${url} (${err.message})`);
+    }
+  }
+  if (missing.length) {
+    throw new Error(
+      `Gambar kartu belum bisa diakses publik (${missing.length}/${items.length}):\n` +
+        missing.map((m) => `  ${m}`).join("\n") +
+        `\n\n  Urutannya: \`npm run content:cards\` -> commit + push ke main ->\n` +
+        `  tunggu Vercel selesai deploy -> baru \`npm run content:push\`.\n` +
+        `  Buffer mengambil gambar saat post TERBIT, jadi URL-nya harus hidup sampai saat itu.`,
+    );
+  }
+}
+
+async function pushPlatform(name) {
+  const platform = PLATFORMS[name];
+  const channelId = process.env[platform.envKey] || fromEnvFile(platform.envKey);
   if (!channelId) {
-    console.error("BUFFER_LINKEDIN_CHANNEL_ID tidak diset.");
+    console.error(`${platform.envKey} tidak diset — ${name} dilewati.`);
     console.error("Jalankan `npm run content:channels` untuk melihat ID channel Anda.");
-    process.exit(2);
+    return { ok: 0, total: 0, skipped: true };
   }
 
   const { file, pack } = loadPack();
-  // Post in grid order (Senin pagi → Minggu sore) so the drafts list in Buffer
-  // reads in the order you'll publish them, not in whatever order the model emitted.
+  // Post in grid order (Senin → Minggu) so the drafts list in Buffer reads in
+  // the order you'll publish them, not in whatever order the model emitted.
   const order = new Map(grid().map(({ day, slot }, i) => [`${day}/${slot}`, i]));
-  const posts = [...(pack.linkedin ?? [])].sort(
+  const posts = [...(pack[name] ?? [])].sort(
     (a, b) => (order.get(`${a.day}/${a.slot}`) ?? 99) - (order.get(`${b.day}/${b.slot}`) ?? 99),
   );
+  if (!posts.length) {
+    console.log(`Paket ${file} tidak punya item ${name}.\n`);
+    return { ok: 0, total: 0 };
+  }
+
   const label = (p) => `${p.day}/${p.slot}`.padEnd(14);
-  console.log(`Paket ${file} — ${posts.length} post LinkedIn -> Buffer (draft)\n`);
+  console.log(`Paket ${file} — ${posts.length} post ${name} -> Buffer (draft)\n`);
 
   if (has("dry-run")) {
     for (const p of posts) {
-      console.log(`--- ${p.day} ${p.slot} (${p.angle}) ---\n${p.text}\n`);
+      console.log(`--- ${p.day} ${p.slot} (${p.angle}) ---\n${platform.text(p)}\n`);
+      if (name === "instagram") console.log(`    gambar: ${cardUrl(pack.weekOf, p.day)}\n`);
     }
-    console.log("(dry-run: tidak ada yang dikirim)");
-    return;
+    console.log("(dry-run: tidak ada yang dikirim)\n");
+    return { ok: 0, total: posts.length, dryRun: true };
   }
+
+  if (name === "instagram") await assertCardsLive(posts, pack.weekOf);
 
   let ok = 0;
   for (const p of posts) {
     const input = {
       channelId,
-      text: p.text,
+      text: platform.text(p),
       // addToQueue + saveToDraft: it lands in the drafts list, not the queue.
       // Nothing publishes until you approve it in Buffer.
       mode: "addToQueue",
       schedulingType: "automatic",
       saveToDraft: true,
       needsApproval: false,
-      assets: [],
       aiAssisted: true,
+      ...platform.extra(p, pack.weekOf),
     };
     const data = await gql(CREATE_POST, { input });
     const result = data.createPost;
@@ -194,14 +263,33 @@ async function pushLinkedIn() {
     }
   }
 
-  console.log(`\n${ok}/${posts.length} draft dibuat.`);
-  if (ok) console.log("Buka https://publish.buffer.com/drafts untuk baca & approve.");
-  if (ok < posts.length) process.exitCode = 1;
+  console.log(`\n${ok}/${posts.length} draft ${name} dibuat.\n`);
+  return { ok, total: posts.length };
 }
 
 try {
-  if (has("channels")) await listChannels();
-  else await pushLinkedIn();
+  if (has("channels")) {
+    await listChannels();
+  } else {
+    // --only linkedin / --only instagram to push one platform at a time.
+    const only = arg("only");
+    const targets = only ? only.split(",").map((s) => s.trim()) : Object.keys(PLATFORMS);
+    const unknown = targets.filter((t) => !PLATFORMS[t]);
+    if (unknown.length) {
+      console.error(`--only tidak mengenal: ${unknown.join(", ")}. Pilihan: ${Object.keys(PLATFORMS).join(", ")}`);
+      process.exit(2);
+    }
+
+    let ok = 0;
+    let total = 0;
+    for (const name of targets) {
+      const r = await pushPlatform(name);
+      ok += r.ok;
+      total += r.total;
+    }
+    if (ok) console.log("Buka https://publish.buffer.com/drafts untuk baca & approve.");
+    if (total && ok < total) process.exitCode = 1;
+  }
 } catch (err) {
   console.error(`\n${err.message}`);
   process.exit(1);
