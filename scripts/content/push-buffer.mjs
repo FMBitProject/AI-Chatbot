@@ -59,6 +59,17 @@ async function gql(query, variables) {
     body: JSON.stringify({ query, variables }),
   });
   if (!res.ok) {
+    // Buffer keys can be created with a 30/90-day expiry, and an expired one
+    // looks identical to a typo'd one: a bare 401. Say which it probably is,
+    // and that regenerating revokes whatever is currently in .env.local.
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(
+        `Buffer menolak API key (HTTP ${res.status}).\n` +
+          `  Kemungkinan: key salah tempel, sudah kedaluwarsa, atau permission-nya kurang.\n` +
+          `  Bikin/cek di https://publish.buffer.com/settings/api — ingat, membuat key baru\n` +
+          `  langsung mematikan key lama, jadi update BUFFER_API_KEY di .env.local sesudahnya.`,
+      );
+    }
     throw new Error(`Buffer API HTTP ${res.status}: ${(await res.text()).slice(0, 400)}`);
   }
   const body = await res.json();
