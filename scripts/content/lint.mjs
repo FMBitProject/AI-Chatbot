@@ -15,6 +15,35 @@
 import { readFileSync } from "fs";
 import { currentPrices, formatRupiah } from "./brand-facts.mjs";
 
+// Words that flip a match from "making the claim" to "refusing to make it".
+// The founder voice deliberately says things like "kami tidak mencantumkan
+// testimoni palsu" and "kami tidak mengklaim 100% aman" — good, on-brand copy
+// that a keyword-only check rejects. Matches inside a negated sentence are
+// downgraded to warnings rather than blocking the pack.
+const NEGATORS =
+  /\b(tidak|tak|bukan|tanpa|menolak|tolak|jangan|hindari|belum|palsu|mengada-ada|bohong|klaim kosong|no fake)\b/i;
+
+// The window negation is judged in: the sentence containing the match, plus the
+// one after it. The refusal usually lands in the *next* sentence — "...mengklaim
+// dipakai oleh ratusan tim. Saya menolak semua itu." — so a single-sentence
+// window misses the most common shape. Kept to two sentences so a "tidak" from
+// elsewhere in the post can't excuse a claim; and because a negated match is
+// still printed as a warning, erring wide costs a glance, not a bad post.
+function nextMark(text, from) {
+  const positions = [".", "\n", "?", "!"]
+    .map((m) => text.indexOf(m, from))
+    .filter((i) => i !== -1);
+  return positions.length ? Math.min(...positions) : -1;
+}
+
+function sentenceAround(text, index) {
+  const start = Math.max(0, text.lastIndexOf(".", index), text.lastIndexOf("\n", index), text.lastIndexOf("?", index));
+  const firstEnd = nextMark(text, index);
+  if (firstEnd === -1) return text.slice(start);
+  const secondEnd = nextMark(text, firstEnd + 1);
+  return text.slice(start, (secondEnd === -1 ? text.length : secondEnd) + 1);
+}
+
 const RULES = [
   {
     id: "search-time-stat",
@@ -30,12 +59,21 @@ const RULES = [
   },
   {
     id: "used-by",
-    pattern: /di(?:pakai|gunakan)\s+(?:oleh|di)\b/i,
+    // Only an adoption claim about someone else. "digunakan di kantor Anda" is
+    // addressed to the reader — that is a question about them, not a claim
+    // about our customers, and it is normal copy.
+    pattern: /di(?:pakai|gunakan)\s+(?:oleh|di)\s+(?!(?:\w+\s+)?Anda\b)/i,
     why: 'Belum ada pelanggan. Tulis "cocok untuk", bukan "dipakai oleh".',
   },
   {
     id: "customer-count",
-    pattern: /\b\d+\s*\+?\s*(perusahaan|klien|pelanggan|tim|user|pengguna)\b(?![^.]*\bkaryawan\b)/i,
+    // Must be an *adoption* claim, not any number next to a business noun.
+    // "5 pengguna" is the Starter plan limit and is explicitly allowed, so the
+    // rule keys on the adoption verb and excludes nouns that appear in plan
+    // limits (pengguna/user/tim). An earlier, broader version rejected our own
+    // approved pricing copy on the first real run.
+    pattern:
+      /(sudah|telah|lebih dari|sekitar|hampir|bergabung|mempercayai|dipercaya|melayani)\s+(oleh\s+)?\d+\s*\+?\s*(perusahaan|klien|pelanggan|bisnis)\b|\b\d+\s*\+?\s*(perusahaan|klien|pelanggan|bisnis)\s+(sudah|telah|kami|mempercayai|bergabung)/i,
     why: "Menyiratkan jumlah pelanggan. Pelanggan berbayar masih nol.",
   },
   {
@@ -58,6 +96,9 @@ const RULES = [
     // The one claim that is actively false: documents do leave, to Gemini and Groq.
     pattern: /(tidak|tak|nggak|ga)\s+(pernah\s+)?(keluar|meninggalkan)\s+(dari\s+)?(perusahaan|kantor|server|infrastruktur)|(tetap|hanya)\s+(di|ada di)\s+(server|infrastruktur)\s+(Anda|perusahaan)/i,
     why: "Salah secara faktual: dokumen dikirim ke Gemini (indexing) dan Groq (jawaban). Lihat brand-facts.mjs.",
+    // The pattern already contains the negation ("tidak keluar"), so negation
+    // handling would exempt this rule from itself. Always blocking.
+    negationAware: false,
   },
 ];
 
@@ -83,14 +124,21 @@ function checkPrices(text, now) {
     }));
 }
 
-/** Returns an array of violations; empty array means clean. */
+/**
+ * Returns violations; empty array means clean. Each carries `negated: true`
+ * when the match sits in a sentence that refuses the claim — callers treat
+ * those as warnings to eyeball rather than reasons to reject the pack.
+ */
 export function lintText(text, now = new Date()) {
   const violations = [];
   for (const rule of RULES) {
     const m = text.match(rule.pattern);
-    if (m) violations.push({ id: rule.id, match: m[0].trim(), why: rule.why });
+    if (!m) continue;
+    const negated =
+      rule.negationAware !== false && NEGATORS.test(sentenceAround(text, m.index ?? 0));
+    violations.push({ id: rule.id, match: m[0].trim(), why: rule.why, negated });
   }
-  violations.push(...checkPrices(text, now));
+  violations.push(...checkPrices(text, now).map((v) => ({ ...v, negated: false })));
   return violations;
 }
 
@@ -122,9 +170,17 @@ export function lintPack(pack, now = new Date()) {
   return problems;
 }
 
-export function formatProblems(problems) {
+/** Splits lint output into blocking violations and negated matches to eyeball. */
+export function splitProblems(problems) {
+  return {
+    blocking: problems.filter((p) => !p.negated),
+    warnings: problems.filter((p) => p.negated),
+  };
+}
+
+export function formatProblems(problems, mark = "✗") {
   return problems
-    .map((p) => `  ✗ ${p.where ? p.where + " — " : ""}[${p.id}] "${p.match}"\n      ${p.why}`)
+    .map((p) => `  ${mark} ${p.where ? p.where + " — " : ""}[${p.id}] "${p.match}"\n      ${p.why}`)
     .join("\n");
 }
 
@@ -142,12 +198,17 @@ if (isMain) {
     const problems = file.endsWith(".json")
       ? lintPack(JSON.parse(raw))
       : lintText(raw).map((v) => ({ where: file, ...v }));
-    if (problems.length) {
+    const { blocking, warnings } = splitProblems(problems);
+    if (blocking.length) {
       console.error(`\n${file}:`);
-      console.error(formatProblems(problems));
-      total += problems.length;
+      console.error(formatProblems(blocking));
+      total += blocking.length;
     } else {
       console.log(`✓ ${file} — bersih`);
+    }
+    if (warnings.length) {
+      console.warn(`\n${file} — kalimat menyangkal klaim (cek sekilas, tidak memblokir):`);
+      console.warn(formatProblems(warnings, "⚠"));
     }
   }
   if (total > 0) {
