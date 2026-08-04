@@ -105,18 +105,20 @@ export function lintPack(pack, now = new Date()) {
     for (const v of lintText(text, now)) problems.push({ where, ...v });
   };
 
-  (pack.linkedin ?? []).forEach((post, i) => {
-    visit(`linkedin[${i}] (${post.day ?? "?"})`, post.text);
-  });
+  // Label by day/slot rather than array index — with 14 items per platform,
+  // "linkedin[9]" tells you nothing about which post to go fix.
+  const at = (platform, item, i) =>
+    `${platform} ${item.day ?? "?"}/${item.slot ?? `#${i}`}`;
+
+  (pack.linkedin ?? []).forEach((p, i) => visit(at("linkedin", p, i), p.text));
   (pack.youtube ?? []).forEach((v, i) => {
-    visit(`youtube[${i}] title`, v.title);
-    visit(`youtube[${i}] hook`, v.hook);
-    visit(`youtube[${i}] script`, v.script);
-    visit(`youtube[${i}] description`, v.description);
+    const w = at("youtube", v, i);
+    visit(`${w} title`, v.title);
+    visit(`${w} hook`, v.hook);
+    visit(`${w} script`, v.script);
+    visit(`${w} description`, v.description);
   });
-  (pack.instagram ?? []).forEach((v, i) => {
-    visit(`instagram[${i}] caption`, v.caption);
-  });
+  (pack.instagram ?? []).forEach((v, i) => visit(at("instagram", v, i), v.caption));
   return problems;
 }
 

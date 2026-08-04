@@ -1,7 +1,15 @@
 # Otomasi konten media sosial
 
-Claude menulis paket konten mingguan (Senin/Selasa/Rabu); post LinkedIn dikirim
-otomatis ke Buffer sebagai **draft** untuk Anda approve.
+Claude menulis paket konten mingguan — **Senin–Minggu, 1 post per hari, untuk
+LinkedIn + YouTube + Instagram = 21 item/minggu**, tayang **16.15 WIB**. Post
+LinkedIn dikirim otomatis ke Buffer sebagai **draft** untuk Anda approve.
+
+Cadence dan jamnya ada di `schedule.mjs` — ubah di situ saja, semua file lain
+membaca bentuknya dari sana.
+
+> **Perhatikan beban produksinya.** Tulisannya otomatis, medianya tidak: 7 video
+> Shorts + 7 gambar Instagram per minggu tetap Anda buat sendiri (lihat bagian di
+> bawah). Kalau itu terlalu berat, jalankan `--only linkedin` di hari-hari sibuk.
 
 ## Setup (sekali)
 
@@ -17,7 +25,7 @@ otomatis ke Buffer sebagai **draft** untuk Anda approve.
 ```bash
 npm run content:generate     # tulis paket untuk Senin minggu depan
                              # -> content/packs/<senin>.md  <- baca ini
-npm run content:push         # kirim 3 post LinkedIn ke Buffer sebagai draft
+npm run content:push         # kirim 7 post LinkedIn ke Buffer sebagai draft
 ```
 
 Lalu buka <https://publish.buffer.com/drafts>, baca, approve.
@@ -53,8 +61,9 @@ kenal. Halaman depan pernah harus ditarik ulang gara-gara klaim yang tidak bisa
 dibuktikan — mata manusia tetap jadi gerbang terakhir.
 
 Untuk mengubahnya jadi langsung terjadwal: di `push-buffer.mjs` ganti
-`saveToDraft: true` menjadi `mode: "customScheduled"` + `dueAt` (ISO 8601 UTC;
-07.30 WIB = `T00:30:00.000Z`).
+`saveToDraft: true` menjadi `mode: "customScheduled"` + `dueAt`, dan ambil
+timestamp-nya dari `slotDueAt(weekOf, p.day, p.slot)` di `schedule.mjs` — fungsi
+itu sudah menghitung konversi WIB→UTC (16.15 WIB = `T09:15:00.000Z`).
 
 ## File
 

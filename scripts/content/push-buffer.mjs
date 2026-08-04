@@ -17,6 +17,7 @@
 
 import { readFileSync, readdirSync, existsSync } from "fs";
 import { join } from "path";
+import { grid } from "./schedule.mjs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const PACKS_DIR = join(ROOT, "content", "packs");
@@ -137,12 +138,18 @@ async function pushLinkedIn() {
   }
 
   const { file, pack } = loadPack();
-  const posts = pack.linkedin ?? [];
+  // Post in grid order (Senin pagi → Minggu sore) so the drafts list in Buffer
+  // reads in the order you'll publish them, not in whatever order the model emitted.
+  const order = new Map(grid().map(({ day, slot }, i) => [`${day}/${slot}`, i]));
+  const posts = [...(pack.linkedin ?? [])].sort(
+    (a, b) => (order.get(`${a.day}/${a.slot}`) ?? 99) - (order.get(`${b.day}/${b.slot}`) ?? 99),
+  );
+  const label = (p) => `${p.day}/${p.slot}`.padEnd(14);
   console.log(`Paket ${file} — ${posts.length} post LinkedIn -> Buffer (draft)\n`);
 
   if (has("dry-run")) {
     for (const p of posts) {
-      console.log(`--- ${p.day} (${p.angle}) ---\n${p.text}\n`);
+      console.log(`--- ${p.day} ${p.slot} (${p.angle}) ---\n${p.text}\n`);
     }
     console.log("(dry-run: tidak ada yang dikirim)");
     return;
@@ -165,10 +172,10 @@ async function pushLinkedIn() {
     const data = await gql(CREATE_POST, { input });
     const result = data.createPost;
     if (result.__typename === "PostActionSuccess") {
-      console.log(`  ✓ ${p.day} — draft ${result.post.id} (${result.post.status})`);
+      console.log(`  ✓ ${label(p)} draft ${result.post.id} (${result.post.status})`);
       ok++;
     } else {
-      console.error(`  ✗ ${p.day} — ditolak Buffer: ${result.message}`);
+      console.error(`  ✗ ${label(p)} ditolak Buffer: ${result.message}`);
     }
   }
 

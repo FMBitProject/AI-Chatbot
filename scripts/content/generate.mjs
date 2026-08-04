@@ -1,25 +1,32 @@
-// Generates one week's content pack (Senin/Selasa/Rabu) with Claude.
+// Generates one week's content pack with Claude: Senin–Minggu, 2 post per hari,
+// untuk LinkedIn + YouTube + Instagram (42 item).
 //
 //   node scripts/content/generate.mjs [--week 2026-08-10] [--topic "..."]
+//                                     [--only linkedin,instagram]
 //
 // Writes two files to content/packs/:
 //   <monday>.json  — machine-readable, consumed by push-buffer.mjs
 //   <monday>.md    — what you actually read before approving
 //
+// One API call per platform, run in parallel. 42 items in a single response
+// would be a ~20k-token generation where quality drifts badly by the end, and a
+// single bad item would mean regenerating all three platforms. Per-platform
+// calls stay focused and let you retry just the one that came out wrong.
+//
 // Packs are committed on purpose: the last few weeks are fed back into the
-// prompt so the model stops re-pitching the same angle every Monday.
+// prompt so the model stops re-pitching the same angle.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { buildSystemPrompt } from "./brand-facts.mjs";
 import { lintPack, formatProblems } from "./lint.mjs";
+import { DAYS, SLOTS, SLOT_IDS, PLATFORMS, PER_PLATFORM, grid } from "./schedule.mjs";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const PACKS_DIR = join(ROOT, "content", "packs");
 const MODEL = "claude-opus-5";
 
-// --- env, with the .env.local fallback the other scripts in this repo use ----
 function fromEnvFile(key) {
   try {
     const file = readFileSync(join(ROOT, ".env.local"), "utf8");
@@ -34,12 +41,11 @@ function fromEnvFile(key) {
 
 // --- args -------------------------------------------------------------------
 const args = process.argv.slice(2);
-function arg(name) {
-  const i = args.indexOf(`--${name}`);
+const arg = (n) => {
+  const i = args.indexOf(`--${n}`);
   return i !== -1 ? args[i + 1] : undefined;
-}
+};
 
-// Defaults to the Monday of next week — you generate on Fri/Sat for the week ahead.
 function nextMonday(from = new Date()) {
   const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
   const daysUntilMonday = ((8 - d.getUTCDay()) % 7) || 7;
@@ -53,87 +59,100 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(weekOf)) {
   process.exit(2);
 }
 const topicHint = arg("topic");
+const only = arg("only")?.split(",").map((s) => s.trim()).filter(Boolean);
+if (only?.some((p) => !PLATFORMS.includes(p))) {
+  console.error(`--only hanya menerima: ${PLATFORMS.join(", ")}`);
+  process.exit(2);
+}
+const targets = only ?? PLATFORMS;
 
 // --- what we already published ----------------------------------------------
-// Only the angles, not the full text: enough for the model to avoid repeating
-// itself without spending the context window on four weeks of prose.
-function recentAngles(limit = 4) {
+function recentAngles(limit = 2) {
   if (!existsSync(PACKS_DIR)) return [];
-  const files = readdirSync(PACKS_DIR)
-    .filter((f) => f.endsWith(".json"))
-    .sort()
-    .slice(-limit);
+  const files = readdirSync(PACKS_DIR).filter((f) => f.endsWith(".json")).sort().slice(-limit);
   return files.flatMap((f) => {
     try {
       const pack = JSON.parse(readFileSync(join(PACKS_DIR, f), "utf8"));
-      return (pack.linkedin ?? []).map((p) => `${pack.weekOf ?? f}: ${p.angle}`);
+      return (pack.linkedin ?? []).map((p) => p.angle).filter(Boolean);
     } catch {
       return [];
     }
   });
 }
 
-// --- output shape -----------------------------------------------------------
-// Note: JSON-schema array length constraints are not supported by structured
-// outputs, so the "exactly 3" requirement lives in the prompt and is re-checked
-// in code below.
-const DAYS = ["Senin", "Selasa", "Rabu"];
+// --- output shapes ----------------------------------------------------------
+// Array length can't be constrained by JSON schema here (structured outputs
+// doesn't support minItems/maxItems), so the count lives in the prompt and is
+// re-checked against the grid in code.
+const dayField = { type: "string", enum: DAYS };
+const slotField = {
+  type: "string",
+  enum: SLOT_IDS,
+  description: `Slot posting: ${SLOTS.map((s) => `${s.id} (${s.wib} WIB)`).join(", ")}.`,
+};
 
-const PACK_SCHEMA = {
-  type: "object",
-  properties: {
-    theme: {
-      type: "string",
-      description: "Benang merah minggu ini dalam satu kalimat pendek.",
+const ITEM_SCHEMAS = {
+  linkedin: {
+    type: "object",
+    properties: {
+      day: dayField,
+      slot: slotField,
+      angle: { type: "string", description: "Sudut pandang post ini, 5-10 kata." },
+      text: { type: "string", description: "Isi post lengkap siap posting, 120-200 kata, diakhiri satu pertanyaan terbuka." },
     },
-    linkedin: {
-      type: "array",
-      description: "Tepat 3 post, satu untuk Senin, Selasa, Rabu (berurutan).",
-      items: {
-        type: "object",
-        properties: {
-          day: { type: "string", enum: DAYS },
-          angle: { type: "string", description: "Sudut pandang post ini, 5-10 kata." },
-          text: { type: "string", description: "Isi post lengkap, siap posting, 120-200 kata, diakhiri satu pertanyaan terbuka." },
-        },
-        required: ["day", "angle", "text"],
-        additionalProperties: false,
-      },
-    },
-    youtube: {
-      type: "array",
-      description: "Tepat 3 YouTube Shorts.",
-      items: {
-        type: "object",
-        properties: {
-          day: { type: "string", enum: DAYS },
-          title: { type: "string", description: "Judul video, maksimal 60 karakter." },
-          hook: { type: "string", description: "Kalimat pembuka 3 detik pertama." },
-          script: { type: "string", description: "Skrip lengkap untuk dibaca, 45-60 detik." },
-          description: { type: "string", description: "Deskripsi video YouTube." },
-          shotNote: { type: "string", description: "Petunjuk singkat apa yang perlu terlihat di layar." },
-        },
-        required: ["day", "title", "hook", "script", "description", "shotNote"],
-        additionalProperties: false,
-      },
-    },
-    instagram: {
-      type: "array",
-      description: "Tepat 3 caption Instagram.",
-      items: {
-        type: "object",
-        properties: {
-          day: { type: "string", enum: DAYS },
-          caption: { type: "string", description: "Caption 60-100 kata." },
-          imageIdea: { type: "string", description: "Ide visual yang perlu dibuat/difoto." },
-        },
-        required: ["day", "caption", "imageIdea"],
-        additionalProperties: false,
-      },
-    },
+    required: ["day", "slot", "angle", "text"],
+    additionalProperties: false,
   },
-  required: ["theme", "linkedin", "youtube", "instagram"],
-  additionalProperties: false,
+  youtube: {
+    type: "object",
+    properties: {
+      day: dayField,
+      slot: slotField,
+      angle: { type: "string", description: "Sudut pandang video ini, 5-10 kata." },
+      title: { type: "string", description: "Judul video, maksimal 60 karakter." },
+      hook: { type: "string", description: "Kalimat pembuka 3 detik pertama." },
+      script: { type: "string", description: "Skrip lengkap untuk dibaca keras, 45-60 detik." },
+      description: { type: "string", description: "Deskripsi video YouTube." },
+      shotNote: { type: "string", description: "Apa yang perlu terlihat di layar — sekonkret mungkin, ini yang Anda rekam." },
+    },
+    required: ["day", "slot", "angle", "title", "hook", "script", "description", "shotNote"],
+    additionalProperties: false,
+  },
+  instagram: {
+    type: "object",
+    properties: {
+      day: dayField,
+      slot: slotField,
+      angle: { type: "string", description: "Sudut pandang post ini, 5-10 kata." },
+      caption: { type: "string", description: "Caption 60-100 kata." },
+      imageIdea: { type: "string", description: "Visual yang perlu dibuat/difoto — sekonkret mungkin." },
+    },
+    required: ["day", "slot", "angle", "caption", "imageIdea"],
+    additionalProperties: false,
+  },
+};
+
+// Guidance that only makes sense when a day has more than one slot. Kept
+// conditional so changing SLOTS in schedule.mjs doesn't leave the prompt telling
+// the model about an evening post that no longer exists.
+const MULTI_SLOT_NOTE =
+  SLOTS.length > 1
+    ? `\nSlot ${SLOTS[0].id} = post utama, lebih substansial. Slot berikutnya lebih ringan dan
+pendek — satu observasi atau satu pertanyaan, bukan pengulangan post sebelumnya.`
+    : "";
+
+const PLATFORM_BRIEF = {
+  linkedin: `${PER_PLATFORM} post LinkedIn, satu per hari.${MULTI_SLOT_NOTE}
+Sabtu & Minggu jauh lebih santai: refleksi membangun produk, bukan edukasi produk.`,
+  youtube: `${PER_PLATFORM} YouTube Shorts, satu per hari. Satu ide per video, hook di 3
+detik pertama.${MULTI_SLOT_NOTE}
+Karena videonya direkam manual, tulis shotNote sekonkret mungkin — sebutkan apa
+yang terlihat di layar, bukan sekadar "rekam wajah".`,
+  instagram: `${PER_PLATFORM} caption Instagram, satu per hari. Lebih personal dan lebih
+pendek dari LinkedIn.${MULTI_SLOT_NOTE}
+Karena gambarnya dibuat manual, imageIdea harus konkret dan realistis dibuat
+sendiri (screenshot produk, teks di latar polos, foto meja kerja) — bukan
+ilustrasi yang butuh desainer.`,
 };
 
 // --- generate ---------------------------------------------------------------
@@ -145,64 +164,114 @@ if (!apiKey) {
 const client = new Anthropic({ apiKey });
 
 const previous = recentAngles();
-const userPrompt = [
-  `Buat paket konten untuk minggu yang dimulai Senin ${weekOf}.`,
-  "",
-  "Isinya: 3 post LinkedIn (Senin, Selasa, Rabu), 3 skrip YouTube Shorts, dan 3 caption Instagram.",
-  "Ketiga hari boleh saling menyambung sebagai satu tema, tapi tiap post harus berdiri sendiri —",
-  "pembaca Selasa belum tentu lihat post Senin.",
-  "",
-  "Untuk YouTube dan Instagram: videonya dan gambarnya dibuat manual, jadi tulis juga",
-  "petunjuk singkat apa yang perlu direkam/difoto.",
-  topicHint ? `\nTopik yang diminta minggu ini: ${topicHint}` : "",
-  previous.length
-    ? `\nSudut pandang yang SUDAH dipakai di minggu-minggu sebelumnya — jangan diulang:\n${previous.map((a) => `- ${a}`).join("\n")}`
-    : "",
-].join("\n");
+const gridLines = grid().map(({ day, slot }) => `- ${day} / ${slot}`).join("\n");
 
-console.log(`Menulis paket untuk minggu ${weekOf} dengan ${MODEL}...`);
+async function generatePlatform(platform) {
+  const userPrompt = [
+    `Buat konten ${platform.toUpperCase()} untuk minggu yang dimulai Senin ${weekOf}.`,
+    ``,
+    PLATFORM_BRIEF[platform],
+    ``,
+    `Isi TEPAT ${PER_PLATFORM} slot berikut, masing-masing satu item, tanpa ada yang terlewat:`,
+    gridLines,
+    ``,
+    `Seminggu ini boleh punya satu benang merah, tapi tiap item harus berdiri sendiri —`,
+    `pembaca hari Kamis belum tentu melihat post hari Senin. Jangan ada dua item yang`,
+    `mengulang sudut pandang yang sama.`,
+    topicHint ? `\nTopik yang diminta minggu ini: ${topicHint}` : "",
+    previous.length
+      ? `\nSudut pandang yang SUDAH dipakai minggu-minggu sebelumnya — jangan diulang:\n${previous.map((a) => `- ${a}`).join("\n")}`
+      : "",
+  ].join("\n");
+
+  const stream = client.messages.stream({
+    model: MODEL,
+    max_tokens: 32000,
+    system: buildSystemPrompt(),
+    messages: [{ role: "user", content: userPrompt }],
+    output_config: {
+      format: {
+        type: "json_schema",
+        schema: {
+          type: "object",
+          properties: {
+            theme: { type: "string", description: "Benang merah minggu ini untuk platform ini, satu kalimat." },
+            items: { type: "array", items: ITEM_SCHEMAS[platform] },
+          },
+          required: ["theme", "items"],
+          additionalProperties: false,
+        },
+      },
+    },
+  });
+
+  const message = await stream.finalMessage();
+  if (message.stop_reason === "refusal") throw new Error(`${platform}: model menolak permintaan ini.`);
+  if (message.stop_reason === "max_tokens") throw new Error(`${platform}: output terpotong — naikkan max_tokens.`);
+
+  const textBlock = message.content.find((b) => b.type === "text");
+  if (!textBlock) throw new Error(`${platform}: tidak ada teks di respons model.`);
+  const parsed = JSON.parse(textBlock.text);
+  return { platform, ...parsed, usage: message.usage };
+}
+
+console.log(`Menulis paket minggu ${weekOf} — ${DAYS.length} hari × ${SLOTS.length} slot × ${targets.length} platform = ${PER_PLATFORM * targets.length} item`);
+console.log(`Model ${MODEL}, ${targets.length} panggilan paralel (${targets.join(", ")})...`);
 if (previous.length) console.log(`(menghindari ${previous.length} sudut pandang lama)`);
 
-// Streaming: thinking is on by default on Opus 5 and counts against max_tokens,
-// so a non-streaming call at this budget risks an HTTP timeout.
-const stream = client.messages.stream({
+const settled = await Promise.allSettled(targets.map(generatePlatform));
+const failures = settled.filter((r) => r.status === "rejected");
+if (failures.length) {
+  for (const f of failures) console.error(`✗ ${f.reason.message}`);
+  console.error("\nTidak ada yang disimpan. Jalankan ulang, atau pakai --only untuk platform yang gagal saja.");
+  process.exit(1);
+}
+const results = settled.map((r) => r.value);
+
+// --- assemble ---------------------------------------------------------------
+const pack = {
+  weekOf,
+  generatedAt: new Date().toISOString(),
   model: MODEL,
-  max_tokens: 32000,
-  system: buildSystemPrompt(),
-  messages: [{ role: "user", content: userPrompt }],
-  output_config: { format: { type: "json_schema", schema: PACK_SCHEMA } },
-});
-const message = await stream.finalMessage();
+  theme: Object.fromEntries(results.map((r) => [r.platform, r.theme])),
+};
+for (const r of results) pack[r.platform] = r.items;
 
-if (message.stop_reason === "refusal") {
-  console.error("Model menolak permintaan ini. Ubah topik lalu coba lagi.");
-  process.exit(1);
+// Carry over platforms this run skipped, so --only tops up an existing pack
+// instead of quietly deleting the other two thirds of the week.
+const existingPath = join(PACKS_DIR, `${weekOf}.json`);
+if (only && existsSync(existingPath)) {
+  const prior = JSON.parse(readFileSync(existingPath, "utf8"));
+  for (const p of PLATFORMS) {
+    if (!targets.includes(p) && prior[p]) {
+      pack[p] = prior[p];
+      pack.theme[p] = prior.theme?.[p] ?? prior.theme;
+    }
+  }
+  console.log(`(menggabungkan dengan paket ${weekOf} yang sudah ada)`);
 }
-if (message.stop_reason === "max_tokens") {
-  console.error("Output terpotong (max_tokens). Naikkan max_tokens di generate.mjs.");
-  process.exit(1);
-}
-
-const textBlock = message.content.find((b) => b.type === "text");
-if (!textBlock) {
-  console.error("Tidak ada teks di respons model.");
-  process.exit(1);
-}
-const pack = { weekOf, generatedAt: new Date().toISOString(), model: MODEL, ...JSON.parse(textBlock.text) };
 
 // --- validate ---------------------------------------------------------------
-for (const key of ["linkedin", "youtube", "instagram"]) {
-  if (pack[key]?.length !== 3) {
-    console.error(`Model mengembalikan ${pack[key]?.length ?? 0} item untuk "${key}", harusnya 3. Jalankan ulang.`);
-    process.exit(1);
+const expected = grid();
+let invalid = false;
+for (const platform of targets) {
+  const items = pack[platform] ?? [];
+  const seen = new Set(items.map((i) => `${i.day}/${i.slot}`));
+  const missing = expected.filter(({ day, slot }) => !seen.has(`${day}/${slot}`));
+  if (items.length !== PER_PLATFORM || missing.length) {
+    invalid = true;
+    console.error(`✗ ${platform}: ${items.length}/${PER_PLATFORM} item.`);
+    if (missing.length) console.error(`  slot kosong: ${missing.map((m) => `${m.day}/${m.slot}`).join(", ")}`);
   }
 }
+if (invalid) {
+  console.error("\nTidak disimpan. Jalankan ulang dengan --only untuk platform yang bermasalah.");
+  process.exit(1);
+}
 
-// Every LinkedIn post is supposed to end in a question — that is the whole
-// discovery-interview mechanic, and it is cheap to check.
-const missingQuestion = pack.linkedin.filter((p) => !p.text.trimEnd().endsWith("?"));
+const missingQuestion = (pack.linkedin ?? []).filter((p) => !p.text.trimEnd().endsWith("?"));
 if (missingQuestion.length) {
-  console.warn(`⚠ ${missingQuestion.length} post LinkedIn tidak diakhiri pertanyaan (${missingQuestion.map((p) => p.day).join(", ")}).`);
+  console.warn(`⚠ ${missingQuestion.length} post LinkedIn tidak diakhiri pertanyaan: ${missingQuestion.map((p) => `${p.day}/${p.slot}`).join(", ")}`);
 }
 
 const problems = lintPack(pack);
@@ -215,54 +284,64 @@ if (problems.length) {
 
 // --- write ------------------------------------------------------------------
 mkdirSync(PACKS_DIR, { recursive: true });
-const jsonPath = join(PACKS_DIR, `${weekOf}.json`);
-const mdPath = join(PACKS_DIR, `${weekOf}.md`);
+writeFileSync(existingPath, JSON.stringify(pack, null, 2) + "\n");
 
-writeFileSync(jsonPath, JSON.stringify(pack, null, 2) + "\n");
+const byDaySlot = (platform, day, slot) =>
+  (pack[platform] ?? []).find((i) => i.day === day && i.slot === slot);
 
 const md = [
   `# Konten minggu ${weekOf}`,
   ``,
-  `**Tema:** ${pack.theme}`,
+  ...PLATFORMS.filter((p) => pack.theme?.[p]).map((p) => `**Tema ${p}:** ${pack.theme[p]}`),
   ``,
   `> Dibuat ${new Date(pack.generatedAt).toLocaleString("id-ID")} dengan ${pack.model}.`,
   `> LinkedIn dikirim ke Buffer sebagai draft lewat \`npm run content:push\`.`,
   `> YouTube & Instagram butuh video/gambar dulu — Buffer tidak bisa upload media.`,
   ``,
-  `## LinkedIn`,
-  ...pack.linkedin.flatMap((p) => [``, `### ${p.day} — ${p.angle}`, ``, p.text, ``]),
-  `## YouTube Shorts`,
-  ...pack.youtube.flatMap((v) => [
+  `Beban produksi minggu ini: **${(pack.youtube ?? []).length} video** + **${(pack.instagram ?? []).length} gambar**.`,
+  ``,
+  ...DAYS.flatMap((day) => [
+    `---`,
     ``,
-    `### ${v.day} — ${v.title}`,
-    ``,
-    `**Hook:** ${v.hook}`,
-    ``,
-    `**Perlu direkam:** ${v.shotNote}`,
-    ``,
-    `**Skrip:**`,
-    ``,
-    v.script,
-    ``,
-    `**Deskripsi:**`,
-    ``,
-    v.description,
-    ``,
-  ]),
-  `## Instagram`,
-  ...pack.instagram.flatMap((v) => [
-    ``,
-    `### ${v.day}`,
-    ``,
-    `**Perlu dibuat:** ${v.imageIdea}`,
-    ``,
-    v.caption,
-    ``,
+    `# ${day}`,
+    ...SLOTS.flatMap((slot) => {
+      const li = byDaySlot("linkedin", day, slot.id);
+      const yt = byDaySlot("youtube", day, slot.id);
+      const ig = byDaySlot("instagram", day, slot.id);
+      return [
+        ``,
+        `## ${slot.label} — ${slot.wib} WIB`,
+        ...(li ? [``, `### LinkedIn — ${li.angle}`, ``, li.text, ``] : []),
+        ...(yt
+          ? [
+              ``,
+              `### YouTube Shorts — ${yt.title}`,
+              ``,
+              `**Hook:** ${yt.hook}`,
+              ``,
+              `**Perlu direkam:** ${yt.shotNote}`,
+              ``,
+              `**Skrip:**`,
+              ``,
+              yt.script,
+              ``,
+              `**Deskripsi:**`,
+              ``,
+              yt.description,
+              ``,
+            ]
+          : []),
+        ...(ig
+          ? [``, `### Instagram`, ``, `**Perlu dibuat:** ${ig.imageIdea}`, ``, ig.caption, ``]
+          : []),
+      ];
+    }),
   ]),
 ].join("\n");
-writeFileSync(mdPath, md);
+writeFileSync(join(PACKS_DIR, `${weekOf}.md`), md);
 
-const usage = message.usage;
-console.log(`\n✓ Tersimpan:\n  ${mdPath}   <- baca ini\n  ${jsonPath}`);
-console.log(`  token: ${usage.input_tokens} in / ${usage.output_tokens} out`);
-console.log(`\nLangkah berikutnya: baca ${weekOf}.md, lalu \`npm run content:push\` untuk kirim LinkedIn ke Buffer sebagai draft.`);
+const totalIn = results.reduce((s, r) => s + r.usage.input_tokens, 0);
+const totalOut = results.reduce((s, r) => s + r.usage.output_tokens, 0);
+console.log(`\n✓ Tersimpan:\n  ${join(PACKS_DIR, `${weekOf}.md`)}   <- baca ini\n  ${existingPath}`);
+console.log(`  token: ${totalIn} in / ${totalOut} out`);
+console.log(`\nLangkah berikutnya: baca ${weekOf}.md, lalu \`npm run content:push\` untuk kirim ${(pack.linkedin ?? []).length} post LinkedIn ke Buffer sebagai draft.`);
