@@ -446,9 +446,9 @@ export default function ROIPage() {
     : Math.max(0, results.savingsWithAI - recommendedPlan.price);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Navbar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
@@ -467,20 +467,20 @@ export default function ROIPage() {
       </nav>
 
       {/* Hero */}
-      <section className="text-center py-16 px-6 bg-gradient-to-b from-teal-50 via-white to-white">
+      <section className="text-center py-14 px-6">
         <div className="max-w-3xl mx-auto">
           <span className="inline-flex items-center gap-1.5 bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-5">
             <Calculator className="h-3.5 w-3.5" />
             {T.badge}
           </span>
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">{T.title}</h1>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">{T.title}</h1>
           <p className="text-gray-500 text-lg leading-relaxed">{T.subtitle}</p>
         </div>
       </section>
 
       {/* Calculator — inputs */}
       <section className="max-w-6xl mx-auto px-6 pb-6">
-        <div className="bg-white rounded-2xl border p-8 shadow-sm">
+        <div className="bg-raised rounded-2xl border border-hairline p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-8">
             <div className="p-2 bg-teal-50 rounded-lg">
               <Users className="h-5 w-5 text-teal-600" />
@@ -577,7 +577,7 @@ export default function ROIPage() {
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
-        <h2 className="text-3xl font-bold text-white mb-2">{T.cta.title}</h2>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-2">{T.cta.title}</h2>
         <p className="text-5xl font-black text-white mb-4">{formatRp(headlineSaving)}<span className="text-xl font-normal text-teal-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
         <p className="text-teal-100 mb-8">{needsCustomPlan ? T.cta.descCustom : T.cta.desc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">

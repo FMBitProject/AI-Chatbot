@@ -130,10 +130,10 @@ export function HospitalSolutionContent() {
   const T = CONTENT[lang];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Navbar — same shape as the landing page's, so arriving here from a
           search result still looks like the same site. */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <Link href="/"><LogoFull size="sm" className="shrink-0" /></Link>
           <div className="flex items-center gap-2">
@@ -147,7 +147,7 @@ export function HospitalSolutionContent() {
       </nav>
 
       {/* Hero */}
-      <section className="text-center py-20 px-6 bg-gradient-to-b from-teal-50 via-white to-white">
+      <section className="text-center py-14 px-6">
         <div className="max-w-4xl mx-auto">
           <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-6">{T.badge}</span>
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-6">
@@ -164,15 +164,15 @@ export function HospitalSolutionContent() {
       </section>
 
       {/* Document types */}
-      <section className="py-20 px-6 bg-gray-50">
+      <section className="py-14 px-6 bg-sunken">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.docsTitle}</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.docsTitle}</h2>
             <p className="text-gray-500 max-w-2xl mx-auto">{T.docsDesc}</p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {T.docs.map((d) => (
-              <div key={d.t} className="rounded-xl border bg-white p-5">
+              <div key={d.t} className="rounded-xl border border-hairline bg-raised p-5">
                 <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3"><d.icon className="h-5 w-5 text-teal-600" /></div>
                 <h3 className="font-semibold text-gray-900 text-sm mb-1">{d.t}</h3>
                 <p className="text-gray-500 text-xs leading-relaxed">{d.d}</p>
@@ -186,12 +186,12 @@ export function HospitalSolutionContent() {
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.qTitle}</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.qTitle}</h2>
             <p className="text-gray-500">{T.qDesc}</p>
           </div>
           <ul className="space-y-3">
             {T.questions.map((q) => (
-              <li key={q} className="flex items-start gap-3 rounded-xl border p-4 bg-white">
+              <li key={q} className="flex items-start gap-3 rounded-xl border border-hairline p-4 bg-raised">
                 <MessageSquare className="h-5 w-5 text-teal-600 shrink-0 mt-0.5" aria-hidden="true" />
                 <span className="text-gray-700">{q}</span>
               </li>
@@ -201,12 +201,12 @@ export function HospitalSolutionContent() {
       </section>
 
       {/* Why hospitals */}
-      <section className="py-20 px-6 bg-gray-50">
+      <section className="py-14 px-6 bg-sunken">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl font-bold text-gray-900 mb-12 text-center">{T.whyTitle}</h2>
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-10 text-center">{T.whyTitle}</h2>
           <div className="grid md:grid-cols-3 gap-6">
             {T.why.map((w) => (
-              <div key={w.t} className="rounded-xl border bg-white p-6">
+              <div key={w.t} className="rounded-xl border border-hairline bg-raised p-6">
                 <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3"><w.icon className="h-5 w-5 text-teal-600" /></div>
                 <h3 className="font-semibold text-gray-900 mb-2">{w.t}</h3>
                 <p className="text-gray-500 text-sm leading-relaxed">{w.d}</p>
@@ -229,7 +229,7 @@ export function HospitalSolutionContent() {
               </div>
             </div>
           </div>
-          <div className="rounded-xl border bg-gray-50 p-6">
+          <div className="rounded-xl border border-hairline bg-sunken p-6">
             <div className="flex items-start gap-3">
               <Info className="h-6 w-6 text-gray-400 shrink-0 mt-0.5" aria-hidden="true" />
               <div>
@@ -262,7 +262,7 @@ export function HospitalSolutionContent() {
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8 max-w-2xl mx-auto">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register"><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
