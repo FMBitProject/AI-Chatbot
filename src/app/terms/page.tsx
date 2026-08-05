@@ -63,7 +63,7 @@ export default function TermsPage() {
   const T = CONTENT[lang];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <nav className="border-b px-6 py-3 flex items-center justify-between">
         <Link href="/"><LogoFull size="sm" /></Link>
         <div className="flex items-center gap-3">
@@ -72,7 +72,7 @@ export default function TermsPage() {
         </div>
       </nav>
       <main className="max-w-3xl mx-auto px-6 py-16">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{T.title}</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-2">{T.title}</h1>
         <p className="text-gray-400 text-sm mb-10">{T.updated}</p>
         <div className="space-y-8 text-sm leading-relaxed text-gray-700">
           {T.sections.map((s) => (

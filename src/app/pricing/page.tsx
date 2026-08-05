@@ -113,9 +113,9 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Navbar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
@@ -148,11 +148,11 @@ export default function PricingPage() {
       )}
 
       {/* Hero */}
-      <section className="text-center py-16 px-6 bg-gradient-to-b from-teal-50 to-white">
+      <section className="text-center py-14 px-6">
         <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           {T.badge}
         </span>
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">{T.title}</h1>
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">{T.title}</h1>
         <p className="text-gray-500 text-lg max-w-xl mx-auto">{T.subtitle}</p>
       </section>
 
@@ -302,16 +302,16 @@ export default function PricingPage() {
       </div>
 
       {/* Feature grid */}
-      <section className="bg-gray-50 py-16 px-6">
+      <section className="bg-sunken py-14 px-6">
         <div className="max-w-5xl mx-auto text-center mb-10">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">{T.allFeatures}</h2>
+          <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 mb-2">{T.allFeatures}</h2>
           <p className="text-gray-500">{T.allFeaturesDesc}</p>
         </div>
         <div className="max-w-5xl mx-auto grid sm:grid-cols-2 md:grid-cols-3 gap-6">
           {T.featureGrid.map((f, i) => {
             const Icon = FEATURE_ICONS[i];
             return (
-              <div key={i} className="bg-white rounded-xl p-6 border">
+              <div key={i} className="bg-raised rounded-xl p-6 border border-hairline">
                 <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3">
                   <Icon className="h-5 w-5 text-teal-600" />
                 </div>
@@ -325,7 +325,7 @@ export default function PricingPage() {
 
       {/* FAQ */}
       <section className="max-w-3xl mx-auto px-6 py-16">
-        <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">{T.faqTitle}</h2>
+        <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 text-center mb-8">{T.faqTitle}</h2>
         <div className="space-y-6">
           {T.faqs.map((faq) => (
             <div key={faq.q} className="border-b pb-6">
@@ -338,7 +338,7 @@ export default function PricingPage() {
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
-        <h2 className="text-3xl font-bold text-white mb-3">{T.ctaTitle}</h2>
+        <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-3">{T.ctaTitle}</h2>
         <p className="text-teal-100 mb-8">{T.ctaDesc}</p>
         <Link href="/register">
           <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold">
