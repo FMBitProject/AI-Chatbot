@@ -291,10 +291,10 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
     // pt of its own rather than borrowing the previous section's: this used to
     // sit directly under the hero and lean on its py-24, which quietly made the
     // spacing here a property of whatever happens to be rendered above.
-    <section className="pt-16 pb-20 px-6">
+    <section className="pt-10 pb-14 px-6">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">{title}</h2>
+        <div className="text-center mb-7">
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{title}</h2>
           <p className="text-gray-500">{desc}</p>
         </div>
         <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-gray-900">
@@ -366,7 +366,7 @@ export function LandingContent() {
           sentence occupied everything a visitor saw. Beside an image the same
           words hold their own at a smaller size, and the product appears before
           any scrolling — which is the one thing the old hero never showed. */}
-      <section className="px-6 pt-12 pb-16 md:pt-16 md:pb-20">
+      <section className="px-6 pt-10 pb-12 md:pt-14 md:pb-16">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 md:gap-14 items-center">
           <div>
             {/* Small, letterspaced, and no pill: a filled badge is a loud way to
@@ -426,7 +426,7 @@ export function LandingContent() {
           industry-neutral on purpose — the product genuinely fits any document
           set, and a hospital-only hero would turn away the other four before
           they ever reach this band. */}
-      <section className="pb-16 px-6">
+      <section className="pb-10 px-6">
         <div className="max-w-6xl mx-auto">
           {/* Rendered from the registry rather than hardcoded, so the day another
               vertical earns the spot this band follows it.
@@ -509,7 +509,7 @@ export function LandingContent() {
       <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
       {/* Stats */}
-      <section className="bg-teal-700 py-12 px-6">
+      <section className="bg-teal-700 py-11 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {T.stats.map((s) => (
@@ -536,10 +536,10 @@ export function LandingContent() {
           that has to make a screenshot legible, and the width is what does it.
           A 1864px-wide dashboard reads at about 69% here, against 25% when it
           was sharing a row with the copy. */}
-      <section className="py-20 px-6 bg-sunken">
+      <section className="py-14 px-6 bg-sunken">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.howTitle}</h2>
+          <div className="text-center mb-9">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.howTitle}</h2>
             <p className="text-gray-500">{T.howDesc}</p>
           </div>
           <div className="space-y-16 md:space-y-24">
@@ -588,13 +588,13 @@ export function LandingContent() {
           screen of scrolling out from between the demo and the price. */}
 
       {/* ROI Teaser */}
-      <section className="py-20 px-6 bg-gray-900">
+      <section className="py-14 px-6 bg-gray-900">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
+          <div className="text-center mb-7">
             <span className="inline-flex items-center gap-1.5 bg-teal-900/60 text-teal-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
               <Calculator className="h-3.5 w-3.5" />{T.roiTeaser.badge}
             </span>
-            <h2 className="text-3xl font-bold text-white mb-3">{T.roiTeaser.title}</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-3">{T.roiTeaser.title}</h2>
             <p className="text-gray-400 max-w-xl mx-auto">{T.roiTeaser.desc}</p>
           </div>
           <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
@@ -634,9 +634,9 @@ export function LandingContent() {
       </section>
 
       {/* Pricing teaser */}
-      <section className="py-20 px-6">
+      <section className="py-14 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">{T.priceTitle}</h2>
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.priceTitle}</h2>
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {T.pricePlans.map((p) => {
@@ -668,10 +668,10 @@ export function LandingContent() {
           started imagining their own SOPs sitting on someone else's server, so
           they belong between the price and the ask — not earlier, where they
           would plant doubts the visitor did not have yet. */}
-      <section className="py-20 px-6 bg-sunken border-t border-hairline">
+      <section className="py-14 px-6 bg-sunken border-t border-hairline">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.faqTitle}</h2>
+          <div className="text-center mb-7">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.faqTitle}</h2>
             <p className="text-gray-500">{T.faqDesc}</p>
           </div>
           {/* Radix unmounts a closed panel, so the answers are not in the DOM
@@ -739,7 +739,7 @@ export function LandingContent() {
           the objections are settled, and this is the last thing read before
           the visitor decides. */}
       {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
-        <section className="py-16 px-6 border-t">
+        <section className="py-14 px-6 border-t border-hairline">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
             <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
@@ -753,7 +753,7 @@ export function LandingContent() {
       )}
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
+      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
         <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
