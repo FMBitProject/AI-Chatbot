@@ -342,13 +342,13 @@ function PlanResultCard({
       }`}>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
-          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
             {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : isCustomMode ? labels.pendingShort : "-"}
           </p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
-          <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
             {!isOverLimit && payback > 0 ? payback : isCustomMode ? labels.pendingShort : "-"}
             {!isOverLimit && payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
           </p>
@@ -405,12 +405,20 @@ export default function ROIPage() {
     [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays],
   );
 
-  const recommendedPlan = employees > 50 ? plans[1] : plans[0];
+  // Read from the plan itself rather than repeating its employee cap here: the
+  // two used to be able to disagree, and the one that lost was this literal.
+  const largestPlan = plans[plans.length - 1];
+  const recommendedPlan = employees > plans[0].employeeLimit ? largestPlan : plans[0];
   // Past the largest plan that has a price, there is nothing to subtract — the
   // closing figure becomes the gross saving and says so. Subtracting the
   // Enterprise price anyway would print a "net saving" for a plan the cards
   // directly above have just told this visitor they cannot buy.
-  const needsCustomPlan = employees > recommendedPlan.employeeLimit;
+  //
+  // Measured against `largestPlan`, not `recommendedPlan`: those are the same
+  // object only while the recommendation still lands on the biggest tier. Lower
+  // Professional's cap below Enterprise's and the recommendedPlan form starts
+  // claiming a small company needs a custom contract.
+  const needsCustomPlan = employees > largestPlan.employeeLimit;
   const headlineSaving = needsCustomPlan
     ? results.savingsWithAI
     : Math.max(0, results.savingsWithAI - recommendedPlan.price);

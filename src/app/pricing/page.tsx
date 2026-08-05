@@ -74,7 +74,7 @@ export default function PricingPage() {
       // Load Midtrans Snap script dynamically
       const clientKey = process.env.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY ?? "";
       if (!document.getElementById("midtrans-snap")) {
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((resolve, reject) => {
           const script = document.createElement("script");
           script.id = "midtrans-snap";
           script.src = process.env.NEXT_PUBLIC_MIDTRANS_ENV === "production"
@@ -82,6 +82,15 @@ export default function PricingPage() {
             : "https://app.sandbox.midtrans.com/snap/snap.js";
           script.setAttribute("data-client-key", clientKey);
           script.onload = () => resolve();
+          // Without an onerror the promise simply never settles when the
+          // Midtrans CDN is unreachable: the await hangs, loadingPlan is never
+          // cleared, and every plan button on the page stays disabled behind a
+          // spinner until the visitor reloads. Rejecting hands it to the catch
+          // below, which explains itself and re-enables the buttons.
+          script.onerror = () => {
+            script.remove(); // so a retry is not blocked by the failed tag
+            reject(new Error("Midtrans Snap failed to load"));
+          };
           document.body.appendChild(script);
         });
       }
