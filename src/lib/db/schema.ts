@@ -3,7 +3,9 @@ import { pgTable, text, timestamp, boolean, integer, vector, index } from "drizz
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
   name: text("name").notNull().unique(),
-  plan: text("plan").$type<"starter" | "professional" | "enterprise">().default("starter").notNull(),
+  // "custom" is granted by hand (scripts/grant-custom-plan.mjs), never bought —
+  // which is why it appears here but not on `transactions.plan` below.
+  plan: text("plan").$type<"starter" | "professional" | "enterprise" | "custom">().default("starter").notNull(),
   aiName: text("ai_name").default("IntelliBase AI").notNull(),
   aiGreeting: text("ai_greeting"),
   aiPersonality: text("ai_personality"),

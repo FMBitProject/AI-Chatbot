@@ -31,7 +31,11 @@ export function RenewalBanner({ lang = "id" }: { lang?: "id" | "en" }) {
     ? new Date(d).toLocaleDateString(lang === "en" ? "en-US" : "id-ID", { day: "numeric", month: "long", year: "numeric" })
     : "";
 
-  const planLabel = sub.purchasedPlan === "enterprise" ? "Enterprise"
+  // A Custom account normally has no expiry, so this banner never fires for it
+  // — but it can be given one by hand, and an empty label would render "Paket
+  //  Anda berakhir" with a hole where the plan name belongs.
+  const planLabel = sub.purchasedPlan === "custom" ? "Custom"
+    : sub.purchasedPlan === "enterprise" ? "Enterprise"
     : sub.purchasedPlan === "professional" ? "Professional" : "";
 
   const copy = {

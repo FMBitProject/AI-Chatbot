@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah } from "@/lib/pricing";
+import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPurchasablePlan } from "@/lib/pricing";
+import { consultationMailto } from "@/lib/contact";
 
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
 
@@ -19,12 +20,28 @@ export default function PricingPage() {
   const { lang } = useLang();
   const T = pricing[lang];
 
+  // The cards used to be addressed by position (`idx === 1 ? professional :
+  // enterprise`), which silently mapped every card that was not Professional
+  // onto Enterprise — so adding a fourth card sent its buyers to the wrong
+  // checkout. Everything below is keyed by plan instead, and the key list is
+  // what decides how many cards render.
+  const PLAN_KEYS = ["starter", "professional", "enterprise", "custom"] as const;
+
   // Prices and promo state come from the shared pricing module, so this page
   // (and the checkout) automatically revert to normal prices once the promo ends.
   const promoActive = isPromoActive();
-  const ORIGINAL_PRICES = ["", formatRupiah(NORMAL_PRICES.professional, lang), formatRupiah(NORMAL_PRICES.enterprise, lang)];
-  const PROMO_PRICES = ["", formatRupiah(PROMO.professional, lang), formatRupiah(PROMO.enterprise, lang)];
-  const HAS_PROMO = [false, promoActive, promoActive];
+  const ORIGINAL_PRICES: Record<string, string> = {
+    professional: formatRupiah(NORMAL_PRICES.professional, lang),
+    enterprise: formatRupiah(NORMAL_PRICES.enterprise, lang),
+  };
+  const PROMO_PRICES: Record<string, string> = {
+    professional: formatRupiah(PROMO.professional, lang),
+    enterprise: formatRupiah(PROMO.enterprise, lang),
+  };
+  const HAS_PROMO: Record<string, boolean> = {
+    professional: promoActive,
+    enterprise: promoActive,
+  };
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -32,7 +49,9 @@ export default function PricingPage() {
   useEffect(() => { setMounted(true); }, []);
 
   async function handlePay(plan: "professional" | "enterprise") {
-    if (!session) { window.location.href = "/register"; return; }
+    // .assign() rather than assigning to .href: the React Compiler lint rejects
+    // the assignment form here ("this value cannot be modified"). Same navigation.
+    if (!session) { window.location.assign("/register"); return; }
     setLoadingPlan(plan);
     try {
       const res = await fetch("/api/payment/create", {
@@ -125,12 +144,26 @@ export default function PricingPage() {
 
       {/* Plans */}
       <section className="max-w-6xl mx-auto px-6 py-12">
-        <div className="grid md:grid-cols-3 gap-6">
-          {T.plans.map((plan, idx) => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {T.plans.map((plan, idx) => {
+            // The copy lives in i18n.ts and the keys live here, so the two can
+            // drift. Rendering nothing is the safe end of that: a card with no
+            // key would fall through to the paid branches and sell whatever the
+            // fallback happens to be.
+            const key: (typeof PLAN_KEYS)[number] | undefined = PLAN_KEYS[idx];
+            if (!key) return null;
+            const isFree = key === "starter";
+            const isPopular = key === "professional";
+            const isCustom = key === "custom";
+            const hasPromo = HAS_PROMO[key] ?? false;
+            return (
             <div key={plan.name} className={cn("rounded-2xl border-2 p-8 flex flex-col relative",
-              idx === 1 ? "border-teal-500 shadow-teal-100 shadow-xl" : idx === 2 ? "border-teal-700" : "border-gray-200"
+              isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
+                : key === "enterprise" ? "border-teal-700"
+                : isCustom ? "border-gray-900"
+                : "border-gray-200"
             )}>
-              {idx === 1 && (
+              {isPopular && (
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                   <span className="bg-teal-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
                     <Zap className="h-3 w-3" />{T.popular}
@@ -140,31 +173,38 @@ export default function PricingPage() {
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-                  {HAS_PROMO[idx] && (
+                  {hasPromo && (
                     <span className="text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200 rounded-full px-2 py-0.5">
                       {T.discountBadge}
                     </span>
                   )}
                 </div>
                 <p className="text-gray-500 text-sm mb-3">{plan.desc}</p>
-                {HAS_PROMO[idx] ? (
+                {hasPromo ? (
                   <div>
-                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[idx]}</span>
+                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[key]}</span>
                     <div className="flex items-end gap-1 mt-0.5">
-                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[idx]}</span>
+                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[key]}</span>
                       <span className="text-gray-400 text-sm pb-1">/ {T.perMonth}</span>
                     </div>
                   </div>
+                ) : isCustom ? (
+                  // No number here on purpose: this tier is sized against the
+                  // organisation before any price is quoted.
+                  <div className="flex items-end gap-1">
+                    <span className="text-3xl font-bold text-gray-900">{T.customPrice}</span>
+                    <span className="text-gray-400 text-sm pb-1">{T.customPriceNote}</span>
+                  </div>
                 ) : (
                   <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold text-gray-900">{idx === 0 ? T.free : ORIGINAL_PRICES[idx]}</span>
-                    <span className="text-gray-400 text-sm pb-1">/ {idx === 0 ? T.forever : T.perMonth}</span>
+                    <span className="text-3xl font-bold text-gray-900">{isFree ? T.free : ORIGINAL_PRICES[key]}</span>
+                    <span className="text-gray-400 text-sm pb-1">/ {isFree ? T.forever : T.perMonth}</span>
                   </div>
                 )}
               </div>
               <ul className="space-y-3 flex-1 mb-8">
                 {T.features[idx].map((f, fi) => {
-                  const checkedCount = idx === 0 ? 5 : T.features[idx].length;
+                  const checkedCount = isFree ? 5 : T.features[idx].length;
                   const hasCheck = fi < checkedCount;
                   const isGray = fi >= checkedCount;
                   return (
@@ -177,32 +217,44 @@ export default function PricingPage() {
                   );
                 })}
               </ul>
-              {idx === 0 ? (
+              {isFree ? (
                 <Link href="/register">
                   <Button variant="outline" className="w-full gap-2">
                     {T.startFree} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
+              ) : isCustom ? (
+                // Deliberately not a checkout: this tier is agreed in a
+                // conversation, so the only action on the card is starting one.
+                <a href={consultationMailto(lang)}>
+                  <Button className="w-full gap-2 bg-gray-900 hover:bg-gray-800">
+                    {T.contactUs} <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </a>
               ) : mounted && session?.user ? (
                 <Button
-                  className={cn("w-full gap-2", idx === 1 ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}
-                  onClick={() => handlePay(idx === 1 ? "professional" : "enterprise")}
+                  className={cn("w-full gap-2", isPopular ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}
+                  // Not `key === "professional" ? … : "enterprise"` — that is
+                  // the same "everything else is Enterprise" fallback this page
+                  // was just rid of, one edit away from selling the wrong plan.
+                  onClick={() => { if (isPurchasablePlan(key)) handlePay(key); }}
                   disabled={loadingPlan !== null}
                 >
-                  {loadingPlan === (idx === 1 ? "professional" : "enterprise")
+                  {loadingPlan === key
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Memproses...</>
-                    : <>{idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" /></>
+                    : <>{isPopular ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" /></>
                   }
                 </Button>
               ) : (
-                <Link href={`/register?plan=${idx === 1 ? "professional" : "enterprise"}`}>
-                  <Button className={cn("w-full gap-2", idx === 1 ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}>
-                    {idx === 1 ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
+                <Link href={`/register?plan=${key}`}>
+                  <Button className={cn("w-full gap-2", isPopular ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}>
+                    {isPopular ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

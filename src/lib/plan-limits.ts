@@ -1,13 +1,28 @@
 // maxQuestionsPerDayPerUser is an emergency brake, not an everyday fence: it
 // only exists to stop one runaway user (or script) from draining the shared
-// maxQuestionsPerDay pool. Calibrated so normal humans never hit it — one
-// professional user can take at most 20% of the company pool. Starter's pool
-// (10/day) is too small to be worth "protecting" at the cost of solo-founder
-// trials, and enterprise sells unlimited, so both stay uncapped.
+// maxQuestionsPerDay pool. Calibrated so normal humans never hit it — one user
+// can take at most 20% of their company's pool. Starter's pool (10/day) is too
+// small to be worth "protecting" at the cost of solo-founder trials, and custom
+// is a negotiated contract rather than a self-serve tier, so both stay uncapped.
+//
+// `enterprise` is deliberately NOT unlimited. It is bought self-serve at a flat
+// monthly price, so an unbounded plan is an unbounded bill on our side: a large
+// hospital group could subscribe for the price of a mid-size clinic and index
+// its whole estate against our inference budget. The numbers below are set well
+// above what any customer at that price should reach, so nobody bumps into them
+// in normal use — anything genuinely bigger belongs on `custom`, where the price
+// is agreed with the customer first.
+//
+// `custom` is the only unlimited tier, and it is NOT purchasable: it has no
+// price, no checkout path, and `isPurchasablePlan()` in pricing.ts rejects it.
+// A company only lands on it when we set it by hand after agreeing terms —
+// which, per that conversation, means the customer brings their own API keys
+// (BYOK), so unlimited usage costs us nothing per question.
 export const PLAN_LIMITS = {
-  starter:      { maxDocuments: 10,  maxEmployees: 5,  maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,  maxQuestionsPerDayPerUser: -1 },
-  professional: { maxDocuments: 100, maxEmployees: 50, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300, maxQuestionsPerDayPerUser: 60 },
-  enterprise:   { maxDocuments: -1,  maxEmployees: -1, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,  maxQuestionsPerDayPerUser: -1 },
+  starter:      { maxDocuments: 10,  maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
+  professional: { maxDocuments: 100, maxEmployees: 50,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
+  enterprise:   { maxDocuments: 500, maxEmployees: 200, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
+  custom:       { maxDocuments: -1,  maxEmployees: -1,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,   maxQuestionsPerDayPerUser: -1 },
 } as const;
 
 // -1 means unlimited

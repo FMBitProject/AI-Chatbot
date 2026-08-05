@@ -5,6 +5,10 @@ export type Lang = "id" | "en";
 // Quota numbers in copy are pulled from PLAN_LIMITS so pricing text can never
 // drift from what the API actually enforces.
 const proPerUser = PLAN_LIMITS.professional.maxQuestionsPerDayPerUser;
+const ent = PLAN_LIMITS.enterprise;
+const entPerUser = ent.maxQuestionsPerDayPerUser;
+const idNum = (n: number) => n.toLocaleString("id-ID");
+const enNum = (n: number) => n.toLocaleString("en-US");
 
 export const t = {
   id: {
@@ -230,6 +234,9 @@ export const pricing = {
     startFree: "Mulai Gratis",
     trialFree: "Berlangganan Sekarang",
     contactSales: "Berlangganan Sekarang",
+    customPrice: "Sesuai Kebutuhan",
+    customPriceNote: "Harga disepakati bersama",
+    contactUs: "Hubungi Kami",
     promoBanner: "🎉 Promo Terbatas — Hemat hingga 37%!",
     promoEnds: "Promo berlaku sampai 31 Desember 2026",
     discountBadge: "PROMO",
@@ -244,17 +251,19 @@ export const pricing = {
       { name: "Starter", desc: "Untuk tim kecil yang baru memulai" },
       { name: "Professional", desc: "Untuk perusahaan berkembang" },
       { name: "Enterprise", desc: "Untuk perusahaan skala besar" },
+      { name: "Custom", desc: "Untuk grup RS, multi-cabang, atau kebutuhan khusus" },
     ],
     features: [
       ["5 karyawan", "10 dokumen", "100 pertanyaan/bulan · 10/hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
       ["50 karyawan", "100 dokumen", "300 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Respon dukungan < 24 jam"],
-      ["Karyawan tidak terbatas", "Dokumen tidak terbatas", "Pertanyaan tidak terbatas", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
+      [`${idNum(ent.maxEmployees)} karyawan`, `${idNum(ent.maxDocuments)} dokumen`, `${idNum(ent.maxQuestionsPerDay)} pertanyaan / hari`, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
+      ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${proPerUser} pertanyaan/hari per karyawan). Paket Enterprise tidak terbatas.` },
+      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${proPerUser} pertanyaan/hari per karyawan). Paket Enterprise ${idNum(ent.maxQuestionsPerDay)} pertanyaan/hari (maksimal ${idNum(entPerUser)} per karyawan). Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi — silakan hubungi kami.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -278,6 +287,9 @@ export const pricing = {
     startFree: "Start Free",
     trialFree: "Subscribe Now",
     contactSales: "Subscribe Now",
+    customPrice: "Tailored",
+    customPriceNote: "Priced with you",
+    contactUs: "Contact Us",
     promoBanner: "🎉 Limited Promo — Save up to 37%!",
     promoEnds: "Valid until 31 December 2026",
     discountBadge: "PROMO",
@@ -292,17 +304,19 @@ export const pricing = {
       { name: "Starter", desc: "For small teams just getting started" },
       { name: "Professional", desc: "For growing companies" },
       { name: "Enterprise", desc: "For large-scale organizations" },
+      { name: "Custom", desc: "For hospital groups, multi-site, or special requirements" },
     ],
     features: [
       ["5 employees", "10 documents", "100 questions/month · 10/day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
       ["50 employees", "100 documents", "300 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Support response < 24h"],
-      ["Unlimited employees", "Unlimited documents", "Unlimited questions", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
+      [`${enNum(ent.maxEmployees)} employees`, `${enNum(ent.maxDocuments)} documents`, `${enNum(ent.maxQuestionsPerDay)} questions / day`, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
+      ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: `Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day (to keep things fair for the whole team, at most ${proPerUser} questions/day per employee). Enterprise is unlimited.` },
+      { q: "Are there question limits?", a: `Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day (to keep things fair for the whole team, at most ${proPerUser} questions/day per employee). Enterprise allows ${enNum(ent.maxQuestionsPerDay)} questions/day (at most ${enNum(entPerUser)} per employee). If you need more than that, the Custom plan is uncapped — get in touch.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],

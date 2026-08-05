@@ -67,15 +67,17 @@ export async function PATCH(req: NextRequest) {
   if (body.geminiApiKey !== undefined) update.geminiApiKey = body.geminiApiKey?.trim() || null;
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
 
-  // Storing a key is the Enterprise feature (judged on the plan in force right
-  // now, so a lapsed Enterprise cannot keep configuring dedicated capacity).
+  // Storing a key is the Enterprise-and-above feature (judged on the plan in
+  // force right now, so a lapsed Enterprise cannot keep configuring dedicated
+  // capacity). Custom counts too — an uncapped plan is only viable when the
+  // customer's own key pays for the usage, so it must be able to set one.
   // REMOVING a key is always allowed, whatever the plan: it is the customer's
   // own credential, and a company whose key was revoked upstream must be able
   // to clear it themselves — otherwise their chat stays broken until we step in.
   const isRemovalOnly = Object.values(update).every((v) => v === null);
   if (!isRemovalOnly) {
     const { subscription } = await resolvePlan(companyRow);
-    if (subscription.plan !== "enterprise") {
+    if (subscription.plan !== "enterprise" && subscription.plan !== "custom") {
       return NextResponse.json({ error: "Fitur ini hanya tersedia untuk paket Enterprise." }, { status: 403 });
     }
   }

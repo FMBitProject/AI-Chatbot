@@ -16,6 +16,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
+import type { Plan } from "@/lib/plan-limits";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -37,7 +38,10 @@ export default function AdminPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyName, setCompanyName] = useState<string>("");
-  const [plan, setPlan] = useState<"starter" | "professional" | "enterprise">("starter");
+  // Shared Plan type rather than a union spelled out here: this state is set
+  // straight from the API response, so a plan added in plan-limits.ts and not
+  // repeated here would arrive at runtime while the type insisted it could not.
+  const [plan, setPlan] = useState<Plan>("starter");
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadDocuments() {
@@ -83,7 +87,7 @@ export default function AdminPage() {
 
       if (res?.ok) {
         const data = await res.json().catch(() => null) as
-          { name?: string; plan?: "starter" | "professional" | "enterprise" } | null;
+          { name?: string; plan?: Plan } | null;
         if (!cancelled && data) {
           setCompanyName(data.name ?? "");
           if (data.plan) setPlan(data.plan);
@@ -180,12 +184,16 @@ export default function AdminPage() {
           <span className="hidden sm:inline text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5 shrink-0">Admin</span>
           {companyName && <span className="hidden md:inline text-sm text-gray-400 shrink-0">·</span>}
           {companyName && <span className="hidden md:inline text-sm font-medium text-gray-600 truncate">{companyName}</span>}
+          {/* Every paid plan needs a case here: the fallback is "Free", so a
+              plan this list has not heard of shows a paying customer — the
+              negotiated Custom ones most of all — as being on the free tier. */}
           <span className={`hidden sm:inline text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
+            plan === "custom" ? "bg-gray-900 text-white border-gray-900" :
             plan === "enterprise" ? "bg-teal-100 text-teal-700 border-teal-200" :
             plan === "professional" ? "bg-teal-100 text-teal-700 border-teal-200" :
             "bg-gray-100 text-gray-500 border-gray-200"
           }`}>
-            {plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : "Free"}
+            {plan === "custom" ? "★ Custom" : plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : "Free"}
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">

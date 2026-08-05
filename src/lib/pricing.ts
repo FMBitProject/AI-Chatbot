@@ -4,14 +4,24 @@
 // checkout charge and every price shown on the site automatically revert to the
 // normal prices — no code change needed. To adjust the promo, edit this file.
 
-export type PaidPlan = "professional" | "enterprise";
+// Two different questions, and conflating them is a live bug rather than a
+// style choice:
+//   - PurchasablePlan — "can this be bought self-serve?" Guards checkout, and
+//     is the key space for every price table. `custom` is absent on purpose:
+//     it has no list price, so there is nothing to charge.
+//   - PaidPlan — "is this company a paying customer?" Drives subscription
+//     status, limits and expiry. `custom` IS one of these; leaving it out
+//     would make getEffectiveSubscription() read a negotiated account as
+//     `starter` and drop it to 10 questions a day.
+export type PurchasablePlan = "professional" | "enterprise";
+export type PaidPlan = PurchasablePlan | "custom";
 
-export const NORMAL_PRICES: Record<PaidPlan, number> = {
+export const NORMAL_PRICES: Record<PurchasablePlan, number> = {
   professional: 299000,
   enterprise: 799000,
 };
 
-export const PROMO_PRICES: Record<PaidPlan, number> = {
+export const PROMO_PRICES: Record<PurchasablePlan, number> = {
   professional: 200000,
   enterprise: 500000,
 };
@@ -20,13 +30,20 @@ export const PROMO_PRICES: Record<PaidPlan, number> = {
 // 1 January 2027 00:00 WIB (= 2026-12-31T17:00:00Z).
 export const PROMO_ENDS_AT = new Date("2026-12-31T17:00:00Z");
 
-export const PLAN_NAMES: Record<PaidPlan, string> = {
+export const PLAN_NAMES: Record<PurchasablePlan, string> = {
   professional: "IntelliBase Professional — 1 Bulan",
   enterprise: "IntelliBase Enterprise — 1 Bulan",
 };
 
-export function isPaidPlan(value: unknown): value is PaidPlan {
+// Use this — never isPaidPlan — to validate anything that leads to a charge.
+// It is what stops a hand-crafted POST from buying the unlimited tier for the
+// Enterprise price, or for nothing at all.
+export function isPurchasablePlan(value: unknown): value is PurchasablePlan {
   return value === "professional" || value === "enterprise";
+}
+
+export function isPaidPlan(value: unknown): value is PaidPlan {
+  return isPurchasablePlan(value) || value === "custom";
 }
 
 export type Plan = "starter" | PaidPlan;
@@ -35,12 +52,36 @@ const PLAN_RANK: Record<Plan, number> = {
   starter: 0,
   professional: 1,
   enterprise: 2,
+  // Above enterprise so the downgrade guards in checkout and in the payment
+  // webhook refuse to overwrite a negotiated account with a self-serve purchase.
+  custom: 3,
 };
 
 // Ordinal tier of a plan (higher = more premium). Unknown/null → starter (0).
 // Used to tell renewals/upgrades apart from downgrades.
 export function planRank(plan: string | null | undefined): number {
   return plan && plan in PLAN_RANK ? PLAN_RANK[plan as Plan] : 0;
+}
+
+// The rank a new purchase has to beat before it is allowed to replace what the
+// company already has. Exists because `isSubscriptionActive()` answers "is
+// there a paid period still running", and a plan granted by hand has no period
+// at all: a Custom account is set with no expiry date, so isSubscriptionActive
+// returns false for it, both downgrade guards would read its rank as 0, and a
+// Rp 200rb self-serve Professional checkout would quietly overwrite a
+// negotiated unlimited contract. getEffectiveSubscription already treats a
+// paid-plan-without-expiry as active forever; this makes the guards agree.
+//
+// Everything else is left exactly as it was — in particular a lapsed plan
+// inside its grace window still ranks 0, so a customer who wants to come back
+// on a smaller plan can still do that during grace instead of waiting it out.
+export function planRankInForce(
+  plan: string | null | undefined,
+  expiresAt: Date | null | undefined,
+  now: Date = new Date(),
+): number {
+  if (isPaidPlan(plan) && !expiresAt) return planRank(plan);
+  return isSubscriptionActive(plan, expiresAt, now) ? planRank(plan) : 0;
 }
 
 // A paid subscription that hasn't lapsed yet.
@@ -189,7 +230,7 @@ export function isPromoActive(now: Date = new Date()): boolean {
 }
 
 // The authoritative price a customer is charged for a plan right now.
-export function getPlanPrice(plan: PaidPlan, now: Date = new Date()): number {
+export function getPlanPrice(plan: PurchasablePlan, now: Date = new Date()): number {
   return isPromoActive(now) ? PROMO_PRICES[plan] : NORMAL_PRICES[plan];
 }
 

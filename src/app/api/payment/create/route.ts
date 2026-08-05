@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getSnap } from "@/lib/midtrans";
-import { getPlanPrice, PLAN_NAMES, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
+import { getPlanPrice, PLAN_NAMES, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
@@ -17,7 +17,9 @@ export async function POST(req: NextRequest) {
   }
 
   const { plan } = await req.json() as { plan: unknown };
-  if (!isPaidPlan(plan)) {
+  // Purchasable, not merely paid: `custom` has no list price, so accepting it
+  // here would mean charging an unlimited plan whatever the request asked for.
+  if (!isPurchasablePlan(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
   }
 
@@ -27,7 +29,7 @@ export async function POST(req: NextRequest) {
   // Block buying a lower tier while a paid subscription is still active — a
   // downgrade would strip time the customer already paid for. They can switch
   // once the current period lapses. Renewals (same tier) and upgrades are fine.
-  if (isSubscriptionActive(company.plan, company.planExpiresAt) && planRank(plan) < planRank(company.plan)) {
+  if (planRank(plan) < planRankInForce(company.plan, company.planExpiresAt)) {
     return NextResponse.json(
       {
         error: "downgrade_not_allowed",
