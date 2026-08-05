@@ -21,9 +21,8 @@
   --color-sunken: var(--surface-sunken);
   --color-raised: var(--surface-raised);
   --color-hairline: var(--hairline);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-instrument-serif);
 }
 
 /* Dark mode disabled — app enforces light mode for consistent branding */
@@ -31,9 +30,9 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  /* Was `Arial, Helvetica, sans-serif`, which quietly beat the Geist that
+  /* Was `Arial, Helvetica, sans-serif`, which quietly beat the webfont
      layout.tsx loads on every request: the variable was defined, mapped into
-     the theme, and then never applied to anything. The whole site rendered in
-     Arial while paying to download a font it never drew. */
+     the theme, and then applied to nothing. The whole site rendered in Arial
+     while paying to download a typeface it never drew. */
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }

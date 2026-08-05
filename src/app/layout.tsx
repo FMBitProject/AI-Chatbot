@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Plus_Jakarta_Sans, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/lib/language-context";
 import { CookieConsent } from "@/components/CookieConsent";
@@ -8,8 +8,10 @@ import { AnalyticsConsent } from "@/components/AnalyticsConsent";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { siteOrigin } from "@/lib/site-url";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// One family for the whole site, headings included. A variable font, so the
+// display weight below costs nothing extra to load.
+const jakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
 });
 
@@ -26,19 +28,6 @@ const geistMono = Geist_Mono({
   preload: false,
 });
 
-// Display face for headings only, and deliberately a single 400 weight: the
-// calm of a serif headline comes from it not shouting, and there is no bold to
-// reach for by accident. Body text stays on the sans — a serif at 14px on a
-// marketing page is harder to read, not more elegant.
-const instrumentSerif = Instrument_Serif({
-  // Named after the font, not after the role. `--font-display: var(--font-display)`
-  // in the theme block would be a variable defined as itself, and the utility
-  // would silently resolve to nothing.
-  variable: "--font-instrument-serif",
-  subsets: ["latin"],
-  weight: "400",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   // Without this, every URL-based metadata field has to be an absolute string
@@ -116,7 +105,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}>
+    <html lang="id" className={`${jakartaSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <ServiceWorkerRegistration />
         <LanguageProvider>

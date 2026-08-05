@@ -372,9 +372,12 @@ export function LandingContent() {
             {/* Small, letterspaced, and no pill: a filled badge is a loud way to
                 say something quiet. */}
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-5">{T.badge}</p>
-            {/* font-display at 400, not sans at 700. The headline stops being
-                the loudest thing on the page and starts being the calmest. */}
-            <h1 className="font-display text-4xl md:text-5xl leading-[1.12] text-gray-900 mb-5">
+            {/* 600, not 700, and tracking pulled in. With one family doing both
+                headings and body, weight is the only thing separating them —
+                and the old page proved that a 700 headline at this size reads
+                as shouting. Semibold with tight tracking keeps the authority
+                and drops the volume. */}
+            <h1 className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.12] text-gray-900 mb-5">
               {T.hero1}{" "}
               <span className="text-teal-700">{T.hero2}</span> {T.hero3}
             </h1>
@@ -438,7 +441,7 @@ export function LandingContent() {
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-3">
                     {FEATURED_INDUSTRY.featured.eyebrow[lang]}
                   </p>
-                  <h2 className="font-display text-2xl md:text-[1.75rem] text-gray-900 leading-[1.2] mb-4">
+                  <h2 className="text-2xl md:text-[1.75rem] font-semibold tracking-[-0.015em] text-gray-900 leading-[1.2] mb-4">
                     {FEATURED_INDUSTRY.featured.headline[lang]}
                   </h2>
                   <p className="text-base text-gray-600 leading-relaxed mb-6">
@@ -468,7 +471,7 @@ export function LandingContent() {
               this row is the footnote to the featured vertical, and centring it
               gave it the same ceremony as a section of its own. */}
           <div className="mb-5">
-            <h2 className="font-display text-xl text-gray-900 mb-1.5">{T.industriesTitle}</h2>
+            <h2 className="text-xl font-semibold tracking-[-0.01em] text-gray-900 mb-1.5">{T.industriesTitle}</h2>
             <p className="text-sm text-gray-500 max-w-2xl">{T.industriesDesc}</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
