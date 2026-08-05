@@ -264,6 +264,15 @@ function PlanResultCard({
   const roi = net > 0 ? (net / plan.price) * 100 : 0;
   const payback = !isOverLimit && savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
   const isBlue = plan.color === "blue";
+  // Decided from the card's state, not inside one of the two icon branches:
+  // the custom-mode tile is near-black, and colouring only the Shield for it
+  // left the Zap a blue card renders teal on near-black.
+  const iconClass = `h-4 w-4 ${
+    isDeadEnd ? "text-gray-400"
+      : isCustomMode ? "text-white"
+      : isBlue ? "text-teal-600"
+      : "text-teal-700"
+  }`;
 
   return (
     <div className={`relative rounded-2xl border-2 p-6 flex flex-col transition-all ${
@@ -296,20 +305,8 @@ function PlanResultCard({
 
       {/* Plan header */}
       <div className="flex items-center gap-2 mb-1 mt-2">
-        {/* Icon colour is decided before the shape, not inside one branch of
-            it: the custom-mode tile is near-black, and colouring only the
-            Shield for it left the Zap — which is what a blue card renders —
-            teal on near-black if custom mode were ever put on that card. */}
         <div className={`p-1.5 rounded-lg ${isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-900" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
-          {(() => {
-            const iconClass = `h-4 w-4 ${
-              isDeadEnd ? "text-gray-400"
-                : isCustomMode ? "text-white"
-                : isBlue ? "text-teal-600"
-                : "text-teal-700"
-            }`;
-            return isBlue ? <Zap className={iconClass} /> : <Shield className={iconClass} />;
-          })()}
+          {isBlue ? <Zap className={iconClass} /> : <Shield className={iconClass} />}
         </div>
         <h3 className="font-bold text-gray-900">{isCustomMode ? plan.overLimitName || plan.name : plan.name}</h3>
       </div>
@@ -428,8 +425,9 @@ export default function ROIPage() {
   // pair assumed both, which a third tier or a reordered array would have
   // broken silently — recommending a plan the company does not fit in.
   const largestPlan = plans.reduce((a, b) => (b.employeeLimit > a.employeeLimit ? b : a));
-  // The cheapest plan the company actually fits in; nothing fitting is exactly
-  // the custom case handled below.
+  // The smallest plan the company actually fits in — which is also the cheapest
+  // while price rises with capacity, but capacity is what is being matched
+  // here. Nothing fitting is exactly the custom case handled below.
   const recommendedPlan =
     [...plans].sort((a, b) => a.employeeLimit - b.employeeLimit)
       .find((p) => employees <= p.employeeLimit) ?? largestPlan;
