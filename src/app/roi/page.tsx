@@ -277,7 +277,7 @@ function PlanResultCard({
   return (
     <div className={`relative rounded-2xl border-2 p-6 flex flex-col transition-all ${
       isDeadEnd
-        ? "border-gray-200 opacity-60"
+        ? "border-hairline opacity-60"
         : isCustomMode
         ? "border-gray-900 shadow-lg"
         : isBlue
@@ -350,7 +350,7 @@ function PlanResultCard({
 
       {/* ROI badges */}
       <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${
-        isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-50" : isBlue ? "bg-teal-50" : "bg-violet-50"
+        isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-sunken" : isBlue ? "bg-teal-50" : "bg-violet-50"
       }`}>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
