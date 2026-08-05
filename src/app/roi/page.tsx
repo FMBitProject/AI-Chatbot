@@ -53,6 +53,9 @@ const CONTENT = {
         overLimitDesc: "Plan ini hanya untuk maks. 50 karyawan. Upgrade ke Enterprise.",
         overLimitCta: "Lihat Enterprise →",
         overLimitHref: "/pricing",
+        // Only used by the "custom" mode below, where the card stops being this
+        // plan and starts being the negotiated one. Empty means "keep my name".
+        overLimitName: "",
         // "upgrade" = there is a bigger plan on the shelf, so this card is a
         // dead end and says so. "custom" = they are past everything that has a
         // list price, which is not a dead end at all — see PlanResultCard.
@@ -73,6 +76,7 @@ const CONTENT = {
         overLimitDesc: "Di atas 200 karyawan, paket disusun bersama sesuai skala organisasi Anda.",
         overLimitCta: "Hubungi Kami →",
         overLimitHref: "",
+        overLimitName: "Custom",
         overLimitMode: "custom",
       },
     ],
@@ -141,6 +145,7 @@ const CONTENT = {
         overLimitDesc: "This plan supports max. 50 employees. Upgrade to Enterprise.",
         overLimitCta: "See Enterprise →",
         overLimitHref: "/pricing",
+        overLimitName: "",
         overLimitMode: "upgrade",
       },
       {
@@ -158,6 +163,7 @@ const CONTENT = {
         overLimitDesc: "Above 200 employees the plan is put together with you, sized to your organisation.",
         overLimitCta: "Contact Us →",
         overLimitHref: "",
+        overLimitName: "Custom",
         overLimitMode: "custom",
       },
     ],
@@ -258,6 +264,15 @@ function PlanResultCard({
   const roi = net > 0 ? (net / plan.price) * 100 : 0;
   const payback = !isOverLimit && savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
   const isBlue = plan.color === "blue";
+  // Decided from the card's state, not inside one of the two icon branches:
+  // the custom-mode tile is near-black, and colouring only the Shield for it
+  // left the Zap a blue card renders teal on near-black.
+  const iconClass = `h-4 w-4 ${
+    isDeadEnd ? "text-gray-400"
+      : isCustomMode ? "text-white"
+      : isBlue ? "text-teal-600"
+      : "text-teal-700"
+  }`;
 
   return (
     <div className={`relative rounded-2xl border-2 p-6 flex flex-col transition-all ${
@@ -291,12 +306,9 @@ function PlanResultCard({
       {/* Plan header */}
       <div className="flex items-center gap-2 mb-1 mt-2">
         <div className={`p-1.5 rounded-lg ${isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-900" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
-          {isBlue
-            ? <Zap className={`h-4 w-4 ${isDeadEnd ? "text-gray-400" : "text-teal-600"}`} />
-            : <Shield className={`h-4 w-4 ${isDeadEnd ? "text-gray-400" : isCustomMode ? "text-white" : "text-teal-700"}`} />
-          }
+          {isBlue ? <Zap className={iconClass} /> : <Shield className={iconClass} />}
         </div>
-        <h3 className="font-bold text-gray-900">{isCustomMode ? "Custom" : plan.name}</h3>
+        <h3 className="font-bold text-gray-900">{isCustomMode ? plan.overLimitName || plan.name : plan.name}</h3>
       </div>
       {/* The listed price is withdrawn, not struck through: at this size it was
           never the price this visitor would pay. */}
@@ -405,10 +417,20 @@ export default function ROIPage() {
     [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays],
   );
 
-  // Read from the plan itself rather than repeating its employee cap here: the
-  // two used to be able to disagree, and the one that lost was this literal.
-  const largestPlan = plans[plans.length - 1];
-  const recommendedPlan = employees > plans[0].employeeLimit ? largestPlan : plans[0];
+  // Read from the plans themselves rather than repeating their caps here: the
+  // two used to be able to disagree, and the one that lost was the literal.
+  //
+  // Neither of these assumes there are exactly two plans, or that the copy
+  // lists them smallest-first. The previous `plans[0]` / `plans[length - 1]`
+  // pair assumed both, which a third tier or a reordered array would have
+  // broken silently — recommending a plan the company does not fit in.
+  const largestPlan = plans.reduce((a, b) => (b.employeeLimit > a.employeeLimit ? b : a));
+  // The smallest plan the company actually fits in — which is also the cheapest
+  // while price rises with capacity, but capacity is what is being matched
+  // here. Nothing fitting is exactly the custom case handled below.
+  const recommendedPlan =
+    [...plans].sort((a, b) => a.employeeLimit - b.employeeLimit)
+      .find((p) => employees <= p.employeeLimit) ?? largestPlan;
   // Past the largest plan that has a price, there is nothing to subtract — the
   // closing figure becomes the gross saving and says so. Subtracting the
   // Enterprise price anyway would print a "net saving" for a plan the cards

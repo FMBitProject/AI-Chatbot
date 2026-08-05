@@ -4,14 +4,74 @@ export type Lang = "id" | "en";
 
 // Quota numbers in copy are pulled from PLAN_LIMITS so pricing text can never
 // drift from what the API actually enforces.
-const proPerUser = PLAN_LIMITS.professional.maxQuestionsPerDayPerUser;
+//
+// That claim used to be true of exactly one number. Every Starter and
+// Professional figure on the pricing page was a literal typed into the copy —
+// "5 karyawan", "300 pertanyaan / hari" — so raising Professional's daily
+// allowance in plan-limits.ts would have left the page advertising the old one,
+// with this comment sitting here telling the next person it could not happen.
+// Every quota printed anywhere below now reads from PLAN_LIMITS.
+const sta = PLAN_LIMITS.starter;
+const pro = PLAN_LIMITS.professional;
 const ent = PLAN_LIMITS.enterprise;
-const entPerUser = ent.maxQuestionsPerDayPerUser;
+// Annotated `number`, not left to inference. PLAN_LIMITS is `as const`, so
+// these are literal types (2000, 400, …), and TypeScript then rejects `=== -1`
+// below as a comparison that can never be true. It is right about today's
+// values and wrong about the point: the whole reason the checks exist is the
+// day somebody edits that file. Widening keeps the guards compilable without
+// weakening anything the app relies on.
+const entDaily: number = ent.maxQuestionsPerDay;
+const entPerUser: number = ent.maxQuestionsPerDayPerUser;
+const proDaily: number = pro.maxQuestionsPerDay;
+const proPerUser: number = pro.maxQuestionsPerDayPerUser;
+const staDaily: number = sta.maxQuestionsPerDay;
+const staMonthly: number = sta.maxQuestionsPerMonth;
 // -1 is how PLAN_LIMITS spells "unlimited", and it reaches these strings
 // unchanged: set a limit back to -1 and the pricing table would advertise
-// "-1 karyawan". Every limit printed in copy goes through these.
-const idNum = (n: number) => (n === -1 ? "Tanpa batas" : n.toLocaleString("id-ID"));
-const enNum = (n: number) => (n === -1 ? "Unlimited" : n.toLocaleString("en-US"));
+// "-1 karyawan".
+//
+// Substituting the word "unlimited" for the number is not enough on its own —
+// it only moves the damage into the grammar ("Paket Enterprise Tanpa batas
+// pertanyaan/hari"). So these build the whole phrase, and the unlimited case
+// is written as its own sentence rather than as a number slot with a word
+// dropped into it.
+const idNum = (n: number) => n.toLocaleString("id-ID");
+const enNum = (n: number) => n.toLocaleString("en-US");
+
+const idLimit = (n: number, noun: string) =>
+  n === -1 ? `${noun} tanpa batas` : `${idNum(n)} ${noun}`;
+const enLimit = (n: number, noun: string) =>
+  n === -1 ? `Unlimited ${noun}` : `${enNum(n)} ${noun}`;
+
+// Sentence-initial in the feature lists, so the Indonesian phrase — which puts
+// the noun first — needs its capital back. The numbered form is unaffected.
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// The daily-question allowance reads in two places and has an awkward unit:
+// "pertanyaan / hari tanpa batas" is not a sentence anyone would write, and an
+// unlimited daily allowance is simply unlimited.
+const idDaily = (n: number) => (n === -1 ? "Pertanyaan tanpa batas" : `${idNum(n)} pertanyaan / hari`);
+const enDaily = (n: number) => (n === -1 ? "Unlimited questions" : `${enNum(n)} questions / day`);
+
+// The Enterprise quota clause in the FAQ, including the per-user parenthetical
+// — which is dropped entirely when there is no per-user brake to describe.
+//
+// Only Enterprise gets an unlimited branch. Starter is the free tier and
+// Professional sits between two priced tiers; if either ever went uncapped the
+// whole paragraph would need rewriting rather than a substitution, so pretending
+// a branch here would cover it is worse than not having one.
+const idEntQuota =
+  entDaily === -1
+    ? "Paket Enterprise tidak dibatasi."
+    : `Paket Enterprise ${idNum(entDaily)} pertanyaan/hari${
+        entPerUser === -1 ? "" : ` (maksimal ${idNum(entPerUser)} per karyawan)`
+      }.`;
+const enEntQuota =
+  entDaily === -1
+    ? "Enterprise is uncapped."
+    : `Enterprise allows ${enNum(entDaily)} questions/day${
+        entPerUser === -1 ? "" : ` (at most ${enNum(entPerUser)} per employee)`
+      }.`;
 
 export const t = {
   id: {
@@ -257,16 +317,16 @@ export const pricing = {
       { name: "Custom", desc: "Untuk grup RS, multi-cabang, atau kebutuhan khusus" },
     ],
     features: [
-      ["5 karyawan", "10 dokumen", "100 pertanyaan/bulan · 10/hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
-      ["50 karyawan", "100 dokumen", "300 pertanyaan / hari", "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Respon dukungan < 24 jam"],
-      [`${idNum(ent.maxEmployees)} karyawan`, `${idNum(ent.maxDocuments)} dokumen`, `${idNum(ent.maxQuestionsPerDay)} pertanyaan / hari`, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
+      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), `${idNum(staMonthly)} pertanyaan/bulan · ${idNum(staDaily)}/hari`, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
+      [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Respon dukungan < 24 jam"],
+      [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi 10 pertanyaan/hari dan 100/bulan. Paket Professional dibatasi 300 pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${proPerUser} pertanyaan/hari per karyawan). Paket Enterprise ${idNum(ent.maxQuestionsPerDay)} pertanyaan/hari (maksimal ${idNum(entPerUser)} per karyawan). Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi — silakan hubungi kami.` },
+      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi ${idNum(staDaily)} pertanyaan/hari dan ${idNum(staMonthly)}/bulan. Paket Professional dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi — silakan hubungi kami.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -310,16 +370,16 @@ export const pricing = {
       { name: "Custom", desc: "For hospital groups, multi-site, or special requirements" },
     ],
     features: [
-      ["5 employees", "10 documents", "100 questions/month · 10/day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
-      ["50 employees", "100 documents", "300 questions / day", "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Support response < 24h"],
-      [`${enNum(ent.maxEmployees)} employees`, `${enNum(ent.maxDocuments)} documents`, `${enNum(ent.maxQuestionsPerDay)} questions / day`, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
+      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), `${enNum(staMonthly)} questions/month · ${enNum(staDaily)}/day`, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
+      [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Support response < 24h"],
+      [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: `Starter is limited to 10 questions/day and 100/month. Professional is limited to 300 questions/day (to keep things fair for the whole team, at most ${proPerUser} questions/day per employee). Enterprise allows ${enNum(ent.maxQuestionsPerDay)} questions/day (at most ${enNum(entPerUser)} per employee). If you need more than that, the Custom plan is uncapped — get in touch.` },
+      { q: "Are there question limits?", a: `Starter is limited to ${enNum(staDaily)} questions/day and ${enNum(staMonthly)}/month. Professional is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the Custom plan is uncapped — get in touch.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],
