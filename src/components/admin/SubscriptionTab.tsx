@@ -20,7 +20,7 @@ interface SubData {
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
 
-const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", professional: "Professional", enterprise: "Enterprise" };
+const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", professional: "Professional", enterprise: "Enterprise", custom: "Custom" };
 const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
   paid: { label: "Lunas", variant: "success" },
   pending: { label: "Menunggu", variant: "warning" },
@@ -188,10 +188,12 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
   const graceStr = data.graceEndsAt ? fmtDate(data.graceEndsAt) : null;
   const purchasedLabel = PLAN_LABELS[data.purchasedPlan ?? data.plan] ?? data.plan;
 
-  // Storing a key is Enterprise-only, but a company that already stored one
+  // Storing a key is Enterprise-and-above, but a company that already stored one
   // keeps the right to see and remove it after the plan lapses — it is their
   // credential, and clearing it is the fix if the key stops working upstream.
-  const canEditKeys = data.plan === "enterprise";
+  // Custom must be included: BYOK is what makes an uncapped plan viable, so the
+  // one tier that most needs this field cannot be the one locked out of it.
+  const canEditKeys = data.plan === "enterprise" || data.plan === "custom";
   const hasAnyKey = byok.hasGroqKey || byok.hasGeminiKey;
 
   // One line that always says where the subscription stands, including the two
@@ -218,12 +220,12 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
         <p className="text-sm text-gray-500">{lang === "en" ? "Your current plan and billing history." : "Paket aktif dan riwayat pembayaran Anda."}</p>
       </div>
 
-      <Card className={data.plan === "enterprise" ? "border-violet-300" : data.plan === "professional" ? "border-blue-300" : "border-gray-200"}>
+      <Card className={data.plan === "custom" ? "border-gray-900" : data.plan === "enterprise" ? "border-violet-300" : data.plan === "professional" ? "border-blue-300" : "border-gray-200"}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">{lang === "en" ? "Current Plan" : "Paket Aktif"}</CardTitle>
-            <Badge variant={data.plan === "starter" ? "secondary" : "default"} className={data.plan === "enterprise" ? "bg-violet-600" : ""}>
-              {data.plan === "enterprise" ? "⚡" : data.plan === "professional" ? "✦" : ""} {PLAN_LABELS[data.plan]}
+            <Badge variant={data.plan === "starter" ? "secondary" : "default"} className={data.plan === "custom" ? "bg-gray-900" : data.plan === "enterprise" ? "bg-violet-600" : ""}>
+              {data.plan === "custom" ? "★" : data.plan === "enterprise" ? "⚡" : data.plan === "professional" ? "✦" : ""} {PLAN_LABELS[data.plan]}
             </Badge>
           </div>
         </CardHeader>
@@ -274,12 +276,17 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
                     Companies switch BYOK on for data governance as often as for
                     capacity, and "unlimited capacity" answered neither question
                     — least of all the one that matters most, whether uploaded
-                    documents go through their account or ours. */}
+                    documents go through their account or ours.
+                    It no longer says "unlimited" either: since Enterprise gained
+                    real quota numbers, an own key buys isolated provider
+                    capacity but does not lift the plan's question limit, and a
+                    customer who read otherwise would find that out by hitting
+                    the cap. */}
                 <p className="text-xs text-gray-500 mt-0.5">
                   {canEditKeys
                     ? (lang === "en"
-                      ? "Connect your own Groq & Gemini API keys for isolated, unlimited capacity. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
-                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi dan tidak terbatas. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
+                      ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
+                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
                     : (lang === "en"
                       ? "Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires Enterprise — removing one is always yours to do."
                       : "Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket Enterprise — menghapus selalu bisa Anda lakukan.")}

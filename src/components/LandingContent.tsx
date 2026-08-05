@@ -123,7 +123,8 @@ const CONTENT = {
     pricePlans: [
       { name: "Starter", price: "Gratis", desc: "5 karyawan · 10 dokumen" },
       { name: "Professional", price: "Rp 200rb/bln", desc: "50 karyawan · 100 dokumen", promo: true },
-      { name: "Enterprise", price: "Rp 500rb/bln", desc: "Tidak terbatas", promo: true },
+      { name: "Enterprise", price: "Rp 500rb/bln", desc: "200 karyawan · 500 dokumen", promo: true },
+      { name: "Custom", price: "Hubungi kami", desc: "Grup RS & multi-cabang" },
     ],
     priceBtn: "Lihat Detail Harga",
     // Every answer here is checked against what the product actually does and
@@ -233,7 +234,8 @@ const CONTENT = {
     pricePlans: [
       { name: "Starter", price: "Free", desc: "5 employees · 10 documents" },
       { name: "Professional", price: "Rp 200k/mo", desc: "50 employees · 100 documents", promo: true },
-      { name: "Enterprise", price: "Rp 500k/mo", desc: "Unlimited", promo: true },
+      { name: "Enterprise", price: "Rp 500k/mo", desc: "200 employees · 500 documents", promo: true },
+      { name: "Custom", price: "Contact us", desc: "Hospital groups & multi-site" },
     ],
     priceBtn: "View Full Pricing",
     faqTitle: "The Questions That Come Up First",
@@ -635,11 +637,14 @@ export function LandingContent() {
 
       {/* Pricing teaser */}
       <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center">
+        <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">{T.priceTitle}</h2>
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
-          <div className="grid sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {T.pricePlans.map((p) => {
+              // Only the two self-serve tiers take their price from the pricing
+              // module; Starter is free and Custom has no list price at all, so
+              // both keep the literal string from the copy above.
               const planKey = p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
               const promo = planKey ? isPromoActive() : false;
               const priceText = planKey

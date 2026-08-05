@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { and, eq, desc, ne } from "drizzle-orm";
-import { computeRenewedExpiry, isPaidPlan, isSubscriptionActive, planRank } from "@/lib/pricing";
+import { computeRenewedExpiry, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import {
   amountMatches,
   closedTransactionStatus,
@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
   }
-  if (!isPaidPlan(plan)) return NextResponse.json({ error: "Paket tidak dikenali." }, { status: 400 });
+  // Only a plan that can be bought can be verified as bought — `custom` is
+  // granted by hand and never passes through Midtrans.
+  if (!isPurchasablePlan(plan)) return NextResponse.json({ error: "Paket tidak dikenali." }, { status: 400 });
   if (orderId !== undefined && typeof orderId !== "string") {
     return NextResponse.json({ error: "ID pesanan tidak valid." }, { status: 400 });
   }
@@ -216,9 +218,7 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .for("update");
       const now = new Date();
-      const currentRank = isSubscriptionActive(company?.plan, company?.planExpiresAt, now)
-        ? planRank(company?.plan)
-        : 0;
+      const currentRank = planRankInForce(company?.plan, company?.planExpiresAt, now);
 
       // Grant tx.plan, not the plan from the request body: the two are equal
       // (the row was selected by it), but reading it off the transaction keeps

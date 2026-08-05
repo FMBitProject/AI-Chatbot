@@ -6,7 +6,8 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
-import { getPlanPrice, formatRupiah, type PaidPlan } from "@/lib/pricing";
+import { getPlanPrice, formatRupiah, type PurchasablePlan } from "@/lib/pricing";
+import { consultationMailto } from "@/lib/contact";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
 import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
 
@@ -50,20 +51,24 @@ const CONTENT = {
         recommendedLabel: "Cocok untuk Tim Anda",
         overLimitLabel: "Melebihi Batas",
         overLimitDesc: "Plan ini hanya untuk maks. 50 karyawan. Upgrade ke Enterprise.",
+        overLimitCta: "Lihat Enterprise →",
+        overLimitHref: "/pricing",
       },
       {
         key: "enterprise",
         name: "Enterprise",
         price: 500_000,
         priceLabel: "Rp 500.000 / bulan",
-        limit: "Karyawan & dokumen tidak terbatas",
-        employeeLimit: Infinity,
+        limit: "Hingga 200 karyawan · 500 dokumen",
+        employeeLimit: 200,
         color: "violet",
         cta: "Mulai Enterprise",
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Cocok untuk Tim Anda",
-        overLimitLabel: "",
-        overLimitDesc: "",
+        overLimitLabel: "Perlu Paket Custom",
+        overLimitDesc: "Di atas 200 karyawan, paket disusun bersama sesuai skala organisasi Anda.",
+        overLimitCta: "Hubungi Kami →",
+        overLimitHref: "",
       },
     ],
     results: {
@@ -120,20 +125,24 @@ const CONTENT = {
         recommendedLabel: "Right for Your Team",
         overLimitLabel: "Over Limit",
         overLimitDesc: "This plan supports max. 50 employees. Upgrade to Enterprise.",
+        overLimitCta: "See Enterprise →",
+        overLimitHref: "/pricing",
       },
       {
         key: "enterprise",
         name: "Enterprise",
         price: 500_000,
         priceLabel: "Rp 500,000 / month",
-        limit: "Unlimited employees & documents",
-        employeeLimit: Infinity,
+        limit: "Up to 200 employees · 500 documents",
+        employeeLimit: 200,
         color: "violet",
         cta: "Start Enterprise",
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Right for Your Team",
-        overLimitLabel: "",
-        overLimitDesc: "",
+        overLimitLabel: "Custom Plan Needed",
+        overLimitDesc: "Above 200 employees the plan is put together with you, sized to your organisation.",
+        overLimitCta: "Contact Us →",
+        overLimitHref: "",
       },
     ],
     results: {
@@ -304,7 +313,7 @@ function PlanResultCard({
         </div>
       </div>
 
-      <Link href={isOverLimit ? "/pricing" : plan.ctaHref}>
+      <Link href={isOverLimit ? plan.overLimitHref : plan.ctaHref}>
         <Button
           className={`w-full gap-2 ${
             isOverLimit
@@ -314,7 +323,7 @@ function PlanResultCard({
               : "bg-teal-700 hover:bg-teal-800"
           }`}
         >
-          {isOverLimit ? (isBlue ? "Lihat Enterprise →" : plan.cta) : plan.cta}
+          {isOverLimit ? plan.overLimitCta : plan.cta}
           {!isOverLimit && <ArrowRight className="h-4 w-4" />}
         </Button>
       </Link>
@@ -329,8 +338,16 @@ export default function ROIPage() {
   // Override the static plan prices with the current effective price (promo
   // until Dec 2026, then normal) so the ROI math and labels stay in sync.
   const plans = T.plans.map((p) => {
-    const price = getPlanPrice(p.key as PaidPlan);
-    return { ...p, price, priceLabel: `${formatRupiah(price, lang)} / ${lang === "id" ? "bulan" : "month"}` };
+    const price = getPlanPrice(p.key as PurchasablePlan);
+    return {
+      ...p,
+      price,
+      priceLabel: `${formatRupiah(price, lang)} / ${lang === "id" ? "bulan" : "month"}`,
+      // An empty overLimitHref in the copy means "there is no page to send them
+      // to" — the org is past the largest self-serve plan, so the next step is a
+      // conversation, not a checkout.
+      overLimitHref: p.overLimitHref || consultationMailto(lang),
+    };
   });
 
   const [employees, setEmployees] = useState(ROI_DEFAULTS.employees);

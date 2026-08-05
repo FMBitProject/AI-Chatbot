@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { withTransaction } from "@/lib/db/transaction";
 import { transactions, companies } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
-import { computeRenewedExpiry, isSubscriptionActive, planRank } from "@/lib/pricing";
+import { computeRenewedExpiry, planRank, planRankInForce } from "@/lib/pricing";
 import {
   amountMatches,
   closedTransactionStatus,
@@ -215,9 +215,7 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .for("update");
         const now = new Date();
-        const currentRank = isSubscriptionActive(company?.plan, company?.planExpiresAt, now)
-          ? planRank(company?.plan)
-          : 0;
+        const currentRank = planRankInForce(company?.plan, company?.planExpiresAt, now);
 
         if (planRank(tx.plan) < currentRank) {
           // Downgrades are blocked at checkout (payment/create); if one still reaches
