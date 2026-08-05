@@ -158,7 +158,10 @@ export default function PricingPage() {
 
       {/* Plans */}
       <section className="max-w-6xl mx-auto px-6 py-12">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Four cards inside max-w-6xl leaves ~258px each, so the padding that
+            was comfortable at three columns now eats a quarter of the width and
+            is what pushed the prices onto two lines. */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
           {T.plans.map((plan, idx) => {
             // The copy lives in i18n.ts and the keys live here, so the two can
             // drift. Rendering nothing is the safe end of that: a card with no
@@ -171,16 +174,22 @@ export default function PricingPage() {
             const isCustom = key === "custom";
             const hasPromo = HAS_PROMO[key] ?? false;
             return (
-            <div key={plan.name} className={cn("rounded-2xl border-2 p-8 flex flex-col relative",
+            <div key={plan.name} className={cn("rounded-2xl border-2 p-6 flex flex-col relative",
               isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
                 : key === "enterprise" ? "border-teal-700"
                 : isCustom ? "border-gray-900"
                 : "border-gray-200"
             )}>
               {isPopular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-                  <span className="bg-teal-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1">
-                    <Zap className="h-3 w-3" />{T.popular}
+                // The badge is positioned with left-1/2, and `translate` does
+                // not feed back into layout — so an auto-width absolute box can
+                // only use the half of the card to its right. At four columns
+                // that is ~129px and "Paling Populer" broke across two lines
+                // straddling the card border. w-max sizes it to its own text,
+                // and nowrap keeps it there whatever the label says.
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-max">
+                  <span className="bg-teal-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+                    <Zap className="h-3 w-3 shrink-0" />{T.popular}
                   </span>
                 </div>
               )}
@@ -194,42 +203,53 @@ export default function PricingPage() {
                   )}
                 </div>
                 <p className="text-gray-500 text-sm mb-3">{plan.desc}</p>
+                {/* The amount and its unit stack instead of sitting side by
+                    side. Beside each other they competed for a ~210px line, and
+                    both lost: "Rp 200.000" split after "Rp", and on the Custom
+                    card the note ran past the card's edge. `whitespace-nowrap`
+                    keeps a price from ever breaking mid-number. */}
                 {hasPromo ? (
                   <div>
                     {/* "—" rather than an empty span if a key ever lacks a
                         price: a blank where a number belongs looks like a
                         loading bug, and reads as free. */}
                     <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[key] ?? "—"}</span>
-                    <div className="flex items-end gap-1 mt-0.5">
-                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[key] ?? "—"}</span>
-                      <span className="text-gray-400 text-sm pb-1">/ {T.perMonth}</span>
+                    <div className="flex flex-col mt-0.5">
+                      <span className="text-3xl font-bold text-orange-500 whitespace-nowrap">{PROMO_PRICES[key] ?? "—"}</span>
+                      <span className="text-gray-400 text-sm">/ {T.perMonth}</span>
                     </div>
                   </div>
                 ) : isCustom ? (
                   // No number here on purpose: this tier is sized against the
-                  // organisation before any price is quoted.
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold text-gray-900">{T.customPrice}</span>
-                    <span className="text-gray-400 text-sm pb-1">{T.customPriceNote}</span>
+                  // organisation before any price is quoted. Words need a
+                  // smaller size than a figure does — at text-3xl "Sesuai
+                  // Kebutuhan" wrapped and dragged the feature list out of line
+                  // with the other three cards.
+                  <div className="flex flex-col">
+                    <span className="text-2xl font-bold text-gray-900 leading-snug">{T.customPrice}</span>
+                    <span className="text-gray-400 text-sm">{T.customPriceNote}</span>
                   </div>
                 ) : (
-                  <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold text-gray-900">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "—"}</span>
-                    <span className="text-gray-400 text-sm pb-1">/ {isFree ? T.forever : T.perMonth}</span>
+                  <div className="flex flex-col">
+                    <span className="text-3xl font-bold text-gray-900 whitespace-nowrap">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "—"}</span>
+                    <span className="text-gray-400 text-sm">/ {isFree ? T.forever : T.perMonth}</span>
                   </div>
                 )}
               </div>
-              <ul className="space-y-3 flex-1 mb-8">
+              <ul className="space-y-3 flex-1 mb-6">
                 {T.features[idx].map((f, fi) => {
                   const checkedCount = isFree ? 5 : T.features[idx].length;
                   const hasCheck = fi < checkedCount;
                   const isGray = fi >= checkedCount;
                   return (
-                    <li key={fi} className="flex items-center gap-2.5 text-sm">
+                    // items-start, not items-center: at this width half these
+                    // lines wrap, and a centred tick floats into the gap between
+                    // the two lines instead of marking the item it belongs to.
+                    <li key={fi} className="flex items-start gap-2.5 text-sm">
                       {hasCheck
-                        ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                        : <XCircle className="h-4 w-4 text-gray-200 shrink-0" />}
-                      <span className={isGray ? "text-gray-300" : "text-gray-700"}>{f}</span>
+                        ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                        : <XCircle className="h-4 w-4 text-gray-200 shrink-0 mt-0.5" />}
+                      <span className={cn("leading-snug", isGray ? "text-gray-300" : "text-gray-700")}>{f}</span>
                     </li>
                   );
                 })}

@@ -11,7 +11,7 @@ import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL 
 import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -105,19 +105,6 @@ const CONTENT = {
       { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
       { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan, lengkap dengan daftar dokumen sumber yang bisa dibuka untuk mengecek.", icon: MessageSquare },
     ] satisfies Step[],
-    featTitle: "Semua yang Dibutuhkan Tim Anda",
-    featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
-    features: [
-      // The product has returned source citations since day one and the landing
-      // page never said so — while "nanti AI-nya ngarang" is the first objection
-      // every buyer raises. Naming the mechanism answers it; "akurat" does not.
-      { icon: MessageSquare, t: "Setiap Jawaban Menyebut Sumbernya", d: "Jawaban datang bersama nama dokumen dan potongan teks yang dipakai, jadi bisa langsung dicek ke dokumen aslinya — bukan jawaban dari internet umum." },
-      { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT, clinical pathway. AI langsung mengindeks dan siap menjawab." },
-      { icon: ShieldCheck, t: "Isolasi Data Multi-Tenant", d: "Data tiap perusahaan terisolasi penuh. Tidak ada kebocoran ke tenant lain." },
-      { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
-      { icon: BarChart2, t: "Analytics & Audit Log", d: "Pantau pertanyaan terpopuler dan siapa bertanya apa untuk insight bisnis." },
-      { icon: Zap, t: "Jawaban Instan", d: "Tidak perlu buka dokumen satu per satu. Tanya langsung, dapat jawaban dalam detik." },
-    ],
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
@@ -219,16 +206,6 @@ const CONTENT = {
       { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
       { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. The AI answers from official company documents, listing the source documents they can open to check.", icon: MessageSquare },
     ] satisfies Step[],
-    featTitle: "Everything Your Team Needs",
-    featDesc: "A complete platform for internal company knowledge management",
-    features: [
-      { icon: MessageSquare, t: "Every Answer Names Its Source", d: "Answers arrive with the document name and the excerpt used, so any answer can be checked against the original — not answers from the general internet." },
-      { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines, clinical pathways. AI indexes instantly and is ready to answer." },
-      { icon: ShieldCheck, t: "Multi-Tenant Data Isolation", d: "Each company's data is fully isolated. No leaks to other tenants." },
-      { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
-      { icon: BarChart2, t: "Analytics & Audit Log", d: "Monitor top questions and who asked what for business insights." },
-      { icon: Zap, t: "Instant Answers", d: "No need to open documents one by one. Ask directly, get answers in seconds." },
-    ],
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
@@ -314,10 +291,10 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
     // pt of its own rather than borrowing the previous section's: this used to
     // sit directly under the hero and lean on its py-24, which quietly made the
     // spacing here a property of whatever happens to be rendered above.
-    <section className="pt-16 pb-20 px-6 bg-white">
+    <section className="pt-10 pb-14 px-6">
       <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-gray-900 mb-3">{title}</h2>
+        <div className="text-center mb-7">
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{title}</h2>
           <p className="text-gray-500">{desc}</p>
         </div>
         <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-gray-900">
@@ -366,9 +343,9 @@ export function LandingContent() {
   const teaser = calculateRoi({ ...ROI_DEFAULTS, employees: teaserEmployees });
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       {/* Navbar */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
+      <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
@@ -381,30 +358,58 @@ export function LandingContent() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="text-center py-24 px-6 bg-gradient-to-b from-teal-50 via-white to-white">
-        <div className="max-w-4xl mx-auto">
-          <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-6">{T.badge}</span>
-          <h1 className="text-5xl font-bold text-gray-900 leading-tight mb-6">
-            {T.hero1}<br />
-            <span className="text-teal-600">{T.hero2}</span> {T.hero3}
-          </h1>
-          <p className="text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">{T.heroDesc}</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/register"><Button size="lg" className="bg-teal-600 hover:bg-teal-700 gap-2 h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
-            <Link href="/pricing"><Button size="lg" className="bg-gray-900 hover:bg-gray-700 text-white gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4" /></Button></Link>
+      {/* Hero
+          Two columns instead of a centred column, and this is the change that
+          buys back the first screen. Centred, the headline had to be text-5xl
+          to hold the middle of an empty page, the paragraph needed max-w-2xl to
+          stop it running the full width, and py-24 above and below meant one
+          sentence occupied everything a visitor saw. Beside an image the same
+          words hold their own at a smaller size, and the product appears before
+          any scrolling — which is the one thing the old hero never showed. */}
+      <section className="px-6 pt-10 pb-12 md:pt-14 md:pb-16">
+        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 md:gap-14 items-center">
+          <div>
+            {/* Small, letterspaced, and no pill: a filled badge is a loud way to
+                say something quiet. */}
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-5">{T.badge}</p>
+            {/* 600, not 700, and tracking pulled in. With one family doing both
+                headings and body, weight is the only thing separating them —
+                and the old page proved that a 700 headline at this size reads
+                as shouting. Semibold with tight tracking keeps the authority
+                and drops the volume. */}
+            <h1 className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.12] text-gray-900 mb-5">
+              {T.hero1}{" "}
+              <span className="text-teal-700">{T.hero2}</span> {T.hero3}
+            </h1>
+            <p className="text-base md:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">{T.heroDesc}</p>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <Link href="/register">
+                <Button size="lg" className="bg-teal-700 hover:bg-teal-800 gap-2 h-12 px-7">{T.cta1} <ArrowRight className="h-4 w-4" /></Button>
+              </Link>
+              {/* A quiet second path, deliberately not a button: the button above
+                  asks a stranger to hand over internal documents before anyone
+                  has spoken to them, and that is the wrong first step for most
+                  of the companies being pitched. Kept as a text link so it stays
+                  an exit for the unconvinced rather than a competing CTA. */}
+              <a href={consultationMailto(lang)} className="text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300">
+                {T.consult}
+              </a>
+            </div>
+            <p className="text-xs text-gray-500 mt-5">{T.ctaNote}</p>
           </div>
-          <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
-          {/* A quiet third path, deliberately not a button: both buttons above
-              ask a stranger to hand over internal documents before anyone has
-              spoken to them, and that is the wrong first step for most of the
-              companies being pitched. Kept as a text link so it stays an exit
-              for the unconvinced rather than competing with the primary CTA. */}
-          <p className="mt-6">
-            <a href={consultationMailto(lang)} className="text-sm text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
-              {T.consult}
-            </a>
-          </p>
+          {/* The answer screen, not a stock photo: the single most useful thing
+              to show someone deciding whether this is real is the product doing
+              the thing. Priority because it is the largest element above the
+              fold and the page's LCP. */}
+          <div className="relative">
+            <Image
+              src={askAndAnswerShot}
+              alt=""
+              priority
+              sizes="(min-width: 768px) 50vw, 100vw"
+              className="w-full h-auto rounded-2xl border border-hairline shadow-sm bg-raised"
+            />
+          </div>
         </div>
       </section>
 
@@ -421,36 +426,40 @@ export function LandingContent() {
           industry-neutral on purpose — the product genuinely fits any document
           set, and a hospital-only hero would turn away the other four before
           they ever reach this band. */}
-      <section className="pb-16 px-6 border-b">
-        <div className="max-w-7xl mx-auto">
+      <section className="pb-10 px-6">
+        <div className="max-w-6xl mx-auto">
           {/* Rendered from the registry rather than hardcoded, so the day another
-              vertical earns the spot this band follows it. */}
+              vertical earns the spot this band follows it.
+              On the raised surface with a hairline border rather than a tinted
+              gradient: this card is the most-clicked thing on the page and does
+              not need colour to be found. Lifting it off the paper is enough,
+              and it stops competing with the hero directly above. */}
           {FEATURED_INDUSTRY?.featured && FEATURED_INDUSTRY.href && (
-            <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-8 md:p-10 mb-12">
+            <div className="rounded-2xl border border-hairline bg-raised p-7 md:p-9 mb-10 shadow-sm">
               <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-3">
                     {FEATURED_INDUSTRY.featured.eyebrow[lang]}
                   </p>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-4">
+                  <h2 className="text-2xl md:text-[1.75rem] font-semibold tracking-[-0.015em] text-gray-900 leading-[1.2] mb-4">
                     {FEATURED_INDUSTRY.featured.headline[lang]}
                   </h2>
                   <p className="text-base text-gray-600 leading-relaxed mb-6">
                     {FEATURED_INDUSTRY.featured.body[lang]}
                   </p>
                   <Link href={FEATURED_INDUSTRY.href}>
-                    <Button className="bg-teal-600 hover:bg-teal-700 gap-2 h-11 px-6">
+                    <Button className="bg-teal-700 hover:bg-teal-800 gap-2 h-11 px-6">
                       {FEATURED_INDUSTRY.featured.cta[lang]} <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
                 </div>
-                <ul className="space-y-4">
+                <ul className="space-y-3.5">
                   {FEATURED_INDUSTRY.featured.points[lang].map((p) => (
                     <li key={p} className="flex items-start gap-3">
-                      <span className="rounded-full bg-teal-600/10 p-1 mt-0.5 shrink-0">
-                        <Check className="h-4 w-4 text-teal-700" aria-hidden="true" />
+                      <span className="rounded-full bg-teal-700/10 p-1 mt-0.5 shrink-0">
+                        <Check className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
                       </span>
-                      <span className="text-gray-700 leading-relaxed">{p}</span>
+                      <span className="text-[0.95rem] text-gray-700 leading-relaxed">{p}</span>
                     </li>
                   ))}
                 </ul>
@@ -458,38 +467,38 @@ export function LandingContent() {
             </div>
           )}
 
-          {/* Type sizes are one step below the page's full sections (text-xl
-              heading against their text-3xl) — this row is now the secondary
-              tier and should read that way against the card above it. */}
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
-            <p className="text-base text-gray-500 max-w-2xl mx-auto">{T.industriesDesc}</p>
+          {/* Left-aligned, not centred, and a step quieter than the card above:
+              this row is the footnote to the featured vertical, and centring it
+              gave it the same ceremony as a section of its own. */}
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold tracking-[-0.01em] text-gray-900 mb-1.5">{T.industriesTitle}</h2>
+            <p className="text-sm text-gray-500 max-w-2xl">{T.industriesDesc}</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {OTHER_INDUSTRIES.map((ind) => {
               const body = (
                 <>
-                  <p className="font-semibold text-base text-gray-900 mb-1.5">
+                  <p className="font-medium text-[0.95rem] text-gray-900 mb-1">
                     {ind.name[lang]}
-                    {ind.href && <ArrowRight className="h-4 w-4 inline-block ml-1 -mt-0.5 text-teal-600" />}
+                    {ind.href && <ArrowRight className="h-3.5 w-3.5 inline-block ml-1 -mt-0.5 text-teal-700" />}
                   </p>
-                  <p className="text-sm text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
+                  <p className="text-[0.8rem] text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
                 </>
               );
               // An industry with a page of its own is the only one that reads as
-              // clickable — tinted, hoverable, and carrying the arrow above. The
-              // rest are plain cards, so nothing invites a click that goes nowhere.
+              // clickable — it carries the arrow above and lifts on hover. The
+              // rest are flat, so nothing invites a click that goes nowhere.
               return ind.href ? (
                 <Link
                   key={ind.key}
                   href={ind.href}
-                  className="rounded-xl border border-teal-200 bg-teal-50/60 p-5 block hover:border-teal-300 hover:shadow-sm transition-all"
+                  className="rounded-xl border border-hairline bg-raised p-4 block hover:border-teal-300 hover:shadow-sm transition-all"
                   aria-label={`${ind.name[lang]} — ${T.industriesMore}`}
                 >
                   {body}
                 </Link>
               ) : (
-                <div key={ind.key} className="rounded-xl border p-5">{body}</div>
+                <div key={ind.key} className="rounded-xl border border-hairline p-4">{body}</div>
               );
             })}
           </div>
@@ -500,7 +509,7 @@ export function LandingContent() {
       <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
       {/* Stats */}
-      <section className="bg-teal-700 py-12 px-6">
+      <section className="bg-teal-700 py-11 px-6">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {T.stats.map((s) => (
@@ -527,10 +536,10 @@ export function LandingContent() {
           that has to make a screenshot legible, and the width is what does it.
           A 1864px-wide dashboard reads at about 69% here, against 25% when it
           was sharing a row with the copy. */}
-      <section className="py-20 px-6 bg-gray-50">
+      <section className="py-14 px-6 bg-sunken">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.howTitle}</h2>
+          <div className="text-center mb-9">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.howTitle}</h2>
             <p className="text-gray-500">{T.howDesc}</p>
           </div>
           <div className="space-y-16 md:space-y-24">
@@ -560,7 +569,7 @@ export function LandingContent() {
                     sizes={shotSizes(shot.width)}
                     // h-auto keeps each file's own aspect ratio, so the near-square
                     // dialog and the wide dashboard both stay undistorted.
-                    className="w-full h-auto mx-auto rounded-xl border shadow-sm bg-white"
+                    className="w-full h-auto mx-auto rounded-xl border border-hairline shadow-sm bg-raised"
                   />
                 </div>
               );
@@ -569,34 +578,23 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.featTitle}</h2>
-            <p className="text-gray-500">{T.featDesc}</p>
-          </div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {T.features.map((f) => (
-              <div key={f.t} className="rounded-xl border p-6 hover:border-teal-200 hover:shadow-sm transition-all">
-                <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3"><f.icon className="h-5 w-5 text-teal-600" /></div>
-                <h3 className="font-semibold text-gray-900 mb-1">{f.t}</h3>
-                <p className="text-gray-500 text-sm">{f.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
+      {/* The "Semua yang Dibutuhkan Tim Anda" grid stood here. Every one of its
+          six cards repeated a section the visitor had already read: citations
+          and the document formats are both spelled out in the three steps above,
+          data isolation is the 100% figure in the stats band and a FAQ answer,
+          team management is step 2. The only card saying anything new claimed an
+          "Audit Log" that is really the chat history — so removing the section
+          drops one overstatement along with five repetitions, and takes a full
+          screen of scrolling out from between the demo and the price. */}
 
       {/* ROI Teaser */}
-      <section className="py-20 px-6 bg-gray-900">
+      <section className="py-14 px-6 bg-gray-900">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-10">
+          <div className="text-center mb-7">
             <span className="inline-flex items-center gap-1.5 bg-teal-900/60 text-teal-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
               <Calculator className="h-3.5 w-3.5" />{T.roiTeaser.badge}
             </span>
-            <h2 className="text-3xl font-bold text-white mb-3">{T.roiTeaser.title}</h2>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-3">{T.roiTeaser.title}</h2>
             <p className="text-gray-400 max-w-xl mx-auto">{T.roiTeaser.desc}</p>
           </div>
           <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
@@ -636,9 +634,9 @@ export function LandingContent() {
       </section>
 
       {/* Pricing teaser */}
-      <section className="py-20 px-6">
+      <section className="py-14 px-6">
         <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">{T.priceTitle}</h2>
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.priceTitle}</h2>
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {T.pricePlans.map((p) => {
@@ -670,10 +668,10 @@ export function LandingContent() {
           started imagining their own SOPs sitting on someone else's server, so
           they belong between the price and the ask — not earlier, where they
           would plant doubts the visitor did not have yet. */}
-      <section className="py-20 px-6 bg-gray-50 border-t">
+      <section className="py-14 px-6 bg-sunken border-t border-hairline">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.faqTitle}</h2>
+          <div className="text-center mb-7">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.faqTitle}</h2>
             <p className="text-gray-500">{T.faqDesc}</p>
           </div>
           {/* Radix unmounts a closed panel, so the answers are not in the DOM
@@ -695,7 +693,7 @@ export function LandingContent() {
               }).replace(/</g, "\\u003c"),
             }}
           />
-          <Accordion type="single" collapsible className="bg-white rounded-2xl border px-6">
+          <Accordion type="single" collapsible className="bg-raised rounded-2xl border border-hairline px-6">
             {T.faq.map((f, i) => (
               // Keyed by position, not by the question text: `value` is the
               // item's identity to Radix, and two entries that happen to share
@@ -741,7 +739,7 @@ export function LandingContent() {
           the objections are settled, and this is the last thing read before
           the visitor decides. */}
       {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
-        <section className="py-16 px-6 border-t">
+        <section className="py-14 px-6 border-t border-hairline">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
             <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
@@ -755,7 +753,7 @@ export function LandingContent() {
       )}
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
+      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
         <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
