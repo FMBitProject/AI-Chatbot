@@ -46,6 +46,12 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
+  // No CacheStorage, no worker. Some browsers withhold `caches` entirely in
+  // private windows, and reading it below would throw inside the event handler
+  // rather than anywhere it could be caught. Bowing out leaves every request to
+  // the network, which is what this worker is trying to accelerate, not enable.
+  if (!self.caches) return;
+
   // Kept even though the allowlist below already excludes documents: a
   // navigation is the one request where getting this wrong serves stale HTML to
   // someone who just deployed, and saying it twice costs nothing.
@@ -68,15 +74,26 @@ self.addEventListener("fetch", (event) => {
   // while the dev server restarts. Resolving with a network-error response
   // fails the request exactly the same way, minus the phantom error.
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
-        }
-        return res;
-      });
-    }).catch(() => Response.error())
+    caches
+      .match(request)
+      // A failure to *read* the cache must never fail the request. Storage can
+      // reject for reasons that have nothing to do with this asset — quota,
+      // eviction mid-read, a locked profile — and since this handler now covers
+      // scripts, stylesheets and fonts, turning one of those into Response.error()
+      // renders the page blank or unstyled while the network was fine all along.
+      // Treat an unreadable cache as an empty one.
+      .catch(() => undefined)
+      .then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
+          }
+          return res;
+        });
+      })
+      // Only a genuine network failure reaches here now.
+      .catch(() => Response.error())
   );
 });

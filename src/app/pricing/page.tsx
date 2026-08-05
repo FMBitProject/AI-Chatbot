@@ -178,7 +178,7 @@ export default function PricingPage() {
               isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
                 : key === "enterprise" ? "border-teal-700"
                 : isCustom ? "border-gray-900"
-                : "border-gray-200"
+                : "border-hairline"
             )}>
               {isPopular && (
                 // The badge is positioned with left-1/2, and `translate` does
