@@ -1,15 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Warm off-white rather than #fff. Pure white forces every section that
+     wants to feel separate to reach for a coloured band, which is how the
+     landing page ended up switching background five times on the way down.
+     A tinted surface lets a thin border and a little space do that job. */
+  --background: #faf8f5;
+  --foreground: #1c1917;
+  /* One step deeper than the page, for the few blocks that still need to read
+     as a distinct zone. Warm, so it reads as the same paper in shadow rather
+     than as grey stuck onto cream. */
+  --surface-sunken: #f4f1eb;
+  --surface-raised: #ffffff;
+  --hairline: #e8e2d9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-sunken: var(--surface-sunken);
+  --color-raised: var(--surface-raised);
+  --color-hairline: var(--hairline);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-instrument-serif);
 }
 
 /* Dark mode disabled — app enforces light mode for consistent branding */
@@ -17,5 +31,9 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Was `Arial, Helvetica, sans-serif`, which quietly beat the Geist that
+     layout.tsx loads on every request: the variable was defined, mapped into
+     the theme, and then never applied to anything. The whole site rendered in
+     Arial while paying to download a font it never drew. */
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
