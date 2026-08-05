@@ -9,7 +9,7 @@ import { useLang } from "@/lib/language-context";
 import { getPlanPrice, formatRupiah, type PurchasablePlan } from "@/lib/pricing";
 import { consultationMailto } from "@/lib/contact";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
-import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
 
 const CONTENT = {
   id: {
@@ -53,6 +53,10 @@ const CONTENT = {
         overLimitDesc: "Plan ini hanya untuk maks. 50 karyawan. Upgrade ke Enterprise.",
         overLimitCta: "Lihat Enterprise →",
         overLimitHref: "/pricing",
+        // "upgrade" = there is a bigger plan on the shelf, so this card is a
+        // dead end and says so. "custom" = they are past everything that has a
+        // list price, which is not a dead end at all — see PlanResultCard.
+        overLimitMode: "upgrade",
       },
       {
         key: "enterprise",
@@ -69,6 +73,7 @@ const CONTENT = {
         overLimitDesc: "Di atas 200 karyawan, paket disusun bersama sesuai skala organisasi Anda.",
         overLimitCta: "Hubungi Kami →",
         overLimitHref: "",
+        overLimitMode: "custom",
       },
     ],
     results: {
@@ -78,12 +83,21 @@ const CONTENT = {
       roi: "ROI",
       payback: "Balik Modal",
       paybackUnit: "hari",
+      // Shown wherever a number depends on a price that does not exist yet.
+      // "-" already means "not applicable" on the dead card, so this deliberately
+      // reads as pending rather than as zero.
+      pending: "disusun bersama",
+      pendingShort: "—",
     },
     cta: {
       title: "Siap Mulai Menghemat?",
       desc: "Mulai gratis, setup 10 menit, tidak perlu kartu kredit.",
+      // The headline number above this line stops being "net savings" once the
+      // organisation is past every listed price — there is nothing to subtract.
+      descCustom: "Itu penghematan kotor tim Anda per bulan. Biaya paketnya kita tentukan bersama setelah bicara.",
       btn: "Coba Gratis Dulu",
       pricing: "Lihat Detail Harga",
+      contact: "Hubungi Kami",
     },
   },
   en: {
@@ -127,6 +141,7 @@ const CONTENT = {
         overLimitDesc: "This plan supports max. 50 employees. Upgrade to Enterprise.",
         overLimitCta: "See Enterprise →",
         overLimitHref: "/pricing",
+        overLimitMode: "upgrade",
       },
       {
         key: "enterprise",
@@ -143,6 +158,7 @@ const CONTENT = {
         overLimitDesc: "Above 200 employees the plan is put together with you, sized to your organisation.",
         overLimitCta: "Contact Us →",
         overLimitHref: "",
+        overLimitMode: "custom",
       },
     ],
     results: {
@@ -152,12 +168,16 @@ const CONTENT = {
       roi: "ROI",
       payback: "Payback",
       paybackUnit: "days",
+      pending: "agreed with you",
+      pendingShort: "—",
     },
     cta: {
       title: "Ready to Start Saving?",
       desc: "Start free, 10-minute setup, no credit card required.",
+      descCustom: "That is your team's gross monthly saving. What the plan costs is something we work out together.",
       btn: "Try Free First",
       pricing: "View Full Pricing",
+      contact: "Contact Us",
     },
   },
 };
@@ -226,6 +246,13 @@ function PlanResultCard({
   labels: (typeof CONTENT)["id"]["results"];
 }) {
   const isOverLimit = employees > plan.employeeLimit;
+  // Being past the biggest plan that carries a price is not the same failure as
+  // being past a plan you can simply upgrade out of. The savings this visitor
+  // would make are just as real — only the subscription cost is unknown, so
+  // that is the single thing this card stops claiming. Greying the whole card
+  // here would hand the least useful page to the largest prospect.
+  const isCustomMode = isOverLimit && plan.overLimitMode === "custom";
+  const isDeadEnd = isOverLimit && !isCustomMode;
   const isRecommended = !isOverLimit;
   const net = isOverLimit ? 0 : savingsWithAI - plan.price;
   const roi = net > 0 ? (net / plan.price) * 100 : 0;
@@ -234,15 +261,23 @@ function PlanResultCard({
 
   return (
     <div className={`relative rounded-2xl border-2 p-6 flex flex-col transition-all ${
-      isOverLimit
+      isDeadEnd
         ? "border-gray-200 opacity-60"
+        : isCustomMode
+        ? "border-gray-900 shadow-lg"
         : isBlue
         ? "border-teal-500 shadow-teal-100 shadow-lg"
         : "border-teal-400 shadow-teal-100 shadow-lg"
     }`}>
       {/* Badge */}
       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
-        {isOverLimit ? (
+        {isCustomMode ? (
+          // A star, not a warning triangle: nothing has gone wrong for this
+          // visitor, they are simply the size that gets a tailored plan.
+          <span className="bg-gray-900 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+            <Sparkles className="h-3 w-3" />{plan.overLimitLabel}
+          </span>
+        ) : isOverLimit ? (
           <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
             <AlertTriangle className="h-3 w-3" />{plan.overLimitLabel}
           </span>
@@ -255,21 +290,24 @@ function PlanResultCard({
 
       {/* Plan header */}
       <div className="flex items-center gap-2 mb-1 mt-2">
-        <div className={`p-1.5 rounded-lg ${isOverLimit ? "bg-gray-100" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
+        <div className={`p-1.5 rounded-lg ${isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-900" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
           {isBlue
-            ? <Zap className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-teal-600"}`} />
-            : <Shield className={`h-4 w-4 ${isOverLimit ? "text-gray-400" : "text-teal-700"}`} />
+            ? <Zap className={`h-4 w-4 ${isDeadEnd ? "text-gray-400" : "text-teal-600"}`} />
+            : <Shield className={`h-4 w-4 ${isDeadEnd ? "text-gray-400" : isCustomMode ? "text-white" : "text-teal-700"}`} />
           }
         </div>
-        <h3 className="font-bold text-gray-900">{plan.name}</h3>
+        <h3 className="font-bold text-gray-900">{isCustomMode ? "Custom" : plan.name}</h3>
       </div>
-      <p className={`text-sm font-semibold mb-0.5 ${isOverLimit ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
-        {plan.priceLabel}
+      {/* The listed price is withdrawn, not struck through: at this size it was
+          never the price this visitor would pay. */}
+      <p className={`text-sm font-semibold mb-0.5 ${isDeadEnd ? "text-gray-400" : isCustomMode ? "text-gray-900" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+        {isCustomMode ? labels.pending : plan.priceLabel}
       </p>
-      <p className="text-xs text-gray-400 mb-4">{plan.limit}</p>
+      <p className="text-xs text-gray-400 mb-4">{isCustomMode ? plan.overLimitDesc : plan.limit}</p>
 
-      {/* Over-limit warning */}
-      {isOverLimit && (
+      {/* Over-limit warning — only for the card that really is a dead end.
+          The Custom card already carries its message under the plan name. */}
+      {isDeadEnd && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 flex items-start gap-2">
           <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
           <p className="text-xs text-orange-700">{plan.overLimitDesc}</p>
@@ -277,37 +315,41 @@ function PlanResultCard({
       )}
 
       {/* Numbers */}
-      <div className={`space-y-3 flex-1 ${isOverLimit ? "opacity-40 pointer-events-none" : ""}`}>
+      <div className={`space-y-3 flex-1 ${isDeadEnd ? "opacity-40 pointer-events-none" : ""}`}>
+        {/* The saving stays a real number in Custom mode — it comes from the
+            visitor's own inputs and owes nothing to which plan they buy. */}
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">{labels.savingsAI}</span>
           <span className="font-semibold text-green-600">{formatRp(savingsWithAI)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500">{labels.subscription}</span>
-          <span className="text-gray-500">- {formatRp(plan.price)}</span>
+          <span className="text-gray-500">
+            {isCustomMode ? labels.pending : `- ${formatRp(plan.price)}`}
+          </span>
         </div>
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm font-semibold text-gray-700">{labels.netSaving}</span>
-          <span className={`font-bold text-xl ${net > 0 ? "text-green-600" : "text-gray-400"}`}>
-            {net > 0 ? formatRp(net) : "-"}
+          <span className={`font-bold text-xl ${!isCustomMode && net > 0 ? "text-green-600" : "text-gray-400"}`}>
+            {isCustomMode ? labels.pendingShort : net > 0 ? formatRp(net) : "-"}
           </span>
         </div>
       </div>
 
       {/* ROI badges */}
       <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${
-        isOverLimit ? "bg-gray-100" : isBlue ? "bg-teal-50" : "bg-violet-50"
+        isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-50" : isBlue ? "bg-teal-50" : "bg-violet-50"
       }`}>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
           <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
-            {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : "-"}
+            {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : isCustomMode ? labels.pendingShort : "-"}
           </p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
           <p className={`text-2xl font-bold ${isOverLimit ? "text-gray-300" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
-            {!isOverLimit && payback > 0 ? payback : "-"}
+            {!isOverLimit && payback > 0 ? payback : isCustomMode ? labels.pendingShort : "-"}
             {!isOverLimit && payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
           </p>
         </div>
@@ -316,8 +358,10 @@ function PlanResultCard({
       <Link href={isOverLimit ? plan.overLimitHref : plan.ctaHref}>
         <Button
           className={`w-full gap-2 ${
-            isOverLimit
+            isDeadEnd
               ? "bg-gray-300 hover:bg-gray-400 text-gray-600"
+              : isCustomMode
+              ? "bg-gray-900 hover:bg-gray-800"
               : isBlue
               ? "bg-teal-600 hover:bg-teal-700"
               : "bg-teal-700 hover:bg-teal-800"
@@ -362,7 +406,14 @@ export default function ROIPage() {
   );
 
   const recommendedPlan = employees > 50 ? plans[1] : plans[0];
-  const bestNet = Math.max(0, results.savingsWithAI - recommendedPlan.price);
+  // Past the largest plan that has a price, there is nothing to subtract — the
+  // closing figure becomes the gross saving and says so. Subtracting the
+  // Enterprise price anyway would print a "net saving" for a plan the cards
+  // directly above have just told this visitor they cannot buy.
+  const needsCustomPlan = employees > recommendedPlan.employeeLimit;
+  const headlineSaving = needsCustomPlan
+    ? results.savingsWithAI
+    : Math.max(0, results.savingsWithAI - recommendedPlan.price);
 
   return (
     <div className="min-h-screen bg-white">
@@ -497,19 +548,30 @@ export default function ROIPage() {
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
         <h2 className="text-3xl font-bold text-white mb-2">{T.cta.title}</h2>
-        <p className="text-5xl font-black text-white mb-4">{formatRp(bestNet)}<span className="text-xl font-normal text-teal-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
-        <p className="text-teal-100 mb-8">{T.cta.desc}</p>
+        <p className="text-5xl font-black text-white mb-4">{formatRp(headlineSaving)}<span className="text-xl font-normal text-teal-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
+        <p className="text-teal-100 mb-8">{needsCustomPlan ? T.cta.descCustom : T.cta.desc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register">
             <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">
               {T.cta.btn} <ArrowRight className="h-5 w-5" />
             </Button>
           </Link>
-          <Link href="/pricing">
-            <Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">
-              {T.cta.pricing}
-            </Button>
-          </Link>
+          {/* A visitor this size has just been told their plan is agreed in a
+              conversation, so "view pricing" is the one page that cannot help
+              them — the second button becomes that conversation instead. */}
+          {needsCustomPlan ? (
+            <a href={consultationMailto(lang)}>
+              <Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">
+                {T.cta.contact}
+              </Button>
+            </a>
+          ) : (
+            <Link href="/pricing">
+              <Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">
+                {T.cta.pricing}
+              </Button>
+            </Link>
+          )}
         </div>
       </section>
 

@@ -7,8 +7,11 @@ export type Lang = "id" | "en";
 const proPerUser = PLAN_LIMITS.professional.maxQuestionsPerDayPerUser;
 const ent = PLAN_LIMITS.enterprise;
 const entPerUser = ent.maxQuestionsPerDayPerUser;
-const idNum = (n: number) => n.toLocaleString("id-ID");
-const enNum = (n: number) => n.toLocaleString("en-US");
+// -1 is how PLAN_LIMITS spells "unlimited", and it reaches these strings
+// unchanged: set a limit back to -1 and the pricing table would advertise
+// "-1 karyawan". Every limit printed in copy goes through these.
+const idNum = (n: number) => (n === -1 ? "Tanpa batas" : n.toLocaleString("id-ID"));
+const enNum = (n: number) => (n === -1 ? "Unlimited" : n.toLocaleString("en-US"));
 
 export const t = {
   id: {

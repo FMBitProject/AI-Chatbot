@@ -29,16 +29,21 @@ export default function PricingPage() {
 
   // Prices and promo state come from the shared pricing module, so this page
   // (and the checkout) automatically revert to normal prices once the promo ends.
+  // Keyed to PLAN_KEYS rather than to `string`: a plan added to that list with
+  // no entry here is then a type error, not a card that renders the price
+  // "undefined". Partial because the two tiers without a list price — starter
+  // and custom — are supposed to be missing.
   const promoActive = isPromoActive();
-  const ORIGINAL_PRICES: Record<string, string> = {
+  type PlanKey = (typeof PLAN_KEYS)[number];
+  const ORIGINAL_PRICES: Partial<Record<PlanKey, string>> = {
     professional: formatRupiah(NORMAL_PRICES.professional, lang),
     enterprise: formatRupiah(NORMAL_PRICES.enterprise, lang),
   };
-  const PROMO_PRICES: Record<string, string> = {
+  const PROMO_PRICES: Partial<Record<PlanKey, string>> = {
     professional: formatRupiah(PROMO.professional, lang),
     enterprise: formatRupiah(PROMO.enterprise, lang),
   };
-  const HAS_PROMO: Record<string, boolean> = {
+  const HAS_PROMO: Partial<Record<PlanKey, boolean>> = {
     professional: promoActive,
     enterprise: promoActive,
   };
@@ -182,9 +187,12 @@ export default function PricingPage() {
                 <p className="text-gray-500 text-sm mb-3">{plan.desc}</p>
                 {hasPromo ? (
                   <div>
-                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[key]}</span>
+                    {/* "—" rather than an empty span if a key ever lacks a
+                        price: a blank where a number belongs looks like a
+                        loading bug, and reads as free. */}
+                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[key] ?? "—"}</span>
                     <div className="flex items-end gap-1 mt-0.5">
-                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[key]}</span>
+                      <span className="text-3xl font-bold text-orange-500">{PROMO_PRICES[key] ?? "—"}</span>
                       <span className="text-gray-400 text-sm pb-1">/ {T.perMonth}</span>
                     </div>
                   </div>
@@ -197,7 +205,7 @@ export default function PricingPage() {
                   </div>
                 ) : (
                   <div className="flex items-end gap-1">
-                    <span className="text-3xl font-bold text-gray-900">{isFree ? T.free : ORIGINAL_PRICES[key]}</span>
+                    <span className="text-3xl font-bold text-gray-900">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "—"}</span>
                     <span className="text-gray-400 text-sm pb-1">/ {isFree ? T.forever : T.perMonth}</span>
                   </div>
                 )}
