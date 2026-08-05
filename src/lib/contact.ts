@@ -23,13 +23,29 @@ export const SUPPORT_EMAIL =
 // stay first-person; a third-person bio undoes the point of the section.
 export const FOUNDER = {
   name: "Ferel Manuputty",
-  role: { id: "Pendiri IntelliBase AI", en: "Founder, IntelliBase AI" },
-  // Deliberately claims nothing biographical — no years of experience, no
-  // former employer, no client count. It says why the product exists and stops
-  // there, which is the one thing that cannot be wrong.
+  // The profession leads the role line because it is the single most useful
+  // thing a hospital reading this page can know, and a role line is the part
+  // that gets scanned. It is a statement of fact and nothing more: no
+  // specialty, no institution, no seniority — those are claims that invite
+  // verification and buy nothing the plain word does not already buy.
+  role: {
+    id: "Dokter · Pendiri IntelliBase AI",
+    en: "Doctor · Founder, IntelliBase AI",
+  },
+  // Beyond the profession itself, this still claims nothing biographical — no
+  // years of experience, no former employer, no client count, no patient
+  // outcomes. It says where the problem was met first-hand and why the product
+  // exists, and stops there. Keep any future edit inside that line: this page
+  // was cleaned of unbacked claims once already, and a medical credential is
+  // the worst possible place to reintroduce them.
+  //
+  // The last sentence is load-bearing, not filler: the landing page leads with
+  // hospitals but sells to any industry, and this is where a manufacturing
+  // visitor is told that the hospital framing is where it started, not the
+  // limit of who it is for.
   intro: {
-    id: "Saya membangun IntelliBase karena melihat pola yang sama berulang kali: dokumen dan SOP perusahaan sebenarnya sudah lengkap, tapi jawaban di dalamnya tetap sulit ditemukan justru ketika sedang dibutuhkan. Menurut saya karyawan tidak seharusnya menghabiskan setengah jam mencari satu aturan yang sudah ditulis rapi bertahun-tahun lalu.",
-    en: "I built IntelliBase after seeing the same pattern over and over: a company's documents and SOPs are all there, yet the answer inside them is still hard to find at the exact moment someone needs it. Nobody should spend half an hour hunting for a rule that was written down properly years ago.",
+    id: "Saya seorang dokter, dan IntelliBase berangkat dari hal yang saya alami sendiri: dokumen dan SPO sebenarnya sudah lengkap, tapi jawabannya justru paling sulit ditemukan saat sedang dibutuhkan — jam 3 pagi, ketika tidak ada yang bisa ditanya. Saya belajar membangun software untuk menyelesaikan masalah itu, dan ternyata polanya sama persis di industri mana pun.",
+    en: "I'm a doctor, and IntelliBase started from something I ran into myself: the documents and SOPs are all there, yet the answer inside them is hardest to find at the moment you actually need it — 3 a.m., with nobody around to ask. I taught myself to build software to solve that, and it turns out the same pattern shows up in every industry.",
   },
 };
 

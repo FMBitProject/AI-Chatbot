@@ -8,10 +8,10 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
-import { INDUSTRIES } from "@/lib/industries";
+import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play, Mail } from "lucide-react";
+import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -93,9 +93,9 @@ const CONTENT = {
       { v: "10 menit", l: "Waktu setup hingga siap pakai" },
     ] satisfies Stat[],
     // "Cocok untuk", not "dipakai oleh": we have no customers in these
-    // industries to point at yet, and the strip only claims the product fits
+    // industries to point at yet, and the row only claims the product fits
     // their documents — which is what the doc types under each name show.
-    industriesTitle: "Cocok untuk berbagai industri",
+    industriesTitle: "Juga cocok untuk industri lain",
     industriesDesc: "Setiap industri punya istilah dokumennya sendiri. AI menjawab dari dokumen resmi Anda, apapun namanya.",
     industriesMore: "Selengkapnya",
     howTitle: "Cara Kerja IntelliBase",
@@ -208,7 +208,7 @@ const CONTENT = {
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
     ] satisfies Stat[],
-    industriesTitle: "Fits any industry",
+    industriesTitle: "Also fits other industries",
     industriesDesc: "Every industry has its own document vocabulary. The AI answers from your official documents, whatever you call them.",
     industriesMore: "Learn more",
     howTitle: "How IntelliBase Works",
@@ -407,31 +407,64 @@ export function LandingContent() {
       </section>
 
       {/* Industries */}
-      {/* Deliberately a strip rather than a full section: the page already runs
-          hero → video → stats → how-it-works → features → ROI → pricing → CTA,
-          and this only has to answer "is this for my documents?" before the
-          visitor commits to the long scroll. Hence one row of short cards and
-          no illustrations.
-
-          Sits directly under the hero, so it qualifies the pitch ("…and yes,
+      {/* Sits directly under the hero, so it qualifies the pitch ("…and yes,
           that includes your clinical pathways") before the visitor decides
           whether the demo video is worth their time. No top padding on purpose:
           it reads as a closing line of the hero, so the hero's own py-24 is the
-          gap it wants. */}
-      {/* Type sizes are one step below the page's full sections (text-2xl
-          heading against their text-3xl, text-base body against their text-lg)
-          rather than two. Two steps read as fine print next to the hero
-          directly above it, which is the wrong signal for the one band whose
-          job is to be scanned. max-w-7xl, matching "how it works", so five
-          columns of the enlarged text still get a sane line length. */}
+          gap it wants.
+
+          Two tiers, not one row of equals. The featured vertical gets a card
+          with a headline, three situations, and a link into its own page; the
+          rest keep the original short cards below it. The hero above stays
+          industry-neutral on purpose — the product genuinely fits any document
+          set, and a hospital-only hero would turn away the other four before
+          they ever reach this band. */}
       <section className="pb-16 px-6 border-b">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
+          {/* Rendered from the registry rather than hardcoded, so the day another
+              vertical earns the spot this band follows it. */}
+          {FEATURED_INDUSTRY?.featured && FEATURED_INDUSTRY.href && (
+            <div className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 to-white p-8 md:p-10 mb-12">
+              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-3">
+                    {FEATURED_INDUSTRY.featured.eyebrow[lang]}
+                  </p>
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight mb-4">
+                    {FEATURED_INDUSTRY.featured.headline[lang]}
+                  </h2>
+                  <p className="text-base text-gray-600 leading-relaxed mb-6">
+                    {FEATURED_INDUSTRY.featured.body[lang]}
+                  </p>
+                  <Link href={FEATURED_INDUSTRY.href}>
+                    <Button className="bg-teal-600 hover:bg-teal-700 gap-2 h-11 px-6">
+                      {FEATURED_INDUSTRY.featured.cta[lang]} <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </div>
+                <ul className="space-y-4">
+                  {FEATURED_INDUSTRY.featured.points[lang].map((p) => (
+                    <li key={p} className="flex items-start gap-3">
+                      <span className="rounded-full bg-teal-600/10 p-1 mt-0.5 shrink-0">
+                        <Check className="h-4 w-4 text-teal-700" aria-hidden="true" />
+                      </span>
+                      <span className="text-gray-700 leading-relaxed">{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Type sizes are one step below the page's full sections (text-xl
+              heading against their text-3xl) — this row is now the secondary
+              tier and should read that way against the card above it. */}
+          <div className="text-center mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">{T.industriesTitle}</h2>
             <p className="text-base text-gray-500 max-w-2xl mx-auto">{T.industriesDesc}</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {INDUSTRIES.map((ind) => {
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {OTHER_INDUSTRIES.map((ind) => {
               const body = (
                 <>
                   <p className="font-semibold text-base text-gray-900 mb-1.5">
