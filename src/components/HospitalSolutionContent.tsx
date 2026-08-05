@@ -5,6 +5,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
+import { FOUNDER } from "@/lib/contact";
 import {
   ArrowRight, Activity, ClipboardList, Stethoscope, HeartPulse, BadgeCheck, Pill,
   ShieldCheck, ScrollText, MessageSquare, Moon, RefreshCw, Info,
@@ -63,6 +64,8 @@ const CONTENT = {
     disclaimerTitle: "Yang perlu diluruskan sejak awal",
     disclaimer: "IntelliBase AI adalah alat pencarian dokumen internal, bukan alat pengambilan keputusan klinis. Jawaban selalu bersumber dari dokumen yang rumah sakit Anda unggah sendiri, dan keputusan medis sepenuhnya tetap berada pada tenaga kesehatan. Platform ini ditujukan untuk dokumen kebijakan dan prosedur — bukan untuk rekam medis pasien.",
 
+    founderTitle: "Siapa di balik IntelliBase",
+
     ctaTitle: "Coba dengan Satu Clinical Pathway Anda",
     ctaDesc: "Upload satu dokumen, ajukan lima pertanyaan, dan nilai sendiri jawabannya. Gratis, tanpa kartu kredit.",
     back: "Lihat semua industri",
@@ -113,6 +116,8 @@ const CONTENT = {
 
     disclaimerTitle: "One thing to be clear about up front",
     disclaimer: "IntelliBase AI is an internal document search tool, not a clinical decision-making tool. Answers always come from documents your hospital uploaded itself, and medical decisions remain entirely with your healthcare professionals. The platform is intended for policy and procedure documents — not for patient medical records.",
+
+    founderTitle: "Who is behind IntelliBase",
 
     ctaTitle: "Try It With One of Your Clinical Pathways",
     ctaDesc: "Upload one document, ask five questions, and judge the answers yourself. Free, no credit card.",
@@ -235,6 +240,25 @@ export function HospitalSolutionContent() {
           </div>
         </div>
       </section>
+
+      {/* Who is behind this. Deliberately placed after the isolation and
+          disclaimer block rather than up in the hero: read early it is a
+          credential being waved, read here it is the answer to the question the
+          disclaimer just raised — who decided where the line between "document
+          search" and "clinical decision" sits.
+
+          Same guard and same source as the landing page's block, so the two can
+          never tell different stories about who is behind the product. */}
+      {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
+        <section className="py-16 px-6 border-t">
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
+            <p className="font-semibold text-gray-900">{FOUNDER.name}</p>
+            <p className="text-sm text-gray-500">{FOUNDER.role[lang]}</p>
+          </div>
+        </section>
+      )}
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
