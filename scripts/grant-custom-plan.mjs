@@ -10,6 +10,7 @@
 //
 //   DATABASE_URL=<owner-url> node scripts/grant-custom-plan.mjs <company-email-or-id>
 //   DATABASE_URL=<owner-url> node scripts/grant-custom-plan.mjs <company> --revert professional
+//   ...add --dry-run to print the match and the intended change without writing.
 //
 // The company is matched by id, by exact name, or by the email of any admin
 // user belonging to it — whichever you happen to have to hand.
@@ -44,14 +45,20 @@ const args = process.argv.slice(2);
 const revertIdx = args.indexOf("--revert");
 // --revert exists so a deal that ends does not need hand-written SQL either.
 const targetPlan = revertIdx === -1 ? "custom" : args[revertIdx + 1];
-const identifier = args.filter((a, i) => i !== revertIdx && i !== revertIdx + 1)[0];
+// Drop the flag and its value, then take the first thing left. Written as an
+// explicit index set rather than `i !== revertIdx && i !== revertIdx + 1`,
+// which quietly discards argv[0] whenever the flag is absent: indexOf returns
+// -1, so the second test becomes `i !== 0`.
+const consumed = new Set(revertIdx === -1 ? [] : [revertIdx, revertIdx + 1]);
+const identifier = args.filter((a, i) => !consumed.has(i) && !a.startsWith("--"))[0];
+const dryRun = args.includes("--dry-run");
 
 if (!identifier) {
-  console.error("Usage: node scripts/grant-custom-plan.mjs <company-email-or-id> [--revert <plan>]");
+  console.error("Usage: node scripts/grant-custom-plan.mjs <company-email-or-id> [--revert <plan>] [--dry-run]");
   process.exit(1);
 }
 if (!["custom", "starter", "professional", "enterprise"].includes(targetPlan)) {
-  console.error(`Unknown plan: ${targetPlan}`);
+  console.error(`Unknown plan: ${targetPlan ?? "(missing after --revert)"}`);
   process.exit(1);
 }
 
@@ -95,12 +102,28 @@ if (company.plan === targetPlan) {
 // does with a lapsed customer: the date is what the renewal prompts are built
 // on. Every other target gets a clean, non-expiring grant.
 const keepExpiry = targetPlan === "starter";
-await sql.query(
-  keepExpiry
-    ? `update companies set plan = $1 where id = $2`
-    : `update companies set plan = $1, plan_expires_at = null where id = $2`,
-  [targetPlan, company.id],
-);
+
+if (dryRun) {
+  console.log(`\n[dry run] would set ${company.plan} → ${targetPlan}${keepExpiry ? "" : " and clear the expiry"}. Nothing written.`);
+  process.exit(0);
+}
+
+// A failed UPDATE must not be reported as a grant: without this the script
+// prints "→ custom" on a rejected write and the deal looks done when the
+// company is still on its old plan.
+try {
+  const updated = await sql.query(
+    keepExpiry
+      ? `update companies set plan = $1 where id = $2 returning id`
+      : `update companies set plan = $1, plan_expires_at = null where id = $2 returning id`,
+    [targetPlan, company.id],
+  );
+  if (updated.length === 0) throw new Error("no row updated — company disappeared mid-run?");
+} catch (err) {
+  console.error(`\nFAILED to set plan: ${err.message}`);
+  console.error("The company is unchanged. Check the connection string and try again.");
+  process.exit(1);
+}
 
 console.log(`\n→ ${company.plan} → ${targetPlan}${keepExpiry ? "" : ", expiry cleared"}`);
 if (targetPlan === "custom") {

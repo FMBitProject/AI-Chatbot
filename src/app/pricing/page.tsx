@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah } from "@/lib/pricing";
+import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPurchasablePlan } from "@/lib/pricing";
 import { consultationMailto } from "@/lib/contact";
 
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
@@ -49,7 +49,9 @@ export default function PricingPage() {
   useEffect(() => { setMounted(true); }, []);
 
   async function handlePay(plan: "professional" | "enterprise") {
-    if (!session) { window.location.href = "/register"; return; }
+    // .assign() rather than assigning to .href: the React Compiler lint rejects
+    // the assignment form here ("this value cannot be modified"). Same navigation.
+    if (!session) { window.location.assign("/register"); return; }
     setLoadingPlan(plan);
     try {
       const res = await fetch("/api/payment/create", {
@@ -144,7 +146,12 @@ export default function PricingPage() {
       <section className="max-w-6xl mx-auto px-6 py-12">
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
           {T.plans.map((plan, idx) => {
-            const key = PLAN_KEYS[idx];
+            // The copy lives in i18n.ts and the keys live here, so the two can
+            // drift. Rendering nothing is the safe end of that: a card with no
+            // key would fall through to the paid branches and sell whatever the
+            // fallback happens to be.
+            const key: (typeof PLAN_KEYS)[number] | undefined = PLAN_KEYS[idx];
+            if (!key) return null;
             const isFree = key === "starter";
             const isPopular = key === "professional";
             const isCustom = key === "custom";
@@ -227,7 +234,10 @@ export default function PricingPage() {
               ) : mounted && session?.user ? (
                 <Button
                   className={cn("w-full gap-2", isPopular ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}
-                  onClick={() => handlePay(key === "professional" ? "professional" : "enterprise")}
+                  // Not `key === "professional" ? … : "enterprise"` — that is
+                  // the same "everything else is Enterprise" fallback this page
+                  // was just rid of, one edit away from selling the wrong plan.
+                  onClick={() => { if (isPurchasablePlan(key)) handlePay(key); }}
                   disabled={loadingPlan !== null}
                 >
                   {loadingPlan === key
