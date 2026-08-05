@@ -11,7 +11,7 @@ import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL 
 import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Zap, ShieldCheck, Users, FileText, BarChart2, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -105,19 +105,6 @@ const CONTENT = {
       { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
       { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan, lengkap dengan daftar dokumen sumber yang bisa dibuka untuk mengecek.", icon: MessageSquare },
     ] satisfies Step[],
-    featTitle: "Semua yang Dibutuhkan Tim Anda",
-    featDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
-    features: [
-      // The product has returned source citations since day one and the landing
-      // page never said so — while "nanti AI-nya ngarang" is the first objection
-      // every buyer raises. Naming the mechanism answers it; "akurat" does not.
-      { icon: MessageSquare, t: "Setiap Jawaban Menyebut Sumbernya", d: "Jawaban datang bersama nama dokumen dan potongan teks yang dipakai, jadi bisa langsung dicek ke dokumen aslinya — bukan jawaban dari internet umum." },
-      { icon: FileText, t: "Upload PDF, DOCX, Excel & PowerPoint", d: "Upload SOP, regulasi HR, panduan IT, clinical pathway. AI langsung mengindeks dan siap menjawab." },
-      { icon: ShieldCheck, t: "Isolasi Data Multi-Tenant", d: "Data tiap perusahaan terisolasi penuh. Tidak ada kebocoran ke tenant lain." },
-      { icon: Users, t: "Manajemen Tim", d: "Admin kelola karyawan, role, dan akses dokumen per departemen." },
-      { icon: BarChart2, t: "Analytics & Audit Log", d: "Pantau pertanyaan terpopuler dan siapa bertanya apa untuk insight bisnis." },
-      { icon: Zap, t: "Jawaban Instan", d: "Tidak perlu buka dokumen satu per satu. Tanya langsung, dapat jawaban dalam detik." },
-    ],
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
@@ -219,16 +206,6 @@ const CONTENT = {
       { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
       { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. The AI answers from official company documents, listing the source documents they can open to check.", icon: MessageSquare },
     ] satisfies Step[],
-    featTitle: "Everything Your Team Needs",
-    featDesc: "A complete platform for internal company knowledge management",
-    features: [
-      { icon: MessageSquare, t: "Every Answer Names Its Source", d: "Answers arrive with the document name and the excerpt used, so any answer can be checked against the original — not answers from the general internet." },
-      { icon: FileText, t: "PDF, DOCX, Excel & PowerPoint Upload", d: "Upload SOPs, HR regulations, IT guidelines, clinical pathways. AI indexes instantly and is ready to answer." },
-      { icon: ShieldCheck, t: "Multi-Tenant Data Isolation", d: "Each company's data is fully isolated. No leaks to other tenants." },
-      { icon: Users, t: "Team Management", d: "Admin manages employees, roles, and document access per department." },
-      { icon: BarChart2, t: "Analytics & Audit Log", d: "Monitor top questions and who asked what for business insights." },
-      { icon: Zap, t: "Instant Answers", d: "No need to open documents one by one. Ask directly, get answers in seconds." },
-    ],
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
@@ -390,9 +367,14 @@ export function LandingContent() {
             <span className="text-teal-600">{T.hero2}</span> {T.hero3}
           </h1>
           <p className="text-xl text-gray-500 max-w-2xl mx-auto mb-10 leading-relaxed">{T.heroDesc}</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          {/* One button, not two. "Lihat Harga" sat here as a second solid
+              button competing with the primary one for a click, while the same
+              link already sits in the navbar three centimetres above and the
+              pricing band repeats it further down. A visitor who does not yet
+              know what this is should be choosing whether to care, not between
+              two equally weighted doors. */}
+          <div className="flex justify-center">
             <Link href="/register"><Button size="lg" className="bg-teal-600 hover:bg-teal-700 gap-2 h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
-            <Link href="/pricing"><Button size="lg" className="bg-gray-900 hover:bg-gray-700 text-white gap-2 h-12 px-8 shadow-sm">{T.cta2} <ArrowRight className="h-4 w-4" /></Button></Link>
           </div>
           <p className="text-xs text-gray-400 mt-4">{T.ctaNote}</p>
           {/* A quiet third path, deliberately not a button: both buttons above
@@ -569,25 +551,14 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">{T.featTitle}</h2>
-            <p className="text-gray-500">{T.featDesc}</p>
-          </div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
-            {T.features.map((f) => (
-              <div key={f.t} className="rounded-xl border p-6 hover:border-teal-200 hover:shadow-sm transition-all">
-                <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3"><f.icon className="h-5 w-5 text-teal-600" /></div>
-                <h3 className="font-semibold text-gray-900 mb-1">{f.t}</h3>
-                <p className="text-gray-500 text-sm">{f.d}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
+      {/* The "Semua yang Dibutuhkan Tim Anda" grid stood here. Every one of its
+          six cards repeated a section the visitor had already read: citations
+          and the document formats are both spelled out in the three steps above,
+          data isolation is the 100% figure in the stats band and a FAQ answer,
+          team management is step 2. The only card saying anything new claimed an
+          "Audit Log" that is really the chat history — so removing the section
+          drops one overstatement along with five repetitions, and takes a full
+          screen of scrolling out from between the demo and the price. */}
 
       {/* ROI Teaser */}
       <section className="py-20 px-6 bg-gray-900">
