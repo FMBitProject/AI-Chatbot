@@ -61,6 +61,19 @@ export const metadata: Metadata = {
     title: "IntelliBase AI — Knowledge Base Internal Perusahaan",
     description: "Karyawan bisa tanya apa saja tentang kebijakan perusahaan dan dapat jawaban instan dari AI.",
   },
+  // Google Search Console ownership proof for the https://www.intellibaseai.com
+  // URL-prefix property. Next renders this as
+  // <meta name="google-site-verification" content="..." /> in <head>.
+  //
+  // It lives here rather than in DNS because the Hostinger zone took hours to
+  // publish each edit, and the TXT record it did publish was silently truncated
+  // to the first 34 of the token's 43 characters — which Google reports as the
+  // confusing "we couldn't find your verification token" while listing that
+  // very token back at you. A deploy is deterministic and visible immediately.
+  //
+  // Do not remove: Search Console revokes a property when the proof disappears,
+  // and losing it takes the sitemap and indexing history with it.
+  verification: { google: "Vz3OmCurr5FUjbkqLhhpH9np4TKKJOUZO3SlMT9Aarw" },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
