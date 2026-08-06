@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
-import { and, desc, eq, gt, ne } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   amountMatches,
   closedTransactionStatus,
@@ -24,7 +24,7 @@ const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
 // How long a pending order is offered back instead of a new one. Matches the
 // default Midtrans transaction lifetime: past it the Snap token and any virtual
 // account issued with it are dead, so there is nothing left to reuse.
-const PENDING_REUSE_MS = 24 * 60 * 60 * 1000;
+const PENDING_REUSE_HOURS = 24;
 
 // How many pending orders one checkout will ask Midtrans about. One is the
 // normal case; more than one only exists as leftovers from before reuse was
@@ -118,7 +118,12 @@ export async function POST(req: NextRequest) {
       eq(transactions.companyId, dbUser.companyId),
       eq(transactions.plan, plan),
       eq(transactions.status, "pending"),
-      gt(transactions.createdAt, new Date(Date.now() - PENDING_REUSE_MS)),
+      // Compared against now() inside Postgres, not a JS Date built here:
+      // created_at is written by the database's own clock (defaultNow), and a
+      // timestamp is only meaningful against the clock that wrote it. The
+      // column carries no time zone, so a server running off UTC would shift
+      // this window by its offset if the cutoff came from JS.
+      sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${PENDING_REUSE_HOURS} hours'`)}`,
     ))
     .orderBy(desc(transactions.createdAt))
     .limit(MAX_PENDING_TO_CHECK);

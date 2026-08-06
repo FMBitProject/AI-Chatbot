@@ -44,7 +44,13 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
   // Safe to leave open, because this endpoint authenticates its own callers:
   // it verifies the Midtrans signature and re-confirms the outcome against the
   // Midtrans status API before granting anything.
-  if (pathname === "/api/payment/webhook") {
+  //
+  // Matched with a trailing slash tolerated. The exemption is configured by
+  // hand in the Midtrans dashboard, and an exact comparison would let one
+  // stray "/" quietly put payments back behind the 503 — a failure that only
+  // shows up during a maintenance window, which is the worst possible time to
+  // discover it.
+  if (pathname.replace(/\/+$/, "") === "/api/payment/webhook") {
     return null;
   }
 

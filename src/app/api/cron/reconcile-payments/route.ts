@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
-import { and, asc, eq, gt, lt, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import {
@@ -27,14 +27,14 @@ export const dynamic = "force-dynamic";
 // Young orders are left alone: the customer may still be on the Snap screen, and
 // the webhook usually settles a payment within seconds. Sweeping them would only
 // race the notification for no gain.
-const MIN_AGE_MS = 10 * 60 * 1000;
+const MIN_AGE_MINUTES = 10;
 
 // Past this, stop asking. An order Midtrans finished is closed by the first
 // sweep that sees it, so anything still pending after a week is one we could
 // never confirm — and polling it forever would spend outbound requests on a
 // question that is not going to change. It keeps its "pending" status because
 // that is the honest record: we do not know.
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_AGE_DAYS = 7;
 
 // Upper bound on one run. Each candidate costs a Midtrans round trip, so this
 // caps both the outbound traffic and the time before the loop even starts.
@@ -101,16 +101,32 @@ export async function GET(req: NextRequest) {
   }
 
   const startedAt = Date.now();
-  const now = new Date();
 
+  // Ages are compared against now() inside Postgres rather than a JS Date built
+  // here: created_at is written by the database's own clock (defaultNow), and a
+  // timestamp is only meaningful against the clock that wrote it. It also keeps
+  // the window honest on a server whose zone is not UTC — `timestamp` carries no
+  // zone, so the driver hands it back as local time.
   const candidates = await db.select().from(transactions)
     .where(and(
       eq(transactions.status, "pending"),
-      lt(transactions.createdAt, new Date(now.getTime() - MIN_AGE_MS)),
-      gt(transactions.createdAt, new Date(now.getTime() - MAX_AGE_MS)),
+      sql`${transactions.createdAt} < now() - ${sql.raw(`interval '${MIN_AGE_MINUTES} minutes'`)}`,
+      sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${MAX_AGE_DAYS} days'`)}`,
     ))
-    // Oldest first, so a backlog drains in the order the customers paid.
-    .orderBy(asc(transactions.createdAt))
+    // Least recently checked first, never-checked before that.
+    //
+    // Oldest-created-first sounds fairer and is not: an order Midtrans will
+    // never answer for (a sandbox id in production, say) stays pending, stays
+    // the oldest, and is picked again on every run. Enough of those and the
+    // batch is consumed by orders that can never resolve, while a payment that
+    // landed an hour ago waits behind them until it ages out entirely. Ordering
+    // by when we last *looked* makes every failure rotate to the back, so the
+    // sweep always makes progress.
+    //
+    // NULLS FIRST spelled out, because Postgres sorts nulls LAST for ASC by
+    // default — which would put never-checked orders, the ones most likely to
+    // be a payment nobody has confirmed yet, at the very back of the queue.
+    .orderBy(sql`${transactions.lastCheckedAt} ASC NULLS FIRST`, asc(transactions.createdAt))
     .limit(BATCH_SIZE);
 
   let checked = 0;
@@ -118,9 +134,16 @@ export async function GET(req: NextRequest) {
   let closed = 0;
   let unreachable = 0;
 
+  // Every order this run actually asked about, whatever came back. Stamped in
+  // one statement after the loop so a failed check still counts as a look and
+  // rotates to the back of the queue — the rows left untouched by the time
+  // budget keep their NULL and stay at the front, which is what we want.
+  const looked: string[] = [];
+
   for (const tx of candidates) {
     if (Date.now() - startedAt > RUN_BUDGET_MS) break;
     checked++;
+    looked.push(tx.id);
 
     const status = await fetchMidtransStatus(tx.orderId, "[payment/reconcile]");
     if (!status.ok) {
@@ -159,18 +182,33 @@ export async function GET(req: NextRequest) {
 
     // Not settled. Record a definitive close so the order stops being a
     // candidate and stops showing as "Menunggu" in the dashboard forever.
-    const closedStatus = closedTransactionStatus(status.data.transaction_status);
+    //
+    // A reversal counts as terminal here too, which it is not for a *paid*
+    // order (closedTransactionStatus deliberately returns null for refunds, so
+    // a settled order keeps its "paid" status and its idempotency guard). But
+    // this order was never marked paid: the money came and went, nothing was
+    // granted, and leaving it open would poll and re-alert it on every run for
+    // a week. "failed" is the honest record — no subscription came of it.
+    const reversed = isReversalStatus(status.data.transaction_status);
+    const closedStatus = closedTransactionStatus(status.data.transaction_status) ?? (reversed ? "failed" : null);
     if (closedStatus) {
-      await db.update(transactions)
+      // RETURNING, so the counter reflects rows actually changed. `.then()` on
+      // the bare update resolved whether or not the guard below matched, and an
+      // order settled by the webhook a moment earlier was counted as closed.
+      const marked = await db.update(transactions)
         .set({ status: closedStatus })
         .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
-        .then(() => { closed++; })
-        .catch((err) => console.error(`[payment/reconcile] Could not mark order=${tx.orderId} ${closedStatus}:`, err));
+        .returning({ id: transactions.id })
+        .catch((err) => {
+          console.error(`[payment/reconcile] Could not mark order=${tx.orderId} ${closedStatus}:`, err);
+          return [];
+        });
+      if (marked.length > 0) closed++;
     }
 
     // A refund on an order we never marked paid should not pass unnoticed
     // either. Same policy as everywhere else: surfaced, never automated.
-    if (isReversalStatus(status.data.transaction_status)) {
+    if (reversed) {
       await alertOps({
         dedupeKey: `payment-reversal:${tx.orderId}`,
         subject: "Money reversed on a paid order — needs manual review",
@@ -183,6 +221,17 @@ export async function GET(req: NextRequest) {
         },
       });
     }
+  }
+
+  // One statement for the whole batch: this is bookkeeping, and paying a round
+  // trip per order for it would eat the run budget that the actual work needs.
+  // Best-effort — if it fails, the only consequence is that these orders keep
+  // their place at the front of the queue and get looked at again next run.
+  if (looked.length > 0) {
+    await db.update(transactions)
+      .set({ lastCheckedAt: new Date() })
+      .where(inArray(transactions.id, looked))
+      .catch((err) => console.error("[payment/reconcile] Could not stamp last_checked_at:", err));
   }
 
   if (recovered > 0) {
