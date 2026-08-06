@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, integer, vector, index } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, vector, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
@@ -119,7 +120,23 @@ export const transactions = pgTable("transactions", {
   snapToken: text("snap_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   paidAt: timestamp("paid_at"),
-});
+}, (t) => [
+  // At most one open order per company per plan.
+  //
+  // Checkout already looks for an existing pending order and offers it back
+  // rather than minting a second one, but that check is a read followed by a
+  // decision followed by a write — two requests arriving together both read
+  // "none", and both write. Only the database can decide which one wins, so
+  // this is where the rule belongs; the application check stays as the fast
+  // path that keeps the common case from ever reaching it.
+  //
+  // Partial (`WHERE status = 'pending'`) because the constraint is about *open*
+  // orders. A company renewing every month accumulates any number of paid ones,
+  // and those must not collide.
+  uniqueIndex("transactions_one_pending_per_plan")
+    .on(t.companyId, t.plan)
+    .where(sql`${t.status} = 'pending'`),
+]);
 
 export const apiKeys = pgTable("api_keys", {
   id: text("id").primaryKey(),
