@@ -7,7 +7,7 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
-import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
+import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
@@ -87,7 +87,10 @@ const CONTENT = {
     videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
     videoPlay: "Putar video demo",
     stats: [
-      { v: SEARCH_TIME_REDUCTION_LABEL, l: "Pengurangan waktu pencarian dokumen", estimate: true },
+      // Not the per-question reduction — that number is far bigger and far less
+      // honest. This is the share of a month's search cost still standing after
+      // all three of the calculator's discounts.
+      { v: RECOVERED_SHARE_LABEL, l: "Estimasi biaya waktu pencarian yang bisa dipulihkan", estimate: true },
       { v: "< 3 detik", l: "Rata-rata waktu respons AI", estimate: true },
       { v: "100%", l: "Isolasi data antar perusahaan" },
       { v: "10 menit", l: "Waktu setup hingga siap pakai" },
@@ -170,10 +173,13 @@ const CONTENT = {
       // Was hardcoded next to the slider value, so the English page counted its
       // headcount in "orang".
       unit: "orang",
-      lostLabel: "Biaya waktu terbuang / bulan",
-      savingLabel: "Potensi hemat dengan IntelliBase",
+      lostLabel: "Nilai waktu pencarian / bulan",
+      // "Potensi" invited the reader to imagine the ceiling. This figure is
+      // already the floor of our own model — say so, and let the calculator
+      // page show the working.
+      savingLabel: "Estimasi hemat setelah asumsi konservatif",
       cta: "Hitung Penghematan Lengkap",
-      ctaNote: "Gratis · Tidak perlu daftar",
+      ctaNote: "Gratis · Tidak perlu daftar · Lengkap dengan asumsi perhitungannya",
     },
     nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak" },
@@ -191,7 +197,7 @@ const CONTENT = {
     videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
     videoPlay: "Play demo video",
     stats: [
-      { v: SEARCH_TIME_REDUCTION_LABEL, l: "Reduction in document search time", estimate: true },
+      { v: RECOVERED_SHARE_LABEL, l: "Estimated share of search cost recoverable", estimate: true },
       { v: "< 3 sec", l: "Average AI response time", estimate: true },
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
@@ -263,10 +269,10 @@ const CONTENT = {
       desc: "Drag the slider to see the estimated cost of time wasted when employees manually search for internal documents.",
       label: "Number of Employees",
       unit: "people",
-      lostLabel: "Cost of wasted time / month",
-      savingLabel: "Potential savings with IntelliBase",
+      lostLabel: "Value of search time / month",
+      savingLabel: "Estimated savings after conservative assumptions",
       cta: "Calculate Full Savings",
-      ctaNote: "Free · No sign-up required",
+      ctaNote: "Free · No sign-up required · Assumptions shown in full",
     },
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
     footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact" },

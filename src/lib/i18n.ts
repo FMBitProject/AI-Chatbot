@@ -115,7 +115,10 @@ export const t = {
     b3: "Dukungan PDF, DOCX, Excel & PowerPoint",
     b4: "Isolasi data penuh antar perusahaan",
     tip: "💡 Tahukah Anda?",
-    tipDesc: "Rata-rata karyawan menghabiskan 2,5 jam/hari mencari informasi internal. IntelliBase memangkas waktu itu hingga 90%.",
+    // Neither the 2,5 jam nor the 90% was ours to claim — the first came from a
+    // study we never cited, the second was the ROI calculator's old headline
+    // multiplier, which no longer exists. Same point, nothing borrowed.
+    tipDesc: "Mencari SOP atau kebijakan internal bisa menghabiskan puluhan menit setiap hari, per karyawan. IntelliBase memangkas sebagian besar waktu itu.",
     registerFailed: "Registrasi Gagal",
     checkEmail: "Cek Email Anda",
     checkEmailDesc: "Kami telah mengirim link verifikasi ke",
@@ -162,7 +165,7 @@ export const t = {
     b3: "PDF, DOCX, Excel & PowerPoint support",
     b4: "Full data isolation between companies",
     tip: "💡 Did you know?",
-    tipDesc: "The average employee spends 2.5 hours/day searching for internal information. IntelliBase cuts that time by 90%.",
+    tipDesc: "Finding an SOP or an internal policy can eat tens of minutes a day, per employee. IntelliBase cuts most of that time.",
     registerFailed: "Registration Failed",
     checkEmail: "Check Your Email",
     checkEmailDesc: "We've sent a verification link to",
