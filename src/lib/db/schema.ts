@@ -120,6 +120,11 @@ export const transactions = pgTable("transactions", {
   snapToken: text("snap_token"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   paidAt: timestamp("paid_at"),
+  // When the reconciliation sweep last asked Midtrans about this order. NULL
+  // means never — those go first, so a payment that just landed is never stuck
+  // behind orders the sweep has already given up on. See the ordering in
+  // /api/cron/reconcile-payments.
+  lastCheckedAt: timestamp("last_checked_at"),
 }, (t) => [
   // At most one open order per company per plan.
   //
