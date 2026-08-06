@@ -16,7 +16,13 @@ import { alertOps } from "@/lib/alerts";
 // Reading the request headers already opts this handler out of caching, but a
 // reconciliation sweep served from a cache would be silently useless, so say so.
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+
+// No maxDuration on purpose. Declaring one above the hosting plan's ceiling
+// fails the deployment, and `main` deploys itself — so an unverified number
+// here is a way to break production for a sweep that does not need it. The run
+// is bounded below instead, by a budget short enough to fit inside any plan's
+// limit, and the sweep is resumable by construction: a shorter run just means
+// fewer orders per pass.
 
 // Young orders are left alone: the customer may still be on the Snap screen, and
 // the webhook usually settles a payment within seconds. Sweeping them would only
@@ -34,11 +40,26 @@ const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 // caps both the outbound traffic and the time before the loop even starts.
 const BATCH_SIZE = 25;
 
-// Soft budget, well inside maxDuration. Whatever is left over is picked up by
-// the next run: candidates are re-selected from scratch each time, and every
-// order is settled in its own transaction, so stopping halfway leaves nothing
-// half-done.
-const RUN_BUDGET_MS = 45 * 1000;
+// Deliberately short — inside even a 10-second function limit, so the loop
+// finishes on its own terms rather than being cut off by the platform. That
+// distinction matters: everything settled is already committed either way, but
+// only a loop that *returns* reaches the "the webhook is leaking" alert below.
+// Being killed mid-run would silently drop exactly the signal this route exists
+// to raise.
+//
+// Whatever is left over is picked up by the next run: candidates are re-selected
+// from scratch each time, and every order settles in its own transaction, so
+// stopping early leaves nothing half-done.
+const RUN_BUDGET_MS = 8 * 1000;
+
+// Say so at boot, the way @/lib/mail does for RESEND_API_KEY and for the same
+// reason: without the secret this route refuses every caller, Vercel Cron
+// included, so the sweep is simply dead — and a dead sweep looks exactly like a
+// healthy one from the outside. A missing recovery mechanism that nobody
+// notices is the failure this route was written to prevent.
+if (!process.env.CRON_SECRET) {
+  console.warn("[payment/reconcile] CRON_SECRET is not set — the reconciliation sweep will reject every caller, including Vercel Cron.");
+}
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
