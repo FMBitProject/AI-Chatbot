@@ -196,13 +196,13 @@ export async function POST(req: NextRequest) {
       // between them would otherwise leave the order marked paid with no plan
       // granted, and every retry would skip it as a duplicate — the customer's
       // money taken and their subscription never activated, unrecoverably.
-      const applied = await withTransaction(async (dbTx) => {
+      const outcome = await withTransaction(async (dbTx) => {
         const claimed = await dbTx.update(transactions)
           .set({ status: "paid", paidAt: new Date() })
           .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")))
           .returning({ id: transactions.id });
 
-        if (claimed.length === 0) return false;
+        if (claimed.length === 0) return { result: "duplicate" as const };
 
         // FOR UPDATE, because the grant below is a read-modify-write: the new
         // expiry is computed in JS from the value read here. Two *different*
@@ -220,8 +220,14 @@ export async function POST(req: NextRequest) {
         if (planRank(tx.plan) < currentRank) {
           // Downgrades are blocked at checkout (payment/create); if one still reaches
           // here, never strip a paying customer's higher plan — leave it untouched.
+          //
+          // The order still commits as paid, because nothing about it will ever
+          // change: retrying would take the same branch forever. So this is the
+          // one path where we bank a payment and hand the customer nothing, and
+          // it is reported as such by the caller — a log line alone would leave
+          // the money sitting here until they thought to complain.
           console.warn(`[payment] Ignored downgrade from webhook: company=${tx.companyId} current=${company?.plan} purchased=${tx.plan}`);
-          return true;
+          return { result: "nothing-granted" as const, currentPlan: company?.plan ?? "starter" };
         }
 
         // Renewal/upgrade stacks onto any remaining time; a lapsed plan starts fresh.
@@ -238,11 +244,26 @@ export async function POST(req: NextRequest) {
         }
 
         console.log(`[payment] Plan set: company=${tx.companyId} plan=${tx.plan} expires=${planExpiresAt.toISOString()}`);
-        return true;
+        return { result: "granted" as const };
       });
 
-      if (!applied) {
+      if (outcome.result === "duplicate") {
         console.log(`[payment] Duplicate paid notification ignored: order=${body.order_id}`);
+      } else if (outcome.result === "nothing-granted") {
+        // Deliberately outside the transaction: alertOps sends mail, and a
+        // network call inside withTransaction would hold the row locks it took
+        // for as long as the send lasts (see @/lib/db/transaction).
+        await alertOps({
+          dedupeKey: `payment-nothing-granted:${body.order_id}`,
+          subject: "Paid order granted nothing — customer paid for a plan below the one they hold",
+          details: {
+            order: body.order_id,
+            company: tx.companyId,
+            purchased: tx.plan,
+            current: outcome.currentPlan,
+            amount: tx.amount,
+          },
+        });
       }
     } else if (closedStatus) {
       // `status <> 'paid'` on both branches so a late cancel/expire/pending

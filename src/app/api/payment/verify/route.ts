@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
     // was never applied, and every retry would skip it — a paying customer stuck
     // with no subscription and no way back. Inside a transaction, a failure
     // rolls the claim back too, so the next delivery settles it cleanly.
-    await withTransaction(async (dbTx) => {
+    const outcome = await withTransaction(async (dbTx) => {
       const claimed = await dbTx.update(transactions)
         .set({ status: "paid", paidAt: new Date() })
         .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
       // Zero rows means someone already settled this order — the webhook, or an
       // earlier click. Their transaction committed the grant, so there is
       // nothing left to do here.
-      if (claimed.length === 0) return;
+      if (claimed.length === 0) return { result: "duplicate" as const };
 
       // FOR UPDATE, because the grant below is a read-modify-write: the new
       // expiry is computed in JS from the value read here. Two *different* paid
@@ -226,8 +226,13 @@ export async function POST(req: NextRequest) {
       if (planRank(tx.plan) < currentRank) {
         // Downgrades are blocked at checkout (payment/create); if one still
         // reaches here, never strip a paying customer's higher plan.
+        //
+        // The order stays claimed as paid — nothing about it will ever change,
+        // so a retry would only take this same branch again. That makes this the
+        // one path that banks a payment without granting anything, which the
+        // caller reports rather than leaving in a log nobody reads.
         console.warn(`[payment/verify] Ignored downgrade: company=${companyId} current=${company?.plan} purchased=${tx.plan}`);
-        return;
+        return { result: "nothing-granted" as const, currentPlan: company?.plan ?? "starter" };
       }
 
       const planExpiresAt = computeRenewedExpiry(company?.planExpiresAt, now);
@@ -242,16 +247,38 @@ export async function POST(req: NextRequest) {
         throw new Error(`company ${companyId} not found while granting plan for order=${tx.orderId}`);
       }
       console.log(`[payment/verify] Plan set: company=${companyId} plan=${tx.plan} expires=${planExpiresAt.toISOString()}`);
+      return { result: "granted" as const };
     });
+
+    if (outcome.result === "nothing-granted") {
+      // Outside the transaction on purpose: alertOps sends mail, and a network
+      // call inside withTransaction holds its row locks for the whole send (see
+      // @/lib/db/transaction).
+      await alertOps({
+        dedupeKey: `payment-nothing-granted:${tx.orderId}`,
+        subject: "Paid order granted nothing — customer paid for a plan below the one they hold",
+        details: {
+          order: tx.orderId,
+          company: companyId,
+          purchased: tx.plan,
+          current: outcome.currentPlan,
+          amount: tx.amount,
+        },
+      });
+    }
   } catch (err) {
     console.error(`[payment/verify] Failed to settle order=${tx.orderId}:`, err);
     return NextResponse.json({ error: "Gagal menerapkan pembayaran. Silakan coba lagi." }, { status: 500 });
   }
 
-  // Reaching here means the plan is in force: either this call applied it, or a
-  // previous one already committed it. The success page keys its "Pembayaran
-  // Berhasil" state off this flag, so reporting false on an order the webhook
-  // settled first would tell a paying customer their upgrade is still pending.
+  // Reaching here means a paid plan is in force: this call applied it, a
+  // previous one already committed it, or the company was already on something
+  // higher (the "nothing-granted" branch above, now on its way to an operator).
+  // The success page keys its "Pembayaran Berhasil" state off this flag, so
+  // reporting false on an order the webhook settled first would tell a paying
+  // customer their upgrade is still pending. In the third case the customer is
+  // no worse off than before the click, and the money question needs a human
+  // rather than a different screen.
   //
   // `plan` is echoed from the transaction row so the caller can name the plan it
   // actually settled instead of trusting its own query string.
