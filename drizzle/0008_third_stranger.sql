@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "transactions_one_pending_per_plan" ON "transactions" USING btree ("company_id","plan") WHERE "transactions"."status" = 'pending';

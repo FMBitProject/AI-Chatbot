@@ -32,6 +32,22 @@ const PENDING_REUSE_MS = 24 * 60 * 60 * 1000;
 // customer is waiting on.
 const MAX_PENDING_TO_CHECK = 3;
 
+/**
+ * Postgres' SQLSTATE for a unique violation, which is how
+ * transactions_one_pending_per_plan reports that another request got there
+ * first. Checked structurally rather than by constraint name: the drivers do not
+ * agree on whether they surface one, and the recovery below works out which
+ * constraint it was by looking for the row that beat us.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "23505"
+  );
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -254,15 +270,68 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  await db.insert(transactions).values({
-    id: randomUUID(),
-    companyId: dbUser.companyId,
-    orderId,
-    plan,
-    amount: String(amount),
-    status: "pending",
-    snapToken: snapResponse.token,
-  });
+  try {
+    await db.insert(transactions).values({
+      id: randomUUID(),
+      companyId: dbUser.companyId,
+      orderId,
+      plan,
+      amount: String(amount),
+      status: "pending",
+      snapToken: snapResponse.token,
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) {
+      console.error(`[payment/create] Could not record order=${orderId}:`, err);
+      return NextResponse.json(
+        { error: "checkout_failed", message: "Gagal memulai pembayaran. Coba lagi beberapa saat lagi." },
+        { status: 500 },
+      );
+    }
+
+    // Lost the race. Another request created this company's pending order for
+    // this plan between our lookup above and this insert, and
+    // transactions_one_pending_per_plan refused the second one — which is the
+    // whole point of that index: the lookup is a fast path, this is the rule.
+    //
+    // The Snap transaction we just opened is abandoned here. That costs nothing:
+    // Snap only issues a payment instrument (a virtual account number, a QR)
+    // once the customer opens the popup and picks a method, and nobody will ever
+    // receive this token. It expires on its own.
+    const [winner] = await db.select().from(transactions)
+      .where(and(
+        eq(transactions.companyId, dbUser.companyId),
+        eq(transactions.plan, plan),
+        eq(transactions.status, "pending"),
+      ))
+      .limit(1);
+
+    if (winner?.snapToken) {
+      console.log(`[payment/create] Lost the race for a pending order; reusing company=${dbUser.companyId} order=${winner.orderId}`);
+      return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, reused: true });
+    }
+
+    if (winner) {
+      // A pending order with no token blocks the index but can never be paid —
+      // the customer was never given a way to pay it. Close it so the next
+      // attempt gets through, instead of leaving checkout permanently wedged
+      // for this company.
+      console.warn(`[payment/create] Closing tokenless pending order=${winner.orderId} blocking checkout for company=${dbUser.companyId}`);
+      await db.update(transactions)
+        .set({ status: "expired" })
+        .where(and(eq(transactions.id, winner.id), ne(transactions.status, "paid")))
+        .catch((e) => console.error(`[payment/create] Could not close order=${winner.orderId}:`, e));
+    } else {
+      // The violation was the order_id unique constraint, not ours — which the
+      // random suffix makes all but impossible. Nothing to recover from.
+      console.error(`[payment/create] Unique violation on order=${orderId} with no pending order to fall back on:`, err);
+    }
+
+    return NextResponse.json(
+      { error: "checkout_retry", message: "Gagal memulai pembayaran. Silakan coba sekali lagi." },
+      { status: 409 },
+    );
+  }
 
   return NextResponse.json({ token: snapResponse.token, orderId });
 }
