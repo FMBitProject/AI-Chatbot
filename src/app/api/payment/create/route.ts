@@ -2,8 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
-import { createSnapTransaction } from "@/lib/midtrans";
+import { and, desc, eq, gt, ne } from "drizzle-orm";
+import {
+  amountMatches,
+  closedTransactionStatus,
+  createSnapTransaction,
+  fetchMidtransStatus,
+  isSettledStatus,
+} from "@/lib/midtrans";
+import { settlePaidOrder } from "@/lib/payment";
 import { getPlanPrice, PLAN_NAMES, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
@@ -12,6 +19,11 @@ import { randomUUID } from "crypto";
 // so a stuck retry loop or a stolen session should not be able to run up either
 // without limit. Well above what a customer clicking "Bayar" can reach.
 const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
+
+// How long a pending order is offered back instead of a new one. Matches the
+// default Midtrans transaction lifetime: past it the Snap token and any virtual
+// account issued with it are dead, so there is nothing left to reuse.
+const PENDING_REUSE_MS = 24 * 60 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -60,6 +72,69 @@ export async function POST(req: NextRequest) {
       },
       { status: 409 },
     );
+  }
+
+  // Never hand out a second live way to pay for the same thing.
+  //
+  // Each checkout opens its own Midtrans transaction, and for the payment
+  // methods most customers here use that means its own virtual account number,
+  // valid until the order expires. So a customer who clicks "Bayar" twice — or
+  // comes back the next day because they lost the first VA number — ends up
+  // holding two numbers that both work, and transferring to both charges them
+  // twice for one month. Reusing the order they already have is what makes
+  // clicking twice harmless.
+  const [pending] = await db.select().from(transactions)
+    .where(and(
+      eq(transactions.companyId, dbUser.companyId),
+      eq(transactions.plan, plan),
+      eq(transactions.status, "pending"),
+      gt(transactions.createdAt, new Date(Date.now() - PENDING_REUSE_MS)),
+    ))
+    .orderBy(desc(transactions.createdAt))
+    .limit(1);
+
+  if (pending?.snapToken) {
+    // Ask Midtrans what became of it. The default is to reuse — including when
+    // this call fails, since a token minted within the window is almost
+    // certainly still good and reusing it can never create a second way to pay.
+    // Only a definite answer that the order is finished starts a new one.
+    const existing = await fetchMidtransStatus(pending.orderId, "[payment/create]");
+
+    if (existing.ok && isSettledStatus(existing.data)) {
+      // Already paid, and we never recorded it — the notification was lost and
+      // the customer came back to pay again. Selling them a second order here
+      // is exactly the double charge this block exists to prevent, so settle
+      // what they already paid instead.
+      if (amountMatches(existing.data.gross_amount, pending.amount)) {
+        try {
+          await settlePaidOrder(pending, "[payment/create]");
+        } catch (err) {
+          console.error(`[payment/create] Could not settle already-paid order=${pending.orderId}:`, err);
+        }
+      }
+      return NextResponse.json(
+        {
+          error: "already_paid",
+          message: "Pembayaran Anda untuk paket ini sudah kami terima. Silakan buka dashboard untuk melihat status langganan.",
+          orderId: pending.orderId,
+        },
+        { status: 409 },
+      );
+    }
+
+    const finished = existing.ok ? closedTransactionStatus(existing.data.transaction_status) : null;
+    if (finished) {
+      // Midtrans is done with it, so it cannot be paid any more and there is no
+      // double-charge risk in issuing a new one. Record the close on the way
+      // past, so the dashboard stops showing it as waiting.
+      await db.update(transactions)
+        .set({ status: finished })
+        .where(and(eq(transactions.id, pending.id), ne(transactions.status, "paid")))
+        .catch((err) => console.error(`[payment/create] Could not mark order=${pending.orderId} ${finished}:`, err));
+    } else {
+      console.log(`[payment/create] Reusing pending order: company=${dbUser.companyId} order=${pending.orderId}`);
+      return NextResponse.json({ token: pending.snapToken, orderId: pending.orderId, reused: true });
+    }
   }
 
   // A timestamp is a time, not an identifier: two checkouts for the same plan in
