@@ -83,8 +83,10 @@ bahwa dokumen "tidak pernah keluar dari perusahaan Anda".
 - Jumlah pengguna/perusahaan ("sudah dipakai 50 perusahaan", "ratusan tim").
 - Frasa "dipakai oleh" untuk perusahaan mana pun. Tulis "cocok untuk", bukan
   "dipakai oleh".
-- Angka 90% (klaim penghematan waktu pencarian) — itu asumsi internal, bukan hasil
-  pengukuran, dan tidak boleh muncul tanpa catatan estimasi.
+- Angka penghematan waktu apa pun (termasuk 90%, yang sudah tidak kami pakai lagi)
+  — semuanya asumsi internal, bukan hasil pengukuran, dan tidak boleh muncul tanpa
+  catatan estimasi. Kalkulator ROI di situs boleh menyebutnya karena di sana
+  asumsinya ditampilkan lengkap; post media sosial tidak punya ruang untuk itu.
 - Klaim kecepatan seperti "kurang dari 3 detik" — belum pernah diukur.
 - "100% aman", "100% akurat", "dijamin", "pasti" — tidak ada yang bisa menjamin itu.
 - Studi kasus, hasil, atau ROI dari pelanggan yang tidak ada.

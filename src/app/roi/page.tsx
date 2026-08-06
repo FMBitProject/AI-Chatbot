@@ -8,8 +8,15 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, formatRupiah, type PurchasablePlan } from "@/lib/pricing";
 import { consultationMailto } from "@/lib/contact";
-import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, SEARCH_TIME_REDUCTION_LABEL } from "@/lib/roi";
-import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2, Sparkles } from "lucide-react";
+import {
+  ROI_DEFAULTS,
+  calculateRoi,
+  ESTIMATE_NOTE,
+  ANSWERABLE_SHARE_LABEL,
+  REALIZED_SHARE_LABEL,
+  MINUTES_WITH_AI,
+} from "@/lib/roi";
+import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2, Sparkles, Scale } from "lucide-react";
 
 const CONTENT = {
   id: {
@@ -30,10 +37,25 @@ const CONTENT = {
       workingDays: "Hari Kerja per Bulan",
     },
     lossCard: {
-      title: "Kerugian Bulanan Tanpa IntelliBase",
+      title: "Waktu Pencarian Dokumen Saat Ini",
       hoursLost: "Total Jam Terbuang / Bulan",
-      costLost: "Biaya Waktu Terbuang / Bulan",
+      costLost: "Nilai Waktu Tersebut / Bulan",
       hoursUnit: "jam",
+      // The green half of the same card. Without it the page's biggest number is
+      // a scary red one the product never claimed to erase, and the visitor is
+      // left to assume we think we erase all of it.
+      recovered: "Estimasi yang Realistis Dipulihkan",
+      recoveredNote: "Sisanya tetap butuh bertanya ke orang, membaca, dan memutuskan.",
+    },
+    assumptions: {
+      title: "Cara kami menghitung — dan apa yang sengaja kami potong",
+      desc: "Angka di atas bukan \"waktu pencarian × 90%\". Kami memotongnya tiga kali supaya lebih dekat ke kenyataan:",
+      items: [
+        `Hanya ${ANSWERABLE_SHARE_LABEL} pertanyaan yang kami hitung bisa dijawab dari dokumen yang Anda unggah. Sisanya soal hal yang memang belum terdokumentasi.`,
+        `Setiap pertanyaan ke AI tetap memakan sekitar ${MINUTES_WITH_AI} menit untuk membaca jawaban dan mengecek sumbernya. Yang dihitung hemat hanya selisihnya, bukan seluruh waktu pencarian.`,
+        `Hanya ${REALIZED_SHARE_LABEL} dari waktu yang dihemat kami hitung jadi output nyata. Menit yang kembali satu-dua per pertanyaan tidak otomatis jadi jam kerja tambahan.`,
+      ],
+      closing: "Kalau menurut Anda asumsi ini terlalu longgar atau terlalu ketat, turunkan saja slider di atas — semua angka di halaman ini ikut bergerak.",
     },
     compTitle: "Pilih Paket yang Tepat untuk Anda",
     compDesc: "Bandingkan ROI kedua paket berdasarkan data perusahaan Anda",
@@ -81,12 +103,19 @@ const CONTENT = {
       },
     ],
     results: {
-      savingsAI: `Penghematan AI (${SEARCH_TIME_REDUCTION_LABEL})`,
+      // No percentage in the label any more: the share recovered now moves with
+      // the visitor's own inputs, so a fixed number here would be wrong for
+      // everyone who touches a slider.
+      savingsAI: "Estimasi Penghematan",
       subscription: "Biaya Langganan",
       netSaving: "Hemat Bersih / Bulan",
-      roi: "ROI",
+      // "3.837%" is arithmetically true and reads like an infomercial. The same
+      // fact as a multiple reads like a business case.
+      roi: "Nilai vs Biaya",
+      roiUnit: "×",
       payback: "Balik Modal",
       paybackUnit: "hari",
+      paybackSameDay: "< 1 hari",
       // Shown wherever a number depends on a price that does not exist yet.
       // "-" already means "not applicable" on the dead card, so this deliberately
       // reads as pending rather than as zero.
@@ -122,10 +151,22 @@ const CONTENT = {
       workingDays: "Working Days per Month",
     },
     lossCard: {
-      title: "Monthly Loss Without IntelliBase",
+      title: "Time Spent Searching Documents Today",
       hoursLost: "Total Hours Wasted / Month",
-      costLost: "Cost of Wasted Time / Month",
+      costLost: "What That Time Is Worth / Month",
       hoursUnit: "hours",
+      recovered: "Realistically Recoverable",
+      recoveredNote: "The rest still needs asking someone, reading, and deciding.",
+    },
+    assumptions: {
+      title: "How we calculate it — and what we deliberately cut",
+      desc: "The figure above is not \"search time × 90%\". We discount it three times to keep it close to reality:",
+      items: [
+        `Only ${ANSWERABLE_SHARE_LABEL} of questions are counted as answerable from the documents you upload. The rest are about things nobody has written down yet.`,
+        `Every question to the AI still costs about ${MINUTES_WITH_AI} minutes to read the answer and check its source. Only the difference counts as saved — never the whole search.`,
+        `Only ${REALIZED_SHARE_LABEL} of the time saved is counted as real output. Minutes returned one or two at a time do not automatically become extra working hours.`,
+      ],
+      closing: "If you think these assumptions are too generous or too harsh, move the sliders above — every number on this page follows them.",
     },
     compTitle: "Choose the Right Plan for You",
     compDesc: "Compare ROI for both plans based on your company data",
@@ -168,12 +209,14 @@ const CONTENT = {
       },
     ],
     results: {
-      savingsAI: `AI Savings (${SEARCH_TIME_REDUCTION_LABEL})`,
+      savingsAI: "Estimated Savings",
       subscription: "Subscription Cost",
       netSaving: "Net Savings / Month",
-      roi: "ROI",
+      roi: "Value vs Cost",
+      roiUnit: "×",
       payback: "Payback",
       paybackUnit: "days",
+      paybackSameDay: "< 1 day",
       pending: "agreed with you",
       pendingShort: "—",
     },
@@ -244,11 +287,13 @@ function PlanResultCard({
   plan,
   savingsWithAI,
   employees,
+  workingDays,
   labels,
 }: {
   plan: (typeof CONTENT)["id"]["plans"][0];
   savingsWithAI: number;
   employees: number;
+  workingDays: number;
   labels: (typeof CONTENT)["id"]["results"];
 }) {
   const isOverLimit = employees > plan.employeeLimit;
@@ -261,8 +306,16 @@ function PlanResultCard({
   const isDeadEnd = isOverLimit && !isCustomMode;
   const isRecommended = !isOverLimit;
   const net = isOverLimit ? 0 : savingsWithAI - plan.price;
-  const roi = net > 0 ? (net / plan.price) * 100 : 0;
-  const payback = !isOverLimit && savingsWithAI > 0 ? Math.ceil((plan.price / savingsWithAI) * 22) : 0;
+  // A multiple, not a percentage. The underlying fact is unchanged — a subscription
+  // this cheap really is dwarfed by the time it buys back — but "38×" invites the
+  // reader to check it against their own numbers where "3.837%" only invites doubt.
+  const roiMultiple = net > 0 ? net / plan.price : 0;
+  // The visitor's own working month, not a hardcoded 22: they can move that slider,
+  // and every other figure on the page already follows it.
+  const paybackDays = !isOverLimit && savingsWithAI > 0 ? (plan.price / savingsWithAI) * workingDays : 0;
+  // Rounding a two-hour payback up to "1 hari" overstates nothing, but printing
+  // "1" next to a 38× multiple looks like a rounding artefact. Say what it is.
+  const isSameDayPayback = paybackDays > 0 && paybackDays < 1;
   const isBlue = plan.color === "blue";
   // Decided from the card's state, not inside one of the two icon branches:
   // the custom-mode tile is near-black, and colouring only the Shield for it
@@ -355,14 +408,21 @@ function PlanResultCard({
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
           <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
-            {!isOverLimit && roi > 0 ? `${roi.toFixed(0)}%` : isCustomMode ? labels.pendingShort : "-"}
+            {!isOverLimit && roiMultiple > 0
+              ? `${roiMultiple.toFixed(roiMultiple < 10 ? 1 : 0)}${labels.roiUnit}`
+              : isCustomMode ? labels.pendingShort : "-"}
           </p>
         </div>
         <div className="text-center">
           <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
           <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
-            {!isOverLimit && payback > 0 ? payback : isCustomMode ? labels.pendingShort : "-"}
-            {!isOverLimit && payback > 0 && <span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span>}
+            {isOverLimit
+              ? (isCustomMode ? labels.pendingShort : "-")
+              : isSameDayPayback
+              ? <span className="text-xl">{labels.paybackSameDay}</span>
+              : paybackDays > 0
+              ? <>{Math.ceil(paybackDays)}<span className="text-sm font-normal ml-0.5">{labels.paybackUnit}</span></>
+              : "-"}
           </p>
         </div>
       </div>
@@ -532,23 +592,62 @@ export default function ROIPage() {
         </div>
       </section>
 
-      {/* Loss summary */}
+      {/* Loss summary — and, beside it, the part of that loss we actually claim
+          to take back. Shown as one card in two halves rather than one big red
+          number, so the visitor never has to guess whether we are implying the
+          red figure disappears. */}
       <section className="max-w-6xl mx-auto px-6 pb-6">
-        <div className="bg-red-50 border border-red-100 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-3">
-            <TrendingDown className="h-6 w-6 text-red-500 shrink-0" />
-            <div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <TrendingDown className="h-6 w-6 text-red-500 shrink-0" />
               <p className="font-bold text-gray-900">{T.lossCard.title}</p>
-              <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
-                <Clock className="h-3.5 w-3.5" />
-                {results.hoursPerMonth.toFixed(0)} {T.lossCard.hoursUnit} {T.lossCard.hoursLost.split("/")[1] ? `/ ${T.lossCard.hoursLost.split("/")[1]}` : ""}
-              </p>
             </div>
-          </div>
-          <div className="text-center sm:text-right">
             <p className="text-xs text-gray-400 mb-0.5">{T.lossCard.costLost}</p>
             <p className="text-4xl font-bold text-red-600">{formatRp(results.costLost)}</p>
+            <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-2">
+              <Clock className="h-3.5 w-3.5" />
+              {results.hoursPerMonth.toFixed(0)} {T.lossCard.hoursUnit} {T.lossCard.hoursLost.split("/")[1] ? `/ ${T.lossCard.hoursLost.split("/")[1]}` : ""}
+            </p>
           </div>
+          <div className="bg-green-50 border border-green-100 rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <TrendingUp className="h-6 w-6 text-green-600 shrink-0" />
+              <p className="font-bold text-gray-900">{T.lossCard.recovered}</p>
+            </div>
+            {/* The share is printed from the result rather than the constants:
+                it moves with the visitor's own search time, and a fixed "28%"
+                would be wrong the moment they touch a slider. */}
+            <p className="text-xs text-gray-400 mb-0.5">
+              {(results.recoveredShare * 100).toFixed(0)}% {lang === "id" ? "dari angka di sebelah" : "of the figure beside it"}
+            </p>
+            <p className="text-4xl font-bold text-green-600">{formatRp(results.savingsWithAI)}</p>
+            <p className="text-sm text-gray-500 mt-2">{T.lossCard.recoveredNote}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Assumptions — the three discounts, in the visitor's path rather than in
+          a footnote. A buyer who cannot see why a number is what it is has only
+          the choice of believing it or not. */}
+      <section className="max-w-6xl mx-auto px-6 pb-6">
+        <div className="bg-sunken border border-hairline rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Scale className="h-5 w-5 text-gray-500 shrink-0" />
+            <h2 className="font-bold text-gray-900">{T.assumptions.title}</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">{T.assumptions.desc}</p>
+          <ul className="space-y-2.5">
+            {T.assumptions.items.map((item, i) => (
+              <li key={i} className="flex items-start gap-2.5 text-sm text-gray-600">
+                <span className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-gray-200 text-gray-600 text-xs font-bold flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-gray-400 mt-4">{T.assumptions.closing}</p>
         </div>
       </section>
 
@@ -568,6 +667,7 @@ export default function ROIPage() {
               plan={plan}
               savingsWithAI={results.savingsWithAI}
               employees={employees}
+              workingDays={workingDays}
               labels={T.results}
             />
           ))}

@@ -47,10 +47,12 @@ function sentenceAround(text, index) {
 const RULES = [
   {
     id: "search-time-stat",
-    // The 90% figure from src/lib/roi.ts. It is an internal assumption and may
-    // only appear alongside ESTIMATE_NOTE, which social posts have no room for.
+    // The old 90% headline is gone from src/lib/roi.ts, but it survives in every
+    // draft the model has read, so the rule outlives the number. What replaced
+    // it (~28%, after three discounts) still may only appear alongside
+    // ESTIMATE_NOTE, which social posts have no room for.
     pattern: /\b90\s*%|sembilan puluh persen/i,
-    why: "Angka 90% adalah asumsi internal (src/lib/roi.ts), bukan hasil pengukuran. Tidak boleh dipakai di media sosial.",
+    why: "Angka 90% sudah tidak dipakai di mana pun — kalkulator ROI sekarang memakai model yang jauh lebih konservatif. Klaim penghematan berbasis asumsi tidak boleh dipakai di media sosial tanpa catatan estimasi.",
   },
   {
     id: "speed-claim",
