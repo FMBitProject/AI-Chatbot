@@ -193,7 +193,8 @@ export async function POST(req: NextRequest) {
 
   // Reaching here means a paid plan is in force: this call applied it, a
   // previous one already committed it, or the company was already on something
-  // higher (the "nothing-granted" branch above, now on its way to an operator).
+  // higher (settlePaidOrder's "nothing-granted" outcome, which raises its own
+  // alert on the way out).
   // The success page keys its "Pembayaran Berhasil" state off this flag, so
   // reporting false on an order the webhook settled first would tell a paying
   // customer their upgrade is still pending. In the third case the customer is

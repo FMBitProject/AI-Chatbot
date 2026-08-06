@@ -11,6 +11,7 @@ import {
   isSettledStatus,
 } from "@/lib/midtrans";
 import { settlePaidOrder } from "@/lib/payment";
+import { alertOps } from "@/lib/alerts";
 import { getPlanPrice, PLAN_NAMES, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
@@ -24,6 +25,12 @@ const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
 // default Midtrans transaction lifetime: past it the Snap token and any virtual
 // account issued with it are dead, so there is nothing left to reuse.
 const PENDING_REUSE_MS = 24 * 60 * 60 * 1000;
+
+// How many pending orders one checkout will ask Midtrans about. One is the
+// normal case; more than one only exists as leftovers from before reuse was
+// added. Capped because each one costs an outbound request on a path the
+// customer is waiting on.
+const MAX_PENDING_TO_CHECK = 3;
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -83,7 +90,14 @@ export async function POST(req: NextRequest) {
   // holding two numbers that both work, and transferring to both charges them
   // twice for one month. Reusing the order they already have is what makes
   // clicking twice harmless.
-  const [pending] = await db.select().from(transactions)
+  //
+  // Several are fetched, not one, because there may already *be* several: every
+  // checkout before this guard existed minted its own order, so a company can
+  // carry more than one live at once. Looking only at the newest would settle
+  // or close that one, find nothing else, and mint yet another alongside the
+  // older ones still standing. Newest first — those have the most token life
+  // left and are the likeliest to still be payable.
+  const pendings = await db.select().from(transactions)
     .where(and(
       eq(transactions.companyId, dbUser.companyId),
       eq(transactions.plan, plan),
@@ -91,49 +105,107 @@ export async function POST(req: NextRequest) {
       gt(transactions.createdAt, new Date(Date.now() - PENDING_REUSE_MS)),
     ))
     .orderBy(desc(transactions.createdAt))
-    .limit(1);
+    .limit(MAX_PENDING_TO_CHECK);
 
-  if (pending?.snapToken) {
-    // Ask Midtrans what became of it. The default is to reuse — including when
-    // this call fails, since a token minted within the window is almost
-    // certainly still good and reusing it can never create a second way to pay.
-    // Only a definite answer that the order is finished starts a new one.
-    const existing = await fetchMidtransStatus(pending.orderId, "[payment/create]");
+  if (pendings.length > 0) {
+    // In parallel: the normal case is one order and one request, but when there
+    // are several, asking in sequence would put the customer behind up to three
+    // round trips before their checkout even starts.
+    const checked = await Promise.all(
+      pendings.map(async (order) => ({
+        order,
+        status: await fetchMidtransStatus(order.orderId, "[payment/create]"),
+      })),
+    );
 
-    if (existing.ok && isSettledStatus(existing.data)) {
-      // Already paid, and we never recorded it — the notification was lost and
-      // the customer came back to pay again. Selling them a second order here
-      // is exactly the double charge this block exists to prevent, so settle
-      // what they already paid instead.
-      if (amountMatches(existing.data.gross_amount, pending.amount)) {
-        try {
-          await settlePaidOrder(pending, "[payment/create]");
-        } catch (err) {
-          console.error(`[payment/create] Could not settle already-paid order=${pending.orderId}:`, err);
-        }
+    // Already paid comes first, whichever order it belongs to. This is the lost
+    // notification case: the customer paid, we never recorded it, and they came
+    // back to pay again. Selling them a second order here is exactly the double
+    // charge this whole block exists to prevent.
+    const settled = checked.find((c) => c.status.ok && isSettledStatus(c.status.data));
+    if (settled && settled.status.ok) {
+      const paidOrder = settled.order;
+
+      if (!amountMatches(settled.status.data.gross_amount, paidOrder.amount)) {
+        // Paid, but not for what we billed. Same alert the webhook, verify and
+        // the reconciliation sweep raise — this was the one settled-order path
+        // that stayed silent, and it told the customer their payment had gone
+        // through while granting them nothing.
+        await alertOps({
+          dedupeKey: `payment-amount:${paidOrder.orderId}`,
+          subject: "Midtrans confirms a payment for an amount we did not charge",
+          details: {
+            order: paidOrder.orderId,
+            company: paidOrder.companyId,
+            plan: paidOrder.plan,
+            paid: String(settled.status.data.gross_amount),
+            expected: paidOrder.amount,
+          },
+        });
+        return NextResponse.json(
+          {
+            error: "amount_mismatch",
+            message: "Pembayaran perlu diperiksa manual. Tim kami akan menindaklanjuti.",
+            orderId: paidOrder.orderId,
+          },
+          { status: 409 },
+        );
       }
+
+      try {
+        await settlePaidOrder(paidOrder, "[payment/create]");
+      } catch (err) {
+        // The money is ours and the plan is not theirs. Say so, instead of
+        // reporting the success below on work that did not happen — the order
+        // stays pending, so the next click (or the sweep) retries it.
+        console.error(`[payment/create] Could not settle already-paid order=${paidOrder.orderId}:`, err);
+        return NextResponse.json(
+          {
+            error: "settle_failed",
+            message: "Pembayaran Anda sudah kami terima, tapi aktivasinya belum berhasil. Coba lagi sebentar lagi — jika masih sama, hubungi kami.",
+            orderId: paidOrder.orderId,
+          },
+          { status: 500 },
+        );
+      }
+
       return NextResponse.json(
         {
           error: "already_paid",
           message: "Pembayaran Anda untuk paket ini sudah kami terima. Silakan buka dashboard untuk melihat status langganan.",
-          orderId: pending.orderId,
+          orderId: paidOrder.orderId,
         },
         { status: 409 },
       );
     }
 
-    const finished = existing.ok ? closedTransactionStatus(existing.data.transaction_status) : null;
-    if (finished) {
-      // Midtrans is done with it, so it cannot be paid any more and there is no
-      // double-charge risk in issuing a new one. Record the close on the way
-      // past, so the dashboard stops showing it as waiting.
+    // Close every order Midtrans has finished with, not just the first: they
+    // cannot be paid any more, and leaving them "pending" both clutters the
+    // dashboard and keeps them coming back as candidates here and in the sweep.
+    const finished = checked.flatMap((c) => {
+      if (!c.status.ok) return [];
+      const closedStatus = closedTransactionStatus(c.status.data.transaction_status);
+      return closedStatus ? [{ order: c.order, closedStatus }] : [];
+    });
+    for (const { order, closedStatus } of finished) {
       await db.update(transactions)
-        .set({ status: finished })
-        .where(and(eq(transactions.id, pending.id), ne(transactions.status, "paid")))
-        .catch((err) => console.error(`[payment/create] Could not mark order=${pending.orderId} ${finished}:`, err));
-    } else {
-      console.log(`[payment/create] Reusing pending order: company=${dbUser.companyId} order=${pending.orderId}`);
-      return NextResponse.json({ token: pending.snapToken, orderId: pending.orderId, reused: true });
+        .set({ status: closedStatus })
+        .where(and(eq(transactions.id, order.id), ne(transactions.status, "paid")))
+        .catch((err) => console.error(`[payment/create] Could not mark order=${order.orderId} ${closedStatus}:`, err));
+    }
+
+    // Anything still open is reused rather than replaced. An unreachable status
+    // counts as open on purpose: a token minted inside the window is almost
+    // certainly still good, and reusing it can never create a second way to pay,
+    // while minting a new order on a bad guess can.
+    const reusable = checked.find(
+      (c) =>
+        c.order.snapToken !== null &&
+        (!c.status.ok || !closedTransactionStatus(c.status.data.transaction_status)),
+    );
+    if (reusable?.order.snapToken) {
+      console.log(`[payment/create] Reusing pending order: company=${dbUser.companyId} order=${reusable.order.orderId}`);
+      return NextResponse.json({ token: reusable.order.snapToken, orderId: reusable.order.orderId, reused: true });
     }
   }
 
