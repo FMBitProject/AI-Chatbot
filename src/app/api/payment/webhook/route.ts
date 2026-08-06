@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withTransaction } from "@/lib/db/transaction";
-import { transactions, companies } from "@/lib/db/schema";
+import { transactions } from "@/lib/db/schema";
 import { and, eq, ne } from "drizzle-orm";
-import { computeRenewedExpiry, planRank, planRankInForce } from "@/lib/pricing";
+import { settlePaidOrder } from "@/lib/payment";
 import {
   amountMatches,
   closedTransactionStatus,
@@ -187,61 +186,11 @@ export async function POST(req: NextRequest) {
     if (isSuccess) {
       // Midtrans re-sends a notification when our response is slow, non-2xx, or
       // simply on its retry schedule, and the same order can also be settled by
-      // payment/verify. Extending the plan is not idempotent
-      // (computeRenewedExpiry stacks a month onto the remaining time), so only
-      // the delivery whose conditional UPDATE actually flips status → paid gets
-      // to apply it; duplicates match zero rows and stop.
-      //
-      // Claim and grant share one transaction so they cannot come apart: a crash
-      // between them would otherwise leave the order marked paid with no plan
-      // granted, and every retry would skip it as a duplicate — the customer's
-      // money taken and their subscription never activated, unrecoverably.
-      const applied = await withTransaction(async (dbTx) => {
-        const claimed = await dbTx.update(transactions)
-          .set({ status: "paid", paidAt: new Date() })
-          .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")))
-          .returning({ id: transactions.id });
-
-        if (claimed.length === 0) return false;
-
-        // FOR UPDATE, because the grant below is a read-modify-write: the new
-        // expiry is computed in JS from the value read here. Two *different*
-        // paid orders for the same company lock different `transactions` rows,
-        // so nothing stops them reaching this point together; without the row
-        // lock both would read the same expiry and the second COMMIT would
-        // overwrite the first, silently swallowing a month the customer paid for.
-        const [company] = await dbTx.select().from(companies)
-          .where(eq(companies.id, tx.companyId))
-          .limit(1)
-          .for("update");
-        const now = new Date();
-        const currentRank = planRankInForce(company?.plan, company?.planExpiresAt, now);
-
-        if (planRank(tx.plan) < currentRank) {
-          // Downgrades are blocked at checkout (payment/create); if one still reaches
-          // here, never strip a paying customer's higher plan — leave it untouched.
-          console.warn(`[payment] Ignored downgrade from webhook: company=${tx.companyId} current=${company?.plan} purchased=${tx.plan}`);
-          return true;
-        }
-
-        // Renewal/upgrade stacks onto any remaining time; a lapsed plan starts fresh.
-        const planExpiresAt = computeRenewedExpiry(company?.planExpiresAt, now);
-        const granted = await dbTx.update(companies)
-          .set({ plan: tx.plan, planExpiresAt })
-          .where(eq(companies.id, tx.companyId))
-          .returning({ id: companies.id });
-
-        // Nothing updated means the company row vanished under us. Throw so the
-        // claim rolls back rather than banking a payment that granted nothing.
-        if (granted.length === 0) {
-          throw new Error(`company ${tx.companyId} not found while granting plan for order=${body.order_id}`);
-        }
-
-        console.log(`[payment] Plan set: company=${tx.companyId} plan=${tx.plan} expires=${planExpiresAt.toISOString()}`);
-        return true;
-      });
-
-      if (!applied) {
+      // payment/verify or the reconciliation sweep. settlePaidOrder is written to
+      // be safe to repeat and shared by all three, so whichever gets there first
+      // grants the plan and the rest come back "duplicate".
+      const outcome = await settlePaidOrder(tx, "[payment]");
+      if (outcome.result === "duplicate") {
         console.log(`[payment] Duplicate paid notification ignored: order=${body.order_id}`);
       }
     } else if (closedStatus) {

@@ -31,6 +31,23 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
   const { pathname } = req.nextUrl;
   const secret = process.env.MAINTENANCE_BYPASS_SECRET;
 
+  // 0. Midtrans' payment notification is never taken offline.
+  //
+  // Midtrans re-delivers a notification we did not answer with a 2xx, but only a
+  // limited number of times over roughly a day — after that the notification is
+  // gone for good. Maintenance lasting longer than that retry window would
+  // therefore turn every payment made during it into money received for a
+  // subscription that is never activated, silently: no log, no alert, and no
+  // customer on the site to trigger the /api/payment/verify recovery path (a
+  // bank transfer is typically paid long after the tab was closed).
+  //
+  // Safe to leave open, because this endpoint authenticates its own callers:
+  // it verifies the Midtrans signature and re-confirms the outcome against the
+  // Midtrans status API before granting anything.
+  if (pathname === "/api/payment/webhook") {
+    return null;
+  }
+
   // 1. Maintainer unlocks a bypass cookie via ?mnt-bypass=<secret>.
   if (secret && req.nextUrl.searchParams.get(BYPASS_QUERY) === secret) {
     const url = req.nextUrl.clone();
