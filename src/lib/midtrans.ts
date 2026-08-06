@@ -1,20 +1,40 @@
-import MidtransClient from "midtrans-client";
 import { createHash, timingSafeEqual } from "crypto";
 
-let _snap: MidtransClient.Snap | null = null;
+// Plan pricing and names now live in @/lib/pricing (single source of truth).
 
-export function getSnap() {
-  if (!_snap) {
-    _snap = new MidtransClient.Snap({
-      isProduction: process.env.MIDTRANS_ENV === "production",
-      serverKey: process.env.MIDTRANS_SERVER_KEY!,
-      clientKey: process.env.MIDTRANS_CLIENT_KEY!,
-    });
-  }
-  return _snap;
+/**
+ * How long any single request to Midtrans may take.
+ *
+ * Every call here used to be unbounded. Node's fetch has no default request
+ * timeout, and the midtrans-client SDK this module used for checkout built its
+ * axios instance with the default `timeout: 0` — so one slow connection held a
+ * serverless invocation until the platform killed it. That is how an outage at
+ * a payment provider becomes an outage here: invocations pile up waiting, and
+ * the rest of the app starves behind them.
+ *
+ * Ten seconds is well past Midtrans' normal response time and still leaves room
+ * to answer the caller inside a typical function budget.
+ */
+const REQUEST_TIMEOUT_MS = 10_000;
+
+function isProduction(): boolean {
+  return process.env.MIDTRANS_ENV === "production";
 }
 
-// Plan pricing and names now live in @/lib/pricing (single source of truth).
+/** Core API — order status lives here. */
+function coreApiBaseUrl(): string {
+  return isProduction() ? "https://api.midtrans.com/v2" : "https://api.sandbox.midtrans.com/v2";
+}
+
+/** Snap API — checkout transactions are created here. A different host. */
+function snapApiBaseUrl(): string {
+  return isProduction() ? "https://app.midtrans.com/snap/v1" : "https://app.sandbox.midtrans.com/snap/v1";
+}
+
+/** Midtrans authenticates with the server key as the HTTP Basic username, no password. */
+function authHeader(serverKey: string): string {
+  return `Basic ${Buffer.from(`${serverKey}:`).toString("base64")}`;
+}
 
 /**
  * The server key, or a thrown error when it is not configured.
@@ -95,10 +115,6 @@ export async function fetchMidtransStatus(
   orderId: string,
   logPrefix: string,
 ): Promise<{ ok: true; data: MidtransStatus } | { ok: false }> {
-  const baseUrl = process.env.MIDTRANS_ENV === "production"
-    ? "https://api.midtrans.com/v2"
-    : "https://api.sandbox.midtrans.com/v2";
-
   let serverKey: string;
   try {
     serverKey = requireServerKey();
@@ -108,9 +124,9 @@ export async function fetchMidtransStatus(
   }
 
   try {
-    const res = await fetch(`${baseUrl}/${encodeURIComponent(orderId)}/status`, {
+    const res = await fetch(`${coreApiBaseUrl()}/${encodeURIComponent(orderId)}/status`, {
       headers: {
-        Authorization: `Basic ${Buffer.from(`${serverKey}:`).toString("base64")}`,
+        Authorization: authHeader(serverKey),
         "Content-Type": "application/json",
       },
       // Payment state is the last thing that may be served from a cache. POST
@@ -118,6 +134,10 @@ export async function fetchMidtransStatus(
       // already read the request, which opts the route out anyway — this is
       // belt and braces on a call where a stale answer means a wrong plan.
       cache: "no-store",
+      // A hung connection here would otherwise run until the platform killed the
+      // invocation. The AbortError lands in the catch below like any other
+      // failure, so callers already handle it.
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     // A 401 (wrong server key) or a 5xx still returns a JSON body, just without
     // a transaction_status. Without this check that body would fall through and
@@ -131,6 +151,49 @@ export async function fetchMidtransStatus(
     console.error(`${logPrefix} Midtrans request failed for order=${orderId}:`, err);
     return { ok: false };
   }
+}
+
+/**
+ * Opens a Snap checkout for `parameter` and returns the token the browser needs
+ * to display it.
+ *
+ * Replaces the midtrans-client SDK, which was one POST behind an axios instance
+ * built with no timeout — the only unbounded call left in the payment flow, and
+ * the one sitting in front of a customer waiting to pay. The Snap API is a
+ * single JSON POST with the same Basic auth as the status call above, so the SDK
+ * bought nothing that this does not.
+ *
+ * Throws on any failure (timeout, network, non-2xx). The caller is creating an
+ * order and cannot continue without a token, so there is no useful partial
+ * result to hand back.
+ */
+export async function createSnapTransaction(parameter: object): Promise<{ token: string; redirect_url: string }> {
+  const serverKey = requireServerKey();
+
+  const res = await fetch(`${snapApiBaseUrl()}/transactions`, {
+    method: "POST",
+    headers: {
+      Authorization: authHeader(serverKey),
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(parameter),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    // Snap reports its own errors in the body (e.g. an order_id already taken).
+    // Read it into the message so the log says what Midtrans objected to rather
+    // than just the status code.
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Midtrans Snap returned ${res.status}: ${detail.slice(0, 500)}`);
+  }
+
+  const data = await res.json() as { token?: unknown; redirect_url?: unknown };
+  if (typeof data.token !== "string" || typeof data.redirect_url !== "string") {
+    throw new Error("Midtrans Snap response did not contain a token");
+  }
+  return { token: data.token, redirect_url: data.redirect_url };
 }
 
 /**

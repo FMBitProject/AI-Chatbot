@@ -3,9 +3,15 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, companies, transactions } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getSnap } from "@/lib/midtrans";
+import { createSnapTransaction } from "@/lib/midtrans";
 import { getPlanPrice, PLAN_NAMES, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
+import { consumeRateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
+
+// Each accepted call opens a real transaction at Midtrans and writes a row here,
+// so a stuck retry loop or a stolen session should not be able to run up either
+// without limit. Well above what a customer clicking "Bayar" can reach.
+const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -16,7 +22,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { plan } = await req.json() as { plan: unknown };
+  const limit = consumeRateLimit(`payment-create:${dbUser.id}`, CREATE_LIMIT);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "rate_limited", message: "Terlalu banyak percobaan pembayaran. Coba lagi sebentar lagi." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+    );
+  }
+
+  // Guarded, so a body that is not JSON is the 400 it actually is. Unguarded,
+  // req.json() throws and Next answers 500 — which reads in the logs as "our
+  // server is broken" for what is only a malformed request.
+  let plan: unknown;
+  try {
+    ({ plan } = await req.json() as { plan: unknown });
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   // Purchasable, not merely paid: `custom` has no list price, so accepting it
   // here would mean charging an unlimited plan whatever the request asked for.
   if (!isPurchasablePlan(plan)) {
@@ -40,7 +62,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const orderId = `IB-${plan.toUpperCase()}-${Date.now()}`;
+  // A timestamp is a time, not an identifier: two checkouts for the same plan in
+  // the same millisecond used to produce the same order_id, and order_id is
+  // unique both here (schema) and at Midtrans. The random suffix is what makes
+  // it an id — the timestamp stays only because it makes an order readable at a
+  // glance in the Midtrans dashboard.
+  const orderId = `IB-${plan.toUpperCase()}-${Date.now()}-${randomUUID().slice(0, 8)}`;
   // Price is resolved server-side (promo-aware) so the client can never dictate it.
   const amount = getPlanPrice(plan);
 
@@ -66,7 +93,19 @@ export async function POST(req: NextRequest) {
     },
   };
 
-  const snapResponse = await getSnap().createTransaction(parameter) as { token: string; redirect_url: string };
+  let snapResponse: { token: string; redirect_url: string };
+  try {
+    snapResponse = await createSnapTransaction(parameter);
+  } catch (err) {
+    // A refusal from Midtrans, a timeout, or an unset server key. Nothing has
+    // been written here yet and the customer has no token, so there is no
+    // half-finished order to clean up — they can simply try again.
+    console.error(`[payment/create] Could not open checkout for order=${orderId}:`, err);
+    return NextResponse.json(
+      { error: "checkout_failed", message: "Gagal menghubungi penyedia pembayaran. Coba lagi beberapa saat lagi." },
+      { status: 502 },
+    );
+  }
 
   await db.insert(transactions).values({
     id: randomUUID(),

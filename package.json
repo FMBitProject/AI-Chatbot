@@ -48,7 +48,6 @@
     "jspdf": "^4.2.1",
     "lucide-react": "^1.17.0",
     "mammoth": "^1.12.0",
-    "midtrans-client": "^1.4.3",
     "next": "^16.2.11",
     "officeparser": "^7.1.0",
     "openai": "^6.39.1",
