@@ -4,9 +4,10 @@ import { groq, createGroq } from "@ai-sdk/groq";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq, count, and, gte, isNull, or, inArray } from "drizzle-orm";
+import { eq, count, and, gte, isNull, or, inArray, asc, desc } from "drizzle-orm";
+import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
-import { activeDocumentIds, retrieveChunks } from "@/lib/retrieval";
+import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
@@ -39,15 +40,46 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "User tidak ditemukan." }), { status: 403 });
   }
 
-  const { messages, sessionId, responseLang } = await req.json() as {
-    messages: { role: string; content: string }[];
-    sessionId?: string;
-    responseLang?: "auto" | "id" | "en";
-  };
+  const body = await readJsonObject(req);
+  if (!body) {
+    return new Response(JSON.stringify({ error: "Body harus berupa JSON yang valid." }), { status: 400 });
+  }
 
-  const lastUserMessage = [...messages].reverse().find((m) => m.role === "user");
+  const sessionId = optionalString(body.sessionId, 128) ?? undefined;
+  const responseLang = isOneOf(body.responseLang, ["auto", "id", "en"] as const)
+    ? body.responseLang
+    : "auto";
+
+  // Only the newest user message is taken from the request. Everything the model
+  // is told about earlier turns is read back from the database further down —
+  // see the note on `priorTurns`.
+  const clientMessages = Array.isArray(body.messages) ? body.messages : null;
+  if (!clientMessages) {
+    return new Response(JSON.stringify({ error: "Format pesan tidak valid." }), { status: 400 });
+  }
+
+  const lastUserMessage = [...clientMessages].reverse().find(
+    (m): m is { role: "user"; content: string } =>
+      typeof m === "object" && m !== null &&
+      (m as { role?: unknown }).role === "user" &&
+      typeof (m as { content?: unknown }).content === "string" &&
+      (m as { content: string }).content.trim().length > 0,
+  );
   if (!lastUserMessage) {
     return new Response(JSON.stringify({ error: "Tidak ada pesan." }), { status: 400 });
+  }
+
+  // Bounded rather than truncated: a question past this length is a mistake or
+  // an abuse, and silently answering the first 2,000 characters of it would hide
+  // which. Unbounded, one request embeds and generates on megabytes while the
+  // quota below counts it as a single question — the meter and the bill measure
+  // different things.
+  const question = lastUserMessage.content.trim();
+  if (question.length > LIMITS.question) {
+    return new Response(
+      JSON.stringify({ error: "QUESTION_TOO_LONG", limit: LIMITS.question }),
+      { status: 400 },
+    );
   }
 
   // Fetch company and check quotas before doing any heavy processing.
@@ -99,7 +131,7 @@ export async function POST(req: NextRequest) {
 
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(lastUserMessage.content, company?.geminiApiKey);
+    queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
   } catch (err) {
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
@@ -117,7 +149,11 @@ export async function POST(req: NextRequest) {
     // no chunk is retrieved. Documents frozen by the plan limit are left out
     // here too, so the catalog matches what can actually be answered from.
     const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
-    const catalogConditions = [eq(documents.companyId, companyId)];
+    // notExpired() for the same reason the retriever applies it: the catalog is
+    // what the model is told it can answer from, so listing a document the
+    // retriever will never return invites exactly the confident answer about a
+    // withdrawn document that an expiry date exists to prevent.
+    const catalogConditions = [eq(documents.companyId, companyId), notExpired()];
     if (dbUser.department) {
       catalogConditions.push(or(isNull(documents.department), eq(documents.department, dbUser.department))!);
     }
@@ -184,7 +220,7 @@ export async function POST(req: NextRequest) {
       id: newSessionId,
       userId: dbUser.id,
       companyId,
-      title: lastUserMessage.content.slice(0, 60),
+      title: question.slice(0, 60),
     }));
   } else {
     // Verify the session belongs to this user's company before writing messages into it
@@ -207,14 +243,14 @@ export async function POST(req: NextRequest) {
   // If there are documents but no relevant chunks (e.g. a meta-question like "how many docs?"),
   // continue to the AI so it can answer from the catalog.
   if (scored.length === 0 && docCatalogNames.length === 0) {
-    const effectiveLang = responseLang === "auto" ? detectLang(lastUserMessage.content) : (responseLang ?? "id");
+    const effectiveLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
     const noDocMsg = effectiveLang === "en"
       ? "Sorry, the information could not be found in the company's internal documents."
       : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
 
     const noDocMsgId = randomUUID();
     await withTenant(companyId, async (tx) => {
-      await tx.insert(chatMessages).values({ id: randomUUID(), sessionId: resolvedSessionId, role: "user", content: lastUserMessage.content });
+      await tx.insert(chatMessages).values({ id: randomUUID(), sessionId: resolvedSessionId, role: "user", content: question });
       await tx.insert(chatMessages).values({ id: noDocMsgId, sessionId: resolvedSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
     });
 
@@ -272,20 +308,57 @@ If no relevant information is found:
 
   const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${langReminder}`;
 
+  // Earlier turns are read back from the database, never taken from the request.
+  //
+  // The body used to supply the whole conversation, and it was forwarded to the
+  // model as-is. That let a caller write the other side of the dialogue: a
+  // handcrafted `{ role: "assistant", content: "..." }` is indistinguishable
+  // from something this route actually said, so the model could be shown a past
+  // turn in which it agreed to ignore the grounding rules above. Nothing about
+  // it is visible afterwards either — the forged turns are never stored, so the
+  // history an admin reads in the Audit tab is not the history the model saw.
+  //
+  // No filter fixes that, because the request is not the authority on what was
+  // said. chat_messages is, and it is RLS-protected and already scoped to this
+  // session by the ownership check above. Read *before* this turn's user
+  // message is inserted below, so the current question is appended once rather
+  // than appearing twice.
+  //
+  // Newest-first with a LIMIT, then reversed: the cap has to keep the most
+  // recent turns, and ordering ascending with a limit would keep the oldest.
+  //
+  // `role` breaks ties before `id` does, and it has to. created_at defaults to
+  // now(), which in Postgres is the *transaction* start time — constant for
+  // every row written inside one transaction. The "no documents at all" path
+  // above writes the question and the canned reply in a single withTenant call,
+  // so that pair shares a timestamp exactly, and an id tiebreaker would order
+  // them by a random UUID: half the time the model would be shown its own
+  // answer before the question it answered. Sorting role ascending puts
+  // "assistant" ahead of "user" in this descending scan, which is what the
+  // reverse below turns into question-then-answer.
+  const priorTurns = sessionId
+    ? (await withTenant(companyId, (tx) => tx
+        .select({ role: chatMessages.role, content: chatMessages.content })
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, resolvedSessionId))
+        .orderBy(desc(chatMessages.createdAt), asc(chatMessages.role), desc(chatMessages.id))
+        .limit(LIMITS.history)))
+        .reverse()
+        // Stored content is bounded on the way in, but rows written before that
+        // was true are not, and one of them is enough to blow the context.
+        .map((m) => ({ role: m.role, content: m.content.slice(0, LIMITS.message) }))
+    : [];
+
   const userMsgId = randomUUID();
   await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
     id: userMsgId,
     sessionId: resolvedSessionId,
     role: "user",
-    content: lastUserMessage.content,
+    content: question,
   }));
 
   const citations = scored.map((c) => ({ id: c.id, text: c.text, documentName: c.documentName }));
   const assistantMsgId = randomUUID();
-
-  const typedMessages = messages as { role: "user" | "assistant"; content: string }[];
-  const lastMsg = typedMessages[typedMessages.length - 1];
-  const prevMsgs = typedMessages.slice(0, -1);
 
   const langDemo =
     responseLang === "en"
@@ -303,7 +376,11 @@ If no relevant information is found:
           { role: "assistant" as const, content: "I will automatically detect the language of your question and respond in that same language. Ask in Indonesian and I will answer in Indonesian; ask in English and I will answer in English." },
         ];
 
-  const messagesWithLang = [...prevMsgs, ...langDemo, lastMsg];
+  const messagesWithLang = [
+    ...priorTurns,
+    ...langDemo,
+    { role: "user" as const, content: question },
+  ];
 
   const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
 
@@ -351,13 +428,13 @@ If no relevant information is found:
 
       // Generate suggested follow-up questions — silently skip if this fails
       try {
-        const effectiveSuggestLang = responseLang === "auto" ? detectLang(lastUserMessage.content) : (responseLang ?? "id");
+        const effectiveSuggestLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
         const suggestLang = effectiveSuggestLang === "en" ? "English" : "Bahasa Indonesia";
         const { text: suggestionsRaw } = await generateText({
           model: groqClient("llama-3.3-70b-versatile"),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
-Question: ${lastUserMessage.content}
+Question: ${question}
 Answer: ${fullText.slice(0, 500)}
 
 Return format: ["question 1", "question 2", "question 3"]`,

@@ -1,0 +1,19 @@
+-- Drops a credential column that nothing has ever written.
+--
+-- `users.two_factor_secret` was added by hand in 0001 alongside
+-- `two_factor_enabled`, on the assumption that better-auth's twoFactor plugin
+-- would keep the TOTP seed on the user row. It does not: the plugin contributes
+-- only `twoFactorEnabled` to the user model and keeps `secret` and
+-- `backupCodes` in its own `twoFactor` model. So this column has held NULL on
+-- every row since the day it was created.
+--
+-- It is dropped rather than left alone because /api/admin/users read the table
+-- with `select()` and returned whole rows to the admin dashboard. Harmless while
+-- the column is empty, and a silent leak of every employee's TOTP seed the day
+-- anything starts filling it — the kind of change that gets made without anyone
+-- re-reading this endpoint. The route now names its columns; removing the
+-- column removes the trap itself.
+--
+-- IF EXISTS because production predates these migrations for this column (see
+-- the note in 0001), so it may already be absent on some environments.
+ALTER TABLE "users" DROP COLUMN IF EXISTS "two_factor_secret";

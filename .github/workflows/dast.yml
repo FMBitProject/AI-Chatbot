@@ -70,10 +70,25 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
 
+      # Generated per run rather than written down, the same way the auth secret
+      # below is. The seeded account is a real verified admin, and it used to
+      # carry a password committed to the repository — which meant anyone
+      # reading the repo held working credentials, and seeding a non-ephemeral
+      # database would hand them a way in. Nothing here needs a stable password:
+      # this branch is thrown away at the end of the job, and the only consumer
+      # is the login step below.
+      - name: Generate throwaway demo password
+        id: demo-password
+        run: |
+          VALUE="$(openssl rand -hex 16)Aa1!"
+          echo "::add-mask::$VALUE"
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+
       - name: Seed demo admin user
         run: node scripts/create-demo-user.mjs
         env:
           DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+          DEMO_PASSWORD: ${{ steps.demo-password.outputs.value }}
 
       - name: Generate throwaway auth secret
         id: auth-secret
@@ -114,10 +129,17 @@ jobs:
 
       - name: Login as demo admin and capture session cookie
         id: login
+        env:
+          # Built with jq rather than interpolated into the JSON by hand: the
+          # generated password ends in `!` and could contain any byte openssl
+          # produces, and a shell-quoted literal would eventually meet one that
+          # breaks the request in a way that looks like an auth failure.
+          DEMO_PASSWORD: ${{ steps.demo-password.outputs.value }}
         run: |
           RESPONSE=$(curl -sS -c cookies.txt -X POST http://localhost:3000/api/auth/sign-in/email \
             -H "Content-Type: application/json" \
-            -d '{"email":"demo@intellibase.app","password":"Demo@12345"}')
+            --data-binary "$(jq -nc --arg p "$DEMO_PASSWORD" \
+              '{email:"demo@intellibase.app",password:$p}')")
           echo "Login response: $RESPONSE"
           TOKEN=$(grep 'better-auth.session_token' cookies.txt | awk '{print $7}')
           if [ -z "$TOKEN" ]; then

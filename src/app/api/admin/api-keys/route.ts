@@ -5,6 +5,7 @@ import { users, apiKeys } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { generateApiKey } from "@/lib/api-key";
+import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -35,7 +36,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { name } = await req.json() as { name: string };
+  const body = await readJsonObject(req);
+  if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
+  const name = optionalString(body.name, LIMITS.name);
+
   const { key, hash, prefix } = generateApiKey();
 
   await db.insert(apiKeys).values({
@@ -59,7 +63,10 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const { id } = await req.json() as { id: string };
+  const body = await readJsonObject(req);
+  const id = body && optionalString(body.id, LIMITS.name);
+  if (!id) return NextResponse.json({ error: "ID kunci tidak valid." }, { status: 400 });
+
   await db.delete(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.companyId, dbUser.companyId)));
   return NextResponse.json({ ok: true });
 }

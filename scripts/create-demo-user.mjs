@@ -21,10 +21,30 @@ if (!databaseUrl) {
 
 const sql = neon(databaseUrl);
 
-const DEMO_EMAIL = "demo@intellibase.app";
-const DEMO_PASSWORD = "Demo@12345";
+const DEMO_EMAIL = process.env.DEMO_EMAIL ?? "demo@intellibase.app";
 const DEMO_NAME = "Demo Midtrans";
 const COMPANY_NAME = "Demo IntelliBase";
+
+// Supplied at run time, never written down here.
+//
+// This script existed for the Midtrans account review, which is closed — the
+// demo admin has been locked out since go-live. What stayed behind was a
+// committed password for a real, verified admin account: anyone who read the
+// repo knew the credentials, and running this against a production
+// DATABASE_URL would quietly recreate that account and let them back in. The
+// account is only as locked out as this file lets it be.
+//
+// So the caller has to say it out loud:
+//   DEMO_PASSWORD='...' DATABASE_URL='...' node scripts/create-demo-user.mjs
+const DEMO_PASSWORD = process.env.DEMO_PASSWORD;
+if (!DEMO_PASSWORD) {
+  console.error(
+    "DEMO_PASSWORD is not set. This script creates a verified admin account, so it\n" +
+    "refuses to run with a password that lives in the repository.\n\n" +
+    "  DEMO_PASSWORD='<pick one>' node scripts/create-demo-user.mjs\n"
+  );
+  process.exit(1);
+}
 
 async function main() {
   // Check if already exists
@@ -63,7 +83,9 @@ async function main() {
 
   console.log("\n✓ Akun demo berhasil dibuat:");
   console.log("  Email   :", DEMO_EMAIL);
-  console.log("  Password:", DEMO_PASSWORD);
+  // Not echoed: the caller already has it, and this output goes to a terminal
+  // scrollback or a CI log that outlives the run.
+  console.log("  Password: (the DEMO_PASSWORD you supplied)");
 }
 
 main().catch(console.error);
