@@ -78,6 +78,18 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
     }
   }
 
+  // "Password salah." only when the server actually said so. The old fallback
+  // used it for every error without a message — including the 500 that every
+  // enable attempt produced while the twoFactor table was missing. A user whose
+  // password was correct was told it was wrong, so they blamed their own typing
+  // and never reported it; the bug stayed invisible for exactly as long as the
+  // message stayed confident. An error we cannot name gets named as what it is:
+  // ours, not theirs.
+  function twoFaErrorText(error: { code?: string; message?: string }): string {
+    if (error.code === "INVALID_PASSWORD") return "Password salah.";
+    return error.message ?? "Terjadi kesalahan pada server. Coba lagi, atau hubungi kami jika berlanjut.";
+  }
+
   async function handle2FaToggle() {
     if (!twoFaPassword) {
       toast({ variant: "destructive", title: "Masukkan password untuk konfirmasi." });
@@ -89,7 +101,7 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
         // Enable: send OTP first then verify
         const { error } = await authClient.twoFactor.enable({ password: twoFaPassword });
         if (error) {
-          toast({ variant: "destructive", title: "Gagal", description: error.message ?? "Password salah." });
+          toast({ variant: "destructive", title: "Gagal", description: twoFaErrorText(error) });
           return;
         }
         await authClient.twoFactor.sendOtp();
@@ -98,7 +110,7 @@ export function ChangePasswordDialog({ open, onClose }: ChangePasswordDialogProp
         // Disable
         const { error } = await authClient.twoFactor.disable({ password: twoFaPassword });
         if (error) {
-          toast({ variant: "destructive", title: "Gagal", description: error.message ?? "Password salah." });
+          toast({ variant: "destructive", title: "Gagal", description: twoFaErrorText(error) });
           return;
         }
         setTwoFaEnabled(false);
