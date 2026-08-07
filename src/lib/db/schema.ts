@@ -44,7 +44,13 @@ export const users = pgTable("users", {
   role: text("role").$type<"admin" | "employee">().default("employee").notNull(),
   department: text("department"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
-  twoFactorSecret: text("two_factor_secret"),
+  // No `twoFactorSecret` here on purpose. better-auth's twoFactor plugin only
+  // contributes `twoFactorEnabled` to the user model; the secret and backup
+  // codes live in its own `twoFactor` model. The column this replaces was added
+  // by hand in migration 0001, was never read or written by anything, and held
+  // NULL on every row — while `/api/admin/users` selected it with `select()`
+  // and shipped it to the admin's browser. A credential column nothing uses is
+  // a credential column nobody notices filling up.
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

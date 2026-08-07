@@ -8,6 +8,7 @@ import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, resolvePlanById } from "@/lib/subscription";
 import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
+import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 
@@ -34,8 +35,23 @@ export async function POST(req: NextRequest) {
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, apiKey.id));
 
-  const { question, language = "id" } = await req.json() as { question: string; language?: string };
-  if (!question) return NextResponse.json({ error: "question is required" }, { status: 400 });
+  // Validated, not cast. This endpoint is reached by integrations we do not
+  // control, so the body is the least trustworthy input in the app: a `question`
+  // that arrives as a number reaches getEmbedding and throws on `.replace`,
+  // answering a malformed request with a 500. An unbounded one is worse — it is
+  // embedded and then generated on, while the quota below counts it as one
+  // question however many tokens it actually cost.
+  const body = await readJsonObject(req);
+  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+
+  const question = optionalString(body.question, LIMITS.question);
+  if (!question) {
+    return NextResponse.json(
+      { error: `question is required and must be a string of at most ${LIMITS.question} characters` },
+      { status: 400 },
+    );
+  }
+  const language = body.language === "en" ? "en" : "id";
 
   // Same effective plan, grace period and quotas as the chat UI — an expired
   // subscription must not survive just because the caller uses the API.

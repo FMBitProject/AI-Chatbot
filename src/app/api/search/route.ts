@@ -7,6 +7,7 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
+import { LIMITS } from "@/lib/validate";
 
 export async function GET(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -16,8 +17,20 @@ export async function GET(req: NextRequest) {
   if (!dbUser?.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const companyId = dbUser.companyId;
 
+  // An empty query is not an error, it is just nothing to search for — the
+  // search box sends one on every clear. An over-long one is a different thing
+  // and gets a different answer: every query here costs a Gemini embedding call,
+  // and unlike chat this route has no question quota in front of it (see the
+  // note below), so its length is the only thing bounding what a single caller
+  // can spend.
   const q = req.nextUrl.searchParams.get("q")?.trim();
   if (!q) return NextResponse.json([]);
+  if (q.length > LIMITS.question) {
+    return NextResponse.json(
+      { error: "QUERY_TOO_LONG", limit: LIMITS.question },
+      { status: 400 },
+    );
+  }
 
   // Search returns raw document text, so it has to respect the same plan rules
   // as chat: a frozen seat gets nothing, and documents frozen by the plan's

@@ -1,6 +1,25 @@
-import { and, asc, cosineDistance, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { documentChunks, documents } from "@/lib/db/schema";
 import type { TenantTx } from "@/lib/db/tenant";
+
+// A document past its expiry date is not an answerable document.
+//
+// `documents.expires_at` has been in the schema and on the admin document list
+// since the beginning, and nothing has ever consulted it: an expired SOP kept
+// being retrieved, cited and answered from exactly like a current one. Nothing
+// writes the column yet either, so today every row has NULL here and this
+// changes no result — which is the point of adding it now rather than later. If
+// the UI to set an expiry ships first, the gap stops being a dormant one and
+// becomes a compliance promise the retriever quietly breaks, in a product sold
+// to hospitals and clinics whose whole reason for setting a date is that the
+// old version must stop being quoted.
+//
+// NULL means "no expiry", so it has to be admitted explicitly — `expires_at >
+// now()` on its own is NULL for those rows, and a NULL predicate filters them
+// out, which would hide every document in the database.
+export function notExpired(now: Date = new Date()) {
+  return or(isNull(documents.expiresAt), gt(documents.expiresAt, now))!;
+}
 
 // Documents above the plan's document limit are frozen rather than deleted: the
 // ones uploaded first stay searchable and the rest come back untouched when the
@@ -110,6 +129,7 @@ export async function retrieveChunks(opts: {
   const conditions = [
     eq(documentChunks.companyId, companyId),
     isNotNull(documentChunks.embedding),
+    notExpired(),
   ];
   if (activeIds !== null) {
     conditions.push(inArray(documentChunks.documentId, activeIds));

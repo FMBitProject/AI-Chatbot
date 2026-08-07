@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
 import { chatMessages, chatSessions, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
+import { isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
@@ -13,7 +14,19 @@ export async function POST(req: NextRequest) {
   if (!dbUser || !dbUser.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const companyId = dbUser.companyId;
 
-  const { messageId, feedback } = await req.json() as { messageId: string; feedback: "up" | "down" };
+  // `as { feedback: "up" | "down" }` was a claim about the body, not a check on
+  // it: the cast is erased at runtime, so any string at all reached the UPDATE
+  // and landed in a column the admin dashboard reads back as a rating. The
+  // column has no CHECK constraint behind it either, so this is the only place
+  // the two allowed values are actually enforced.
+  const body = await readJsonObject(req);
+  if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
+
+  const messageId = optionalString(body.messageId, 128);
+  const feedback = body.feedback;
+  if (!messageId || !isOneOf(feedback, ["up", "down"] as const)) {
+    return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
+  }
 
   // chat_messages/chat_sessions are RLS-protected: verify the message belongs to
   // this company and update it inside one tenant-scoped transaction. The
