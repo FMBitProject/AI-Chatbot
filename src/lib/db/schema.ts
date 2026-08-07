@@ -117,9 +117,26 @@ export const twoFactors = pgTable("two_factor", {
   failedVerificationCount: integer("failed_verification_count").notNull().default(0),
   lockedUntil: timestamp("locked_until"),
 }, (t) => [
+  // UNIQUE, not a plain index — one user has at most one 2FA credential.
+  //
   // The adapter looks rows up by userId on every 2FA sign-in and every
-  // enable/disable — this is the only access path.
-  index("two_factor_user_id_idx").on(t.userId),
+  // enable/disable, and it uses findOne: with two rows it takes whichever
+  // Postgres hands back first, and nothing says that is the same one twice.
+  //
+  // enable() is where they appear. It runs findOne → deleteMany(userId) →
+  // create(), with no lock and no constraint: under READ COMMITTED two
+  // concurrent calls both delete (neither sees the other's uncommitted insert)
+  // and both insert. Measured, not theorised — six parallel enables on one
+  // session left three rows and handed the user six different secrets. Whoever
+  // scans the secret from a response whose row lost can never produce a code
+  // that verifies, and the failure counters split across rows so the lockout
+  // budget stops meaning anything.
+  //
+  // The constraint cannot fix the delete-then-insert race on its own; it turns
+  // it into a failed insert (23505) the caller sees, instead of a second row
+  // nobody sees. That is the trade this table wants: a duplicate here is
+  // silent and permanent, an error is loud and retryable.
+  uniqueIndex("two_factor_user_id_idx").on(t.userId),
 ]);
 
 export const verifications = pgTable("verifications", {
