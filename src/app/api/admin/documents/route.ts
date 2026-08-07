@@ -15,7 +15,21 @@ export async function GET(req: NextRequest) {
   }
 
   const companyId = dbUser.companyId;
+  // Named columns rather than select(): `raw_text` holds the full text of every
+  // uploaded document, and this endpoint is polled every three seconds while an
+  // import is running. Sending it would mean shipping the company's entire
+  // document library to the browser, repeatedly, for a list that shows a name, a
+  // badge and a date.
   const docs = await withTenant(companyId, (tx) =>
-    tx.select().from(documents).where(eq(documents.companyId, companyId)));
+    tx.select({
+      id: documents.id,
+      name: documents.name,
+      status: documents.status,
+      errorMessage: documents.errorMessage,
+      summary: documents.summary,
+      department: documents.department,
+      expiresAt: documents.expiresAt,
+      createdAt: documents.createdAt,
+    }).from(documents).where(eq(documents.companyId, companyId)));
   return NextResponse.json(docs);
 }

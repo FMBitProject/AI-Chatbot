@@ -26,6 +26,43 @@ export async function activeDocumentIds(
   return rows.map((r) => r.id);
 }
 
+// How wide the HNSW index searches before Postgres applies our filters.
+//
+// The index answers a query from a candidate list of `hnsw.ef_search` vectors,
+// default 40 — and every filter in the query is applied to those candidates
+// *after* the index produced them. With a handful of documents that is
+// invisible. At the document counts a paid plan allows (Professional 100,
+// Enterprise 500 — tens of thousands of chunks) it stops being invisible:
+//   - chat asks for the 30 nearest chunks out of a candidate list of 40, which
+//     leaves almost no room for anything to be filtered out;
+//   - an employee in a department only sees documents tagged for it or shared,
+//     so a department holding 10% of the corpus can lose most of its 40;
+//   - an expired or over-limit plan filters to the first N documents on top.
+// Each of those turns "the answer is in a document you own" into "informasi
+// tidak ditemukan", and the bigger the customer, the more likely it is.
+//
+// So the candidate list is sized from what the caller actually asked for, with a
+// floor well above it, and a ceiling because ef_search is what this query costs.
+function efSearchFor(limit: number): number {
+  return Math.min(400, Math.max(100, limit * 4));
+}
+
+// Widen the search, and let it keep going when filters eat the candidates.
+//
+// `hnsw.iterative_scan` (pgvector 0.8+) is the part that matters for the
+// filtered cases above: without it the scan gives back whatever survived the
+// filter, even if that is three rows out of a requested thirty; with it, the
+// index is asked for more until the limit is met or the index is exhausted.
+// `strict_order` keeps results in true distance order, so callers can trust the
+// ranking and the scores they show as citations.
+//
+// Set per transaction (`set_config(..., true)`), so nothing leaks into another
+// request that reuses the pooled connection.
+async function tuneVectorSearch(tx: TenantTx, limit: number): Promise<void> {
+  await tx.execute(sql`select set_config('hnsw.ef_search', ${String(efSearchFor(limit))}, true)`);
+  await tx.execute(sql`select set_config('hnsw.iterative_scan', 'strict_order', true)`);
+}
+
 export interface RetrievedChunk {
   id: string;
   text: string;
@@ -59,6 +96,8 @@ export async function retrieveChunks(opts: {
 
   const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
   if (activeIds !== null && activeIds.length === 0) return [];
+
+  await tuneVectorSearch(tx, limit);
 
   const distance = cosineDistance(documentChunks.embedding, queryEmbedding);
 
