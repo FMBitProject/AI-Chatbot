@@ -79,7 +79,14 @@ export const documents = pgTable("documents", {
   name: text("name").notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   department: text("department"),
-  status: text("status").$type<"processing" | "success" | "failed">().default("processing").notNull(),
+  // "queued"     — text extracted and stored, waiting for the indexer
+  // "processing" — claimed by an indexing pass right now
+  // "success"    — chunks + embeddings stored, searchable
+  // "failed"     — see errorMessage; re-indexable if raw_text survived
+  //
+  // Plain text, no enum or check constraint, so adding "queued" needed no
+  // migration. See src/lib/indexing.ts for the state machine.
+  status: text("status").$type<"queued" | "processing" | "success" | "failed">().default("queued").notNull(),
   // Why a "failed" document failed, phrased for the admin who uploaded it.
   // Null for every other status.
   errorMessage: text("error_message"),

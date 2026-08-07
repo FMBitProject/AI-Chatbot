@@ -6,16 +6,23 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
+import { MAX_UPLOAD_BYTES } from "@/lib/upload-limits";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// A bulk import is hundreds of files; listing every one turns the upload panel
+// into a page-long scroll before the admin can even reach the button.
+const MAX_LISTED_FILES = 8;
 
 interface FileDropzoneProps {
   onUpload: (files: File[]) => void;
   isUploading: boolean;
+  // What the upload is doing right now ("Mengupload 137 / 500"), shown on the
+  // button while it runs. A 500-file import takes minutes; a button that only
+  // says "Mengupload..." for that long is indistinguishable from a hung page.
+  progressLabel?: string | null;
   lang?: Lang;
 }
 
-export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzoneProps) {
+export function FileDropzone({ onUpload, isUploading, progressLabel = null, lang = "id" }: FileDropzoneProps) {
   const T = adminT[lang];
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
@@ -24,7 +31,7 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
       if (rejectedFiles.length > 0) {
         rejectedFiles.forEach(({ file, errors }) => {
           const isTooLarge = errors.some((e) => e.message.includes("large") || e.message.includes("size"));
-          if (isTooLarge || file.size > MAX_FILE_SIZE) {
+          if (isTooLarge || file.size > MAX_UPLOAD_BYTES) {
             toast({ variant: "destructive", title: T.fileTooLarge, description: `"${file.name}" ${T.fileTooLargeDesc}` });
           } else {
             toast({ variant: "destructive", title: T.formatNotSupported, description: `"${file.name}" ${T.formatNotSupportedDesc}` });
@@ -32,7 +39,7 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
         });
       }
       const validFiles = acceptedFiles.filter((f) => {
-        if (f.size > MAX_FILE_SIZE) {
+        if (f.size > MAX_UPLOAD_BYTES) {
           toast({ variant: "destructive", title: T.fileTooLarge, description: `"${f.name}" ${T.fileTooLargeDesc}` });
           return false;
         }
@@ -51,7 +58,7 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
       "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
     },
-    maxSize: MAX_FILE_SIZE,
+    maxSize: MAX_UPLOAD_BYTES,
     disabled: isUploading,
   });
 
@@ -84,7 +91,7 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
       </div>
       {pendingFiles.length > 0 && (
         <div className="space-y-2">
-          {pendingFiles.map((f) => (
+          {pendingFiles.slice(0, MAX_LISTED_FILES).map((f) => (
             <div key={f.name} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
               <span className="truncate text-gray-700">{f.name}</span>
               <div className="flex items-center gap-2 shrink-0">
@@ -95,12 +102,17 @@ export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzon
               </div>
             </div>
           ))}
+          {pendingFiles.length > MAX_LISTED_FILES && (
+            <p className="text-xs text-gray-400 px-1">
+              + {pendingFiles.length - MAX_LISTED_FILES} {T.moreFiles}
+            </p>
+          )}
           <button
             onClick={handleUpload}
             disabled={isUploading}
             className="w-full bg-blue-600 text-white text-sm rounded-lg py-2 font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {isUploading ? T.uploading : `${T.uploadBtn} ${pendingFiles.length} File`}
+            {isUploading ? (progressLabel ?? T.uploading) : `${T.uploadBtn} ${pendingFiles.length} File`}
           </button>
         </div>
       )}

@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Allow up to 5 minutes — needed when waiting for Gemini 429 retry delays
+// Parsing only — no third-party call happens in this request any more, so the
+// old five-minute allowance is no longer load-bearing. It stays because a large
+// scanned PDF can still take a while to walk on a cold function, and there is
+// nothing to gain from cutting a request short that has a file in hand.
 export const maxDuration = 300;
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
-import { documents, documentChunks, users } from "@/lib/db/schema";
-import { eq, count, and, lt } from "drizzle-orm";
+import { documents, users } from "@/lib/db/schema";
+import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
-import { chunkText } from "@/lib/chunker";
-import { getEmbeddings, EmbeddingBudgetExceededError } from "@/lib/embeddings";
-import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/upload-limits";
 import { randomUUID } from "crypto";
 
 // Failures an admin can actually act on (a scanned PDF, a corrupt file, a
@@ -138,6 +138,19 @@ async function extractText(file: File): Promise<string> {
   );
 }
 
+/**
+ * Receives uploaded files, extracts their text, and queues them for indexing.
+ *
+ * This handler deliberately does *not* embed anything. Everything it does is
+ * local and bounded — parse the bytes, write a row — so a 500-file import is
+ * 500 short requests instead of 500 requests that each wait on Gemini. The
+ * embedding half lives in @/lib/indexing, driven by /api/admin/indexing and by
+ * the nightly cron.
+ *
+ * What that buys, concretely: a rate limit or a deploy in the middle of an
+ * import no longer destroys work. The text is already stored, so indexing
+ * resumes from `documents.raw_text` without the file ever being uploaded again.
+ */
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) {
@@ -151,18 +164,10 @@ export async function POST(req: NextRequest) {
 
   const companyId = dbUser.companyId;
 
-  // Enforce the limits of the plan that is in force right now, not the one the
-  // company last bought (see resolvePlan).
-  // `company` comes free with the plan lookup — it is the same row — and is
-  // needed here for the BYOK embedding key, not just for the limits.
-  const { company, subscription, limits } = await resolvePlanById(companyId);
-  const [{ count: docCount }] = await withTenant(companyId, (tx) =>
-    tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
-  if (!isUnderLimit(docCount, limits.maxDocuments)) {
-    return NextResponse.json({
-      error: `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`,
-    }, { status: 403 });
-  }
+  // The limits of the plan that is in force right now, not the one the company
+  // last bought (see resolvePlan). The BYOK keys on the company row are not
+  // needed here any more — nothing in this request talks to Gemini or Groq.
+  const { subscription, limits } = await resolvePlanById(companyId);
 
   const formData = await req.formData();
   const files = formData.getAll("files") as File[];
@@ -171,159 +176,69 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada file yang dikirim." }, { status: 400 });
   }
 
-  const MAX_SIZE = 10 * 1024 * 1024;
   const results: { id: string; name: string; status: string; errorMessage?: string; createdAt: string }[] = [];
-
-  // Built once: `company` is fixed for the whole request, so rebuilding this
-  // per file said the key might vary between files in one upload.
-  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
-
-  // A document row is written as "processing" before the work starts and only
-  // moves to "success"/"failed" inside the try/catch below. A serverless
-  // timeout is not an exception, so a request killed at the 300s limit runs
-  // neither — and the row sits in "processing" forever, with nothing in the
-  // admin UI able to clear it. Sweeping them on the next upload is the cheapest
-  // recovery: the cutoff is well past maxDuration, so a genuinely running
-  // upload in a parallel request can never be caught by it.
-  const STUCK_AFTER_MS = 10 * 60 * 1000;
-  try {
-    await withTenant(companyId, (tx) =>
-      tx.update(documents)
-        .set({ status: "failed", errorMessage: "Pemrosesan terhenti sebelum selesai (kemungkinan melebihi batas waktu). Silakan upload ulang dokumen ini." })
-        .where(and(
-          eq(documents.companyId, companyId),
-          eq(documents.status, "processing"),
-          lt(documents.createdAt, new Date(Date.now() - STUCK_AFTER_MS)),
-        )));
-  } catch (sweepError) {
-    // Never let housekeeping block an upload the admin actually asked for.
-    console.error("[upload] Could not sweep stuck documents:", sweepError);
-  }
+  const limitMessage = `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`;
+  let limitReached = false;
 
   for (const file of files) {
-    if (file.size > MAX_SIZE) {
+    // Counted again for every file, not once for the request.
+    //
+    // The check used to run before formData was even parsed, and then the
+    // handler looped over every file in it. A company one document below its cap
+    // could send fifty files in a single request and index all fifty — the cap
+    // held only against admins who uploaded one file at a time, which is exactly
+    // the admin who was never the problem. It guts the reason to upgrade, so it
+    // is fixed here rather than left for the billing work.
+    const [{ count: docCount }] = await withTenant(companyId, (tx) =>
+      tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
+    if (!isUnderLimit(docCount, limits.maxDocuments)) {
+      limitReached = true;
+      break;
+    }
+
+    // Belt and braces behind the platform. Vercel rejects a body over 4.5 MB
+    // before this handler is reached, so a file this size normally never gets
+    // here — but the limit is ours to state, and a self-hosted or local run has
+    // no platform limit at all. The files already stored travel with the error:
+    // refusing one file is no reason to hide what happened to the others.
+    if (file.size > MAX_UPLOAD_BYTES) {
       return NextResponse.json(
-        { error: `File "${file.name}" melebihi batas 10 MB.` },
+        { error: `File "${file.name}" melebihi batas ${MAX_UPLOAD_MB} MB.`, documents: results },
         { status: 413 }
       );
     }
 
     const safeName = file.name.replace(/[^\w.\- ]/g, "").trim() || "upload";
     const docId = randomUUID();
-    await withTenant(companyId, (tx) => tx.insert(documents).values({
-      id: docId,
-      name: safeName,
-      companyId,
-      status: "processing",
-    }));
+    const createdAt = new Date().toISOString();
 
     try {
       const rawText = await extractText(file);
-      const chunks = chunkText(rawText);
 
-      // A file that yields no usable text would otherwise reach insert().values([])
-      // below, which throws a Drizzle error that says nothing about the cause.
-      // Two very different situations end up here and the advice differs, so tell
-      // them apart by whether any text came out at all: nothing means the file
-      // holds images rather than a text layer (a scan or photo saved as a PDF),
-      // while a little means a real but too-short document — chunkText drops
-      // anything under MIN_CHUNK, and OCR would be useless advice for that.
-      if (chunks.length === 0) {
+      // No text at all means the file holds images rather than a text layer — a
+      // scan or a photo saved as a PDF. Caught here, where the file is still in
+      // hand, so the admin hears about it in the upload response instead of
+      // minutes later from the indexer. The "there is text, but too little to
+      // chunk" case needs chunkText and belongs to the indexer.
+      if (rawText.trim().length === 0) {
         throw new DocumentError(
-          rawText.trim().length === 0
-            ? "Tidak ada teks yang bisa diambil dari file ini — isinya kemungkinan gambar, " +
-              "bukan teks. Kalau dokumennya hasil scan atau foto, jalankan OCR dulu supaya " +
-              "teksnya terbaca."
-            : "Isi dokumen ini terlalu pendek untuk diindeks. Tambahkan isinya dulu, " +
-              "lalu upload lagi."
+          "Tidak ada teks yang bisa diambil dari file ini — isinya kemungkinan gambar, " +
+          "bukan teks. Kalau dokumennya hasil scan atau foto, jalankan OCR dulu supaya " +
+          "teksnya terbaca."
         );
       }
 
-      // Batch embed all chunks in one API call instead of N sequential calls
-      let embeddings: number[][];
-      try {
-        embeddings = await getEmbeddings(chunks, company?.geminiApiKey);
-      } catch (error) {
-        console.error(`[upload] Embedding failed for ${file.name}:`, error);
-        // Name the thing the admin can actually act on. A company running its
-        // own Gemini key is the likeliest source of both a rejection and a rate
-        // limit, and telling that admin "the embedding service is having
-        // trouble" sends them off to wait for someone else to fix what is
-        // theirs to fix.
-        const ownKey = !!company?.geminiApiKey;
-        // Any 429 counts as rate limiting, not just the budget error: when the
-        // provider's retry-after is short, five attempts can be spent inside the
-        // budget and the raw 429 propagates instead. Both mean "too fast", and
-        // neither means "your key is wrong" — which is the one message that
-        // would send an admin to revoke a perfectly good key.
-        const isRateLimit =
-          error instanceof EmbeddingBudgetExceededError ||
-          (error instanceof Error && error.message.includes("429"));
-        throw new DocumentError(
-          isRateLimit
-            ? (ownKey
-              ? "Gagal membuat index AI — API key Gemini perusahaan Anda terus kena rate limit. " +
-                "Coba lagi nanti, upload dokumen lebih sedikit sekaligus, atau naikkan kuota key tersebut."
-              : "Gagal membuat index AI — layanan embedding sedang penuh dan terus menolak permintaan. " +
-                "Coba upload lagi beberapa menit lagi, atau upload dokumen lebih sedikit sekaligus.")
-            : (ownKey
-              ? "Gagal membuat index AI — API key Gemini perusahaan Anda ditolak atau sudah tidak berlaku. " +
-                "Periksa key tersebut di tab Langganan, atau hapus key-nya untuk kembali memakai layanan bawaan."
-              : "Gagal membuat index AI untuk dokumen ini — layanan embedding sedang bermasalah " +
-                "atau kuotanya habis. Coba upload lagi beberapa menit lagi.")
-        );
-      }
-
-      // The insert below pairs chunk i with embedding i. A short array would not
-      // error — `embedding` is nullable, so the missing tail would be stored as
-      // NULL and the document would be marked "success" while part of it stayed
-      // invisible to every search. Fail loudly instead; a silent half-indexed
-      // document is worse than a failed upload the admin can retry.
-      if (embeddings.length !== chunks.length) {
-        console.error(
-          `[upload] Embedding count mismatch for ${file.name}: got ${embeddings.length} for ${chunks.length} chunks`
-        );
-        throw new DocumentError(
-          "Index AI dokumen ini tidak lengkap terbentuk, jadi tidak disimpan supaya " +
-          "isinya tidak sebagian-sebagian saat dicari. Coba upload lagi."
-        );
-      }
-
-      await withTenant(companyId, (tx) => tx.insert(documentChunks).values(
-        chunks.map((text, i) => ({
-          id: randomUUID(),
-          documentId: docId,
-          companyId,
-          text,
-          embedding: embeddings[i],
-          chunkIndex: i,
-        }))
-      ));
-
-      // Auto-generate document summary. Uses the company's own Groq key when
-      // there is one, like every other generation call: this prompt carries the
-      // opening 2000 characters of the uploaded file, so it is document content
-      // leaving the server, not metadata.
-      const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
-      let summary: string | null = null;
-      try {
-        const { text } = await generateText({
-          model: groqClient("llama-3.3-70b-versatile"),
-          prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${file.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
-        });
-        summary = text.trim();
-      } catch (summaryError) {
-        // Still swallowed — the summary is a nicety and must not fail an upload
-        // whose index is already written. But logged: with a company Groq key in
-        // play this can now fail for every document of one tenant, and a bare
-        // `catch {}` made that indistinguishable from a model that simply had
-        // nothing to say.
-        console.error(`[upload] Summary generation failed for ${file.name}:`, summaryError);
-      }
-
-      await withTenant(companyId, (tx) =>
-        tx.update(documents).set({ status: "success", summary, rawText }).where(eq(documents.id, docId)));
-      results.push({ id: docId, name: file.name, status: "success", createdAt: new Date().toISOString() });
+      // Written once, already in its resting state: there is no long-running
+      // work left in this request for it to be interrupted by, so the row never
+      // needs a "processing" phase here.
+      await withTenant(companyId, (tx) => tx.insert(documents).values({
+        id: docId,
+        name: safeName,
+        companyId,
+        status: "queued",
+        rawText,
+      }));
+      results.push({ id: docId, name: file.name, status: "queued", createdAt });
 
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
@@ -332,19 +247,34 @@ export async function POST(req: NextRequest) {
       const errorMessage = error instanceof DocumentError
         ? error.message
         : "Dokumen gagal diproses karena kesalahan tak terduga di server.";
-      // This runs inside a catch, so a throw here would escape the handler: the
-      // request would 500, the remaining files in the batch would never be
-      // processed, and the caller would lose the per-file results collected so
-      // far. Recording why it failed is a nicety; not derailing the batch is not.
+      // A throw here would escape the handler: the request would 500, the
+      // remaining files in the batch would never be processed, and the caller
+      // would lose the per-file results collected so far. Recording the reason
+      // is a nicety; not derailing the batch is not.
       try {
-        await withTenant(companyId, (tx) =>
-          tx.update(documents).set({ status: "failed", errorMessage }).where(eq(documents.id, docId)));
-      } catch (updateError) {
-        console.error(`[upload] Could not mark ${file.name} as failed:`, updateError);
+        await withTenant(companyId, (tx) => tx.insert(documents).values({
+          id: docId,
+          name: safeName,
+          companyId,
+          status: "failed",
+          errorMessage,
+        }));
+      } catch (insertError) {
+        console.error(`[upload] Could not record failure for ${file.name}:`, insertError);
       }
-      results.push({ id: docId, name: file.name, status: "failed", errorMessage, createdAt: new Date().toISOString() });
+      results.push({ id: docId, name: file.name, status: "failed", errorMessage, createdAt });
     }
   }
 
-  return NextResponse.json({ documents: results });
+  // The cap was hit. With nothing accepted this is a plain refusal; with part of
+  // the batch already stored it is a partial success, and answering 403 would
+  // throw away the results the caller needs to know about.
+  if (limitReached && results.length === 0) {
+    return NextResponse.json({ error: limitMessage }, { status: 403 });
+  }
+
+  return NextResponse.json({
+    documents: results,
+    ...(limitReached ? { error: limitMessage } : {}),
+  });
 }
