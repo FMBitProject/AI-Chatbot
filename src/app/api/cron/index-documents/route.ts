@@ -78,6 +78,7 @@ export async function GET(req: NextRequest) {
   let indexed = 0;
   let failed = 0;
   let remaining = 0;
+  let busy = 0;
 
   for (const company of rows) {
     if (Date.now() - startedAt > RUN_BUDGET_MS) break;
@@ -87,6 +88,13 @@ export async function GET(req: NextRequest) {
       indexed += result.indexed;
       failed += result.failed;
       remaining += result.remaining;
+      // An admin was importing when the cron came round, so this company's queue
+      // was already being drained by their browser. Skipped rather than fought
+      // over: a second pass shares one rate limit with the first and would slow
+      // down the very import it is trying to help. Counted, because "the cron
+      // did nothing for anyone" and "everyone was already busy" look identical
+      // in the totals otherwise.
+      if (result.stop === "busy") busy++;
     } catch (error) {
       // One tenant's failure must not end the sweep for the rest.
       console.error(`[cron/index-documents] Pass failed for company=${company.id}:`, error);
@@ -94,8 +102,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (indexed > 0 || failed > 0 || remaining > 0) {
-    console.log(`[cron/index-documents] scanned=${scanned} indexed=${indexed} failed=${failed} remaining=${remaining}`);
+    console.log(`[cron/index-documents] scanned=${scanned} indexed=${indexed} failed=${failed} remaining=${remaining} busy=${busy}`);
   }
 
-  return NextResponse.json({ scanned, indexed, failed, remaining });
+  return NextResponse.json({ scanned, indexed, failed, remaining, busy });
 }

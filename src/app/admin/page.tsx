@@ -204,6 +204,15 @@ export default function AdminPage() {
 
       if (result.remaining === 0) return;
 
+      if (result.stop === "busy") {
+        // Another pass holds this company's queue — a second tab, or the cron
+        // that happened to start first. Looping here would only ask the same
+        // question every few seconds; the document list is already polling, so
+        // the admin watches it drain either way.
+        onProgress({ remaining: result.remaining, busy: true });
+        return;
+      }
+
       if (result.stop === "rate-limited") {
         // The embedding provider asked us to slow down and the document went
         // back in the queue untouched. Waiting is the correct response; giving

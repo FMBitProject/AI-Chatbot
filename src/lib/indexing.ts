@@ -1,9 +1,10 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { randomUUID } from "crypto";
+import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
-import { documents, documentChunks } from "@/lib/db/schema";
+import { companies, documents, documentChunks } from "@/lib/db/schema";
 import { chunkText } from "@/lib/chunker";
 import { getEmbeddings, EmbeddingBudgetExceededError } from "@/lib/embeddings";
 import type { Company } from "@/lib/subscription";
@@ -50,8 +51,28 @@ const STUCK_AFTER_MS = 10 * 60 * 1000;
 // stopping early costs nothing.
 export const INDEX_RUN_BUDGET_MS = 120 * 1000;
 
+// How long one pass's exclusive claim on a company's queue stays valid without
+// being renewed, and therefore how long a *dead* pass blocks the next one.
+//
+// Correctness never depended on there being one pass: documents are claimed
+// atomically, so any number of workers can share a queue without indexing
+// anything twice. Throughput did. Every pass for a company embeds through the
+// same Gemini key, so a second pass does not halve the time — it doubles the
+// request rate against one rate limit, collects a 429 that much sooner, and
+// hands its document back to the queue. Three admins retrying a stuck import is
+// the exact input that makes the import slowest.
+//
+// Renewed before each document, so a live pass keeps it for as long as it is
+// working and a killed one lets go on its own. Long enough to cover a single
+// slow document (embedding retry budget plus a summary, ~4 minutes worst case)
+// so that a pass working normally never loses the lease it still holds.
+const INDEXING_LEASE_MS = 5 * 60 * 1000;
+
 // Why a pass stopped, so the caller knows whether to come straight back.
-export type PassStop = "drained" | "budget" | "rate-limited";
+//
+// "busy" means another pass already holds this company's lease; the caller
+// should not retry in a loop, because the work is already being done.
+export type PassStop = "drained" | "budget" | "rate-limited" | "busy";
 
 export interface IndexPassResult {
   indexed: number;
@@ -70,10 +91,83 @@ class IndexError extends Error {}
 // means "this will never work" and the document is failed with a reason.
 class RetryableError extends Error {}
 
+// Raised when the document we are holding has been handed to someone else while
+// we worked — the stuck sweep decided we were dead and a second pass re-claimed
+// it. Not a failure of the document, and emphatically not something to record on
+// the row: the row now belongs to another worker, and writing to it is precisely
+// what must not happen.
+class ClaimLostError extends Error {}
+
 interface ClaimedDocument {
   id: string;
   name: string;
   rawText: string;
+  // The exact `indexing_started_at` this claim wrote, as Postgres renders it.
+  //
+  // Carried as text rather than as a Date on purpose: it travels out of the
+  // database and back into a WHERE clause, and a timestamp that round-trips
+  // through JavaScript loses microseconds, so every comparison would fail and
+  // every document would look stolen. The text of the value compares to itself
+  // exactly.
+  lease: string;
+}
+
+// The condition every write to a claimed document carries: touch the row only
+// if it is still the one this pass claimed.
+//
+// It is not only the chunk write that needs this. Marking a document "failed",
+// or handing it back to the queue after a rate limit, is just as wrong when the
+// row has been re-claimed in the meantime — an admin would watch a document that
+// another pass is actively indexing flip to "gagal", and the next sweep would
+// undo work that was never broken.
+function stillOurs(doc: ClaimedDocument) {
+  return and(
+    eq(documents.id, doc.id),
+    sql`${documents.indexingStartedAt}::text = ${doc.lease}`,
+  );
+}
+
+// Takes this company's queue for one pass, or reports that someone else has it.
+//
+// The condition and the write are one statement, so two passes starting in the
+// same instant cannot both win: Postgres serialises the UPDATE on the row, and
+// the loser re-evaluates the WHERE afterwards against the winner's committed
+// deadline and matches nothing.
+//
+// Returns the deadline it wrote, which doubles as proof of ownership — renewal
+// and release both require it, so a pass that was superseded after its lease
+// expired can neither extend nor clear the lease that now belongs to another.
+async function acquireIndexingLease(companyId: string): Promise<Date | null> {
+  const until = new Date(Date.now() + INDEXING_LEASE_MS);
+  const rows = await db.update(companies)
+    .set({ indexingLeaseUntil: until })
+    .where(and(
+      eq(companies.id, companyId),
+      or(isNull(companies.indexingLeaseUntil), lt(companies.indexingLeaseUntil, new Date())),
+    ))
+    .returning({ id: companies.id });
+  return rows.length > 0 ? until : null;
+}
+
+// Pushes the deadline back, as long as we are still the holder. A pass that has
+// been superseded gets null and stops rather than working on documents another
+// pass is already claiming.
+async function renewIndexingLease(companyId: string, held: Date): Promise<Date | null> {
+  const until = new Date(Date.now() + INDEXING_LEASE_MS);
+  const rows = await db.update(companies)
+    .set({ indexingLeaseUntil: until })
+    .where(and(eq(companies.id, companyId), eq(companies.indexingLeaseUntil, held)))
+    .returning({ id: companies.id });
+  return rows.length > 0 ? until : null;
+}
+
+// Hands the queue back immediately instead of leaving the next pass to wait out
+// the deadline. Guarded by the same proof of ownership, so a late finisher
+// cannot clear a lease that has already moved on.
+async function releaseIndexingLease(companyId: string, held: Date): Promise<void> {
+  await db.update(companies)
+    .set({ indexingLeaseUntil: null })
+    .where(and(eq(companies.id, companyId), eq(companies.indexingLeaseUntil, held)));
 }
 
 // Returns documents stuck mid-index to the queue. Their text is still stored, so
@@ -148,13 +242,13 @@ async function claimNextDocument(companyId: string): Promise<ClaimedDocument | n
         limit 1
         for update skip locked
       )
-      returning id, name, raw_text
+      returning id, name, raw_text, indexing_started_at::text as lease
     `);
-    return result.rows as { id: string; name: string; raw_text: string }[];
+    return result.rows as { id: string; name: string; raw_text: string; lease: string }[];
   });
 
   const row = rows[0];
-  return row ? { id: row.id, name: row.name, rawText: row.raw_text } : null;
+  return row ? { id: row.id, name: row.name, rawText: row.raw_text, lease: row.lease } : null;
 }
 
 // Both numbers a pass needs before it decides to do anything, in one round trip.
@@ -273,6 +367,39 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   // makes indexing repeatable: without it, a second pass over the same document
   // would double every chunk in retrieval.
   await withTenant(companyId, async (tx) => {
+    // The document row is updated *first*, and only if `indexing_started_at` is
+    // still the value our claim wrote. Both halves of that matter.
+    //
+    // The condition is the fence. A claim is exclusive, but it is not permanent:
+    // sweepStuckDocuments returns a document to the queue after
+    // STUCK_AFTER_MS, and a second pass then claims it and overwrites
+    // `indexing_started_at`. Today that cannot bite, because the platform kills
+    // an invocation at maxDuration = 300s and the sweep only fires at 600s — an
+    // invariant held together by two constants in different files, one of which
+    // is not ours. Off Vercel there is no such kill, and neither the embedding
+    // call nor the summary call has a timeout, so a provider that hangs rather
+    // than refusing has no upper bound at all.
+    //
+    // It runs first so that a superseded worker finds out *before* it touches
+    // the chunk table. Nothing about the ordering is subtle — it is not a lock
+    // that saves us here. Postgres evaluates a WHERE before it locks a row, so a
+    // worker whose lease no longer matches never blocks and never waits: it gets
+    // zero rows back straight away, throws, and rolls back without having
+    // deleted or inserted a single chunk. (Measured, not assumed: the losing
+    // UPDATE returns immediately rather than blocking on the winner's open
+    // transaction.) The chunk table is where a mistake would be silent, so the
+    // rule is simply never to reach it without a valid claim.
+    const kept = await tx.update(documents)
+      .set({ status: "success", summary, errorMessage: null })
+      .where(stillOurs(doc))
+      .returning({ id: documents.id });
+
+    if (kept.length === 0) {
+      throw new ClaimLostError(
+        `Document ${doc.id} was re-claimed by another pass while it was being indexed`
+      );
+    }
+
     await tx.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
     await tx.insert(documentChunks).values(
       chunks.map((text, i) => ({
@@ -284,9 +411,6 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
         chunkIndex: i,
       }))
     );
-    await tx.update(documents)
-      .set({ status: "success", summary, errorMessage: null })
-      .where(eq(documents.id, doc.id));
   });
 }
 
@@ -308,52 +432,92 @@ export async function runIndexingPass(
   if (stats.queued === 0 && stats.stuck === 0) {
     return { indexed: 0, failed: 0, remaining: 0, stop: "drained" };
   }
-  if (stats.stuck > 0) await sweepStuckDocuments(companyId);
 
-  let indexed = 0;
-  let failed = 0;
-  let stop: PassStop = "drained";
-
-  while (Date.now() - startedAt < budgetMs) {
-    const doc = await claimNextDocument(companyId);
-    if (!doc) break;
-
-    try {
-      await embedAndStore(companyId, doc, company);
-      indexed++;
-    } catch (error) {
-      if (error instanceof RetryableError) {
-        // Put it back and stop the pass. Marching on to the next document would
-        // just collect the same 429 for every remaining one, and burn the whole
-        // budget doing it.
-        console.warn(`[indexing] Rate limited on ${doc.name}, requeued:`, error.message);
-        await withTenant(companyId, (tx) =>
-          tx.update(documents).set({ status: "queued" }).where(eq(documents.id, doc.id)));
-        stop = "rate-limited";
-        break;
-      }
-
-      console.error(`[indexing] Error indexing ${doc.name}:`, error);
-      const errorMessage = error instanceof IndexError
-        ? error.message
-        : "Dokumen gagal diindeks karena kesalahan tak terduga di server.";
-      try {
-        await withTenant(companyId, (tx) =>
-          tx.update(documents).set({ status: "failed", errorMessage }).where(eq(documents.id, doc.id)));
-        failed++;
-      } catch (updateError) {
-        // Leaves the row in "processing"; the sweep at the top of the next pass
-        // returns it to the queue. Not derailing the rest of the batch matters
-        // more than recording this one reason.
-        console.error(`[indexing] Could not mark ${doc.name} as failed:`, updateError);
-      }
-    }
+  // Checked before the lease is taken, so the cron's walk over every company —
+  // where almost every queue is empty — never touches the companies table at
+  // all, and an idle tenant can never be reported as busy.
+  let lease = await acquireIndexingLease(companyId);
+  if (!lease) {
+    return { indexed: 0, failed: 0, remaining: stats.queued, stop: "busy" };
   }
 
-  const remaining = (await queueStats(companyId)).queued;
-  if (stop === "drained" && remaining > 0) stop = "budget";
+  try {
+    if (stats.stuck > 0) await sweepStuckDocuments(companyId);
 
-  return { indexed, failed, remaining, stop };
+    let indexed = 0;
+    let failed = 0;
+    let stop: PassStop = "drained";
+
+    while (Date.now() - startedAt < budgetMs) {
+      // Renewed per document rather than per pass: the deadline has to outlive
+      // the slowest single document, and the only honest way to say "still
+      // working" is to say it while still working. Losing it here means the
+      // lease expired and another pass took over — which can only happen if we
+      // were stalled long past a document's worst case, so stopping is right.
+      const renewed = await renewIndexingLease(companyId, lease);
+      if (!renewed) {
+        console.warn(`[indexing] Lost indexing lease for company=${companyId}, stopping pass`);
+        stop = "busy";
+        break;
+      }
+      lease = renewed;
+
+      const doc = await claimNextDocument(companyId);
+      if (!doc) break;
+
+      try {
+        await embedAndStore(companyId, doc, company);
+        indexed++;
+      } catch (error) {
+        if (error instanceof ClaimLostError) {
+          // Someone else owns this document and is indexing it right now.
+          // Nothing to record, nothing to requeue — touching the row is the one
+          // thing that would actually cause harm. Move on to the next document.
+          console.warn(`[indexing] ${error.message}`);
+          continue;
+        }
+
+        if (error instanceof RetryableError) {
+          // Put it back and stop the pass. Marching on to the next document
+          // would just collect the same 429 for every remaining one, and burn
+          // the whole budget doing it.
+          console.warn(`[indexing] Rate limited on ${doc.name}, requeued:`, error.message);
+          await withTenant(companyId, (tx) =>
+            tx.update(documents).set({ status: "queued" }).where(stillOurs(doc)));
+          stop = "rate-limited";
+          break;
+        }
+
+        console.error(`[indexing] Error indexing ${doc.name}:`, error);
+        const errorMessage = error instanceof IndexError
+          ? error.message
+          : "Dokumen gagal diindeks karena kesalahan tak terduga di server.";
+        try {
+          await withTenant(companyId, (tx) =>
+            tx.update(documents).set({ status: "failed", errorMessage }).where(stillOurs(doc)));
+          failed++;
+        } catch (updateError) {
+          // Leaves the row in "processing"; the sweep at the top of the next
+          // pass returns it to the queue. Not derailing the rest of the batch
+          // matters more than recording this one reason.
+          console.error(`[indexing] Could not mark ${doc.name} as failed:`, updateError);
+        }
+      }
+    }
+
+    const remaining = (await queueStats(companyId)).queued;
+    if (stop === "drained" && remaining > 0) stop = "budget";
+
+    return { indexed, failed, remaining, stop };
+  } finally {
+    // Handed back even when the pass throws, so the next one does not have to
+    // wait out a deadline nobody is using. A pass that is killed outright never
+    // reaches this — which is the whole reason the lease carries an expiry
+    // rather than a flag.
+    await releaseIndexingLease(companyId, lease).catch((error) => {
+      console.error(`[indexing] Could not release indexing lease for company=${companyId}:`, error);
+    });
+  }
 }
 
 // Puts a document back in the queue — used by the "index ulang" action on a
