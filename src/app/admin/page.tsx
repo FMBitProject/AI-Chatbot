@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DocumentsTab, type Document } from "@/components/admin/DocumentsTab";
+import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome } from "@/components/admin/DocumentsTab";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { PersonaTab } from "@/components/admin/PersonaTab";
@@ -113,7 +113,10 @@ export default function AdminPage() {
   }, [router]);
 
   useEffect(() => {
-    const hasProcessing = documents.some((d) => d.status === "processing");
+    // "queued" counts as in-flight too: the indexer may be another tab's pass or
+    // the nightly cron, so the list has to keep refreshing even when this page
+    // is not the one doing the work.
+    const hasProcessing = documents.some((d) => d.status === "processing" || d.status === "queued");
     if (hasProcessing && !pollingRef.current) {
       pollingRef.current = setInterval(loadDocuments, 3000);
     } else if (!hasProcessing && pollingRef.current) {
@@ -123,31 +126,112 @@ export default function AdminPage() {
     return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, [documents]);
 
-  async function handleUpload(files: File[]) {
-    const allDocs: Document[] = [];
-    for (const file of files) {
-      const formData = new FormData();
-      formData.append("files", file);
-      const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+  // Sends the files one request at a time and reports what happened to each.
+  //
+  // It used to throw on the first failure, which ended the loop: upload 500
+  // documents, hit a bad file at number 137, and the remaining 363 were never
+  // even attempted — with nothing on screen to say where it stopped. A batch is
+  // now only finished when every file has an answer, and a failure is data the
+  // caller can act on rather than an exception that discards the rest.
+  async function handleUpload(files: File[], onProgress: (done: number) => void): Promise<UploadOutcome[]> {
+    const outcomes: UploadOutcome[] = [];
+
+    for (const [index, file] of files.entries()) {
+      try {
+        const formData = new FormData();
+        formData.append("files", file);
+        const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+
+        if (res.status === 413) {
+          // Two different senders answer 413 here: our route, with a JSON reason,
+          // and Vercel itself, which rejects an oversized body at the edge before
+          // the route runs and replies with its own error page. The second is the
+          // one that used to surface as a bare "Upload gagal" with no explanation
+          // anywhere, so it gets a written reason rather than a shrug.
+          const body = await res.json().catch(() => null) as { error?: string } | null;
+          outcomes.push({ file, error: body?.error ?? T.payloadTooLarge });
+        } else if (!res.ok) {
+          const body = await res.json().catch(() => null) as { error?: string } | null;
+          outcomes.push({ file, error: body?.error ?? "Upload gagal." });
+        } else {
+          const data = await res.json() as { documents: Document[]; error?: string };
+          setDocuments((prev) => [...data.documents, ...prev]);
+          const failedDoc = data.documents.find((d) => d.status === "failed");
+          outcomes.push(
+            data.error ? { file, error: data.error }
+              : failedDoc ? { file, error: failedDoc.errorMessage ?? "Dokumen gagal diproses." }
+                : { file }
+          );
+        }
+      } catch {
+        // A dropped connection mid-import: the file is not stored, so it belongs
+        // in the retry list like any other failure.
+        outcomes.push({ file, error: "Koneksi terputus saat mengupload file ini." });
+      }
+      onProgress(index + 1);
+    }
+
+    return outcomes;
+  }
+
+  // Drives the server's indexing queue until it is empty.
+  //
+  // Each call indexes for as long as one serverless invocation may run and
+  // reports what is left, so this loop is what turns a 500-document import into
+  // a series of bounded requests. Stopping early — a closed tab, a network drop
+  // — loses nothing: the queue lives in the database and the nightly cron
+  // drains whatever is left.
+  async function handleIndex(onProgress: (progress: IndexProgress) => void): Promise<void> {
+    let rateLimitedRuns = 0;
+
+    for (;;) {
+      const res = await fetch("/api/admin/indexing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? "Upload gagal");
+        throw new Error(body?.error ?? "Pengindeksan gagal dijalankan.");
       }
-      const data = await res.json() as { documents: Document[] };
-      allDocs.push(...data.documents);
-      setDocuments((prev) => [...data.documents, ...prev]);
+
+      const result = await res.json() as { indexed: number; failed: number; remaining: number; stop: string };
+      await loadDocuments();
+      onProgress({ remaining: result.remaining });
+
+      if (result.remaining === 0) return;
+
+      if (result.stop === "rate-limited") {
+        // The embedding provider asked us to slow down and the document went
+        // back in the queue untouched. Waiting is the correct response; giving
+        // up after a few rounds is too, because the cron will finish the job
+        // without the admin sitting here. Announced, because a minute of silence
+        // is indistinguishable from a page that has died.
+        if (++rateLimitedRuns > 3) return;
+        onProgress({ remaining: result.remaining, waiting: true });
+        await new Promise((r) => setTimeout(r, 60_000));
+        continue;
+      }
+
+      // A pass that moved nothing and was not rate-limited would repeat forever.
+      if (result.indexed === 0 && result.failed === 0) return;
     }
-    // Report the reason the server recorded rather than guessing at one. With
-    // several failures the toast stays short and points at the document list,
-    // where each failed row shows its own reason.
-    const failed = allDocs.filter((d) => d.status === "failed");
-    if (failed.length > 0) {
-      throw new Error(
-        failed.length === 1
-          ? failed[0].errorMessage ?? "Dokumen gagal diproses."
-          : `${failed.length} dari ${allDocs.length} dokumen gagal diproses. Lihat alasannya di daftar dokumen di bawah.`
-      );
+  }
+
+  // Puts one failed document back in the queue and indexes it, without the file
+  // being uploaded again — its extracted text is already stored.
+  async function handleReindex(documentId: string): Promise<void> {
+    const res = await fetch("/api/admin/indexing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentId }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null;
+      throw new Error(body?.error ?? T.reindexFailed);
     }
+    await loadDocuments();
   }
 
   async function handleDelete(id: string) {
@@ -269,7 +353,14 @@ export default function AdminPage() {
             </TabsTrigger>
           </TabsList>
           <TabsContent value="documents">
-            <DocumentsTab documents={documents} onUpload={handleUpload} onDelete={handleDelete} lang={lang} />
+            <DocumentsTab
+              documents={documents}
+              onUpload={handleUpload}
+              onIndex={handleIndex}
+              onReindex={handleReindex}
+              onDelete={handleDelete}
+              lang={lang}
+            />
           </TabsContent>
           <TabsContent value="users">
             <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />

@@ -1,0 +1,1 @@
+ALTER TABLE "documents" ALTER COLUMN "status" SET DEFAULT 'queued';
