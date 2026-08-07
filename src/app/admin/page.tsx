@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome } from "@/components/admin/DocumentsTab";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
@@ -42,7 +42,6 @@ export default function AdminPage() {
   // straight from the API response, so a plan added in plan-limits.ts and not
   // repeated here would arrive at runtime while the type insisted it could not.
   const [plan, setPlan] = useState<Plan>("starter");
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadDocuments() {
     const res = await fetch("/api/admin/documents").catch(() => null);
@@ -112,19 +111,22 @@ export default function AdminPage() {
     return () => { cancelled = true; };
   }, [router]);
 
+  // "queued" counts as in-flight too: the indexer may be another tab's pass or
+  // the nightly cron, so the list has to keep refreshing even when this page is
+  // not the one doing the work.
+  const hasPendingDocuments = documents.some((d) => d.status === "processing" || d.status === "queued");
+
   useEffect(() => {
-    // "queued" counts as in-flight too: the indexer may be another tab's pass or
-    // the nightly cron, so the list has to keep refreshing even when this page
-    // is not the one doing the work.
-    const hasProcessing = documents.some((d) => d.status === "processing" || d.status === "queued");
-    if (hasProcessing && !pollingRef.current) {
-      pollingRef.current = setInterval(loadDocuments, 3000);
-    } else if (!hasProcessing && pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
-  }, [documents]);
+    if (!hasPendingDocuments) return;
+    const id = setInterval(loadDocuments, 3000);
+    return () => clearInterval(id);
+    // Depends on the boolean, not on `documents`. Keyed to the array, this
+    // effect re-ran on every poll — and its cleanup cleared the interval it had
+    // just created, while the old guard (`!pollingRef.current`) saw a ref still
+    // holding the dead timer id and declined to start a new one. The list
+    // therefore refreshed exactly once and then sat still, which is precisely
+    // the state a queued import must not be left in.
+  }, [hasPendingDocuments]);
 
   // Sends the files one request at a time and reports what happened to each.
   //

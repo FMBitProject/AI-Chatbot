@@ -1,13 +1,14 @@
 "use client";
-import { useState, Fragment } from "react";
+import { useState, useRef, Fragment } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { FileDropzone } from "./FileDropzone";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trash2, FileText, ChevronDown, ChevronUp, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
+import { Trash2, FileText, ChevronDown, ChevronUp, Sparkles, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
 
 export interface Document {
   id: string;
@@ -57,7 +58,21 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     failed: T.statusFailed,
   };
   const [isUploading, setIsUploading] = useState(false);
-  const [progressLabel, setProgressLabel] = useState<string | null>(null);
+  // A pass driven by the "Lanjutkan" button rather than by an upload. Tracked
+  // separately from isUploading so that button can disable itself: without it,
+  // a second click starts a second client-side loop against the same queue.
+  const [isIndexing, setIsIndexing] = useState(false);
+  // The guard is a ref, not the state above: two clicks inside one frame would
+  // both read the same stale `false` from state and both start a loop.
+  const indexingRef = useRef(false);
+  // What is happening right now, rendered as its own row under the dropzone.
+  //
+  // It used to be passed into FileDropzone and shown on its upload button, which
+  // never worked: the dropzone clears its pending-file list the moment an upload
+  // starts, and that list is what the button is rendered inside. The button —
+  // and with it every "Mengupload 137 / 500" — unmounted at the exact moment it
+  // had something to say. A long import looked identical to a frozen page.
+  const [progress, setProgress] = useState<{ label: string; percent: number | null } | null>(null);
   // Files that never made it into the queue, kept as File objects so the retry
   // button can send the very same bytes without asking the admin to find them
   // in the file picker again.
@@ -69,10 +84,13 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   async function handleUpload(files: File[]) {
     setIsUploading(true);
     setFailedFiles([]);
-    setProgressLabel(`${T.uploadProgress} 0 / ${files.length}`);
+    setProgress({ label: `${T.uploadProgress} 0 / ${files.length}`, percent: 0 });
     try {
       const outcomes = await onUpload(files, (done) => {
-        setProgressLabel(`${T.uploadProgress} ${done} / ${files.length}`);
+        setProgress({
+          label: `${T.uploadProgress} ${done} / ${files.length}`,
+          percent: Math.round((done / files.length) * 100),
+        });
       });
 
       const failed = outcomes.filter((o) => o.error);
@@ -100,23 +118,50 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat mengupload.";
       toast({ variant: "destructive", title: "Upload Gagal", description: msg });
     } finally {
-      setProgressLabel(null);
+      setProgress(null);
       setIsUploading(false);
     }
   }
 
   async function runIndexing() {
+    // Re-entrancy guard. Two loops against one queue do not corrupt anything —
+    // documents are claimed atomically server-side — but they double the request
+    // rate for no gain, and the progress row would flicker between them.
+    if (indexingRef.current) return;
+    indexingRef.current = true;
+    setIsIndexing(true);
+    // The queue only ever shrinks during a pass, so the largest number seen is
+    // the total this run started with — which is what turns "sisa 137" into a
+    // progress bar.
+    let total = 0;
+    let lastRemaining = 0;
     try {
       await onIndex(({ remaining, waiting }) => {
-        setProgressLabel(
-          waiting ? `${T.indexWaiting} · ${remaining}`
-            : remaining > 0 ? `${T.indexProgress} · ${remaining}`
-              : null
+        total = Math.max(total, remaining);
+        lastRemaining = remaining;
+        setProgress(
+          remaining === 0 && !waiting
+            ? null
+            : {
+                label: `${waiting ? T.indexWaiting : T.indexProgress} · ${remaining}`,
+                percent: total > 0 ? Math.round(((total - remaining) / total) * 100) : null,
+              }
         );
       });
+
+      // The loop gives up after a few rate-limit cooldowns rather than keeping
+      // the admin's tab busy for an hour. Say so — silence here reads as "it
+      // finished", and the admin would have no idea documents are still waiting.
+      if (lastRemaining > 0) {
+        toast({ title: T.indexPaused, description: T.indexPausedDesc });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Pengindeksan gagal dijalankan.";
       toast({ variant: "destructive", title: "Indexing", description: msg });
+    } finally {
+      setProgress(null);
+      setIsIndexing(false);
+      indexingRef.current = false;
     }
   }
 
@@ -158,15 +203,37 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
       <div>
         <h2 className="text-lg font-semibold mb-1">{T.uploadTitle}</h2>
         <p className="text-sm text-gray-500 mb-4">{T.uploadDesc}</p>
-        <FileDropzone onUpload={handleUpload} isUploading={isUploading} progressLabel={progressLabel} lang={lang} />
+        <FileDropzone onUpload={handleUpload} isUploading={isUploading} lang={lang} />
+        {progress && (
+          // Its own row, outside the dropzone, so nothing about the dropzone's
+          // internal state can take it off the screen.
+          <div className="mt-3 rounded-xl border bg-white p-3 space-y-2">
+            <div className="flex items-center gap-2 text-sm text-gray-700">
+              <Loader2 className="h-4 w-4 animate-spin text-teal-600 shrink-0" />
+              <span>{progress.label}</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+              <div
+                className={cn(
+                  "h-full rounded-full bg-teal-600 transition-all duration-300",
+                  // No percentage to show yet (the first indexing pass has not
+                  // reported a queue size): a full-width bar would read as
+                  // "finished", so show a thin sliver that says "started".
+                  progress.percent === null && "w-1/6 animate-pulse"
+                )}
+                style={progress.percent === null ? undefined : { width: `${progress.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
         {failedFiles.length > 0 && !isUploading && (
           <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
             <p className="text-sm font-medium text-red-700">
               {T.failedPanelTitle} ({failedFiles.length})
             </p>
             <ul className="space-y-1">
-              {failedFiles.map(({ file, error }) => (
-                <li key={file.name} className="text-xs text-red-700">
+              {failedFiles.map(({ file, error }, i) => (
+                <li key={`${file.name}-${i}`} className="text-xs text-red-700">
                   <span className="font-medium">{file.name}</span> — {error}
                 </li>
               ))}
@@ -177,13 +244,16 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
             </Button>
           </div>
         )}
-        {queuedCount > 0 && !isUploading && (
+        {queuedCount > 0 && !isUploading && !isIndexing && (
           // The queue survives a closed tab, so an admin coming back to a
           // half-finished import needs a way to pick it up that does not involve
           // waiting for tonight's cron.
+          //
+          // Hidden while a pass is already running — the progress row above is
+          // showing it, and a second click would only start a redundant loop.
           <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border bg-gray-50 p-3">
             <p className="text-sm text-gray-600">
-              {T.indexProgress} · {queuedCount}
+              {T.indexQueued} · {queuedCount}
             </p>
             <Button size="sm" variant="outline" onClick={() => runIndexing()} className="gap-1.5">
               <RefreshCw className="h-3.5 w-3.5" />
@@ -212,7 +282,13 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
               </TableHeader>
               <TableBody>
                 {documents.map((doc) => {
-                  const s = { ...STATUS_MAP[doc.status], label: STATUS_LABELS[doc.status] };
+                  // Defaulted, because this maps a value that arrives from the
+                  // server: a status this build has not heard of would otherwise
+                  // take the whole document list down with a TypeError.
+                  const s = {
+                    variant: STATUS_MAP[doc.status]?.variant ?? "secondary" as const,
+                    label: STATUS_LABELS[doc.status] ?? doc.status,
+                  };
                   const isExpanded = expandedSummary === doc.id;
                   return (
                     <Fragment key={doc.id}>

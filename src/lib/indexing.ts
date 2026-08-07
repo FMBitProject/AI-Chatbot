@@ -26,18 +26,29 @@ import type { Company } from "@/lib/subscription";
 // retry costs one embedding call, never another upload.
 
 // A document claimed for indexing but left in "processing" for longer than this
-// belongs to an invocation that died — a timeout, a deploy, a crash. Well past
-// any single document's real processing time, so a genuinely running index in a
-// parallel invocation can never be swept out from under itself.
+// belongs to an invocation that died — a timeout, a deploy, a crash. Measured
+// from `indexing_started_at`, the moment of the claim, and well past any single
+// document's real processing time, so a genuinely running index in a parallel
+// invocation can never be swept out from under itself.
+//
+// It used to be measured from `created_at`, which is when the file was
+// *uploaded*. A document that sat in the queue overnight was therefore "stuck"
+// the instant it was claimed, and a second worker — the cron and a browser pass
+// overlap easily — would hand it back to the queue while the first was still
+// embedding it. Both then paid for the same embeddings, and there was a window
+// where the document had no chunks at all and simply did not answer searches.
 const STUCK_AFTER_MS = 10 * 60 * 1000;
 
-// How long one indexing pass may keep working before returning. The worker route
-// declares maxDuration = 300, and a document can spend up to ~120s inside
-// getEmbeddings' own retry budget, so stopping here leaves room to finish the
-// document in flight and still answer the caller. Whatever is left stays
+// How long one indexing pass may keep working before returning.
+//
+// The budget is only checked *between* documents, so the real worst case is this
+// plus one whole document: up to ~120s inside getEmbeddings' retry budget plus a
+// summary call. 120 + 120 + ~30 fits inside the route's maxDuration = 300 with
+// room to spare; the previous 150 did not, and a pass cut off mid-document is
+// exactly what leaves a row stranded in "processing". Whatever is left stays
 // "queued" and the next pass picks it up — the queue is the progress record, so
 // stopping early costs nothing.
-export const INDEX_RUN_BUDGET_MS = 150 * 1000;
+export const INDEX_RUN_BUDGET_MS = 120 * 1000;
 
 // Why a pass stopped, so the caller knows whether to come straight back.
 export type PassStop = "drained" | "budget" | "rate-limited";
@@ -74,7 +85,11 @@ async function sweepStuckDocuments(companyId: string): Promise<void> {
       .where(and(
         eq(documents.companyId, companyId),
         eq(documents.status, "processing"),
-        sql`${documents.createdAt} < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}`,
+        // `indexing_started_at` is written by the claim, so this is genuinely
+        // "claimed a long time ago and never finished". A NULL here means a row
+        // claimed by the pre-0011 code; fall back to created_at for those rather
+        // than leaving them stranded forever.
+        sql`coalesce(${documents.indexingStartedAt}, ${documents.createdAt}) < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}`,
         sql`${documents.rawText} is not null`,
       )));
 
@@ -90,7 +105,7 @@ async function sweepStuckDocuments(companyId: string): Promise<void> {
       .where(and(
         eq(documents.companyId, companyId),
         eq(documents.status, "processing"),
-        sql`${documents.createdAt} < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}`,
+        sql`coalesce(${documents.indexingStartedAt}, ${documents.createdAt}) < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}`,
         sql`${documents.rawText} is null`,
       )));
 }
@@ -107,16 +122,29 @@ async function sweepStuckDocuments(companyId: string): Promise<void> {
 // "queued". That is deliberate: an interrupted document must not be picked up
 // instantly by the next pass and fail the same way. sweepStuckDocuments returns
 // it after STUCK_AFTER_MS.
+//
+// The ordering is least-recently-attempted first, not oldest first. Oldest first
+// sounds fairer and is not: a document that fails every time — too large to
+// embed inside the function's lifetime, say — stays the oldest queued row, so
+// every pass claims it first, spends its budget on it, and hands it back. The
+// other 499 documents of an import would never be reached. Ordering by when we
+// last *tried* rotates each failure to the back, so the queue always makes
+// progress. (Same reasoning, same shape, as transactions.last_checked_at in
+// /api/cron/reconcile-payments.)
+//
+// NULLS FIRST is spelled out because Postgres sorts NULLs last for ASC, which
+// would put never-attempted documents — the ones most likely to succeed — at the
+// very back of the queue.
 async function claimNextDocument(companyId: string): Promise<ClaimedDocument | null> {
   const rows = await withTenant(companyId, async (tx) => {
     const result = await tx.execute(sql`
-      update ${documents} set status = 'processing'
+      update ${documents} set status = 'processing', indexing_started_at = now()
       where id = (
         select id from ${documents}
         where company_id = ${companyId}
           and status = 'queued'
           and raw_text is not null
-        order by created_at asc, id asc
+        order by indexing_started_at asc nulls first, created_at asc, id asc
         limit 1
         for update skip locked
       )
@@ -142,7 +170,7 @@ async function queueStats(companyId: string): Promise<{ queued: number; stuck: n
         count(*) filter (where status = 'queued')::int as queued,
         count(*) filter (
           where status = 'processing'
-            and created_at < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}
+            and coalesce(indexing_started_at, created_at) < now() - ${sql.raw(`interval '${STUCK_AFTER_MS} milliseconds'`)}
         )::int as stuck
       from ${documents}
       where company_id = ${companyId}
@@ -331,10 +359,16 @@ export async function runIndexingPass(
 // Puts a document back in the queue — used by the "index ulang" action on a
 // failed row. Only documents whose text is still stored can be requeued; one
 // that failed during parsing has nothing to index and needs the file again.
+//
+// Clearing `indexing_started_at` sends it to the front of the queue. Automatic
+// requeues (a rate limit, the stuck sweep) deliberately keep theirs so failures
+// rotate to the back — but this one is a person clicking a button and waiting
+// for something to happen, and there is no fairness question when the request is
+// explicit.
 export async function requeueDocument(companyId: string, documentId: string): Promise<boolean> {
   const updated = await withTenant(companyId, (tx) =>
     tx.update(documents)
-      .set({ status: "queued", errorMessage: null })
+      .set({ status: "queued", errorMessage: null, indexingStartedAt: null })
       .where(and(
         eq(documents.id, documentId),
         eq(documents.companyId, companyId),

@@ -58,9 +58,15 @@ function efSearchFor(limit: number): number {
 //
 // Set per transaction (`set_config(..., true)`), so nothing leaks into another
 // request that reuses the pooled connection.
+// One statement, not two: this runs on the critical path of every question
+// asked, through chat, Slack and the public API alike, and a second round trip
+// to Neon buys nothing.
 async function tuneVectorSearch(tx: TenantTx, limit: number): Promise<void> {
-  await tx.execute(sql`select set_config('hnsw.ef_search', ${String(efSearchFor(limit))}, true)`);
-  await tx.execute(sql`select set_config('hnsw.iterative_scan', 'strict_order', true)`);
+  await tx.execute(sql`
+    select
+      set_config('hnsw.ef_search', ${String(efSearchFor(limit))}, true),
+      set_config('hnsw.iterative_scan', 'strict_order', true)
+  `);
 }
 
 export interface RetrievedChunk {

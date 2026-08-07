@@ -181,6 +181,17 @@ export async function POST(req: NextRequest) {
   let limitReached = false;
 
   for (const file of files) {
+    // `formData.getAll` returns strings for non-file fields, and the cast above
+    // does not stop one arriving. Without this, `file.name` is undefined and the
+    // TypeError escapes the per-file try below — the whole request 500s and the
+    // files already processed lose their results.
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: "Permintaan upload tidak valid: field \"files\" harus berisi file.", documents: results },
+        { status: 400 }
+      );
+    }
+
     // Counted again for every file, not once for the request.
     //
     // The check used to run before formData was even parsed, and then the
