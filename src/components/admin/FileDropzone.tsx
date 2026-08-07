@@ -15,14 +15,10 @@ const MAX_LISTED_FILES = 8;
 interface FileDropzoneProps {
   onUpload: (files: File[]) => void;
   isUploading: boolean;
-  // What the upload is doing right now ("Mengupload 137 / 500"), shown on the
-  // button while it runs. A 500-file import takes minutes; a button that only
-  // says "Mengupload..." for that long is indistinguishable from a hung page.
-  progressLabel?: string | null;
   lang?: Lang;
 }
 
-export function FileDropzone({ onUpload, isUploading, progressLabel = null, lang = "id" }: FileDropzoneProps) {
+export function FileDropzone({ onUpload, isUploading, lang = "id" }: FileDropzoneProps) {
   const T = adminT[lang];
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
@@ -91,8 +87,8 @@ export function FileDropzone({ onUpload, isUploading, progressLabel = null, lang
       </div>
       {pendingFiles.length > 0 && (
         <div className="space-y-2">
-          {pendingFiles.slice(0, MAX_LISTED_FILES).map((f) => (
-            <div key={f.name} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
+          {pendingFiles.slice(0, MAX_LISTED_FILES).map((f, i) => (
+            <div key={`${f.name}-${i}`} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-sm">
               <span className="truncate text-gray-700">{f.name}</span>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs text-gray-400">{(f.size / 1024 / 1024).toFixed(2)} MB</span>
@@ -112,7 +108,7 @@ export function FileDropzone({ onUpload, isUploading, progressLabel = null, lang
             disabled={isUploading}
             className="w-full bg-blue-600 text-white text-sm rounded-lg py-2 font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {isUploading ? (progressLabel ?? T.uploading) : `${T.uploadBtn} ${pendingFiles.length} File`}
+            {isUploading ? T.uploading : `${T.uploadBtn} ${pendingFiles.length} File`}
           </button>
         </div>
       )}

@@ -94,6 +94,17 @@ export const documents = pgTable("documents", {
   // Full extracted text, kept so a document can be re-chunked later without
   // re-uploading the original file.
   rawText: text("raw_text"),
+  // When an indexing pass last claimed this document. Two jobs, both of which
+  // created_at was standing in for and getting wrong:
+  //   - deciding a "processing" row is stuck. created_at is the *upload* time,
+  //     so a document uploaded this morning and claimed just now already looked
+  //     ten minutes stale, and a second worker could requeue it mid-flight.
+  //   - ordering the queue. Always-oldest-first means a document that reliably
+  //     fails is re-claimed first on every pass and starves the rest; ordering
+  //     by when we last *tried* rotates each failure to the back. Same fix as
+  //     transactions.last_checked_at in the payment sweep.
+  // NULL means never attempted, which sorts first.
+  indexingStartedAt: timestamp("indexing_started_at"),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
