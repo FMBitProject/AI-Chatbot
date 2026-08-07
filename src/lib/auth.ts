@@ -18,6 +18,13 @@ export const auth = betterAuth({
       session: schema.sessions,
       account: schema.accounts,
       verification: schema.verifications,
+      // Required by the twoFactor plugin below. This map is the adapter's whole
+      // world: passing `schema` here disables the fallback to the full drizzle
+      // schema, so a model missing from this list does not degrade — it throws
+      // at the first query. That is exactly how 2FA shipped broken: the plugin
+      // was registered, this entry was not, and every enable attempt 500'd
+      // after the password check passed.
+      twoFactor: schema.twoFactors,
     },
   }),
   emailAndPassword: {

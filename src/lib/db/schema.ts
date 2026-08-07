@@ -82,6 +82,46 @@ export const accounts = pgTable("accounts", {
   updatedAt: timestamp("updated_at").notNull(),
 });
 
+// Storage for better-auth's twoFactor plugin — the table that was missing for
+// as long as the plugin has been enabled.
+//
+// The plugin needs two places to write: a `twoFactorEnabled` flag on the user
+// (which `users` has always had) and this model for the credential itself. The
+// model was never created, so every 2FA call died inside the drizzle adapter
+// with `The model "twoFactor" was not found in the schema object` — after the
+// password check passed, which is why the UI's fallback toast blamed the
+// password and nobody ever filed it as a bug.
+//
+// Field (property) names must match the plugin's schema exactly: the adapter
+// resolves them against this object's TS property names (`schemaModel[field]`),
+// not the SQL column names.
+//
+// Not RLS'd, deliberately: this is per-user auth data like `accounts` and
+// `sessions`, owned by better-auth and never queried per-tenant. Only the four
+// document/chat tables carry tenant policies.
+export const twoFactors = pgTable("two_factor", {
+  id: text("id").primaryKey(),
+  // TOTP secret, symmetrically encrypted by better-auth with BETTER_AUTH_SECRET
+  // before it gets here — a database leak does not expose usable seeds.
+  secret: text("secret").notNull(),
+  // Hashed one-time recovery codes, same encryption, consumed one per use.
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // False between enable() and the first successful verify — the window where
+  // the user has a secret but has not yet proven they can produce codes. The
+  // sign-in hook ignores unverified TOTP so a half-finished setup can never
+  // lock its owner out.
+  verified: boolean("verified").notNull().default(true),
+  // Sign-in verify failures since the last success; the plugin locks the
+  // challenge once it crosses its threshold, until lockedUntil passes.
+  failedVerificationCount: integer("failed_verification_count").notNull().default(0),
+  lockedUntil: timestamp("locked_until"),
+}, (t) => [
+  // The adapter looks rows up by userId on every 2FA sign-in and every
+  // enable/disable — this is the only access path.
+  index("two_factor_user_id_idx").on(t.userId),
+]);
+
 export const verifications = pgTable("verifications", {
   id: text("id").primaryKey(),
   identifier: text("identifier").notNull(),
