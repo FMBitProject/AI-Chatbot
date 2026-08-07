@@ -1,0 +1,25 @@
+-- Makes one 2FA credential per user a rule the database enforces.
+--
+-- 0014 created this index non-unique, which was wrong and was caught by a
+-- concurrency test rather than by review: better-auth's enable() runs
+-- findOne → deleteMany(userId) → create() with no lock, so under READ COMMITTED
+-- two concurrent calls both delete (neither sees the other's uncommitted
+-- insert) and both insert. Six parallel enables on a single session produced
+-- three rows and issued the user six different secrets.
+--
+-- Duplicates here are silent and permanent. Lookups are findOne by userId, so
+-- a second row means the code picks one arbitrarily: a user who scanned the
+-- secret from the response whose row lost can never produce a verifying code,
+-- and the failed-attempt counters split across rows so the lockout budget stops
+-- bounding anything.
+--
+-- The constraint does not remove the race — it converts it. The losing insert
+-- now fails with 23505, which the caller sees and can retry, instead of
+-- succeeding into a state nobody can detect. Loud beats silent for a table that
+-- decides whether someone can get into their account.
+--
+-- Safe to apply: the table currently holds zero rows, so there is nothing to
+-- deduplicate first. Were it populated, this would need a dedupe pass before
+-- the index could be built.
+DROP INDEX "two_factor_user_id_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX "two_factor_user_id_idx" ON "two_factor" USING btree ("user_id");
