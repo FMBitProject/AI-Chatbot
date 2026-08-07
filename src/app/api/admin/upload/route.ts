@@ -8,7 +8,10 @@ export const maxDuration = 300;
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
-import { documents, users } from "@/lib/db/schema";
+// Aliased: `companies` is also the name of the plan-limits concept all over this
+// file's neighbours, and an unqualified import here reads like the plan rather
+// than the table it locks.
+import { companies as companiesTable, documents, users } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
@@ -200,6 +203,12 @@ export async function POST(req: NextRequest) {
     // held only against admins who uploaded one file at a time, which is exactly
     // the admin who was never the problem. It guts the reason to upgrade, so it
     // is fixed here rather than left for the billing work.
+    //
+    // This one is only an optimisation: it stops us parsing a file that is
+    // already over the cap. The check that actually enforces the limit runs
+    // inside the insert transaction below, because this one cannot — between the
+    // count and the insert there is a whole PDF being parsed, and any number of
+    // other requests can insert during it.
     const [{ count: docCount }] = await withTenant(companyId, (tx) =>
       tx.select({ count: count() }).from(documents).where(eq(documents.companyId, companyId)));
     if (!isUnderLimit(docCount, limits.maxDocuments)) {
@@ -242,13 +251,50 @@ export async function POST(req: NextRequest) {
       // Written once, already in its resting state: there is no long-running
       // work left in this request for it to be interrupted by, so the row never
       // needs a "processing" phase here.
-      await withTenant(companyId, (tx) => tx.insert(documents).values({
-        id: docId,
-        name: safeName,
-        companyId,
-        status: "queued",
-        rawText,
-      }));
+      //
+      // Counted and inserted inside one transaction, behind a lock on the
+      // company row, because a cap enforced by "count, then insert" is not
+      // enforced at all. Two tabs — or an admin on a laptop and the same admin
+      // on a phone — both read 49 of 50, both insert, and the company owns 51
+      // documents on a plan that sells 50. Nothing about it looks like a bug
+      // afterwards: no error, no log, just a number that should have been
+      // impossible.
+      //
+      // The lock is taken on `companies` rather than on the document rows
+      // because there is no row to lock for a document that does not exist yet;
+      // what needs serialising is the decision, and the tenant is what the
+      // decision is about. It is held for a count and an insert — microseconds —
+      // and the expensive part of this loop (parsing the file) has already
+      // happened outside it, so uploads from one company queue up here only for
+      // as long as it takes Postgres to answer two indexed queries.
+      const stored = await withTenant(companyId, async (tx) => {
+        await tx.select({ id: companiesTable.id })
+          .from(companiesTable)
+          .where(eq(companiesTable.id, companyId))
+          .for("update");
+
+        const [{ count: current }] = await tx.select({ count: count() })
+          .from(documents)
+          .where(eq(documents.companyId, companyId));
+        if (!isUnderLimit(current, limits.maxDocuments)) return false;
+
+        await tx.insert(documents).values({
+          id: docId,
+          name: safeName,
+          companyId,
+          status: "queued",
+          rawText,
+        });
+        return true;
+      });
+
+      if (!stored) {
+        // Another request took the last slot while this file was being parsed.
+        // The same answer as the pre-check above, reached a few seconds later.
+        limitReached = true;
+        break;
+      }
+
       results.push({ id: docId, name: file.name, status: "queued", createdAt });
 
     } catch (error) {

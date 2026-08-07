@@ -1,0 +1,2 @@
+ALTER TABLE "companies" ADD COLUMN "indexing_lease_until" timestamp;--> statement-breakpoint
+CREATE UNIQUE INDEX "document_chunks_document_chunk_idx" ON "document_chunks" USING btree ("document_id","chunk_index");

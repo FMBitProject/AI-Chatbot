@@ -20,6 +20,17 @@ export const companies = pgTable("companies", {
   monthlyQuestionCount: integer("monthly_question_count").default(0).notNull(),
   monthlyQuestionMonth: text("monthly_question_month"), // "YYYY-MM" (UTC)
   planExpiresAt: timestamp("plan_expires_at"),
+  // Held by whichever indexing pass is currently draining this company's queue,
+  // and only that one. Nothing about the queue itself needs it — documents are
+  // claimed one at a time and are safe under any number of workers — but the
+  // embedding provider is a shared, rate-limited resource, so a second pass does
+  // not index faster, it just collects everyone's 429s sooner. See
+  // acquireIndexingLease in @/lib/indexing.
+  //
+  // A deadline rather than a boolean, because the holder can die without
+  // releasing: a killed invocation leaves the lease behind, and only its expiry
+  // frees the queue again.
+  indexingLeaseUntil: timestamp("indexing_lease_until"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -118,6 +129,18 @@ export const documentChunks = pgTable("document_chunks", {
   chunkIndex: integer("chunk_index").notNull().default(0),
 }, (t) => [
   index("document_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  // Structural guarantee that one document cannot end up with two copies of the
+  // same chunk. Indexing rewrites a document's chunks as delete-then-insert
+  // inside one transaction, which is safe against a crash but *not* against a
+  // second writer: under READ COMMITTED the second transaction's DELETE cannot
+  // see the first's uncommitted INSERT, so it deletes nothing, inserts its own
+  // copy, and both survive the commit. Every chunk would then be retrieved
+  // twice, silently spending the chat's context budget on the same text.
+  //
+  // The lease check in embedAndStore is what actually prevents two writers; this
+  // index is the backstop that turns a mistake there into a failed insert
+  // instead of a corrupted document.
+  uniqueIndex("document_chunks_document_chunk_idx").on(t.documentId, t.chunkIndex),
 ]);
 
 export const chatSessions = pgTable("chat_sessions", {

@@ -31,6 +31,9 @@ export interface IndexProgress {
   remaining: number;
   // The pass stopped on a provider rate limit and is sitting out a cooldown.
   waiting?: boolean;
+  // Someone else is already draining this queue — another tab, or the nightly
+  // cron. Not an error and not a reason to retry: the work is happening.
+  busy?: boolean;
 }
 
 interface DocumentsTabProps {
@@ -135,24 +138,37 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     // progress bar.
     let total = 0;
     let lastRemaining = 0;
+    let handedOff = false;
     try {
-      await onIndex(({ remaining, waiting }) => {
+      await onIndex(({ remaining, waiting, busy }) => {
+        // Only ever grows, and only from what this run has seen. `remaining` is
+        // the company's whole queue, not this run's share of it, so a second
+        // admin uploading mid-pass raises it — and a bar that jumps backwards is
+        // worse than one that starts late.
         total = Math.max(total, remaining);
         lastRemaining = remaining;
+        handedOff = !!busy;
         setProgress(
           remaining === 0 && !waiting
             ? null
             : {
-                label: `${waiting ? T.indexWaiting : T.indexProgress} · ${remaining}`,
+                label: `${waiting ? T.indexWaiting : busy ? T.indexElsewhere : T.indexProgress} · ${remaining}`,
                 percent: total > 0 ? Math.round(((total - remaining) / total) * 100) : null,
               }
         );
       });
 
-      // The loop gives up after a few rate-limit cooldowns rather than keeping
-      // the admin's tab busy for an hour. Say so — silence here reads as "it
-      // finished", and the admin would have no idea documents are still waiting.
-      if (lastRemaining > 0) {
+      // Two different reasons to stop with documents still queued, and they call
+      // for opposite actions from the admin. Silence would read as "it finished"
+      // for both.
+      if (handedOff) {
+        // Nothing is wrong and nothing needs doing: another tab or the cron owns
+        // the queue and is draining it. Pressing Resume again would only be told
+        // the same thing.
+        toast({ title: T.indexElsewhere, description: T.indexElsewhereDesc });
+      } else if (lastRemaining > 0) {
+        // The loop gives up after a few rate-limit cooldowns rather than keeping
+        // the admin's tab busy for an hour.
         toast({ title: T.indexPaused, description: T.indexPausedDesc });
       }
     } catch (err) {
