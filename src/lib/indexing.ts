@@ -68,6 +68,10 @@ export const INDEX_RUN_BUDGET_MS = 120 * 1000;
 // so that a pass working normally never loses the lease it still holds.
 const INDEXING_LEASE_MS = 5 * 60 * 1000;
 
+// How long the optional summary call may take before it is abandoned. See the
+// call site: the summary is the only part of indexing a document can do without.
+const SUMMARY_TIMEOUT_MS = 30 * 1000;
+
 // Why a pass stopped, so the caller knows whether to come straight back.
 //
 // "busy" means another pass already holds this company's lease; the caller
@@ -91,11 +95,16 @@ class IndexError extends Error {}
 // means "this will never work" and the document is failed with a reason.
 class RetryableError extends Error {}
 
-// Raised when the document we are holding has been handed to someone else while
-// we worked — the stuck sweep decided we were dead and a second pass re-claimed
-// it. Not a failure of the document, and emphatically not something to record on
-// the row: the row now belongs to another worker, and writing to it is precisely
-// what must not happen.
+// Raised when the document we are holding is no longer ours to write to: the
+// stuck sweep decided we were dead and a second pass re-claimed it, or the admin
+// deleted it while we worked. Not a failure of the document, and emphatically
+// not something to record on the row — it either belongs to another worker now
+// or does not exist, and writing to it is precisely what must not happen.
+//
+// It is also what keeps the delete case clean. The row lock taken by the fenced
+// UPDATE is held until this transaction ends, so a DELETE arriving mid-write
+// waits for us rather than pulling the row out from under the chunk insert and
+// turning it into a foreign key violation.
 class ClaimLostError extends Error {}
 
 interface ClaimedDocument {
@@ -351,6 +360,12 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   try {
     const { text } = await generateText({
       model: groqClient("llama-3.3-70b-versatile"),
+      // The one call in this function that is optional, so it is the one that
+      // least deserves to hold a pass open. Without a deadline a silent Groq
+      // would stall a document that is otherwise finished — its embeddings paid
+      // for, its chunks ready to write — for the sake of a summary nobody would
+      // miss. Failing here costs a bullet list; hanging here costs the document.
+      timeout: SUMMARY_TIMEOUT_MS,
       prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${doc.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
     });
     summary = text.trim();
@@ -395,8 +410,17 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
       .returning({ id: documents.id });
 
     if (kept.length === 0) {
+      // Two ways to get here, and they are worth telling apart in the log. The
+      // row was re-claimed by another pass, or the admin deleted the document
+      // while it was being indexed — the second is not a fault at all, and
+      // reporting it as one sends someone looking for a race that never
+      // happened. One extra indexed lookup, on a path that should be rare.
+      const [survivor] = await tx.select({ id: documents.id })
+        .from(documents).where(eq(documents.id, doc.id));
       throw new ClaimLostError(
-        `Document ${doc.id} was re-claimed by another pass while it was being indexed`
+        survivor
+          ? `Document ${doc.id} was re-claimed by another pass while it was being indexed`
+          : `Document ${doc.id} was deleted while it was being indexed`
       );
     }
 

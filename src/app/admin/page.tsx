@@ -185,6 +185,12 @@ export default function AdminPage() {
   // drains whatever is left.
   async function handleIndex(onProgress: (progress: IndexProgress) => void): Promise<void> {
     let rateLimitedRuns = 0;
+    // What this run has actually finished, accumulated across passes. Reported
+    // alongside `remaining` because the two answer different questions:
+    // `remaining` is the company's whole queue and can grow under us — a second
+    // admin uploading, a document requeued by a rate limit — while this only
+    // ever counts work that is done.
+    let done = 0;
 
     for (;;) {
       const res = await fetch("/api/admin/indexing", {
@@ -200,7 +206,8 @@ export default function AdminPage() {
 
       const result = await res.json() as { indexed: number; failed: number; remaining: number; stop: string };
       await loadDocuments();
-      onProgress({ remaining: result.remaining });
+      done += result.indexed + result.failed;
+      onProgress({ remaining: result.remaining, done });
 
       if (result.remaining === 0) return;
 
@@ -209,7 +216,7 @@ export default function AdminPage() {
         // that happened to start first. Looping here would only ask the same
         // question every few seconds; the document list is already polling, so
         // the admin watches it drain either way.
-        onProgress({ remaining: result.remaining, busy: true });
+        onProgress({ remaining: result.remaining, done, busy: true });
         return;
       }
 
@@ -220,7 +227,7 @@ export default function AdminPage() {
         // without the admin sitting here. Announced, because a minute of silence
         // is indistinguishable from a page that has died.
         if (++rateLimitedRuns > 3) return;
-        onProgress({ remaining: result.remaining, waiting: true });
+        onProgress({ remaining: result.remaining, done, waiting: true });
         await new Promise((r) => setTimeout(r, 60_000));
         continue;
       }

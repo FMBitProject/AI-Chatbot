@@ -29,6 +29,8 @@ export interface UploadOutcome {
 
 export interface IndexProgress {
   remaining: number;
+  // Documents this run has finished, successfully or not. Only ever grows.
+  done: number;
   // The pass stopped on a provider rate limit and is sitting out a cooldown.
   waiting?: boolean;
   // Someone else is already draining this queue — another tab, or the nightly
@@ -136,24 +138,27 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     // The queue only ever shrinks during a pass, so the largest number seen is
     // the total this run started with — which is what turns "sisa 137" into a
     // progress bar.
-    let total = 0;
     let lastRemaining = 0;
     let handedOff = false;
     try {
-      await onIndex(({ remaining, waiting, busy }) => {
-        // Only ever grows, and only from what this run has seen. `remaining` is
-        // the company's whole queue, not this run's share of it, so a second
-        // admin uploading mid-pass raises it — and a bar that jumps backwards is
-        // worse than one that starts late.
-        total = Math.max(total, remaining);
+      await onIndex(({ remaining, done, waiting, busy }) => {
         lastRemaining = remaining;
         handedOff = !!busy;
+        // Measured against the work this run has finished plus the work still
+        // waiting, rather than against the queue size remembered from the first
+        // pass. The old version kept the largest `remaining` it had ever seen and
+        // treated it as the total, which quietly assumed the queue only shrinks —
+        // and it does not: a second admin uploading mid-import, or a document
+        // handed back after a rate limit, pushes `remaining` above that total and
+        // sends the bar back to zero. Counting what is done cannot do that; the
+        // bar slows down when work is added instead of jumping backwards.
+        const scope = done + remaining;
         setProgress(
           remaining === 0 && !waiting
             ? null
             : {
                 label: `${waiting ? T.indexWaiting : busy ? T.indexElsewhere : T.indexProgress} · ${remaining}`,
-                percent: total > 0 ? Math.round(((total - remaining) / total) * 100) : null,
+                percent: scope > 0 ? Math.round((done / scope) * 100) : null,
               }
         );
       });

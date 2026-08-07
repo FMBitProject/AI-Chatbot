@@ -14,6 +14,21 @@ function getGoogle(apiKey?: string | null) {
 // are fine for our cosine-distance search.
 export const EMBEDDING_DIMENSIONS = 1536;
 
+// How long a single embedding HTTP call may take before it is abandoned.
+//
+// Every timeout in this file exists for the same reason: an HTTP client with no
+// deadline has no upper bound. A provider that refuses is easy — it returns a
+// 429 or a 401 and the caller decides what to do. A provider that simply stops
+// answering mid-request is the dangerous one, because nothing in the code notices
+// anything is wrong; the call just never comes back.
+//
+// Two different budgets because the two callers have opposite priorities: a
+// person is waiting on a query, while a document is being indexed by a machine
+// that can afford to be patient. A normal batch answers in one to three seconds,
+// so both numbers are far above anything healthy and only bite on a hang.
+const QUERY_TIMEOUT_MS = 20_000;
+const BATCH_TIMEOUT_MS = 60_000;
+
 // Format a vector as a pgvector literal, e.g. "[0.1,0.2,...]".
 export function toVectorLiteral(v: number[]): string {
   return `[${v.join(",")}]`;
@@ -27,11 +42,35 @@ export async function getEmbedding(text: string, apiKey?: string | null): Promis
   const { embedding } = await embed({
     model: google.embedding("gemini-embedding-001"),
     value: text.replace(/\n/g, " "),
+    // This one call sits in front of every question asked, through chat, Slack
+    // and the public API alike. Without a deadline, a provider that stops
+    // answering without refusing — no error, no 429, just silence — holds the
+    // user's request open until the platform kills it, and the person waiting
+    // sees a spinner rather than an apology. Failing at twenty seconds is worse
+    // than a fast answer and far better than no answer at all.
+    //
+    // `abortSignal`, not the SDK's `timeout` setting: that one belongs to
+    // generateText and streamText, and embed/embedMany do not accept it.
+    abortSignal: AbortSignal.timeout(QUERY_TIMEOUT_MS),
     providerOptions: {
       google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_QUERY" },
     },
   });
   return embedding;
+}
+
+// True for the error a `timeout:` produces when it fires.
+//
+// Written out rather than imported: the AI SDK has exactly this helper, but only
+// in @ai-sdk/provider-utils, which is a transitive dependency here — not one this
+// project declares, and so not one whose contents it should be relying on. Three
+// names is a cheap thing to own. `cause` is checked too because a provider may
+// wrap the abort in its own error before it reaches us.
+function isAbortError(err: unknown): boolean {
+  const named = (e: unknown) =>
+    (e instanceof Error || e instanceof DOMException) &&
+    (e.name === "AbortError" || e.name === "TimeoutError" || e.name === "ResponseAborted");
+  return named(err) || (err instanceof Error && named(err.cause));
 }
 
 // Extract retry delay (seconds) from a Gemini 429 error message.
@@ -60,23 +99,41 @@ export class EmbeddingBudgetExceededError extends Error {
   }
 }
 
-// How long this function may spend sleeping between 429 retries, across the
-// whole call. Per batch the old code could sleep 5 × ~35s, and a document is
-// many batches — enough to run past the upload route's own 300s limit and get
-// the request killed mid-write, which leaves the document row stranded in
-// "processing" because a killed function runs neither the success path nor the
-// catch. Failing on our own terms while there is still time to record it is
-// strictly better than being cut off.
-const RETRY_BUDGET_MS = 120_000;
+// How long this whole function may take, sleeping and calling together.
+//
+// It used to bound only the *sleeping* between 429 retries, which sounds like
+// the same thing and is not. Sleep is the part we choose; the calls are the part
+// the provider chooses, and a document is many batches. Two minutes of permitted
+// sleep plus thirty unbounded requests has no upper limit at all, and the
+// arithmetic that keeps a pass inside its 300-second invocation was quietly
+// resting on requests being quick.
+//
+// Now the ceiling is real: an indexing pass spends at most this long on one
+// document's embeddings, plus a bounded summary call, and the pass budget can be
+// checked against numbers that mean something. Whatever is unfinished goes back
+// to the queue, which costs a retry rather than a failure.
+const CALL_BUDGET_MS = 120_000;
 
 export async function getEmbeddings(texts: string[], apiKey?: string | null): Promise<number[][]> {
   const google = getGoogle(apiKey);
   const BATCH_SIZE = 100;
   const results: number[][] = [];
-  let sleptMs = 0;
+  const startedAt = Date.now();
+  const spent = () => Date.now() - startedAt;
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE).map((t) => t.replace(/\n/g, " "));
+
+    // Checked between batches, where stopping is clean. Everything embedded so
+    // far is discarded with the call — the document goes back to the queue and
+    // starts over — so this is a real cost, not a free bail-out, and the budget
+    // is set high enough that reaching it means something is wrong rather than
+    // slow.
+    if (spent() > CALL_BUDGET_MS) {
+      throw new EmbeddingBudgetExceededError(
+        `Embedding ran past its ${Math.round(CALL_BUDGET_MS / 1000)}s budget (chunk ${i} of ${texts.length})`,
+      );
+    }
 
     let lastErr: unknown;
     for (let attempt = 0; attempt < 5; attempt++) {
@@ -85,6 +142,9 @@ export async function getEmbeddings(texts: string[], apiKey?: string | null): Pr
           model: google.embedding("gemini-embedding-001"),
           values: batch,
           maxRetries: 0, // we handle retries ourselves
+          // Per attempt, so a retry gets its own full deadline rather than
+          // inheriting the exhausted one from the attempt before it.
+          abortSignal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
           providerOptions: {
             google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_DOCUMENT" },
           },
@@ -94,18 +154,29 @@ export async function getEmbeddings(texts: string[], apiKey?: string | null): Pr
         break;
       } catch (err) {
         lastErr = err;
+        // A timed-out request is reported as "too slow", not "broken". It is the
+        // difference between a document the admin can wait for and one they are
+        // told to fix, and there is nothing to fix — the provider was silent.
+        // Deliberately not retried here: a call that has just hung for a minute
+        // is not going to answer if asked again immediately, and the queue is a
+        // better place to wait than a serverless invocation.
+        if (isAbortError(err)) {
+          throw new EmbeddingBudgetExceededError(
+            `Embedding request timed out after ${Math.round(BATCH_TIMEOUT_MS / 1000)}s (chunk ${i} of ${texts.length})`,
+          );
+        }
+
         const isRateLimit =
           err instanceof Error && err.message.includes("429");
         if (!isRateLimit) throw err;
         const delay = parseRetryDelay(err) * 1000;
         // Checked before sleeping, not after: a sleep that would overrun the
         // budget is one we should never start.
-        if (sleptMs + delay > RETRY_BUDGET_MS) {
+        if (spent() + delay > CALL_BUDGET_MS) {
           throw new EmbeddingBudgetExceededError(
-            `Embedding rate-limited for more than ${Math.round(RETRY_BUDGET_MS / 1000)}s (chunk ${i} of ${texts.length})`,
+            `Embedding rate-limited past its ${Math.round(CALL_BUDGET_MS / 1000)}s budget (chunk ${i} of ${texts.length})`,
           );
         }
-        sleptMs += delay;
         await new Promise((r) => setTimeout(r, delay));
       }
     }
