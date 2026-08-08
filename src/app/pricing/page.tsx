@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { LogoFull } from "@/components/Logo";
+import { LogoHomeLink } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
@@ -117,14 +117,11 @@ export default function PricingPage() {
       {/* Navbar */}
       <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
-          {/* The logo is the way back to the landing page — the one navigation
-              every visitor already expects and the only one this header offers,
-              since /pricing is reached from the landing page and otherwise has
-              no route out except the browser's back button. Same wrapper the
-              other marketing and auth pages use (terms, privacy, login, …). */}
-          <Link href="/" aria-label={lang === "en" ? "IntelliBase AI — back to home" : "IntelliBase AI — kembali ke beranda"} className="shrink-0 rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
-            <LogoFull size="sm" />
-          </Link>
+          {/* The only way back to the landing page this header offers: the
+              other controls all lead deeper in (login, register, dashboard).
+              Someone who arrived here from a search result or a shared link has
+              no back button to fall back on. */}
+          <LogoHomeLink size="sm" lang={lang} className="shrink-0" />
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
             {mounted && session?.user ? (
