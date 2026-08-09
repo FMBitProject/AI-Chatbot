@@ -181,8 +181,8 @@ const CONTENT = {
       cta: "Hitung Penghematan Lengkap",
       ctaNote: "Gratis · Tidak perlu daftar · Lengkap dengan asumsi perhitungannya",
     },
-    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI" },
-    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak" },
+    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI", blog: "Blog" },
+    footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak", blog: "Blog" },
   },
   en: {
     badge: "🚀 AI Knowledge Base Built for Indonesian Businesses",
@@ -274,8 +274,8 @@ const CONTENT = {
       cta: "Calculate Full Savings",
       ctaNote: "Free · No sign-up required · Assumptions shown in full",
     },
-    nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
-    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact" },
+    nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator", blog: "Blog" },
+    footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact", blog: "Blog" },
   },
 };
 
@@ -356,6 +356,12 @@ export function LandingContent() {
           <LogoFull size="sm" className="shrink-0" />
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
+            {/* The blog is the only surface here written to be found from a
+                search rather than from an ad or a link we sent — so it is also
+                the only one a visitor may arrive at first. Naming it in the nav
+                is what makes the rest of the site reachable from an article,
+                and the article reachable from the rest of the site. */}
+            <Link href="/blog" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.blog}</Link>
             <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.roi}</Link>
             <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.price}</Link>
             <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.nav.login}</Button></Link>
@@ -788,7 +794,18 @@ export function LandingContent() {
         </p>
       </section>
 
-      {/* Footer */}
+      {/* Footer
+          Hand-written here instead of using <SiteFooter>, which every other
+          marketing page renders. The two have drifted — this one carries the
+          support address, that one carries the version string — so they are not
+          interchangeable today.
+
+          Worth knowing before adding a link anywhere: a link added to
+          SiteFooter does NOT appear on this page, and this is the page most
+          visitors see. That is exactly how the blog shipped reachable from
+          /pricing and /privacy but not from the landing page. Any new
+          site-wide link has to be added in both places until these are
+          unified. */}
       <footer className="border-t py-10 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
@@ -799,6 +816,11 @@ export function LandingContent() {
               in plain text on the page. */}
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
             <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-gray-600">{T.footer.contact}: {SUPPORT_EMAIL}</a>
+            {/* Repeated from SiteFooter rather than shared with it: this page
+                carries its own footer, which is why the blog link added to
+                SiteFooter reached every marketing page except the one that
+                matters most. See the note above <footer>. */}
+            <Link href="/blog" className="hover:text-gray-600">{T.footer.blog}</Link>
             <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>
             <Link href="/pricing" className="hover:text-gray-600">{T.footer.price}</Link>
             <Link href="/login" className="hover:text-gray-600">{T.footer.login}</Link>
