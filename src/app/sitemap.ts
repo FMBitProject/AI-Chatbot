@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { INDUSTRIES } from "@/lib/industries";
+import { POSTS, postDate } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/site-url";
 
 // Only the marketing surface belongs here. A sitemap is a list of pages a
@@ -12,6 +13,9 @@ const STATIC_ROUTES = [
   { path: "/", changeFrequency: "weekly", priority: 1 },
   { path: "/pricing", changeFrequency: "weekly", priority: 0.9 },
   { path: "/roi", changeFrequency: "monthly", priority: 0.7 },
+  // The index changes whenever a post ships, which is more often than anything
+  // else here — the articles themselves are the opposite and say so below.
+  { path: "/blog", changeFrequency: "weekly", priority: 0.8 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
 ] as const;
@@ -28,7 +32,23 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.8,
   }));
 
-  // No `lastModified`. This file is prerendered at build time, so `new Date()`
+  // Derived from the post registry for the same reason the verticals are: a
+  // post that exists as a route but not as a <loc> is a post Google has no path
+  // to. Unlike the routes above, an article does have an honest revision date —
+  // `publishedAt` is a real editorial fact rather than a build timestamp — so
+  // these are the only entries that carry `lastModified`.
+  const articles = POSTS.map((post) => ({
+    url: absoluteUrl(`/blog/${post.slug}`),
+    // `postDate` rather than a second copy of the date convention: the
+    // serializer calls `.toISOString()` on whatever lands here, so a Date this
+    // file built itself from a malformed string would fail the build with
+    // "Invalid time value" and no indication of which post caused it.
+    lastModified: postDate(post),
+    changeFrequency: "yearly" as const,
+    priority: 0.7,
+  }));
+
+  // No `lastModified` on the rest. This file is prerendered at build time, so `new Date()`
   // would stamp every deploy onto all six URLs — including /terms, whose own
   // page states when it was last revised. Google discounts a lastmod that is
   // demonstrably wrong, so an absent one is worth more than a fabricated one.
@@ -40,5 +60,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: r.priority,
     })),
     ...verticals,
+    ...articles,
   ];
 }
