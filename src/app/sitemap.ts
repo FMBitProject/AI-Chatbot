@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { INDUSTRIES } from "@/lib/industries";
-import { POSTS } from "@/lib/blog";
+import { POSTS, postDate } from "@/lib/blog";
 import { absoluteUrl } from "@/lib/site-url";
 
 // Only the marketing surface belongs here. A sitemap is a list of pages a
@@ -39,7 +39,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // these are the only entries that carry `lastModified`.
   const articles = POSTS.map((post) => ({
     url: absoluteUrl(`/blog/${post.slug}`),
-    lastModified: new Date(`${post.publishedAt}T00:00:00Z`),
+    // `postDate` rather than a second copy of the date convention: the
+    // serializer calls `.toISOString()` on whatever lands here, so a Date this
+    // file built itself from a malformed string would fail the build with
+    // "Invalid time value" and no indication of which post caused it.
+    lastModified: postDate(post),
     changeFrequency: "yearly" as const,
     priority: 0.7,
   }));

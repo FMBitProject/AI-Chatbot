@@ -45,7 +45,7 @@ export default function BlogIndexPage() {
                 <div className="flex items-center gap-2 text-xs text-gray-400 mb-2">
                   {/* dateTime carries the machine-readable value; the visible
                       text is the Indonesian long form. */}
-                  <time dateTime={post.publishedAt}>{formatPostDate(post.publishedAt)}</time>
+                  <time dateTime={post.publishedAt}>{formatPostDate(post)}</time>
                   <span aria-hidden="true">·</span>
                   <span>{post.readingMinutes} menit baca</span>
                 </div>

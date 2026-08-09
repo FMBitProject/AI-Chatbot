@@ -32,8 +32,13 @@ export type BlogPost = {
   // index has the title sitting right above it, while a search result does not —
   // repeating the title's words there wastes the only two lines we get.
   excerpt: string;
-  // ISO date. Sorted on, and printed as the byline, so it is the real publish
-  // date rather than the file's mtime.
+  // Calendar date, exactly `YYYY-MM-DD` — not a full ISO timestamp. It is read
+  // back as UTC midnight (see `postDate`), so anything with a time in it does
+  // not work here. `validateRegistry` enforces the shape at module load rather
+  // than letting it fail later as a date arithmetic error.
+  //
+  // Sorted on, and printed as the byline, so it is the real publish date rather
+  // than the file's mtime.
   publishedAt: string;
   // Minutes. Stated rather than computed from word count: these are Indonesian
   // articles with tables and lists, where the usual 200-words-per-minute divisor
@@ -49,10 +54,73 @@ export type BlogPost = {
   body: string;
 };
 
+// Exactly `YYYY-MM-DD`. The shape matters as much as the value: `publishedAt`
+// is concatenated with a time to anchor it to UTC, so a string that already
+// carries one produces "2026-08-07T09:00:00ZT00:00:00Z" — a date that is not
+// invalid in any obvious way, just NaN.
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Every way the registry can be wrong that TypeScript cannot see, checked once
+ * at module load — which during `next build` is before the first page renders.
+ *
+ * Both failures below used to surface far from their cause. A malformed date
+ * reached `toISOString()` inside the sitemap serializer and killed the build
+ * with "RangeError: Invalid time value" while prerendering /sitemap.xml, naming
+ * neither the post nor the field. A duplicate slug surfaced as nothing at all:
+ * `getPost` returns the first match, so the second post silently became
+ * unreachable while the sitemap advertised its URL — pointing at the first
+ * post's content. Copying an existing post file to start a new one is exactly
+ * how that happens.
+ *
+ * Throwing here is deliberate. These are authoring mistakes in compile-time
+ * data, so the only two options are a loud build failure and a quietly broken
+ * site; a blog is not worth shipping in the second state.
+ */
+function validateRegistry(posts: BlogPost[]): void {
+  const seenSlug = new Map<string, string>();
+
+  for (const post of posts) {
+    const previousTitle = seenSlug.get(post.slug);
+    if (previousTitle !== undefined) {
+      throw new Error(
+        `[blog] duplicate slug "${post.slug}" — used by both "${previousTitle}" and "${post.title}". ` +
+          `Slugs are the route and the sitemap key, so the second post would be unreachable.`,
+      );
+    }
+    seenSlug.set(post.slug, post.title);
+
+    if (!ISO_DAY.test(post.publishedAt)) {
+      throw new Error(
+        `[blog] publishedAt for "${post.slug}" must be exactly YYYY-MM-DD, got ${JSON.stringify(post.publishedAt)}. ` +
+          `A full ISO timestamp does not work here — the date is anchored to UTC midnight when it is read.`,
+      );
+    }
+    // Catches a well-shaped date that does not exist, like 2026-02-30, which the
+    // regex above happily accepts and `Date` resolves to NaN rather than
+    // rolling over.
+    if (Number.isNaN(toUtcMidnight(post.publishedAt).getTime())) {
+      throw new Error(`[blog] publishedAt for "${post.slug}" is not a real calendar date: ${post.publishedAt}`);
+    }
+  }
+}
+
+function toUtcMidnight(isoDay: string): Date {
+  return new Date(`${isoDay}T00:00:00Z`);
+}
+
 // Newest first is the order the index renders and the order `previousPost`
 // walks, so it is applied once here rather than at each call site.
-export const POSTS: BlogPost[] = [sopTidakKetemu, apaItuRag, sopRumahSakit].sort(
-  (a, b) => b.publishedAt.localeCompare(a.publishedAt),
+//
+// Compared as plain strings rather than with `localeCompare`: `YYYY-MM-DD` is
+// fixed-width, so lexicographic order is chronological order, and the
+// comparison stays independent of collation rules. `validateRegistry` runs
+// first, so the format that guarantee rests on is already enforced.
+const ALL_POSTS = [sopTidakKetemu, apaItuRag, sopRumahSakit];
+validateRegistry(ALL_POSTS);
+
+export const POSTS: BlogPost[] = [...ALL_POSTS].sort((a, b) =>
+  a.publishedAt < b.publishedAt ? 1 : a.publishedAt > b.publishedAt ? -1 : 0,
 );
 
 export function getPost(slug: string): BlogPost | undefined {
@@ -71,12 +139,25 @@ export function previousPost(slug: string): BlogPost | undefined {
   return i === -1 ? undefined : POSTS[i + 1];
 }
 
+/**
+ * `publishedAt` as a `Date`, for anything that needs one — the sitemap's
+ * `lastModified`, mainly.
+ *
+ * The single place the `YYYY-MM-DD` + UTC-midnight convention is applied. It
+ * used to be written out at both call sites, which is why one malformed date
+ * produced two different failures: the sitemap threw, while the byline quietly
+ * printed "Invalid Date" to the reader.
+ */
+export function postDate(post: BlogPost): Date {
+  return toUtcMidnight(post.publishedAt);
+}
+
 /** "8 Agustus 2026" — the byline format, Indonesian like the rest of the copy. */
-export function formatPostDate(iso: string): string {
-  // Explicit UTC. The date is a plain "YYYY-MM-DD", which JS parses as midnight
-  // UTC; formatting that in a timezone behind UTC rolls it back a day, so a post
-  // published on the 8th renders as the 7th for anyone west of London.
-  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("id-ID", {
+export function formatPostDate(post: BlogPost): string {
+  // Explicit UTC on both ends. The date is anchored at midnight UTC, and
+  // formatting that in a timezone behind UTC rolls it back a day — so a post
+  // published on the 8th would render as the 7th for anyone west of London.
+  return postDate(post).toLocaleDateString("id-ID", {
     day: "numeric",
     month: "long",
     year: "numeric",

@@ -48,19 +48,36 @@ export function ArticleBody({ children }: { children: string }) {
               {children}
             </code>
           ),
-          // Internal links go through next/link so a reader moving from an
-          // article to /pricing gets a client navigation instead of a reload.
-          // External ones get the noopener pair — target="_blank" without it
-          // hands the opened page a live handle on this one.
+          // Three kinds of link, and only one of them should open a tab.
+          //
+          // A route ("/pricing") goes through next/link for a client navigation
+          // instead of a full reload. An in-page anchor ("#batas") and a
+          // non-web scheme (mailto:, tel:) stay in this tab as plain anchors —
+          // an earlier version treated everything without a leading slash as
+          // external, which meant a link to a heading on this very page opened
+          // a second tab. Only http(s) actually leaves, and that gets the
+          // noopener pair: target="_blank" without it hands the opened page a
+          // live handle on this one.
+          //
+          // The `//` guard matters: "//evil.com" is a protocol-relative URL to
+          // another origin, and a naive startsWith("/") reads it as a route.
           a: ({ href, children }) => {
             const to = href ?? "#";
-            const isInternal = to.startsWith("/");
             const className =
               "text-teal-700 underline underline-offset-2 decoration-teal-300 hover:decoration-teal-600 transition-colors";
-            return isInternal ? (
-              <Link href={to} className={className}>{children}</Link>
-            ) : (
-              <a href={to} target="_blank" rel="noopener noreferrer" className={className}>{children}</a>
+
+            if (to.startsWith("/") && !to.startsWith("//")) {
+              return <Link href={to} className={className}>{children}</Link>;
+            }
+            const opensNewTab = /^https?:\/\//i.test(to) || to.startsWith("//");
+            return (
+              <a
+                href={to}
+                className={className}
+                {...(opensNewTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              >
+                {children}
+              </a>
             );
           },
         }}
