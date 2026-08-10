@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, companies, transactions } from "@/lib/db/schema";
+import { companies, transactions } from "@/lib/db/schema";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   amountMatches,
@@ -49,13 +49,12 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  // Kept under the old name: `dbUser` is threaded through the whole checkout
+  // below (customer details, order ownership, log lines), and its `companyId` is
+  // now a plain string rather than a nullable one.
+  const dbUser = guard.user;
 
   const limit = consumeRateLimit(`payment-create:${dbUser.id}`, CREATE_LIMIT);
   if (!limit.ok) {

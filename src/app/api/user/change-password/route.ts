@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+// `auth` is still imported for changePassword below — the guard covers the
+// session check only, not the rest of better-auth's API.
 import { auth } from "@/lib/auth";
+import { requireSession } from "@/lib/auth-guard";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { isPasswordValid } from "@/lib/password";
 
@@ -7,10 +10,15 @@ import { isPasswordValid } from "@/lib/password";
 const CHANGE_PASSWORD_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // requireSession, the loosest guard: changing your own password touches no
+  // company-scoped data and needs no role, so requireUser's companyId
+  // requirement would only lock out a user not yet assigned to a company —
+  // someone who can still sign in, and whose password is still theirs to change.
+  // The current password is verified below on top of this.
+  const guard = await requireSession(req);
+  if (!guard.ok) return guard.response;
 
-  const limit = consumeRateLimit(`change-password:${session.user.id}`, CHANGE_PASSWORD_LIMIT);
+  const limit = consumeRateLimit(`change-password:${guard.userId}`, CHANGE_PASSWORD_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." },

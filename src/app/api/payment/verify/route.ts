@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, transactions } from "@/lib/db/schema";
+import { transactions } from "@/lib/db/schema";
 import { and, eq, desc, ne } from "drizzle-orm";
 import { isPurchasablePlan } from "@/lib/pricing";
 import { settlePaidOrder } from "@/lib/payment";
@@ -21,20 +21,20 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 const VERIFY_LIMIT = { max: 10, windowMs: 60 * 1000 };
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  // These messages are rendered verbatim in the dashboard's toast, so they are
-  // written in Indonesian like the rest of the user-facing copy. (The webhook's
-  // errors stay English — nothing but Midtrans ever reads them.)
-  if (!session) {
-    return NextResponse.json({ error: "Sesi Anda sudah berakhir. Silakan masuk kembali." }, { status: 401 });
-  }
-
   // Admin-only, like checkout (see payment/create) — this route settles the
   // company's subscription, so an ordinary employee has no business calling it.
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Hanya admin yang bisa memeriksa status pembayaran." }, { status: 403 });
-  }
+  //
+  // Both messages are overridden rather than left at the guard's defaults
+  // because these two are rendered verbatim in the dashboard's toast
+  // (SubscriptionTab passes `error` straight through as the description), so
+  // they are written in Indonesian like the rest of the user-facing copy. The
+  // webhook's errors stay English — nothing but Midtrans ever reads them.
+  const guard = await requireAdmin(req, {
+    unauthorized: "Sesi Anda sudah berakhir. Silakan masuk kembali.",
+    forbidden: "Hanya admin yang bisa memeriksa status pembayaran.",
+  });
+  if (!guard.ok) return guard.response;
+  const dbUser = guard.user;
   const companyId = dbUser.companyId;
 
   const limit = consumeRateLimit(`payment-verify:${dbUser.id}`, VERIFY_LIMIT);

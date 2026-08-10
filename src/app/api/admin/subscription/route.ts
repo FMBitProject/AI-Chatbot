@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, companies, transactions } from "@/lib/db/schema";
+import { companies, transactions } from "@/lib/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
 
@@ -10,20 +10,16 @@ import { resolvePlan } from "@/lib/subscription";
 const RESUMABLE_FOR_HOURS = 24;
 
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   // Admin-only, like every other /api/admin route: the response carries the
   // company's billing history — order ids, amounts, payment dates — which an
   // ordinary employee has no reason to see. RenewalBanner calls this too and
   // simply renders nothing on a non-2xx, so a non-admin loses a banner about a
   // subscription they cannot renew anyway.
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
-  const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const [companyRow] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
   const { subscription, limits } = await resolvePlan(companyRow);
   const rows = await db.select({
     id: transactions.id,
@@ -45,7 +41,7 @@ export async function GET(req: NextRequest) {
     createdAt: transactions.createdAt,
     paidAt: transactions.paidAt,
   }).from(transactions)
-    .where(eq(transactions.companyId, dbUser.companyId))
+    .where(eq(transactions.companyId, companyId))
     .orderBy(desc(transactions.createdAt))
     .limit(10);
 

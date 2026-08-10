@@ -1,37 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, companies } from "@/lib/db/schema";
+import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
 
-// Returns the admin, or the response to send instead. "Not signed in" and
-// "signed in but not an admin" are different answers and every other route under
-// /api/admin already distinguishes them — this one used to fold both into 401,
-// which left a logged-in employee looking like an anonymous visitor. The admin
-// dashboard reads these codes to decide between /login and /chat, so collapsing
-// them sent employees to a login page they were already past.
-type AdminOrResponse =
-  | { admin: typeof users.$inferSelect; response?: never }
-  | { admin?: never; response: NextResponse };
-
-async function getAuthedAdmin(req: NextRequest): Promise<AdminOrResponse> {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return { response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  }
-  return { admin: dbUser };
-}
+// This file used to carry its own getAuthedAdmin() — the only route that had
+// bothered to factor the check out. It is gone in favour of the shared guard,
+// which keeps the distinction it was written for: "not signed in" (401) and
+// "signed in but not an admin" (403) are different answers, and the dashboard
+// reads the difference to choose between /login and /chat.
 
 export async function GET(req: NextRequest) {
-  const { admin: dbUser, response } = await getAuthedAdmin(req);
-  if (response) return response;
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
 
-  const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId!)).limit(1);
+  const [companyRow] = await db.select().from(companies).where(eq(companies.id, guard.user.companyId)).limit(1);
   if (!companyRow) return NextResponse.json(null);
 
   // `plan` is the plan in force right now, so the dashboard gates on exactly
@@ -49,10 +33,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { admin: dbUser, response } = await getAuthedAdmin(req);
-  if (response) return response;
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
 
-  const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId!)).limit(1);
+  const [companyRow] = await db.select().from(companies).where(eq(companies.id, guard.user.companyId)).limit(1);
   if (!companyRow) return NextResponse.json({ error: "Company not found" }, { status: 404 });
 
   const body = await req.json() as { groqApiKey?: string | null; geminiApiKey?: string | null };

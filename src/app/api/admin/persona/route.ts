@@ -1,34 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { requireAdmin, requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, companies } from "@/lib/db/schema";
+import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 
-// Deliberately readable by any member of the company, not just admins — unlike
-// every other GET under /api/admin. The chat UI renders `aiName` and
-// `aiGreeting` to employees, so this is company branding rather than company
-// data, and requiring the admin role would only mean employees see an unnamed
-// assistant. The PATCH below is admin-only, which is where it matters.
+// requireUser, not requireAdmin — deliberately readable by any member of the
+// company, unlike every other GET under /api/admin. The chat UI renders
+// `aiName` and `aiGreeting` to employees, so this is company branding rather
+// than company data, and requiring the admin role would only mean employees see
+// an unnamed assistant. The PATCH below is admin-only, which is where it
+// matters. (The asymmetry used to be visible only by diffing two near-identical
+// blocks of boilerplate; now it is the name of the function being called.)
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireUser(req);
+  if (!guard.ok) return guard.response;
 
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser?.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
+  const [company] = await db.select().from(companies).where(eq(companies.id, guard.user.companyId)).limit(1);
   return NextResponse.json({ aiName: company?.aiName, aiGreeting: company?.aiGreeting, aiPersonality: company?.aiPersonality });
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
   const body = await readJsonObject(req);
   if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
@@ -63,7 +58,7 @@ export async function PATCH(req: NextRequest) {
 
   await db.update(companies)
     .set({ aiName: aiName || "IntelliBase AI", aiGreeting, aiPersonality })
-    .where(eq(companies.id, dbUser.companyId));
+    .where(eq(companies.id, companyId));
 
   return NextResponse.json({ ok: true });
 }

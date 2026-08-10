@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { requireAdmin } from "@/lib/auth-guard";
 import { resolvePlanById } from "@/lib/subscription";
 import { runIndexingPass, requeueDocument } from "@/lib/indexing";
 
@@ -32,17 +29,10 @@ interface Body {
  * one at a time with FOR UPDATE SKIP LOCKED (see @/lib/indexing).
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const companyId = dbUser.companyId;
   // resolvePlanById rather than a plain select: it applies a pending expiry
   // downgrade, and it hands back the row carrying the company's own Gemini and
   // Groq keys, which is what the indexer embeds and summarises with.

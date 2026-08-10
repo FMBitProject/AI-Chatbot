@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+// `auth` is still imported for signUpEmail below — the guard covers the session
+// check only, not the rest of better-auth's API.
 import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
@@ -9,13 +12,9 @@ import { isPasswordValid } from "@/lib/password";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 
 export async function GET(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
   // Named columns rather than select(). The row carries fields the employee list
   // has no use for, and one of them is a credential: `two_factor_secret`. It is
@@ -32,22 +31,18 @@ export async function GET(req: NextRequest) {
     department: users.department,
     twoFactorEnabled: users.twoFactorEnabled,
     createdAt: users.createdAt,
-  }).from(users).where(eq(users.companyId, dbUser.companyId));
+  }).from(users).where(eq(users.companyId, companyId));
   return NextResponse.json(employees);
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
   // Enforce the limits of the plan that is in force right now (see resolvePlan).
-  const { subscription, limits } = await resolvePlanById(dbUser.companyId);
-  const [{ count: empCount }] = await db.select({ count: count() }).from(users).where(eq(users.companyId, dbUser.companyId));
+  const { subscription, limits } = await resolvePlanById(companyId);
+  const [{ count: empCount }] = await db.select({ count: count() }).from(users).where(eq(users.companyId, companyId));
   if (!isUnderLimit(empCount, limits.maxEmployees)) {
     return NextResponse.json({
       error: `Batas karyawan paket ${subscription.plan} sudah tercapai (${limits.maxEmployees} karyawan). Upgrade paket untuk menambah lebih banyak.`,
@@ -112,7 +107,7 @@ export async function POST(req: NextRequest) {
   }
 
   await db.update(users)
-    .set({ companyId: dbUser.companyId, role: "employee", department: department || null, emailVerified: true })
+    .set({ companyId, role: "employee", department: department || null, emailVerified: true })
     .where(eq(users.id, created.id));
 
   const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);

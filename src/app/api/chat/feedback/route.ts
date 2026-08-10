@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { requireUser } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
-import { chatMessages, chatSessions, users } from "@/lib/db/schema";
+import { chatMessages, chatSessions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || !dbUser.companyId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  const companyId = dbUser.companyId;
+  const guard = await requireUser(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
   // `as { feedback: "up" | "down" }` was a claim about the body, not a check on
   // it: the cast is erased at runtime, so any string at all reached the UPDATE
