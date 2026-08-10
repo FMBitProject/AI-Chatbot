@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { users, chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
+import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
 import { eq, count, and, gte, isNull, or, inArray, asc, desc } from "drizzle-orm";
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
@@ -30,15 +30,13 @@ MANDATORY RULES:
 8. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists ALL documents available in this knowledge base. Use it to answer any questions about document count, names, or availability — even if a document's full content is not in the retrieved excerpts below.`;
 
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-  }
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || !dbUser.companyId) {
-    return new Response(JSON.stringify({ error: "User tidak ditemukan." }), { status: 403 });
-  }
+  // requireUser, not requireAdmin: answering questions is what employees are
+  // here for. The 403 keeps its old wording — the chat UI branches on the error
+  // *code* (SEAT_FROZEN) and never on this string, but there is no reason to
+  // change what a client already receives.
+  const guard = await requireUser(req, { forbidden: "User tidak ditemukan." });
+  if (!guard.ok) return guard.response;
+  const dbUser = guard.user;
 
   const body = await readJsonObject(req);
   if (!body) {
@@ -89,7 +87,7 @@ export async function POST(req: NextRequest) {
   const { company, limits } = await resolvePlan(companyRow);
   const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
 
-  const companyId = dbUser.companyId!;
+  const companyId = dbUser.companyId;
 
   // Seats above the effective plan's employee limit are frozen (see isSeatActive).
   if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {

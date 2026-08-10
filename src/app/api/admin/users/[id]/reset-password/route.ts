@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+// `auth` is still imported for auth.$context below — the guard covers the
+// session check only, not the rest of better-auth's API.
 import { auth } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -11,13 +14,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const [admin] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!admin || admin.role !== "admin" || !admin.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const admin = guard.user;
 
   const { id } = await params;
   const body = await req.json().catch(() => null) as { newPassword?: unknown } | null;

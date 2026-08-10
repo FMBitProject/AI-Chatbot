@@ -5,13 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
 // scanned PDF can still take a while to walk on a cold function, and there is
 // nothing to gain from cutting a request short that has a file in hand.
 export const maxDuration = 300;
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
 // Aliased: `companies` is also the name of the plan-limits concept all over this
 // file's neighbours, and an unqualified import here reads like the plan rather
 // than the table it locks.
-import { companies as companiesTable, documents, users } from "@/lib/db/schema";
+import { companies as companiesTable, documents } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
@@ -155,17 +154,9 @@ async function extractText(file: File): Promise<string> {
  * resumes from `documents.raw_text` without the file ever being uploaded again.
  */
 export async function POST(req: NextRequest) {
-  const session = await auth.api.getSession({ headers: req.headers });
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const [dbUser] = await db.select().from(users).where(eq(users.id, session.user.id)).limit(1);
-  if (!dbUser || dbUser.role !== "admin" || !dbUser.companyId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const companyId = dbUser.companyId;
+  const guard = await requireAdmin(req);
+  if (!guard.ok) return guard.response;
+  const { companyId } = guard.user;
 
   // The limits of the plan that is in force right now, not the one the company
   // last bought (see resolvePlan). The BYOK keys on the company row are not
