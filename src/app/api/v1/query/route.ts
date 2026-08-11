@@ -11,6 +11,7 @@ import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
+import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 
 // Only failed key lookups count toward this, so valid integrations are never
 // throttled here (they are governed by the plan quotas below instead).
@@ -78,8 +79,16 @@ export async function POST(req: NextRequest) {
 
   const { text } = await generateText({
     model: groqClient("llama-3.3-70b-versatile"),
-    system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant. Answer ONLY based on the provided document context. ${langRule} If not found, say so clearly.`,
+    // The grounding rule here used to be one sentence: "Answer ONLY based on
+    // the provided document context… If not found, say so clearly." Not wrong,
+    // just not enough — a model obeys it, reports the gap, and keeps writing.
+    // This channel answers machines rather than people, which makes an invented
+    // figure worse, not better: it arrives as JSON in someone else's system with
+    // a `sources` array beside it, and nothing downstream can tell which
+    // sentence came from a document.
+    system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant.\n\n${GROUNDING_RULES}\n\n${langRule}\n\n${GROUNDING_REMINDER}`,
     prompt: `Context:\n${context}\n\nQuestion: ${question}`,
+    temperature: RAG_TEMPERATURE,
   });
 
   return NextResponse.json({

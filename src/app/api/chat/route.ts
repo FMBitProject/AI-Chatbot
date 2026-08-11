@@ -8,6 +8,7 @@ import { eq, count, and, gte, isNull, or, inArray, asc, desc } from "drizzle-orm
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
+import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
@@ -20,14 +21,12 @@ function detectLang(text: string): "id" | "en" {
 const SYSTEM_PROMPT = `You are an internal AI assistant for a company, helping employees find accurate information from official internal documents such as SOPs, HR regulations, and IT guidelines.
 
 MANDATORY RULES:
-1. Answer ONLY based on the document context provided below. Do not add information from outside the context.
-2. If the answer cannot be validated from the provided context, use the exact "not found" message specified in the LANGUAGE RULE below.
-3. Never fabricate, guess, or extrapolate answers beyond what is explicitly stated in the context.
-4. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
-5. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
-6. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
-7. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.
-8. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists ALL documents available in this knowledge base. Use it to answer any questions about document count, names, or availability — even if a document's full content is not in the retrieved excerpts below.`;
+${GROUNDING_RULES}
+5. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
+6. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
+7. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
+8. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.
+9. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.`;
 
 export async function POST(req: NextRequest) {
   // requireUser, not requireAdmin: answering questions is what employees are
@@ -306,7 +305,15 @@ export async function POST(req: NextRequest) {
           return `=== ${docName} ===\n${body}`;
         })
         .join("\n\n")
-    : "(No specific excerpts retrieved — answer from the catalog above if relevant.)";
+    // The old text here read "answer from the catalog above if relevant", which
+    // is an instruction to answer a content question from a list of filenames —
+    // and the only way to do that is to supply the content from memory. It was
+    // the most direct invitation on the page to do the one thing rule 1
+    // forbids, sitting in the section the model reads as its evidence.
+    : "(NO EXCERPTS RETRIEVED. Nothing in this workspace matched the question closely enough to be quoted. "
+      + "You therefore have no evidence for any question about what the documents say: answer with the "
+      + "not-found message from the LANGUAGE RULE and stop. The catalog above lists titles only — it can "
+      + "still answer questions about which documents exist, never about their contents.)";
 
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
@@ -339,7 +346,7 @@ If no relevant information is found:
     ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
     : "Remember: detect the user's question language and respond in that same language.";
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${langReminder}`;
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${langReminder}`;
 
   // Earlier turns are read back from the database, never taken from the request.
   //
@@ -421,6 +428,7 @@ If no relevant information is found:
     model: groqClient("llama-3.3-70b-versatile"),
     system: systemPromptWithContext,
     messages: messagesWithLang,
+    temperature: RAG_TEMPERATURE,
     onFinish: async ({ text }) => {
       // Runs after the stream completes, so it gets its own short tenant-scoped
       // transaction rather than being held open across the LLM response.

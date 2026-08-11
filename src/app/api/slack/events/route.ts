@@ -9,8 +9,19 @@ import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE, type Company } from "@/lib/subscription";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
+import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 
-const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
+// Same prompt as /api/slack/command, and the two are kept identical on purpose:
+// a mention and a slash command are the same question asked two ways, and a
+// person who gets different answers from them has no way to know why. See the
+// note there about brevity not being a reason to loosen grounding.
+const SYSTEM_PROMPT = `You are an internal AI assistant.
+
+${GROUNDING_RULES}
+
+Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.
+
+${GROUNDING_REMINDER}`;
 
 // Takes the whole company row rather than just its id: Slack is a full
 // question-answering channel like the chat UI and the public API, so it has to
@@ -34,6 +45,7 @@ async function runRAG(question: string, companyId: string, maxDocuments: number,
   const { text } = await generateText({
     model: groqClient("llama-3.3-70b-versatile"),
     system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
+    temperature: RAG_TEMPERATURE,
     prompt: question,
   });
 
