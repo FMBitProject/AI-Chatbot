@@ -1,7 +1,6 @@
 "use client";
-import { Suspense, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,22 +19,7 @@ import { SiteFooter } from "@/components/SiteFooter";
 
 type AccountType = "individual" | "company";
 
-/**
- * `useSearchParams` makes the tree below it client-rendered up to the nearest
- * Suspense boundary (Next 16 refuses to prerender past it otherwise), so the
- * page itself is now a boundary around the form rather than the form itself.
- * The fallback is a plain frame: it flashes for one paint on a cold load, and an
- * empty box in the page's own shape reads better than a spinner.
- */
 export default function RegisterPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50" />}>
-      <RegisterForm />
-    </Suspense>
-  );
-}
-
-function RegisterForm() {
   const { lang } = useLang();
   const T = t[lang];
   const [loading, setLoading] = useState(false);
@@ -44,20 +28,33 @@ function RegisterForm() {
   const [agreed, setAgreed] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "" });
 
-  // Someone arriving from the individual side of the pricing page has already
-  // chosen; landing them on the company tab would ask them to choose again, and
-  // the wrong answer is permanent. Two ways to say it, because the two cards
-  // there mean different things: `plan=personal` comes from the paid card,
-  // `type=individual` from the free one, where no plan is being picked at all.
+  const [accountType, setAccountType] = useState<AccountType>("company");
+
+  // Someone arriving from the individual side of the pricing or landing page has
+  // already chosen; opening on the company tab would ask them to choose again,
+  // and the wrong answer here is permanent. Two ways to say it, because the
+  // cards they came from mean different things: `plan=personal` from a paid
+  // card, `type=individual` where no plan is being picked at all.
   //
-  // Only a hint, not a decision — the tabs are still there and the account type
+  // Read from `window.location` in an effect rather than with useSearchParams,
+  // which would make this page client-rendered up to a Suspense boundary. The
+  // boundary version shipped briefly and prerendered nothing but a frame — the
+  // whole form, benefits panel and copy were missing from register.html. Nobody
+  // needs that page indexed, but an empty document is also what a visitor on a
+  // slow connection sees first, and the hint is not worth it.
+  //
+  // Only a hint either way: the tabs are still there and the account type
   // travels in the request body, not in the URL.
-  const params = useSearchParams();
-  const [accountType, setAccountType] = useState<AccountType>(
-    params.get("plan") === "personal" || params.get("type") === "individual"
-      ? "individual"
-      : "company",
-  );
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("plan") === "personal" || params.get("type") === "individual") {
+      // Deliberate, same reason as /pricing: the query string is browser-only,
+      // so seeding the initial state from it would hydrate "individual" over the
+      // "company" the server prerendered.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAccountType("individual");
+    }
+  }, []);
   const isIndividual = accountType === "individual";
 
   async function handleSubmit(e: React.FormEvent) {

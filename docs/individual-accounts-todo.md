@@ -67,6 +67,40 @@ alih-alih diabaikan, rate limit proxy untuk endpoint baru). Yang tersisa:
   workspace tidak pernah ditampilkan ke tenant lain — tinjau ulang kalau nanti
   ada fitur yang menampilkan atau mencocokkan nama itu.
 
+## Dari review tab Individu/Perusahaan di landing page (11 Agustus 2026)
+
+Satu temuan MEDIUM sudah diperbaiki: navbar dan footer tadinya tidak membawa
+pilihan tab ke `/register`, padahal jenis akun permanen. Dua MINOR ikut
+diperbaiki (identitas panel FAQ kini per-audiens; link Kalkulator ROI
+disembunyikan di tab individu). Yang tersisa:
+
+- **`src/components/LandingContent.tsx`** — kartu Personal di teaser harga
+  menyimpan `price: ""` karena harganya diambil dari `getPlanPrice("personal")`
+  lewat pencocokan nama kartu. Kartu perusahaan menyimpan literal
+  (`"Rp 200rb/bln"`) sebagai cadangan; punya individu kosong. Nama kartu yang
+  diubah atau diterjemahkan menghasilkan kartu tanpa harga, bukan harga basi.
+- **`src/components/LandingContent.tsx`** — angka dari `PLAN_LIMITS` disisipkan
+  mentah ke copy individu (`${PLAN_LIMITS.personal.maxDocuments} dokumen`).
+  `src/lib/i18n.ts` punya helper `idLimit`/`enLimit` justru supaya `-1` tidak
+  pernah tercetak sebagai angka, tapi helper itu module-private. Hari ini aman —
+  satu-satunya nilai `-1` (kuota bulanan Personal) ditulis sebagai kata — tapi
+  batas yang diubah ke `-1` nanti akan berbunyi "-1 dokumen".
+- **`src/app/pricing/page.tsx`** — pengguna perusahaan yang sudah login dan
+  membuka `?type=individual` melihat kartu individu sekejap sebelum efek session
+  menimpanya ke perusahaan. Akhirnya benar; jendelanya satu round-trip setelah
+  hidrasi.
+- **`src/components/LandingContent.tsx`** — `calculateRoi` tetap dihitung setiap
+  render walau section ROI disembunyikan untuk individu. Aritmetika murni, biaya
+  sepele, tapi kerja mati.
+- **`src/app/page.tsx`** — judul dan deskripsi halaman tetap versi perusahaan
+  untuk pengunjung individu. Ini **disengaja**: metadata dirender di server dan
+  tabnya state klien, jadi HTML yang diindeks harus tetap yang sudah dikenal
+  Google. Konsekuensinya tab browser pengunjung individu berbunyi salah.
+- **`src/components/LandingContent.tsx`** — berpindah tab tidak mengatur ulang
+  posisi scroll. Dari tab perusahaan dua section hilang, jadi viewport bisa
+  mendarat di konten yang tidak berhubungan. Tab-nya sendiri ada di puncak
+  halaman, jadi kebanyakan orang berpindah saat masih di atas.
+
 ## Sudah rusak sebelum fitur ini (bukan regresi)
 
 - **`src/components/admin/OnboardingBanner.tsx`** — tombol langkah pertama

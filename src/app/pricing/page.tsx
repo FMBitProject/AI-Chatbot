@@ -29,6 +29,34 @@ export default function PricingPage() {
   // them side by side asks every visitor to work out which half is about them.
   const [audience, setAudience] = useState<Audience>("company");
 
+  // The landing page carries its own tab here as `?type=individual`, so a
+  // visitor who read the individual pitch does not arrive at three team tiers
+  // and have to find the switch again.
+  //
+  // Read from `window.location` in an effect rather than with useSearchParams,
+  // and that is not a stylistic preference. useSearchParams makes the tree up to
+  // the nearest Suspense boundary client-rendered; wrapping the page in one — the
+  // fix Next's own docs point to — left this route prerendering an empty shell.
+  // Measured, not assumed: pricing.html went from a full page to 18 KB of
+  // chrome, with no hero, no plan cards and no FAQ for a crawler to read. That
+  // is a poor trade for a hint, on the page most likely to be found from search.
+  // Applied after hydration instead, which costs one frame on the default tab.
+  //
+  // It is only a starting point either way: the tabs still work, and for a
+  // signed-in visitor the account type below overrules it — the URL is a hint
+  // from a marketing page, the account is the fact, and the checkout enforces
+  // the account.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("type") === "individual") {
+      // Deliberate: the query string is a browser-only value, so the first
+      // render cannot know it. Reading it into the initial state instead would
+      // render "individual" on the client against the "company" the server
+      // prerendered, which is a hydration mismatch rather than a fix.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAudience("individual");
+    }
+  }, []);
+
   // The cards used to be addressed by position (`idx === 1 ? professional :
   // enterprise`), which silently mapped every card that was not Professional
   // onto Enterprise — so adding a fourth card sent its buyers to the wrong
