@@ -31,6 +31,16 @@ export default function ChatPage() {
   const [responseLang, setResponseLang] = useState<ResponseLang>(getStoredResponseLang);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Folders exist on individual accounts only, and the empty list is what hides
+  // the control: an individual who has not filed anything sees no picker, which
+  // is the same as having nothing to narrow. See /api/folders — it returns an
+  // empty list for company accounts on purpose.
+  const [folders, setFolders] = useState<string[]>([]);
+  // "" is every folder. Held in a ref as well because handleSubmit reads it
+  // inside an async flow, exactly like responseLang: the state is for rendering,
+  // the ref is what the request is built from.
+  const [activeFolder, setActiveFolder] = useState("");
+  const activeFolderRef = useRef("");
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -38,6 +48,17 @@ export default function ChatPage() {
 
   useEffect(() => {
     loadSessions();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/folders")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { folders?: string[] } | null) => {
+        if (!cancelled && Array.isArray(data?.folders)) setFolders(data.folders);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -104,7 +125,16 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: apiMessages, sessionId: activeSessionId, responseLang: responseLangRef.current }),
+        body: JSON.stringify({
+          messages: apiMessages,
+          sessionId: activeSessionId,
+          responseLang: responseLangRef.current,
+          // Omitted rather than sent empty when no folder is chosen: the server
+          // treats a blank string as no filter anyway, and leaving the key out
+          // keeps "search everything" the absence of a restriction instead of a
+          // value that has to be interpreted as one.
+          ...(activeFolderRef.current ? { folder: activeFolderRef.current } : {}),
+        }),
         signal: controller.signal,
       });
 
@@ -273,6 +303,23 @@ export default function ChatPage() {
           </div>
 
           <div className="flex items-center gap-3">
+          {/* Folder scope. Only rendered once there is a folder to scope to, so
+              a company account and an individual who files nothing both see the
+              header exactly as it was. */}
+          {folders.length > 0 && (
+            <select
+              value={activeFolder}
+              onChange={(e) => {
+                setActiveFolder(e.target.value);
+                activeFolderRef.current = e.target.value;
+              }}
+              className="max-w-[9rem] truncate rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+              title={responseLang === "en" ? "Search only this folder" : "Cari hanya di folder ini"}
+            >
+              <option value="">{responseLang === "en" ? "All folders" : "Semua folder"}</option>
+              {folders.map((f) => <option key={f} value={f}>{f}</option>)}
+            </select>
+          )}
           {/* Export PDF */}
           {messages.length > 0 && !isLoading && (
             <Button

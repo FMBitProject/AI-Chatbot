@@ -7,11 +7,13 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check, User, Building2 } from "lucide-react";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -181,6 +183,12 @@ const CONTENT = {
       cta: "Hitung Penghematan Lengkap",
       ctaNote: "Gratis · Tidak perlu daftar · Lengkap dengan asumsi perhitungannya",
     },
+    // Labels for the audience switch. They live in the shared copy because the
+    // control itself is shared — it has to be on screen in both modes for the
+    // visitor to get back. Only the hint underneath changes.
+    audienceIndividual: "Individu",
+    audienceCompany: "Perusahaan",
+    audienceHint: "Untuk tim: kelola karyawan, akses dokumen per departemen, dan analitik tim.",
     nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI", blog: "Blog" },
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak", blog: "Blog" },
   },
@@ -274,8 +282,164 @@ const CONTENT = {
       cta: "Calculate Full Savings",
       ctaNote: "Free · No sign-up required · Assumptions shown in full",
     },
+    audienceIndividual: "Individual",
+    audienceCompany: "Company",
+    audienceHint: "For a team: manage employees, department-level document access, and team analytics.",
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator", blog: "Blog" },
     footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact", blog: "Blog" },
+  },
+};
+
+// What the page says when the visitor is one person rather than a company.
+//
+// Overrides, not a second page. Only the keys that would otherwise be wrong are
+// here, and the renderer spreads them over CONTENT — so the company page keeps
+// rendering byte-for-byte what it rendered before, and anything shared (the
+// navbar, the demo, the founder block, the footer) has exactly one copy.
+//
+// Two sections are dropped rather than rewritten, in the renderer below: the
+// industries band, whose whole premise is an organisation's document set, and
+// the ROI teaser, which prices a month of one company's wasted search time
+// against its headcount. A slider reading "1 orang" is not a smaller version of
+// that argument, it is a different argument we have not made.
+//
+// Quota figures come from PLAN_LIMITS for the reason every other number in the
+// copy does: a limit changed in one file must not leave a promise standing in
+// another.
+const INDIVIDUAL_CONTENT = {
+  id: {
+    badge: "🚀 Knowledge Base AI untuk Pemakaian Pribadi",
+    hero1: "Semua Dokumen Anda,",
+    hero2: "Bisa Ditanya",
+    hero3: "Kapan Saja",
+    heroDesc: "Catatan kuliah, jurnal, panduan kerja, kontrak, materi pelatihan, manual alat — kumpulkan di satu tempat, lalu tanyakan isinya seperti mengobrol. Setiap jawaban menyebut dokumen sumbernya, jadi selalu bisa dicek.",
+    ctaNote: "Gratis selamanya · Tanpa kartu kredit · Tanpa kelola karyawan",
+    videoTitle: "Lihat IntelliBase AI Bekerja",
+    videoDesc: "Demo singkat: dari upload dokumen sampai jawaban muncul lengkap dengan sumbernya.",
+    // Nothing here is a claim we cannot back. The three hard numbers are plan
+    // limits and file formats — facts about the product, not results attributed
+    // to it — and the only estimate carries the marker that footnotes it.
+    stats: [
+      { v: "4 format", l: "PDF, DOCX, Excel, PowerPoint" },
+      { v: `${PLAN_LIMITS.personal.maxDocuments} dokumen`, l: "Kapasitas paket Personal" },
+      { v: "Hanya Anda", l: "Yang bisa membuka dokumen Anda" },
+      { v: "10 menit", l: "Waktu setup hingga siap pakai", estimate: true },
+    ] satisfies Stat[],
+    howTitle: "Cara Kerjanya",
+    howDesc: "Dua langkah. Tidak ada yang perlu disiapkan untuk orang lain.",
+    // Two steps, not three. The company flow's middle step is inviting
+    // employees, and there is no one-person version of it — padding the list
+    // back to three would mean inventing a step or reusing the screenshot of a
+    // dialog this account never opens.
+    steps: [
+      { n: "1", shot: "upload", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan — misalnya Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
+      { n: "2", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya — dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
+    ] satisfies Step[],
+    priceTitle: "Harga untuk Pemakaian Pribadi",
+    priceDesc: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
+    pricePlans: [
+      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen · ${PLAN_LIMITS.starter.maxQuestionsPerMonth} pertanyaan/bulan` },
+      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} dokumen · pertanyaan bulanan tanpa batas` },
+    ],
+    faqDesc: "Sebelum mengunggah dokumen pribadi, ini biasanya yang ingin dipastikan lebih dulu.",
+    faq: [
+      {
+        q: "Dokumen saya disimpan di mana, dan siapa yang bisa membukanya?",
+        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap akun punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi. Di akun individu tidak ada admin lain dan tidak ada rekan tim — hanya akun Anda sendiri yang bisa membuka dokumen Anda.",
+      },
+      {
+        // Same disclosure as the company page, and it stays in full. The
+        // free-tier caveat is the one thing a person uploading their own
+        // documents has the most right to know before they do it.
+        q: "Apakah dokumen saya dipakai untuk melatih AI?",
+        a: "IntelliBase tidak melatih model AI apa pun dengan dokumen Anda, dan tidak menjual atau membagikannya. Yang perlu Anda tahu apa adanya: saat dokumen diunggah, isinya dikirim ke Google (Gemini API) untuk diubah menjadi indeks pencarian, dan saat pertanyaan dijawab, potongan teks yang relevan dikirim ke Groq. Groq menyatakan tidak memakai data API pelanggan untuk melatih modelnya. Akun Gemini kami saat ini masih di tier gratis, dan ketentuan Google untuk tier itu mengizinkan mereka memakai konten untuk meningkatkan layanannya. Kalau dokumen Anda bersifat rahasia atau terikat kewajiban kerahasiaan, hubungi kami sebelum mengunggah. Rincian lengkapnya ada di Kebijakan Privasi.",
+      },
+      {
+        q: "Bagaimana kalau AI-nya mengarang jawaban?",
+        a: "Setiap jawaban datang dengan daftar dokumen sumbernya — nama dokumen beserta potongan teks yang dipakai — sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen Anda yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
+      },
+      {
+        q: "Apa bedanya akun Individu dan akun Perusahaan?",
+        a: "Akun individu untuk satu orang: dokumen pribadi, folder yang Anda atur sendiri, tanpa manajemen karyawan sama sekali. Akun perusahaan punya admin dan karyawan, akses dokumen per departemen, serta analitik tim. Jenis akun dipilih sekali saat mendaftar dan tidak bisa diubah setelahnya — kalau nanti Anda butuh mengajak tim, daftarkan akun perusahaan baru.",
+      },
+      {
+        q: "Kalau saya berhenti berlangganan, dokumen saya hilang?",
+        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan — tersimpan tetapi tidak ikut dicari — sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
+      },
+      {
+        q: "Format dokumen apa saja yang didukung, dan berapa lama setupnya?",
+        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah — tidak ada tagging manual — dan sebagian besar orang sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
+      },
+      {
+        q: "Bisa dicoba dulu tanpa bayar?",
+        a: `Bisa. Paket Starter gratis selamanya untuk ${PLAN_LIMITS.starter.maxDocuments} dokumen dan ${PLAN_LIMITS.starter.maxQuestionsPerMonth} pertanyaan per bulan, tanpa kartu kredit.`,
+      },
+    ],
+    ctaTitle: "Mulai Bangun Knowledge Base Pribadi Anda",
+    ctaDesc: "Gratis untuk mulai. Setup 10 menit. Tanpa kartu kredit.",
+    audienceHint: "Untuk satu orang: dokumen pribadi dan folder sendiri, tanpa kelola karyawan.",
+  },
+  en: {
+    badge: "🚀 An AI Knowledge Base for Personal Use",
+    hero1: "Every Document You Own,",
+    hero2: "Ready to Answer",
+    hero3: "Any Time",
+    heroDesc: "Lecture notes, papers, work guides, contracts, training material, equipment manuals — keep them in one place, then ask what is in them as if you were chatting. Every answer names the document it came from, so you can always check it.",
+    ctaNote: "Free forever · No credit card · No employees to manage",
+    videoTitle: "See IntelliBase AI in Action",
+    videoDesc: "A short demo: from uploading a document to an answer that cites its source.",
+    stats: [
+      { v: "4 formats", l: "PDF, DOCX, Excel, PowerPoint" },
+      { v: `${PLAN_LIMITS.personal.maxDocuments} documents`, l: "Personal plan capacity" },
+      { v: "Only you", l: "Can open your documents" },
+      { v: "10 min", l: "Setup time until ready", estimate: true },
+    ] satisfies Stat[],
+    howTitle: "How It Works",
+    howDesc: "Two steps. Nothing to set up on anyone else's behalf.",
+    steps: [
+      { n: "1", shot: "upload", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy — Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
+      { n: "2", shot: "ask", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used — and you can narrow a specific question to a single folder.", icon: MessageSquare },
+    ] satisfies Step[],
+    priceTitle: "Pricing for Personal Use",
+    priceDesc: "Start free. Move to Personal when your documents and questions outgrow it.",
+    pricePlans: [
+      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents · ${PLAN_LIMITS.starter.maxQuestionsPerMonth} questions/month` },
+      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} documents · unlimited questions per month` },
+    ],
+    faqDesc: "Before uploading personal documents, this is usually what people want settled first.",
+    faq: [
+      {
+        q: "Where are my documents stored, and who can open them?",
+        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each account gets its own data space, separated at the database level rather than merely filtered in the application. An individual account has no other admin and no colleagues — only your own account can open your documents.",
+      },
+      {
+        q: "Are my documents used to train AI?",
+        a: "IntelliBase does not train any AI model on your documents, and does not sell or share them. What you should know plainly: when a document is uploaded its contents go to Google (Gemini API) to be turned into a search index, and when a question is answered the relevant excerpts go to Groq. Groq states that it does not use customer API data to train its models. Our Gemini account is currently on the free tier, and Google's terms for that tier allow them to use content to improve their services. If your documents are confidential or under a duty of confidence, contact us before uploading. The full detail is in the Privacy Policy.",
+      },
+      {
+        q: "What if the AI makes an answer up?",
+        a: "Every answer comes with the documents it drew on — the document name and the excerpt used — so any answer can be checked against the original. If none of your documents is relevant to the question, the AI says it could not find an answer rather than guessing from general internet knowledge.",
+      },
+      {
+        q: "What is the difference between an Individual and a Company account?",
+        a: "An individual account is for one person: personal documents, folders you arrange yourself, and no employee management at all. A company account has an admin and employees, department-level document access, and team analytics. The account type is chosen once at sign-up and cannot be changed afterwards — if you later need to bring in a team, register a new company account.",
+      },
+      {
+        q: "If I stop subscribing, do I lose my documents?",
+        a: "Nothing is deleted. There is a 7-day grace period after your plan ends, during which your old plan's limits still apply in full. After that the Starter limits apply and documents above that limit are frozen — kept, but left out of search — until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
+      },
+      {
+        q: "Which document formats are supported, and how long is setup?",
+        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload — no manual tagging — and most people are asking questions within about 10 minutes of creating an account.",
+      },
+      {
+        q: "Can I try it without paying?",
+        a: `Yes. The Starter plan is free forever for ${PLAN_LIMITS.starter.maxDocuments} documents and ${PLAN_LIMITS.starter.maxQuestionsPerMonth} questions a month, with no credit card.`,
+      },
+    ],
+    ctaTitle: "Start Building Your Personal Knowledge Base",
+    ctaDesc: "Free to start. 10-minute setup. No credit card.",
+    audienceHint: "For one person: personal documents and your own folders, no employees to manage.",
   },
 };
 
@@ -339,9 +503,40 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
   );
 }
 
+type Audience = "individual" | "company";
+
 export function LandingContent() {
   const { lang } = useLang();
-  const T = CONTENT[lang];
+
+  // Company is the default, and that is a decision about what gets indexed as
+  // much as about who we sell to. This component is prerendered, so the HTML a
+  // crawler receives is whatever the initial state renders — including the FAQ
+  // structured data below. Defaulting to company keeps the page Google already
+  // knows exactly as it was, and makes the individual copy something a visitor
+  // opts into rather than something that quietly replaces it.
+  const [audience, setAudience] = useState<Audience>("company");
+  const isIndividual = audience === "individual";
+
+  // Spread rather than a second copy object, so every `T.x` below keeps working
+  // and the company path renders precisely what it rendered before — the
+  // individual set only defines the keys that would otherwise be wrong for one
+  // person. A key added to CONTENT and forgotten here falls back to the company
+  // wording, which is the safe direction to fail: shared copy stays shared.
+  const T = isIndividual ? { ...CONTENT[lang], ...INDIVIDUAL_CONTENT[lang] } : CONTENT[lang];
+
+  // Appended to *every* link out of this page that leads to /register or
+  // /pricing, so the tab the visitor chose survives the navigation. Both routes
+  // read `type` and treat anything else as a company.
+  //
+  // Every one, not most: the first version carried it on the hero button, the
+  // pricing button and the closing CTA, and left the navbar and footer plain.
+  // The navbar's is the teal button that follows the reader down the page —
+  // easily the likeliest of the five to be clicked — and it would have dropped
+  // the choice silently, landing someone who had just read the individual pitch
+  // on a form defaulted to Perusahaan. That is not a tab to get wrong: the
+  // account type is fixed at signup and there is no way to change it after.
+  const audienceQuery = isIndividual ? "?type=individual" : "";
+
   const [teaserEmployees, setTeaserEmployees] = useState(ROI_DEFAULTS.employees);
   // Same arithmetic and same assumptions as /roi, with headcount as the only
   // input the visitor moves — so the teaser and the calculator it links to
@@ -362,13 +557,44 @@ export function LandingContent() {
                 is what makes the rest of the site reachable from an article,
                 and the article reachable from the rest of the site. */}
             <Link href="/blog" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.blog}</Link>
-            <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.roi}</Link>
-            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.price}</Link>
+            {/* Dropped on the individual tab for the same reason the ROI teaser
+                is: the calculator models a month of a company's wasted search
+                time against its headcount. Hiding the section further down
+                while leaving a link to the identical argument up here would
+                only mean the visitor meets it somewhere less expected. */}
+            {!isIndividual && (
+              <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.roi}</Link>
+            )}
+            <Link href={`/pricing${audienceQuery}`} className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.price}</Link>
             <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.nav.login}</Button></Link>
-            <Link href="/register"><Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
+            <Link href={`/register${audienceQuery}`}><Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
           </div>
         </div>
       </nav>
+
+      {/* Audience switch.
+          Above the hero, because it changes the hero — a control that reorders
+          the page has to be visible before the page makes its first claim, not
+          discovered halfway down after the visitor has already decided the
+          product is not for them. Same two tabs as /pricing, in the same order,
+          so the two pages agree about which side the visitor is on. */}
+      <div className="px-6 pt-7">
+        <div className="max-w-6xl mx-auto flex flex-col items-center gap-2">
+          <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)}>
+            <TabsList>
+              <TabsTrigger value="individual" className="gap-1.5 px-4">
+                <User className="h-4 w-4" />
+                {T.audienceIndividual}
+              </TabsTrigger>
+              <TabsTrigger value="company" className="gap-1.5 px-4">
+                <Building2 className="h-4 w-4" />
+                {T.audienceCompany}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <p className="text-xs text-gray-400 text-center max-w-md">{T.audienceHint}</p>
+        </div>
+      </div>
 
       {/* Hero
           Two columns instead of a centred column, and this is the change that
@@ -395,7 +621,7 @@ export function LandingContent() {
             </h1>
             <p className="text-base md:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">{T.heroDesc}</p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Link href="/register">
+              <Link href={`/register${audienceQuery}`}>
                 <Button size="lg" className="bg-teal-700 hover:bg-teal-800 gap-2 h-12 px-7">{T.cta1} <ArrowRight className="h-4 w-4" /></Button>
               </Link>
               {/* A quiet second path, deliberately not a button: the button above
@@ -438,6 +664,14 @@ export function LandingContent() {
           industry-neutral on purpose — the product genuinely fits any document
           set, and a hospital-only hero would turn away the other four before
           they ever reach this band. */}
+      {/* Dropped entirely for an individual, not rewritten. Every card in this
+          band names an organisation's document set — clinical pathways, HR
+          regulations, branch manuals — and the featured card leads to a page
+          written for a hospital's quality team. There is an interesting version
+          of this for individuals (doctors, students, consultants) but it is a
+          different band with different copy, and inventing it here would put
+          professions on the page we have no basis for naming yet. */}
+      {!isIndividual && (
       <section className="pb-10 px-6">
         <div className="max-w-6xl mx-auto">
           {/* Rendered from the registry rather than hardcoded, so the day another
@@ -516,6 +750,7 @@ export function LandingContent() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Demo video */}
       <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
@@ -600,6 +835,13 @@ export function LandingContent() {
           screen of scrolling out from between the demo and the price. */}
 
       {/* ROI Teaser */}
+      {/* Hidden for an individual, and this one is about honesty rather than
+          relevance. The calculator prices a month of a company's wasted search
+          time against its headcount; dragging the slider to 1 does not produce
+          a smaller version of that argument, it produces a number we have never
+          modelled and would not stand behind. The claim is not "worth less for
+          one person" — it is a claim we have not made. */}
+      {!isIndividual && (
       <section className="py-14 px-6 bg-gray-900">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-7">
@@ -644,18 +886,23 @@ export function LandingContent() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Pricing teaser */}
       <section className="py-14 px-6">
         <div className="max-w-5xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.priceTitle}</h2>
           <p className="text-gray-500 mb-8">{T.priceDesc}</p>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {/* Two cards for an individual, four for a company. Left at four
+              columns the two would stretch to a quarter of the row each and sit
+              in a line of empty space; the narrower grid keeps them the size of
+              cards rather than of gaps. */}
+          <div className={`grid gap-4 mb-8 ${isIndividual ? "sm:grid-cols-2 max-w-xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
             {T.pricePlans.map((p) => {
-              // Only the two self-serve tiers take their price from the pricing
+              // Only the self-serve tiers take their price from the pricing
               // module; Starter is free and Custom has no list price at all, so
               // both keep the literal string from the copy above.
-              const planKey = p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
+              const planKey = p.name === "Personal" ? "personal" : p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
               const promo = planKey ? isPromoActive() : false;
               const priceText = planKey
                 ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
@@ -670,7 +917,7 @@ export function LandingContent() {
               );
             })}
           </div>
-          <Link href="/pricing"><Button variant="outline" className="gap-2">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button></Link>
+          <Link href={`/pricing${audienceQuery}`}><Button variant="outline" className="gap-2">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button></Link>
         </div>
       </section>
 
@@ -714,7 +961,13 @@ export function LandingContent() {
               // static and never reordered at runtime, and an index cannot
               // collide or drift between the two translations the way a
               // hand-written id in both arrays would.
-              <AccordionItem key={i} value={`faq-${i}`} className="last:border-b-0">
+              //
+              // The audience is part of that identity because the two FAQs are
+              // different lists that happen to be the same length. Radix keeps
+              // its open item in uncontrolled state and this accordion never
+              // unmounts, so a plain index left "faq-5" open across a tab switch
+              // — the panel stayed down, now showing a question nobody clicked.
+              <AccordionItem key={`${audience}-${i}`} value={`faq-${audience}-${i}`} className="last:border-b-0">
                 <AccordionTrigger className="text-left text-base font-semibold text-gray-900 hover:no-underline py-5">
                   {f.q}
                 </AccordionTrigger>
@@ -769,7 +1022,7 @@ export function LandingContent() {
         <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/register"><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
+          <Link href={`/register${audienceQuery}`}><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
           {/* Was a second "view pricing" button, sitting one section below the
               pricing teaser and a scroll below the pricing link in the nav. The
               page's last word is better spent on the visitor who has read
@@ -821,10 +1074,10 @@ export function LandingContent() {
                 SiteFooter reached every marketing page except the one that
                 matters most. See the note above <footer>. */}
             <Link href="/blog" className="hover:text-gray-600">{T.footer.blog}</Link>
-            <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>
-            <Link href="/pricing" className="hover:text-gray-600">{T.footer.price}</Link>
+            {!isIndividual && <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>}
+            <Link href={`/pricing${audienceQuery}`} className="hover:text-gray-600">{T.footer.price}</Link>
             <Link href="/login" className="hover:text-gray-600">{T.footer.login}</Link>
-            <Link href="/register" className="hover:text-gray-600">{T.footer.register}</Link>
+            <Link href={`/register${audienceQuery}`} className="hover:text-gray-600">{T.footer.register}</Link>
             <Link href="/terms" className="hover:text-gray-600">{T.footer.terms}</Link>
             <Link href="/privacy" className="hover:text-gray-600">{T.footer.privacy}</Link>
           </div>

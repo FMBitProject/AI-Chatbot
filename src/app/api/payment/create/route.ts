@@ -12,7 +12,7 @@ import {
 } from "@/lib/midtrans";
 import { settlePaidOrder } from "@/lib/payment";
 import { alertOps } from "@/lib/alerts";
-import { getPlanPrice, PLAN_NAMES, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
+import { getPlanPrice, PLAN_NAMES, isPlanAllowedFor, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
 
@@ -77,6 +77,27 @@ export async function POST(req: NextRequest) {
   // here would mean charging an unlimited plan whatever the request asked for.
   if (!isPurchasablePlan(plan)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+  }
+
+  // The plan has to fit the kind of account buying it, and this is the only
+  // place that can say so. The pricing page shows one audience's cards at a
+  // time, but the tab it shows is a client-side choice and the plan travels in
+  // the request body — so "an individual bought Enterprise" is one edited fetch
+  // away, and it would be honoured: the checkout would charge Rp 500rb–799rb for
+  // 199 employee seats in a workspace that cannot create a second user, and the
+  // limits it grants (2000 questions/day) are ones we priced for an
+  // organisation. The mirror case is worse for us: a company on Personal would
+  // hold a 1-seat price with all of its existing employees still in place.
+  if (!isPlanAllowedFor(plan, dbUser.accountType)) {
+    return NextResponse.json(
+      {
+        error: "plan_not_available",
+        message: dbUser.accountType === "individual"
+          ? "Paket ini khusus untuk akun perusahaan. Akun individu berlangganan paket Personal."
+          : "Paket Personal khusus untuk akun individu. Akun perusahaan memilih Professional atau Enterprise.",
+      },
+      { status: 403 },
+    );
   }
 
   const [company] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);

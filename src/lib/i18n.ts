@@ -13,6 +13,7 @@ export type Lang = "id" | "en";
 // with this comment sitting here telling the next person it could not happen.
 // Every quota printed anywhere below now reads from PLAN_LIMITS.
 const sta = PLAN_LIMITS.starter;
+const per = PLAN_LIMITS.personal;
 const pro = PLAN_LIMITS.professional;
 const ent = PLAN_LIMITS.enterprise;
 // Annotated `number`, not left to inference. PLAN_LIMITS is `as const`, so
@@ -27,6 +28,8 @@ const proDaily: number = pro.maxQuestionsPerDay;
 const proPerUser: number = pro.maxQuestionsPerDayPerUser;
 const staDaily: number = sta.maxQuestionsPerDay;
 const staMonthly: number = sta.maxQuestionsPerMonth;
+const perDaily: number = per.maxQuestionsPerDay;
+const perMonthly: number = per.maxQuestionsPerMonth;
 // -1 is how PLAN_LIMITS spells "unlimited", and it reaches these strings
 // unchanged: set a limit back to -1 and the pricing table would advertise
 // "-1 karyawan".
@@ -74,27 +77,49 @@ const enEntQuota =
         entPerUser === -1 ? "" : ` (at most ${enNum(entPerUser)} per employee)`
       }.`;
 
+// Personal's allowance, which reads differently depending on whether there is a
+// monthly cap at all — today there is not, and a plan bounded only by the day
+// should say so rather than print "-1 pertanyaan/bulan". Declared here, below
+// idNum/enNum, because these are plain module-level consts evaluated in order:
+// referencing a helper above its own definition is a ReferenceError at import,
+// not a lint warning.
+const idPersonalQuota = perMonthly === -1
+  ? `Pertanyaan bulanan tanpa batas · ${idNum(perDaily)}/hari`
+  : `${idNum(perMonthly)} pertanyaan/bulan · ${idNum(perDaily)}/hari`;
+const enPersonalQuota = perMonthly === -1
+  ? `Unlimited questions per month · ${enNum(perDaily)}/day`
+  : `${enNum(perMonthly)} questions/month · ${enNum(perDaily)}/day`;
+
 export const t = {
   id: {
     welcome: "Selamat datang kembali",
-    subtitle: "Masuk ke akun perusahaan Anda",
+    // Netral, bukan bercabang. Halaman ini tidak perlu tahu jenis akun —
+    // kredensialnya yang menentukan, dan servernya yang sudah tahu. Yang salah
+    // dulu adalah kalimatnya: seorang individu disambut "akun perusahaan Anda"
+    // di layar pertama setelah dia sengaja memilih mendaftar sebagai individu.
+    subtitle: "Masuk ke akun Anda",
     email: "Email",
-    emailPlaceholder: "nama@perusahaan.com",
+    emailPlaceholder: "nama@email.com",
     password: "Kata Sandi",
     passwordPlaceholder: "Masukkan kata sandi",
     forgotPassword: "Lupa kata sandi?",
     login: "Masuk",
     noAccount: "Belum punya akun?",
-    register: "Daftar Perusahaan",
+    // Dua jalan, karena di sinilah percabangannya benar-benar ada: yang satu
+    // membawa `?type=individual`, yang satu tidak. Satu link "Daftar
+    // Perusahaan" diam-diam memilihkan jenis akun yang tidak bisa diubah lagi
+    // untuk orang yang datang ke sini karena salah klik.
+    registerIndividual: "Daftar Individu",
+    registerCompany: "Daftar Perusahaan",
     viewPricing: "Lihat paket harga →",
-    hero1: "Knowledge Base Cerdas\nuntuk Tim Internal Anda",
-    heroDesc: "Akses SOP, regulasi, dan panduan perusahaan secara instan dengan kekuatan AI — tanpa perlu membuka dokumen satu per satu.",
+    hero1: "Knowledge Base Cerdas\nuntuk Dokumen Anda",
+    heroDesc: "Akses SOP, panduan, catatan, dan dokumen penting Anda secara instan lewat AI — tanpa perlu membuka filenya satu per satu.",
     f1Title: "Knowledge Base Terpusat",
-    f1Desc: "Semua SOP dan regulasi dalam satu platform",
+    f1Desc: "Semua dokumen penting dalam satu tempat",
     f2Title: "Jawaban Instan",
     f2Desc: "AI menjawab dalam hitungan detik berdasarkan dokumen resmi",
     f3Title: "Aman & Terisolasi",
-    f3Desc: "Data tiap perusahaan terisolasi penuh, tidak bocor",
+    f3Desc: "Data tiap akun terisolasi penuh, tidak bocor",
     loginFailed: "Login Gagal",
     error: "Terjadi kesalahan. Silakan coba lagi.",
     // register
@@ -124,27 +149,45 @@ export const t = {
     checkEmail: "Cek Email Anda",
     checkEmailDesc: "Kami telah mengirim link verifikasi ke",
     checkEmailNote: "Klik link di email tersebut untuk mengaktifkan akun Anda. Cek folder Spam jika tidak muncul.",
+    // Individual accounts. The choice is made once, at signup, and cannot be
+    // changed afterwards — so the copy has to be clear about what each one is
+    // before the person picks, not after.
+    accountIndividual: "Individu",
+    accountCompany: "Perusahaan",
+    accountIndividualHint: "Untuk diri sendiri — dokumen pribadi, folder sendiri, tanpa kelola karyawan.",
+    accountCompanyHint: "Untuk tim — kelola karyawan, akses per departemen, dan analitik tim.",
+    accountPermanentNote: "Jenis akun tidak bisa diubah setelah mendaftar.",
+    registerTitleIndividual: "Daftar Akun Individu",
+    registerSubtitleIndividual: "Buat knowledge base pribadi Anda sendiri",
+    fullNameIndividual: "Nama Lengkap",
+    heroRegisterIndividual: "Knowledge base pribadi,\nsiap dalam 5 menit",
+    heroRegisterIndividualDesc: "Kumpulkan catatan, panduan, dan dokumen Anda dalam satu tempat — lalu tanyakan apa saja ke AI.",
+    bi1: "Paket gratis selamanya, tidak perlu kartu kredit",
+    bi2: "Folder pribadi untuk merapikan dokumen",
+    bi3: "Dukungan PDF, DOCX, Excel & PowerPoint",
+    bi4: "Hanya Anda yang bisa mengakses dokumen Anda",
   },
   en: {
     welcome: "Welcome back",
-    subtitle: "Sign in to your company account",
+    subtitle: "Sign in to your account",
     email: "Email",
-    emailPlaceholder: "name@company.com",
+    emailPlaceholder: "name@email.com",
     password: "Password",
     passwordPlaceholder: "Enter your password",
     forgotPassword: "Forgot password?",
     login: "Sign In",
     noAccount: "Don't have an account?",
-    register: "Register Company",
+    registerIndividual: "Register as Individual",
+    registerCompany: "Register a Company",
     viewPricing: "View pricing →",
-    hero1: "Smart Knowledge Base\nfor Your Internal Team",
-    heroDesc: "Access SOPs, regulations, and company guidelines instantly with the power of AI — no more opening documents one by one.",
+    hero1: "Smart Knowledge Base\nfor Your Documents",
+    heroDesc: "Reach your SOPs, guides, notes and important documents instantly through AI — no more opening files one by one.",
     f1Title: "Centralized Knowledge Base",
-    f1Desc: "All SOPs and regulations in one platform",
+    f1Desc: "Every important document in one place",
     f2Title: "Instant Answers",
     f2Desc: "AI answers in seconds based on official documents",
     f3Title: "Secure & Isolated",
-    f3Desc: "Each company's data is fully isolated, no leaks",
+    f3Desc: "Every account's data is fully isolated, no leaks",
     loginFailed: "Login Failed",
     error: "An error occurred. Please try again.",
     // register
@@ -171,6 +214,20 @@ export const t = {
     checkEmail: "Check Your Email",
     checkEmailDesc: "We've sent a verification link to",
     checkEmailNote: "Click the link in the email to activate your account. Check your Spam folder if you don't see it.",
+    accountIndividual: "Individual",
+    accountCompany: "Company",
+    accountIndividualHint: "For yourself — personal documents, your own folders, no employees to manage.",
+    accountCompanyHint: "For a team — manage employees, department access, and team analytics.",
+    accountPermanentNote: "The account type cannot be changed after signing up.",
+    registerTitleIndividual: "Create an Individual Account",
+    registerSubtitleIndividual: "Build your own personal knowledge base",
+    fullNameIndividual: "Full Name",
+    heroRegisterIndividual: "A personal knowledge base,\nready in 5 minutes",
+    heroRegisterIndividualDesc: "Keep your notes, guides and documents in one place — then ask the AI anything about them.",
+    bi1: "Free plan forever, no credit card required",
+    bi2: "Personal folders to keep documents tidy",
+    bi3: "PDF, DOCX, Excel & PowerPoint support",
+    bi4: "Only you can reach your documents",
   },
 } as const;
 
@@ -249,6 +306,25 @@ export const admin = {
     resumeIndexBtn: "Lanjutkan",
     reindexFailed: "Gagal memasukkan dokumen ke antrean.",
     payloadTooLarge: `File ini terlalu besar untuk dikirim (batas ${MAX_UPLOAD_MB} MB). Kecilkan filenya, lalu upload lagi.`,
+    // Folders — individual accounts only. A folder is created by typing its name
+    // when uploading; it exists as long as a document is in it.
+    colFolder: "Folder",
+    folderLabel: "Folder (opsional)",
+    folderPlaceholder: "Contoh: Riset, Keuangan, Pribadi",
+    folderHint: "Dokumen dalam batch ini akan masuk ke folder tersebut. Kosongkan untuk menyimpannya tanpa folder.",
+    folderAll: "Semua",
+    folderNone: "Tanpa folder",
+    folderMoved: "Dokumen dipindahkan.",
+    folderMoveFailed: "Gagal memindahkan dokumen.",
+    folderEmpty: "Tidak ada dokumen di folder ini.",
+    // Individual dashboard: same tabs, different words. "Kelola Dokumen" and
+    // "Audit Log" are team vocabulary — nobody audits themselves.
+    titleIndividual: "Dashboard Saya",
+    tabsIndividual: { documents: "Dokumen Saya", persona: "AI Persona", audit: "Riwayat Pertanyaan" },
+    auditTitleIndividual: "Riwayat Pertanyaan",
+    auditDescIndividual: "Pertanyaan yang pernah Anda ajukan ke AI.",
+    searchAuditIndividual: "Cari pertanyaan...",
+    uploadDescIndividual: "Upload catatan, panduan, atau dokumen apa pun dalam format PDF, DOCX, Excel, atau PowerPoint.",
   },
   en: {
     title: "Admin Dashboard",
@@ -324,6 +400,21 @@ export const admin = {
     resumeIndexBtn: "Resume",
     reindexFailed: "Could not queue the document.",
     payloadTooLarge: `This file is too large to send (${MAX_UPLOAD_MB} MB limit). Shrink it, then upload again.`,
+    colFolder: "Folder",
+    folderLabel: "Folder (optional)",
+    folderPlaceholder: "e.g. Research, Finance, Personal",
+    folderHint: "Documents in this batch go into that folder. Leave it empty to keep them unfiled.",
+    folderAll: "All",
+    folderNone: "No folder",
+    folderMoved: "Document moved.",
+    folderMoveFailed: "Could not move the document.",
+    folderEmpty: "No documents in this folder.",
+    titleIndividual: "My Dashboard",
+    tabsIndividual: { documents: "My Documents", persona: "AI Persona", audit: "Question History" },
+    auditTitleIndividual: "Question History",
+    auditDescIndividual: "The questions you have asked the AI.",
+    searchAuditIndividual: "Search questions...",
+    uploadDescIndividual: "Upload notes, guides, or any document in PDF, DOCX, Excel, or PowerPoint format.",
   },
 } as const;
 
@@ -363,6 +454,30 @@ export const pricing = {
       [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Respon dukungan < 24 jam"],
       [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
+    ],
+    // The Individu tab. Its own arrays rather than extra entries in `plans` /
+    // `features` above, because those two are addressed by index — by this page
+    // and by the landing page's teaser — and inserting a card in the middle of
+    // them silently repoints every card after it at the wrong feature list.
+    //
+    // Starter's greyed-out items are exactly what Personal adds, which is what
+    // the free card's "first five are checked" rule expects: the five above the
+    // line are true of the free plan, and everything below it is the upgrade.
+    // Folders are not on that line — they are not plan-gated, and putting them
+    // there would sell something the free tier already has.
+    audienceIndividual: "Individu",
+    audienceCompany: "Perusahaan",
+    audienceIndividualHint: "Untuk satu orang: dokumen pribadi dan folder sendiri, tanpa kelola karyawan.",
+    audienceCompanyHint: "Untuk tim: kelola karyawan, akses per departemen, dan analitik tim.",
+    titleIndividual: "Harga untuk Pemakaian Pribadi",
+    subtitleIndividual: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
+    individualPlans: [
+      { name: "Starter", desc: "Untuk mencoba — gratis selamanya" },
+      { name: "Personal", desc: "Untuk kebutuhan pribadi sehari-hari" },
+    ],
+    individualFeatures: [
+      ["Chat AI berbasis RAG", cap(idLimit(sta.maxDocuments, "dokumen")), `${idNum(staMonthly)} pertanyaan/bulan · ${idNum(staDaily)}/hari`, "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", cap(idLimit(per.maxDocuments, "dokumen")), "Pertanyaan bulanan tanpa batas", idDaily(perDaily)],
+      ["1 pengguna — hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda"],
     ],
     fairUseNote: "",
     faqs: [
@@ -416,6 +531,20 @@ export const pricing = {
       [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Support response < 24h"],
       [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
+    ],
+    audienceIndividual: "Individual",
+    audienceCompany: "Company",
+    audienceIndividualHint: "For one person: personal documents and your own folders, no employees to manage.",
+    audienceCompanyHint: "For a team: manage employees, department access, and team analytics.",
+    titleIndividual: "Pricing for Personal Use",
+    subtitleIndividual: "Start free. Move to Personal when your documents and questions outgrow it.",
+    individualPlans: [
+      { name: "Starter", desc: "To try it out — free forever" },
+      { name: "Personal", desc: "For everyday personal use" },
+    ],
+    individualFeatures: [
+      ["RAG-based AI Chat", enLimit(sta.maxDocuments, "documents"), `${enNum(staMonthly)} questions/month · ${enNum(staDaily)}/day`, "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", enLimit(per.maxDocuments, "documents"), "Unlimited questions per month", enDaily(perDaily)],
+      ["1 user — just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history"],
     ],
     fairUseNote: "",
     faqs: [

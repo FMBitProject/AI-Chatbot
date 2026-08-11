@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 // `auth` is still imported for signUpEmail below — the guard covers the session
 // check only, not the rest of better-auth's API.
 import { auth } from "@/lib/auth";
-import { requireAdmin } from "@/lib/auth-guard";
+import { requireAdmin, requireCompanyAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
@@ -36,7 +36,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAdmin(req);
+  // Company admins only. An individual workspace has exactly one member and its
+  // plan sells exactly one seat, so a second account created here would be a
+  // person the plan was never priced for — and the dashboard, which hides this
+  // tab for individuals, is not where that gets decided.
+  //
+  // GET above stays on requireAdmin: it lists the workspace's own members, which
+  // for an individual is the one person asking. Nothing is disclosed and nothing
+  // is spent, so there is no reason to refuse it.
+  const guard = await requireCompanyAdmin(req);
   if (!guard.ok) return guard.response;
   const { companyId } = guard.user;
 

@@ -18,7 +18,11 @@ interface AuditLog {
   userEmail: string;
 }
 
-export function AuditTab({ lang = "id" }: { lang?: Lang }) {
+// `isIndividual` only changes the words. The list itself is the same query — an
+// individual workspace holds one person's sessions, so "who asked this" is
+// answered by the account being theirs, and the heading stops calling it an
+// audit of anybody.
+export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?: boolean; lang?: Lang }) {
   const T = adminT[lang];
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [search, setSearch] = useState("");
@@ -56,14 +60,14 @@ export function AuditTab({ lang = "id" }: { lang?: Lang }) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-semibold mb-1">{T.auditTitle}</h2>
-        <p className="text-sm text-gray-500">{T.auditDesc}</p>
+        <h2 className="text-lg font-semibold mb-1">{isIndividual ? T.auditTitleIndividual : T.auditTitle}</h2>
+        <p className="text-sm text-gray-500">{isIndividual ? T.auditDescIndividual : T.auditDesc}</p>
       </div>
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <Input
           className="pl-9"
-          placeholder={T.searchAudit}
+          placeholder={isIndividual ? T.searchAuditIndividual : T.searchAudit}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />

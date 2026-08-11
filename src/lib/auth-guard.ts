@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { companies, users } from "@/lib/db/schema";
 
 /**
  * The authorization check every authenticated route starts with.
  *
  * Three entry points, in ascending strictness:
  *
- *   requireSession — signed in. Nothing more.
- *   requireUser    — signed in, and belongs to a company.
- *   requireAdmin   — signed in, belongs to a company, and is its admin.
+ *   requireSession      — signed in. Nothing more.
+ *   requireUser         — signed in, and belongs to a workspace.
+ *   requireAdmin        — signed in, belongs to a workspace, and is its admin.
+ *   requireCompanyAdmin — the above, and the workspace is an organisation
+ *                         rather than an individual account.
  *
  * Nothing outside this file may call `auth.api.getSession` to authenticate a
  * request; an ESLint rule in eslint.config.mjs enforces that for route handlers,
@@ -64,12 +66,24 @@ interface UserRow {
   email: string;
   department: string | null;
   createdAt: Date;
+  // Off the workspace row, not the user's — see the join in requireUser. Every
+  // caller that has to tell a one-person account from an organisation reads it
+  // here rather than fetching the company again, because most of them
+  // (employee management, checkout) were about to make exactly that decision
+  // before touching anything else.
+  //
+  // Nullable only in the same sense companyId is: a user who belongs to no
+  // workspace has no account type either. requireUser rejects both together.
+  accountType: "company" | "individual" | null;
 }
 
 // The same row once `companyId` is known to be present, which is what every
 // tenant-scoped caller needs and what retires the `dbUser.companyId!`
 // assertions the old inline copies were full of.
-export type AuthedUser = Omit<UserRow, "companyId"> & { companyId: string };
+export type AuthedUser = Omit<UserRow, "companyId" | "accountType"> & {
+  companyId: string;
+  accountType: "company" | "individual";
+};
 
 export type Guard =
   | { ok: true; user: AuthedUser }
@@ -94,6 +108,7 @@ const SELECTED = {
   email: users.email,
   department: users.department,
   createdAt: users.createdAt,
+  accountType: companies.accountType,
 };
 
 // Only the status codes are load-bearing for the UI — the admin dashboard
@@ -209,7 +224,16 @@ export async function requireUser(
     // cached in a cookie for seven days; a demotion from admin, a move between
     // companies, or a deactivation would not reach it until then. The row is the
     // authority on what the user is right now.
-    [row] = await db.select(SELECTED).from(users).where(eq(users.id, userId)).limit(1);
+    // Left, not inner: a user with no workspace still has to come back as a row
+    // so the refusal below can be the specific "no-company" one that gets
+    // logged. An inner join would drop them entirely and report the same
+    // Forbidden as a deleted account, which is the one case this file goes out
+    // of its way to tell apart.
+    [row] = await db.select(SELECTED)
+      .from(users)
+      .leftJoin(companies, eq(companies.id, users.companyId))
+      .where(eq(users.id, userId))
+      .limit(1);
   } catch (error) {
     return unavailable(error);
   }
@@ -218,11 +242,16 @@ export async function requireUser(
   // user holding a live cookie. Not logged through denyAuthed: there is no
   // account left for the log line to be about.
   if (!row) return deny(403, options.forbidden ?? "Forbidden");
-  if (!row.companyId) {
+  // `accountType` is checked alongside `companyId` rather than defaulted,
+  // because the two can only disagree in one way: a user pointing at a workspace
+  // that is not there. A foreign key makes that unreachable — and if it ever
+  // happens, guessing an account type here would hand the caller a workspace
+  // that does not exist. Refusing says the same thing the missing company does.
+  if (!row.companyId || !row.accountType) {
     return denyAuthed(req, "no-company", userId, options.forbidden ?? "Forbidden");
   }
 
-  return { ok: true, user: { ...row, companyId: row.companyId } };
+  return { ok: true, user: { ...row, companyId: row.companyId, accountType: row.accountType } };
 }
 
 /**
@@ -242,6 +271,47 @@ export async function requireAdmin(
 
   if (guard.user.role !== "admin") {
     return denyAuthed(req, "not-admin", guard.user.id, options.forbidden ?? "Forbidden");
+  }
+
+  return guard;
+}
+
+/**
+ * Requires a signed-in admin whose workspace is an organisation.
+ *
+ * For the endpoints whose subject is *other people* — today that is creating an
+ * employee (POST /api/admin/users), the one call that spends a seat. An
+ * individual account has no seats and no colleagues, so this is not a feature it
+ * happens to lack; it has no meaning in it.
+ *
+ * The employee password reset is not wrapped in this and does not need to be: it
+ * refuses to act on the caller themselves, and an individual workspace holds
+ * nobody else, so every path through it already ends in a 404.
+ *
+ * The dashboard already hides the tabs, which is where a person notices. This is
+ * where it is true: hiding a tab is a rendering decision made in a browser the
+ * caller controls, and `POST /api/admin/users` is one fetch away for anyone who
+ * looks. Without this, an individual account could add users to its own
+ * workspace, and every one of them would count against a plan sold as one seat.
+ *
+ * 403 rather than 404, matching requireAdmin: the caller is authenticated and
+ * the route exists, it is simply not theirs. The message is written for a person
+ * who got here by accident rather than by probing.
+ */
+export async function requireCompanyAdmin(
+  req: Request,
+  options: GuardOptions = {},
+): Promise<Guard> {
+  const guard = await requireAdmin(req, options);
+  if (!guard.ok) return guard;
+
+  if (guard.user.accountType !== "company") {
+    console.warn(`[auth-guard] 403 individual-account user=${guard.user.id}`);
+    return deny(
+      403,
+      options.forbidden ??
+        "Fitur ini hanya untuk akun perusahaan. Akun individu tidak mengelola karyawan.",
+    );
   }
 
   return guard;

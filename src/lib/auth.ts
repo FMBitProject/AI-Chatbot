@@ -8,9 +8,39 @@ import { authEmail } from "@/lib/email-template";
 
 const appUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 
+/**
+ * Origins allowed to make authenticated calls, which is a CSRF fence rather
+ * than a convenience list: better-auth refuses any request whose `Origin` is
+ * not in here, so the shorter this is, the better.
+ *
+ * It used to be exactly `[appUrl]`, and that made sign-in impossible on every
+ * Vercel preview deployment. A preview is served from its own hostname
+ * (`<project>-git-<branch>-<team>.vercel.app`), never from BETTER_AUTH_URL, so
+ * the browser's Origin never matched and the request was rejected before any
+ * password was checked — which surfaces in the UI as the login page's generic
+ * "Terjadi kesalahan", because a rejected request is indistinguishable from a
+ * dead network to the client. Nobody noticed because previews were never
+ * signed into until there was a feature that had to be previewed signed in.
+ *
+ * The two additions are safe to trust because Vercel sets them, not the caller:
+ * they are build-time environment variables of our own deployment, not headers
+ * a request can carry. `VERCEL_URL` is the immutable per-deployment hostname;
+ * `VERCEL_BRANCH_URL` is the stable alias that follows a branch's newest
+ * deployment, which is the one a person actually opens from a pull request.
+ *
+ * What this deliberately does NOT do is trust `*.vercel.app`, or reflect the
+ * request's own Origin back as trusted. Either would hand every other project
+ * on the platform a working CSRF path into this one.
+ */
+const trustedOrigins = [
+  appUrl,
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+  ...(process.env.VERCEL_BRANCH_URL ? [`https://${process.env.VERCEL_BRANCH_URL}`] : []),
+];
+
 export const auth = betterAuth({
   baseURL: appUrl,
-  trustedOrigins: [appUrl],
+  trustedOrigins,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {

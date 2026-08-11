@@ -34,9 +34,13 @@ export function RenewalBanner({ lang = "id" }: { lang?: "id" | "en" }) {
   // A Custom account normally has no expiry, so this banner never fires for it
   // — but it can be given one by hand, and an empty label would render "Paket
   //  Anda berakhir" with a hole where the plan name belongs.
+  // The empty fallback is also why Personal needs a case of its own: without
+  // one, the individual accounts this banner exists for would be told "Paket
+  // Anda berakhir dalam 3 hari" with the plan name missing.
   const planLabel = sub.purchasedPlan === "custom" ? "Custom"
     : sub.purchasedPlan === "enterprise" ? "Enterprise"
-    : sub.purchasedPlan === "professional" ? "Professional" : "";
+    : sub.purchasedPlan === "professional" ? "Professional"
+    : sub.purchasedPlan === "personal" ? "Personal" : "";
 
   const copy = {
     expiring: {

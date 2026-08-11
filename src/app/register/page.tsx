@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +17,8 @@ import { PasswordRequirements } from "@/components/ui/PasswordRequirements";
 import { isPasswordValid } from "@/lib/password";
 import { SiteFooter } from "@/components/SiteFooter";
 
+type AccountType = "individual" | "company";
+
 export default function RegisterPage() {
   const { lang } = useLang();
   const T = t[lang];
@@ -23,6 +27,35 @@ export default function RegisterPage() {
   const [registeredEmail, setRegisteredEmail] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "" });
+
+  const [accountType, setAccountType] = useState<AccountType>("company");
+
+  // Someone arriving from the individual side of the pricing or landing page has
+  // already chosen; opening on the company tab would ask them to choose again,
+  // and the wrong answer here is permanent. Two ways to say it, because the
+  // cards they came from mean different things: `plan=personal` from a paid
+  // card, `type=individual` where no plan is being picked at all.
+  //
+  // Read from `window.location` in an effect rather than with useSearchParams,
+  // which would make this page client-rendered up to a Suspense boundary. The
+  // boundary version shipped briefly and prerendered nothing but a frame — the
+  // whole form, benefits panel and copy were missing from register.html. Nobody
+  // needs that page indexed, but an empty document is also what a visitor on a
+  // slow connection sees first, and the hint is not worth it.
+  //
+  // Only a hint either way: the tabs are still there and the account type
+  // travels in the request body, not in the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("plan") === "personal" || params.get("type") === "individual") {
+      // Deliberate, same reason as /pricing: the query string is browser-only,
+      // so seeding the initial state from it would hydrate "individual" over the
+      // "company" the server prerendered.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAccountType("individual");
+    }
+  }, []);
+  const isIndividual = accountType === "individual";
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -36,7 +69,17 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/auth/register-admin", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // companyName is dropped for an individual rather than sent empty: the
+        // server names the workspace after the person, and a stale value left in
+        // state by someone who typed a company name and then switched tabs must
+        // not travel with the request.
+        body: JSON.stringify(
+          isIndividual
+            ? { name: form.name, email: form.email, password: form.password, accountType }
+            : { ...form, accountType },
+        ),
       });
       const data = await res.json() as { error?: string };
       if (!res.ok) { toast({ variant: "destructive", title: T.registerFailed, description: data.error }); return; }
@@ -47,7 +90,10 @@ export default function RegisterPage() {
     } finally { setLoading(false); }
   }
 
-  const BENEFITS = [T.b1, T.b2, T.b3, T.b4];
+  // The panel sells whichever account the tab is on. Left unchanged it would
+  // promise a person "isolasi data penuh antar perusahaan" — true, and about
+  // somebody else's problem.
+  const BENEFITS = isIndividual ? [T.bi1, T.bi2, T.bi3, T.bi4] : [T.b1, T.b2, T.b3, T.b4];
 
   return (
     <>
@@ -59,8 +105,12 @@ export default function RegisterPage() {
         <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold text-white leading-tight mb-3 whitespace-pre-line">{T.heroRegister}</h1>
-            <p className="text-teal-100 leading-relaxed">{T.heroRegisterDesc}</p>
+            <h1 className="text-3xl font-bold text-white leading-tight mb-3 whitespace-pre-line">
+              {isIndividual ? T.heroRegisterIndividual : T.heroRegister}
+            </h1>
+            <p className="text-teal-100 leading-relaxed">
+              {isIndividual ? T.heroRegisterIndividualDesc : T.heroRegisterDesc}
+            </p>
           </div>
           <div className="space-y-3">
             {BENEFITS.map((b) => (
@@ -106,17 +156,48 @@ export default function RegisterPage() {
               </div>
             ) : (<>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{T.registerTitle}</h2>
-              <p className="text-gray-500 text-sm mt-1">{T.registerSubtitle}</p>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {isIndividual ? T.registerTitleIndividual : T.registerTitle}
+              </h2>
+              <p className="text-gray-500 text-sm mt-1">
+                {isIndividual ? T.registerSubtitleIndividual : T.registerSubtitle}
+              </p>
             </div>
+
+            {/* The one irreversible choice on this form, so it is the first
+                thing on it and it says what each side means. Tabs rather than a
+                radio pair because the form underneath genuinely differs — the
+                company field appears and disappears with the tab — and a tab is
+                the control people already read as "different form". */}
+            <div className="space-y-2">
+              <Tabs value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="individual" className="flex-1 gap-1.5">
+                    <User className="h-4 w-4" />
+                    {T.accountIndividual}
+                  </TabsTrigger>
+                  <TabsTrigger value="company" className="flex-1 gap-1.5">
+                    <Building2 className="h-4 w-4" />
+                    {T.accountCompany}
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                {isIndividual ? T.accountIndividualHint : T.accountCompanyHint}{" "}
+                <span className="text-gray-400">{T.accountPermanentNote}</span>
+              </p>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4">
+              {!isIndividual && (
+                <div className="space-y-2">
+                  <Label>{T.companyName}</Label>
+                  <Input placeholder={T.companyPlaceholder} value={form.companyName}
+                    onChange={(e) => setForm({ ...form, companyName: e.target.value })} required />
+                </div>
+              )}
               <div className="space-y-2">
-                <Label>{T.companyName}</Label>
-                <Input placeholder={T.companyPlaceholder} value={form.companyName}
-                  onChange={(e) => setForm({ ...form, companyName: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
-                <Label>{T.fullName}</Label>
+                <Label>{isIndividual ? T.fullNameIndividual : T.fullName}</Label>
                 <Input placeholder={T.namePlaceholder} value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })} required />
               </div>

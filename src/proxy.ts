@@ -97,8 +97,26 @@ export function proxy(req: NextRequest) {
     if (maintenanceResponse) return maintenanceResponse;
   }
 
-  // Rate limit API endpoints
-  if (pathname.startsWith("/api/chat") || pathname.startsWith("/api/search")) {
+  // Rate limit API endpoints.
+  //
+  // /api/folders and /api/user/me are here because they are cheap to ask for
+  // and not cheap to answer — the first runs a DISTINCT over a company's whole
+  // documents table. Both are read once per page mount, so a real visitor
+  // spends one request of the sixty on each; only a loop notices the ceiling.
+  //
+  // What is deliberately NOT here: /api/admin/documents. The dashboard polls it
+  // every three seconds while an import is indexing — twenty requests a minute,
+  // a third of this budget, from one honest admin watching a progress bar. The
+  // bucket below is keyed by IP alone and shared across every path in this list,
+  // so adding that route would let a long import rate-limit the admin's own
+  // chat. Anything polled belongs behind a per-route limit (see
+  // consumeRateLimit in @/lib/rate-limit), not this one.
+  if (
+    pathname.startsWith("/api/chat") ||
+    pathname.startsWith("/api/search") ||
+    pathname.startsWith("/api/folders") ||
+    pathname.startsWith("/api/user/me")
+  ) {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
     if (isRateLimited(ip)) {
       return new NextResponse(JSON.stringify({ error: "Too many requests. Please slow down." }), {

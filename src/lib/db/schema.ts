@@ -1,12 +1,38 @@
 import { pgTable, text, timestamp, boolean, integer, vector, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
+// Despite the name, a row here is a *workspace*: the tenant every document,
+// chunk, chat session and transaction is keyed by. Two kinds live in it, told
+// apart by `accountType`, and the table was not split because splitting it would
+// mean a second tenant key running through RLS, retrieval, quotas and payments —
+// four places where one key is exactly what makes them safe.
 export const companies = pgTable("companies", {
   id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  // For an individual account this is the person's own name, and it is neither
+  // shown as an organisation nor required to be unique — see the partial index
+  // below. Renaming the column would touch every query in the app for no gain.
+  name: text("name").notNull(),
+  // "company"    — an organisation: an admin who manages employees, departments
+  //                and seats. What every row was before this column existed,
+  //                which is why it is the default and why the backfill is a
+  //                one-liner.
+  // "individual" — one person, one workspace. No employees, no seats; the
+  //                `department` column on documents becomes their private
+  //                folders instead of an access-control boundary.
+  //
+  // Immutable by design: nothing in the app writes it after signup. An
+  // individual who later needs a team registers a company account, which keeps
+  // this out of the plan/limit/seat logic where a mid-life switch would need
+  // answers for questions nobody has asked yet (who owns the documents, what
+  // happens to a personal plan with seats).
+  accountType: text("account_type").$type<"company" | "individual">().default("company").notNull(),
   // "custom" is granted by hand (scripts/grant-custom-plan.mjs), never bought —
   // which is why it appears here but not on `transactions.plan` below.
-  plan: text("plan").$type<"starter" | "professional" | "enterprise" | "custom">().default("starter").notNull(),
+  // "personal" is the individual-account tier and is refused to company
+  // accounts at checkout (see /api/payment/create); the reverse holds too — an
+  // individual cannot buy the team plans, whose headline feature is seats it
+  // has nowhere to put.
+  plan: text("plan").$type<"starter" | "personal" | "professional" | "enterprise" | "custom">().default("starter").notNull(),
   aiName: text("ai_name").default("IntelliBase AI").notNull(),
   aiGreeting: text("ai_greeting"),
   aiPersonality: text("ai_personality"),
@@ -32,7 +58,19 @@ export const companies = pgTable("companies", {
   // frees the queue again.
   indexingLeaseUntil: timestamp("indexing_lease_until"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Company names stay unique; personal names do not.
+  //
+  // The rule this replaces was a plain UNIQUE over the whole column, which is
+  // right for organisations — "PT Sehat Sentosa" registering twice is almost
+  // always the same customer locked out of their own account — and wrong for
+  // people. There are a lot of Indonesians named Budi Santoso, and the second
+  // one to sign up would have been told his *name* was already taken, with no
+  // field on the form to change it.
+  uniqueIndex("companies_name_unique_company")
+    .on(t.name)
+    .where(sql`${t.accountType} = 'company'`),
+]);
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -152,6 +190,20 @@ export const documents = pgTable("documents", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   companyId: text("company_id").references(() => companies.id).notNull(),
+  // One column, two readings, decided by the workspace's accountType:
+  //   company    — the department that owns the document. NULL means shared,
+  //                and an employee only ever retrieves NULL-or-their-own (see
+  //                retrieveChunks). Access control.
+  //   individual — the owner's own folder. NULL means unfiled. There is only
+  //                one person in the workspace and their users.department is
+  //                NULL, so nothing is ever hidden from them; the folder narrows
+  //                a search when they ask it to. Organisation, not permission.
+  //
+  // Shared rather than split into a second column because the two are the same
+  // shape — one optional tag partitioning a company's documents — and because a
+  // second column would double every filter in retrieval.ts, where getting the
+  // predicate wrong is a data leak. The folder filter narrows *on top of* the
+  // department rule, never instead of it, so the company reading always holds.
   department: text("department"),
   // "queued"     — text extracted and stored, waiting for the indexer
   // "processing" — claimed by an indexing pass right now
@@ -218,7 +270,7 @@ export const transactions = pgTable("transactions", {
   id: text("id").primaryKey(),
   companyId: text("company_id").references(() => companies.id).notNull(),
   orderId: text("order_id").notNull().unique(),
-  plan: text("plan").$type<"professional" | "enterprise">().notNull(),
+  plan: text("plan").$type<"personal" | "professional" | "enterprise">().notNull(),
   amount: text("amount").notNull(),
   status: text("status").$type<"pending" | "paid" | "failed" | "expired">().default("pending").notNull(),
   snapToken: text("snap_token"),

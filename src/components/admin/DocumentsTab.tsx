@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, Fragment } from "react";
+import { useState, useRef, useMemo, Fragment } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { FileDropzone } from "./FileDropzone";
@@ -16,6 +16,11 @@ export interface Document {
   status: "queued" | "processing" | "success" | "failed";
   errorMessage?: string | null;
   summary?: string | null;
+  // The folder this document is filed under, or null for unfiled. Named after
+  // the column rather than after the feature because that is what the API sends;
+  // an individual account reads it as a folder, a company as the owning
+  // department (see @/lib/db/schema).
+  department?: string | null;
   expiresAt?: string | null;
   createdAt: string;
 }
@@ -40,10 +45,17 @@ export interface IndexProgress {
 
 interface DocumentsTabProps {
   documents: Document[];
-  onUpload: (files: File[], onProgress: (done: number) => void) => Promise<UploadOutcome[]>;
+  onUpload: (files: File[], folder: string | null, onProgress: (done: number) => void) => Promise<UploadOutcome[]>;
   onIndex: (onProgress: (progress: IndexProgress) => void) => Promise<void>;
   onReindex: (documentId: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
+  // Moves a document between folders; null unfiles it.
+  onSetFolder: (id: string, folder: string | null) => Promise<void>;
+  // Folders are shown for individual accounts only. The column behind them means
+  // something else for a company — which department may read the document — and
+  // handing an admin a "folder" control that quietly changes who can see a file
+  // is the one way to turn an organising feature into an access-control bug.
+  showFolders?: boolean;
   lang?: Lang;
 }
 
@@ -54,7 +66,7 @@ const STATUS_MAP = {
   failed: { variant: "destructive" as const },
 };
 
-export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, lang = "id" }: DocumentsTabProps) {
+export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, onSetFolder, showFolders = false, lang = "id" }: DocumentsTabProps) {
   const T = adminT[lang];
   const STATUS_LABELS = {
     queued: T.statusQueued,
@@ -85,13 +97,54 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reindexingId, setReindexingId] = useState<string | null>(null);
   const [expandedSummary, setExpandedSummary] = useState<string | null>(null);
+  // The folder the next upload goes into. A free-text field with a datalist
+  // rather than a picker, because typing a name that does not exist yet is how a
+  // folder is created — there is nothing to create it in beforehand.
+  const [uploadFolder, setUploadFolder] = useState("");
+  // Which folder the list is showing. `null` is every document; the empty string
+  // is the unfiled ones, which is a filter in its own right — "what have I not
+  // put away yet" is the question this whole feature exists to make answerable.
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [movingId, setMovingId] = useState<string | null>(null);
+
+  // Derived from the documents rather than fetched: a folder *is* its documents
+  // (see /api/folders), so the list on screen cannot go stale against the table
+  // under it — moving the last document out of a folder makes the folder
+  // disappear in the same render.
+  const folders = useMemo(
+    () => [...new Set(documents.map((d) => d.department).filter((f): f is string => !!f))]
+      .sort((a, b) => a.localeCompare(b, lang === "en" ? "en" : "id")),
+    [documents, lang],
+  );
+
+  // A filter can outlive the thing it filters on: move the last document out of
+  // "Riset" and that folder stops existing, but the state still points at it.
+  // The chip row is derived from `folders`, so the chip for it is gone too —
+  // leaving the list empty, no chip highlighted, and no obvious way back.
+  // Falling back to "everything" when the selection no longer exists costs a
+  // comparison and removes the dead end. Same for the unfiled filter once
+  // nothing is unfiled.
+  const hasUnfiled = documents.some((d) => !d.department);
+  const effectiveFolder =
+    activeFolder === null ? null
+      : activeFolder === "" ? (hasUnfiled ? "" : null)
+        : folders.includes(activeFolder) ? activeFolder : null;
+
+  const visibleDocuments = useMemo(() => {
+    if (!showFolders || effectiveFolder === null) return documents;
+    if (effectiveFolder === "") return documents.filter((d) => !d.department);
+    return documents.filter((d) => d.department === effectiveFolder);
+  }, [documents, effectiveFolder, showFolders]);
 
   async function handleUpload(files: File[]) {
     setIsUploading(true);
     setFailedFiles([]);
     setProgress({ label: `${T.uploadProgress} 0 / ${files.length}`, percent: 0 });
+    // Read once, at the start: the field stays editable during a long import and
+    // a folder renamed mid-batch would otherwise split it across two folders.
+    const folder = showFolders ? uploadFolder.trim() || null : null;
     try {
-      const outcomes = await onUpload(files, (done) => {
+      const outcomes = await onUpload(files, folder, (done) => {
         setProgress({
           label: `${T.uploadProgress} ${done} / ${files.length}`,
           percent: Math.round((done / files.length) * 100),
@@ -207,6 +260,19 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
 
   const queuedCount = documents.filter((d) => d.status === "queued").length;
 
+  async function handleMove(id: string, folder: string | null) {
+    setMovingId(id);
+    try {
+      await onSetFolder(id, folder);
+      toast({ title: T.folderMoved });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : T.folderMoveFailed;
+      toast({ variant: "destructive", title: T.folderMoveFailed, description: msg });
+    } finally {
+      setMovingId(null);
+    }
+  }
+
   async function handleDelete(id: string) {
     setDeletingId(id);
     try {
@@ -223,7 +289,32 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold mb-1">{T.uploadTitle}</h2>
-        <p className="text-sm text-gray-500 mb-4">{T.uploadDesc}</p>
+        <p className="text-sm text-gray-500 mb-4">{showFolders ? T.uploadDescIndividual : T.uploadDesc}</p>
+        {showFolders && (
+          // Above the dropzone, not inside it: the dropzone unmounts its own
+          // controls the moment an upload starts (see the note on the progress
+          // row below), and a field whose value is being used cannot live in a
+          // component that disappears while it is used.
+          <div className="mb-3 space-y-1">
+            <label htmlFor="upload-folder" className="text-sm font-medium text-gray-700">{T.folderLabel}</label>
+            <input
+              id="upload-folder"
+              list="upload-folder-options"
+              value={uploadFolder}
+              onChange={(e) => setUploadFolder(e.target.value)}
+              maxLength={100}
+              placeholder={T.folderPlaceholder}
+              disabled={isUploading}
+              className="flex h-10 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:opacity-50"
+            />
+            {/* Existing folders are suggestions, not the only choices — the same
+                field creates a new one by being typed into. */}
+            <datalist id="upload-folder-options">
+              {folders.map((f) => <option key={f} value={f} />)}
+            </datalist>
+            <p className="text-xs text-gray-400">{T.folderHint}</p>
+          </div>
+        )}
         <FileDropzone onUpload={handleUpload} isUploading={isUploading} lang={lang} />
         {progress && (
           // Its own row, outside the dropzone, so nothing about the dropzone's
@@ -285,10 +376,48 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
       </div>
       <div>
         <h2 className="text-lg font-semibold mb-3">{T.docList}</h2>
+        {showFolders && folders.length > 0 && (
+          // Only once there is something to filter. A row of one chip reading
+          // "Semua" is a control that cannot do anything.
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[
+              { key: null, label: `${T.folderAll} (${documents.length})` },
+              ...folders.map((f) => ({
+                key: f,
+                label: `${f} (${documents.filter((d) => d.department === f).length})`,
+              })),
+              // Last, and only when there is anything unfiled — on a tidy account
+              // this chip would always read "(0)".
+              ...(hasUnfiled
+                ? [{ key: "", label: `${T.folderNone} (${documents.filter((d) => !d.department).length})` }]
+                : []),
+            ].map(({ key, label }) => (
+              <button
+                key={key ?? "__all__"}
+                onClick={() => setActiveFolder(key)}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                  effectiveFolder === key
+                    ? "border-teal-600 bg-teal-600 text-white"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-teal-200 hover:text-teal-700",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {documents.length === 0 ? (
           <div className="text-center py-10 text-gray-400 border rounded-xl">
             <FileText className="h-8 w-8 mx-auto mb-2" />
             <p className="text-sm">{T.noDoc}</p>
+          </div>
+        ) : visibleDocuments.length === 0 ? (
+          // A filter that hides everything is not an empty knowledge base, and
+          // saying "belum ada dokumen" here would read as one.
+          <div className="text-center py-10 text-gray-400 border rounded-xl">
+            <FileText className="h-8 w-8 mx-auto mb-2" />
+            <p className="text-sm">{T.folderEmpty}</p>
           </div>
         ) : (
           <div className="rounded-xl border overflow-hidden">
@@ -296,13 +425,14 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
               <TableHeader>
                 <TableRow>
                   <TableHead>{T.colName}</TableHead>
+                  {showFolders && <TableHead>{T.colFolder}</TableHead>}
                   <TableHead>{T.colStatus}</TableHead>
                   <TableHead>{T.colDate}</TableHead>
                   <TableHead className="w-16">{T.colAction}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {documents.map((doc) => {
+                {visibleDocuments.map((doc) => {
                   // Defaulted, because this maps a value that arrives from the
                   // server: a status this build has not heard of would otherwise
                   // take the whole document list down with a TypeError.
@@ -330,6 +460,31 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                             )}
                           </div>
                         </TableCell>
+                        {showFolders && (
+                          <TableCell>
+                            {/* Moving between folders, not creating them: a new
+                                folder is made by typing its name at upload. A
+                                select cannot offer a name that does not exist
+                                yet, and bolting a prompt() onto it to fake one
+                                would put two different interactions behind one
+                                control. */}
+                            <select
+                              value={doc.department ?? ""}
+                              disabled={movingId === doc.id}
+                              onChange={(e) => handleMove(doc.id, e.target.value || null)}
+                              className="max-w-[10rem] truncate rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 disabled:opacity-50"
+                            >
+                              <option value="">{T.folderNone}</option>
+                              {/* The document's own folder is included even when
+                                  `folders` is momentarily behind — a select whose
+                                  value matches no option renders blank, which
+                                  reads as "unfiled" for a document that is not. */}
+                              {[...new Set([...folders, ...(doc.department ? [doc.department] : [])])]
+                                .sort((a, b) => a.localeCompare(b, lang === "en" ? "en" : "id"))
+                                .map((f) => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Badge variant={s.variant}>{s.label}</Badge>
                         </TableCell>
@@ -350,7 +505,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                       </TableRow>
                       {doc.status === "failed" && doc.errorMessage && (
                         <TableRow>
-                          <TableCell colSpan={4} className="bg-red-50 border-t-0">
+                          <TableCell colSpan={showFolders ? 5 : 4} className="bg-red-50 border-t-0">
                             <div className="flex items-start gap-2 py-1">
                               <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                               <div className="text-sm text-red-700">{doc.errorMessage}</div>
@@ -374,7 +529,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                       )}
                       {isExpanded && doc.summary && (
                         <TableRow>
-                          <TableCell colSpan={4} className="bg-teal-50 border-t-0">
+                          <TableCell colSpan={showFolders ? 5 : 4} className="bg-teal-50 border-t-0">
                             <div className="flex items-start gap-2 py-1">
                               <Sparkles className="h-4 w-4 text-teal-500 mt-0.5 shrink-0" />
                               <div className="text-sm text-gray-700 whitespace-pre-line">{doc.summary}</div>
