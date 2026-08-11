@@ -189,10 +189,40 @@ export default function ChatPage() {
       let newSessionId: string | null = null;
       let fullContent = "";
 
-      while (true) {
+      // Whatever arrived after the last newline: the beginning of a frame whose
+      // rest is still in flight.
+      //
+      // This used to be missing, and the frames it lost were invisible. Each
+      // read() was decoded and split on "\n" on its own, so any frame straddling
+      // a chunk boundary was destroyed twice over — the first half failed
+      // JSON.parse and was swallowed by the catch, the second half did not start
+      // with a known prefix and was skipped. Nothing logged it and nothing
+      // looked broken.
+      //
+      // The citations frame is the one that pays for it: it carries the full
+      // text of every retrieved excerpt and measures around 40 KB, which no
+      // network hands over in a single chunk with any reliability. That is why
+      // sources appeared under the first answer in a conversation and then
+      // stopped appearing under the ones after it — nothing about the later
+      // questions was different, only where the chunk boundaries happened to
+      // fall. The answer text is at risk in exactly the same way; it survived
+      // more often only because each of its frames is a few bytes.
+      let buffer = "";
+      let streamDone = false;
+
+      while (!streamDone) {
         const { done, value } = await reader.read();
-        if (done) break;
-        const lines = decoder.decode(value, { stream: true }).split("\n");
+        streamDone = done;
+        // decode() with no argument on the final pass flushes any multi-byte
+        // character left half-decoded across the boundary.
+        buffer += value ? decoder.decode(value, { stream: true }) : (done ? decoder.decode() : "");
+        const lines = buffer.split("\n");
+        // Mid-stream the tail is held back: it is either empty (the chunk ended
+        // on a newline) or a partial frame the next read completes. On the last
+        // pass nothing more is coming, so whatever is there is processed rather
+        // than discarded — the server terminates every frame with a newline, so
+        // this only matters if one is ever written without.
+        buffer = streamDone ? "" : (lines.pop() ?? "");
         for (const line of lines) {
           if (line.startsWith("0:")) {
             try {
