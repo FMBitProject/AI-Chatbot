@@ -26,8 +26,12 @@ const entDaily: number = ent.maxQuestionsPerDay;
 const entPerUser: number = ent.maxQuestionsPerDayPerUser;
 const proDaily: number = pro.maxQuestionsPerDay;
 const proPerUser: number = pro.maxQuestionsPerDayPerUser;
-const staDaily: number = sta.maxQuestionsPerDay;
-const staMonthly: number = sta.maxQuestionsPerMonth;
+// No staDaily/staMonthly any more, and their absence is the point: Starter has
+// no question allowance to advertise because it has no AI answers (see
+// canUseAiAnswers in @/lib/pricing). The numbers still exist in PLAN_LIMITS as
+// the allowance the tier would get if that rule were ever relaxed; what must not
+// exist is copy quoting them, which is what made the pricing page promise a
+// chat the app now declines to give.
 const perDaily: number = per.maxQuestionsPerDay;
 const perMonthly: number = per.maxQuestionsPerMonth;
 // -1 is how PLAN_LIMITS spells "unlimited", and it reaches these strings
@@ -450,7 +454,13 @@ export const pricing = {
       { name: "Custom", desc: "Untuk grup RS, multi-cabang, atau kebutuhan khusus" },
     ],
     features: [
-      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), `${idNum(staMonthly)} pertanyaan/bulan · ${idNum(staDaily)}/hari`, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics dasar", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Prioritas dukungan"],
+      // Starter searches; it does not get answers. The first five entries are
+      // the ones rendered with a tick (see the free-card rule in the pricing
+      // page), so everything true of the free plan has to sit above the line and
+      // "Chat AI" has to sit below it — this list claimed the opposite until the
+      // answers became a paid feature, which would have been a promise the app
+      // refuses to keep the moment someone signs up.
+      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Pencarian dokumen — temukan & baca kutipan aslinya", "Upload PDF, DOCX, Excel & PowerPoint", "Isolasi data penuh antar perusahaan", "Chat AI: jawaban otomatis lengkap dengan sumber", "Analytics lengkap", "Notifikasi email", "Role per departemen", "Prioritas dukungan"],
       [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Respon dukungan < 24 jam"],
       [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
@@ -476,14 +486,14 @@ export const pricing = {
       { name: "Personal", desc: "Untuk kebutuhan pribadi sehari-hari" },
     ],
     individualFeatures: [
-      ["Chat AI berbasis RAG", cap(idLimit(sta.maxDocuments, "dokumen")), `${idNum(staMonthly)} pertanyaan/bulan · ${idNum(staDaily)}/hari`, "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", cap(idLimit(per.maxDocuments, "dokumen")), "Pertanyaan bulanan tanpa batas", idDaily(perDaily)],
+      ["Pencarian dokumen — temukan & baca kutipan aslinya", cap(idLimit(sta.maxDocuments, "dokumen")), "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Hanya Anda yang bisa membuka dokumen Anda", "Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota],
       ["1 pengguna — hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: `Paket Starter dibatasi ${idNum(staDaily)} pertanyaan/hari dan ${idNum(staMonthly)}/bulan. Paket Professional dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi — silakan hubungi kami.` },
+      { q: "Apakah ada batasan pertanyaan?", a: `Jawaban AI tersedia mulai paket berbayar. Paket Starter yang gratis memakai pencarian dokumen — Anda mengetik pertanyaan, sistem menemukan bagian dokumen yang paling relevan, dan Anda membaca kutipan aslinya; yang tidak dilakukan adalah menuliskan jawabannya untuk Anda. Paket Professional dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi — silakan hubungi kami.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -527,7 +537,7 @@ export const pricing = {
       { name: "Custom", desc: "For hospital groups, multi-site, or special requirements" },
     ],
     features: [
-      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), `${enNum(staMonthly)} questions/month · ${enNum(staDaily)}/day`, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Basic analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Priority support"],
+      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "Document search — find and read the original passage", "PDF, DOCX, Excel & PowerPoint upload", "Full data isolation between companies", "AI chat: written answers with their sources", "Full analytics", "Email notifications", "Department roles", "Priority support"],
       [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Support response < 24h"],
       [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
@@ -543,14 +553,14 @@ export const pricing = {
       { name: "Personal", desc: "For everyday personal use" },
     ],
     individualFeatures: [
-      ["RAG-based AI Chat", enLimit(sta.maxDocuments, "documents"), `${enNum(staMonthly)} questions/month · ${enNum(staDaily)}/day`, "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", enLimit(per.maxDocuments, "documents"), "Unlimited questions per month", enDaily(perDaily)],
+      ["Document search — find and read the original passage", enLimit(sta.maxDocuments, "documents"), "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Only you can open your documents", "AI chat: written answers with their sources", enLimit(per.maxDocuments, "documents"), enPersonalQuota],
       ["1 user — just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: `Starter is limited to ${enNum(staDaily)} questions/day and ${enNum(staMonthly)}/month. Professional is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the Custom plan is uncapped — get in touch.` },
+      { q: "Are there question limits?", a: `AI answers start with the paid plans. The free Starter plan uses document search — you type a question, the system finds the passages that match it, and you read the original text; what it does not do is write the answer for you. Professional is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the Custom plan is uncapped — get in touch.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],

@@ -10,6 +10,7 @@ import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAG
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { canUseAiAnswers } from "@/lib/pricing";
 
 // Same prompt as /api/slack/command, and the two are kept identical on purpose:
 // a mention and a slash command are the same question asked two ways, and a
@@ -106,7 +107,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Same plan rules as the chat UI and the public API (see resolvePlan).
-    const { company, limits } = await resolvePlanById(companyId);
+    const { company, subscription, limits } = await resolvePlanById(companyId);
+
+    // Answers are a paid feature; a mention and a slash command must agree about
+    // that, or the gate is only as strong as whichever entry point was forgotten.
+    if (!canUseAiAnswers(subscription.plan)) {
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: "🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.",
+      });
+      return NextResponse.json({ ok: true });
+    }
 
     if (dbUser && !(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
       await getSlackClient().chat.postMessage({

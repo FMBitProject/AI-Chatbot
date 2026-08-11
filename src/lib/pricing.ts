@@ -69,6 +69,33 @@ export function isPaidPlan(value: unknown): value is PaidPlan {
   return isPurchasablePlan(value) || value === "custom";
 }
 
+/**
+ * Whether this plan may have its questions answered by the AI.
+ *
+ * The free tier searches; the paid tiers are answered. Document search
+ * (/search) stays open to everyone — it costs one embedding call and nothing
+ * from the model that is actually scarce.
+ *
+ * Two problems this solves at once. Generation runs through one Groq key shared
+ * by every customer at 12,000 tokens per minute, so an unbounded free tier is
+ * the paying customers queueing behind people who are not paying. And the gap
+ * between Starter and Personal was only a number of questions, which is a weak
+ * reason to pay; "read the passage yourself" versus "have it answered, with
+ * sources" is a difference someone can feel in the first minute.
+ *
+ * Deliberately keyed on the *effective* plan (see getEffectiveSubscription), so
+ * a lapsed subscription loses answers when its grace period ends, exactly as it
+ * loses every other paid limit — and gets them back the moment it renews.
+ *
+ * If the free tier should instead get a small taste rather than nothing, this
+ * is the one function to change: return true for starter and give it a low
+ * per-day allowance in PLAN_LIMITS. That trade is a product decision, not a
+ * technical one, which is why it is named and in one place.
+ */
+export function canUseAiAnswers(plan: string | null | undefined): boolean {
+  return isPaidPlan(plan);
+}
+
 export type Plan = "starter" | PaidPlan;
 
 // Ordering, not arithmetic: only the comparisons matter, so inserting a tier in
