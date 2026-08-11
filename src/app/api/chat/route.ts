@@ -13,6 +13,34 @@ import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
 
+/**
+ * Turns whatever the model provider threw into the two codes the chat page
+ * already knows how to render.
+ *
+ * Shared by the two paths a generation can fail on — a rejected stream and a
+ * stream that ends empty — because they are the same failure to the person
+ * waiting, and previously only one of them said anything.
+ *
+ * The rate-limit test looks for the words Groq actually uses. Its TPM refusal
+ * is "Request too large for model … tokens per minute (TPM): Limit 12000,
+ * Requested 12232", which contains neither "429" nor the phrase "rate limit" —
+ * the same class of mistake as matching a Gemini 429 on its message text. The
+ * distinction is worth keeping: AI_RATE_LIMIT tells the reader to wait a moment
+ * and try again, which is true and actionable; AI_ERROR tells them something
+ * broke, which for an over-long request is neither.
+ */
+function describeAiFailure(err: unknown): { error: string; provider: string } {
+  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
+  const isRateLimit =
+    msg.includes("429") ||
+    msg.includes("rate limit") ||
+    msg.includes("rate_limit") ||
+    msg.includes("quota") ||
+    msg.includes("tokens per minute") ||
+    msg.includes("request too large");
+  return { error: isRateLimit ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" };
+}
+
 function detectLang(text: string): "id" | "en" {
   const idPattern = /\b(apa|bagaimana|jelaskan|saya|yang|adalah|dan|dengan|untuk|ini|itu|tidak|bisa|cara|tolong|mohon|sebutkan|berikan|apakah|mengapa|kapan|siapa|dimana|berapa|boleh|perlu|harus|bisa|ingin|mau)\b/i;
   return idPattern.test(text) ? "id" : "en";
@@ -215,10 +243,49 @@ export async function POST(req: NextRequest) {
     ? `KNOWLEDGE BASE CATALOG — ${docCatalogNames.length} document(s) available:\n${docCatalogNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}`
     : "KNOWLEDGE BASE CATALOG: No documents available.";
 
-  // ~4 chars per token; reserve ~3000 tokens for system prompt + messages + output
-  // Groq free tier: 12,000 TPM → safe context budget ≈ 9,000 tokens ≈ 36,000 chars
-  // Groq Dev/paid tier: 100,000+ TPM → can raise this significantly
-  const MAX_CONTEXT_CHARS = 36_000;
+  // How much retrieved text may go into the prompt, measured rather than
+  // guessed.
+  //
+  // This was the constant 36,000, derived once from "12,000 TPM minus about
+  // 3,000 tokens of everything else". The arithmetic was right when it was
+  // written and it had no way to stay right: the reserve was a number in a
+  // comment, so growing the system prompt by a few hundred tokens silently
+  // overspent it. That is exactly what happened — adding the grounding rules
+  // pushed a request to 12,232 tokens against a 12,000 limit, and Groq refused
+  // the whole call. The user saw an empty answer bubble.
+  //
+  // So the fixed part is now weighed instead of assumed. Everything already
+  // known at this point — the rules, the catalogue (which grows with the
+  // customer's document count), the persona, the language block — is counted
+  // for real. Only the two parts not yet built are reserved for, and generously.
+  //
+  // CHARS_PER_TOKEN is 3.5, not the 4 the old comment used. Four is about right
+  // for plain English prose and too optimistic for what this product actually
+  // indexes: Indonesian, clinical terminology, dosages, citations and numbers
+  // all tokenize worse. The old estimate is part of why a budget that looked
+  // like 9,000 tokens arrived as more.
+  const TPM_LIMIT_TOKENS = 12_000;   // Groq free tier, per organization
+  const OUTPUT_RESERVE_TOKENS = 1_200;
+  const CHARS_PER_TOKEN = 3.5;
+  const SAFETY = 0.95;               // tokenizer estimates are estimates
+  const HISTORY_RESERVE_CHARS = 6_000; // replayed turns + this question
+
+  const promptOverheadChars =
+    SYSTEM_PROMPT.length + GROUNDING_REMINDER.length + docCatalog.length +
+    (company?.aiPersonality?.length ?? 0) + (company?.aiName?.length ?? 0) +
+    800; // language block + section headers, both small and fixed
+
+  const inputBudgetChars =
+    (TPM_LIMIT_TOKENS - OUTPUT_RESERVE_TOKENS) * SAFETY * CHARS_PER_TOKEN;
+
+  // Floored rather than allowed to go negative: a customer with a very large
+  // catalogue would otherwise get a budget below zero, no excerpts at all, and
+  // a confident "not found" for a question their documents do answer. A small
+  // budget degrades the answer; a negative one silently changes what is true.
+  const MAX_CONTEXT_CHARS = Math.max(
+    4_000,
+    Math.floor(inputBudgetChars - promptOverheadChars - HISTORY_RESERVE_CHARS),
+  );
 
   // Take as many top-scored chunks as fit within the token budget
   // Cap at 5 unique documents to avoid irrelevant sources
@@ -424,12 +491,32 @@ If no relevant information is found:
 
   const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
 
+  // Set by onError below. The AI SDK does not always surface a provider refusal
+  // by rejecting textStream — a request rejected before generation starts ends
+  // the stream cleanly with nothing in it — so the error has to be captured
+  // where it is raised and checked after the loop.
+  let streamError: unknown;
+
   const result = streamText({
     model: groqClient("llama-3.3-70b-versatile"),
     system: systemPromptWithContext,
     messages: messagesWithLang,
     temperature: RAG_TEMPERATURE,
+    // Reported, not swallowed. A failed generation used to reach the browser as
+    // a completed stream carrying no text: the for-await below ended without
+    // throwing, the catch never ran, and the page rendered an empty bubble with
+    // follow-up suggestions under it. The provider's refusal was logged on the
+    // server and nowhere else, so the one person who could act on it — the
+    // admin watching a blank answer — was told nothing at all.
+    onError: ({ error }) => {
+      streamError = error;
+      console.error("[chat] generation failed:", error);
+    },
     onFinish: async ({ text }) => {
+      // An empty completion is not an answer and must not become one row of
+      // chat history. It would also be replayed to the model as a past turn in
+      // which the assistant said nothing.
+      if (!text.trim()) return;
       // Runs after the stream completes, so it gets its own short tenant-scoped
       // transaction rather than being held open across the LLM response.
       await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
@@ -460,9 +547,20 @@ If no relevant information is found:
           await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const is429 = msg.includes("429") || msg.toLowerCase().includes("rate limit") || msg.toLowerCase().includes("quota");
-        await writer.write(encoder.encode(`1:${JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" })}\n`));
+        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(err))}\n`));
+        await closeWriter();
+        return;
+      }
+
+      // A stream that ended cleanly with nothing in it is a failure too, and it
+      // is the shape this provider's refusals actually take: "Request too large
+      // … tokens per minute (TPM): Limit 12000, Requested 12232" never reaches
+      // the catch above. Without this the browser is handed silence and renders
+      // an empty bubble, which reads as a bug in the page rather than a limit
+      // that was hit — and leaves the reader unsure whether the blank space is
+      // the answer.
+      if (!fullText.trim()) {
+        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(streamError))}\n`));
         await closeWriter();
         return;
       }
