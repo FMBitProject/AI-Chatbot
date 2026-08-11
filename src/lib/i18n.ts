@@ -93,24 +93,33 @@ const enPersonalQuota = perMonthly === -1
 export const t = {
   id: {
     welcome: "Selamat datang kembali",
-    subtitle: "Masuk ke akun perusahaan Anda",
+    // Netral, bukan bercabang. Halaman ini tidak perlu tahu jenis akun —
+    // kredensialnya yang menentukan, dan servernya yang sudah tahu. Yang salah
+    // dulu adalah kalimatnya: seorang individu disambut "akun perusahaan Anda"
+    // di layar pertama setelah dia sengaja memilih mendaftar sebagai individu.
+    subtitle: "Masuk ke akun Anda",
     email: "Email",
-    emailPlaceholder: "nama@perusahaan.com",
+    emailPlaceholder: "nama@email.com",
     password: "Kata Sandi",
     passwordPlaceholder: "Masukkan kata sandi",
     forgotPassword: "Lupa kata sandi?",
     login: "Masuk",
     noAccount: "Belum punya akun?",
-    register: "Daftar Perusahaan",
+    // Dua jalan, karena di sinilah percabangannya benar-benar ada: yang satu
+    // membawa `?type=individual`, yang satu tidak. Satu link "Daftar
+    // Perusahaan" diam-diam memilihkan jenis akun yang tidak bisa diubah lagi
+    // untuk orang yang datang ke sini karena salah klik.
+    registerIndividual: "Daftar Individu",
+    registerCompany: "Daftar Perusahaan",
     viewPricing: "Lihat paket harga →",
-    hero1: "Knowledge Base Cerdas\nuntuk Tim Internal Anda",
-    heroDesc: "Akses SOP, regulasi, dan panduan perusahaan secara instan dengan kekuatan AI — tanpa perlu membuka dokumen satu per satu.",
+    hero1: "Knowledge Base Cerdas\nuntuk Dokumen Anda",
+    heroDesc: "Akses SOP, panduan, catatan, dan dokumen penting Anda secara instan lewat AI — tanpa perlu membuka filenya satu per satu.",
     f1Title: "Knowledge Base Terpusat",
-    f1Desc: "Semua SOP dan regulasi dalam satu platform",
+    f1Desc: "Semua dokumen penting dalam satu tempat",
     f2Title: "Jawaban Instan",
     f2Desc: "AI menjawab dalam hitungan detik berdasarkan dokumen resmi",
     f3Title: "Aman & Terisolasi",
-    f3Desc: "Data tiap perusahaan terisolasi penuh, tidak bocor",
+    f3Desc: "Data tiap akun terisolasi penuh, tidak bocor",
     loginFailed: "Login Gagal",
     error: "Terjadi kesalahan. Silakan coba lagi.",
     // register
@@ -160,24 +169,25 @@ export const t = {
   },
   en: {
     welcome: "Welcome back",
-    subtitle: "Sign in to your company account",
+    subtitle: "Sign in to your account",
     email: "Email",
-    emailPlaceholder: "name@company.com",
+    emailPlaceholder: "name@email.com",
     password: "Password",
     passwordPlaceholder: "Enter your password",
     forgotPassword: "Forgot password?",
     login: "Sign In",
     noAccount: "Don't have an account?",
-    register: "Register Company",
+    registerIndividual: "Register as Individual",
+    registerCompany: "Register a Company",
     viewPricing: "View pricing →",
-    hero1: "Smart Knowledge Base\nfor Your Internal Team",
-    heroDesc: "Access SOPs, regulations, and company guidelines instantly with the power of AI — no more opening documents one by one.",
+    hero1: "Smart Knowledge Base\nfor Your Documents",
+    heroDesc: "Reach your SOPs, guides, notes and important documents instantly through AI — no more opening files one by one.",
     f1Title: "Centralized Knowledge Base",
-    f1Desc: "All SOPs and regulations in one platform",
+    f1Desc: "Every important document in one place",
     f2Title: "Instant Answers",
     f2Desc: "AI answers in seconds based on official documents",
     f3Title: "Secure & Isolated",
-    f3Desc: "Each company's data is fully isolated, no leaks",
+    f3Desc: "Every account's data is fully isolated, no leaks",
     loginFailed: "Login Failed",
     error: "An error occurred. Please try again.",
     // register

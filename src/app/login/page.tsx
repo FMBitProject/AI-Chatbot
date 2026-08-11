@@ -147,10 +147,25 @@ export default function LoginPage() {
               <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-teal-600 block">
                 {T.forgotPassword}
               </Link>
-              <p className="text-sm text-gray-500">
-                {T.noAccount}{" "}
-                <Link href="/register" className="text-teal-600 hover:underline font-medium">{T.register}</Link>
-              </p>
+              {/* Both paths, on their own line rather than inline after the
+                  question: a signup link that names only one kind of account is
+                  a choice made on the visitor's behalf, and this particular
+                  choice cannot be undone once the account exists. The form above
+                  stays single — there is nothing to split, because the
+                  credentials decide which account this is and the server already
+                  knows which one it found. */}
+              <div className="text-sm text-gray-500">
+                <p>{T.noAccount}</p>
+                <p className="mt-1 flex items-center justify-center gap-2">
+                  <Link href="/register?type=individual" className="text-teal-600 hover:underline font-medium">
+                    {T.registerIndividual}
+                  </Link>
+                  <span aria-hidden="true" className="text-gray-300">·</span>
+                  <Link href="/register" className="text-teal-600 hover:underline font-medium">
+                    {T.registerCompany}
+                  </Link>
+                </p>
+              </div>
               <Link href="/pricing" className="text-xs text-gray-400 hover:text-gray-600 block">{T.viewPricing}</Link>
             </div>
           </div>
