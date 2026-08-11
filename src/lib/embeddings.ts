@@ -73,6 +73,48 @@ function isAbortError(err: unknown): boolean {
   return named(err) || (err instanceof Error && named(err.cause));
 }
 
+/**
+ * True when the provider said "too fast" rather than "no".
+ *
+ * The distinction decides whether a document goes back in the queue or is
+ * marked failed for a person to deal with, so getting it wrong is expensive in
+ * exactly the situation it matters most — a bulk import, where a rate limit is
+ * not an edge case but the expected weather.
+ *
+ * It reads the status code, because the message does not carry one. Both call
+ * sites used to test `err.message.includes("429")`, and Gemini's 429 body is:
+ *
+ *   "You exceeded your current quota, please check your plan and billing
+ *    details. For more information on this error, head to: …/rate-limits"
+ *
+ * — nowhere in which do the digits 429 appear. The AI SDK puts the status on
+ * `APICallError.statusCode` instead, so the check never fired: no backoff, no
+ * requeue, and a perfectly healthy document marked "Failed" with a message
+ * blaming an exhausted quota. Confirmed against the SDK's own error class,
+ * which reports `statusCode: 429`, `isRetryable: true`, and a message
+ * containing no "429".
+ *
+ * The text patterns stay as a fallback for whatever a provider or a proxy
+ * wraps the error in on the way here. "Exceeded your current quota" is
+ * deliberately included even though it can also mean a genuinely spent daily
+ * allowance: a daily quota resets, so waiting is still the right response, and
+ * it is never "your key is wrong" — the one conclusion that would send someone
+ * to revoke a working key.
+ */
+export function isRateLimitError(err: unknown): boolean {
+  // Walk one link of the cause chain: a provider may wrap the original.
+  for (const candidate of [err, (err as { cause?: unknown })?.cause]) {
+    if (candidate && typeof candidate === "object" && "statusCode" in candidate) {
+      if ((candidate as { statusCode?: unknown }).statusCode === 429) return true;
+    }
+  }
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return (
+    /\b429\b/.test(message) ||
+    /exceeded your current quota|resource[_ ]exhausted|rate[ _-]?limit|too many requests/i.test(message)
+  );
+}
+
 // Extract retry delay (seconds) from a Gemini 429 error message.
 function parseRetryDelay(err: unknown): number {
   const msg = err instanceof Error ? err.message : String(err);
@@ -166,9 +208,7 @@ export async function getEmbeddings(texts: string[], apiKey?: string | null): Pr
           );
         }
 
-        const isRateLimit =
-          err instanceof Error && err.message.includes("429");
-        if (!isRateLimit) throw err;
+        if (!isRateLimitError(err)) throw err;
         const delay = parseRetryDelay(err) * 1000;
         // Checked before sleeping, not after: a sleep that would overrun the
         // budget is one we should never start.

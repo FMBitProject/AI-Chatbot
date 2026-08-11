@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
 import { companies, documents, documentChunks } from "@/lib/db/schema";
 import { chunkText } from "@/lib/chunker";
-import { getEmbeddings, EmbeddingBudgetExceededError } from "@/lib/embeddings";
+import { getEmbeddings, EmbeddingBudgetExceededError, isRateLimitError } from "@/lib/embeddings";
 import type { Company } from "@/lib/subscription";
 
 // Turning an uploaded document into searchable vectors, separated from the
@@ -312,9 +312,15 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
     // budget and the raw 429 propagates instead. Both mean "too fast", and
     // neither means "your key is wrong" — which is the one message that would
     // send an admin to revoke a perfectly good key.
+    //
+    // Via isRateLimitError rather than a substring test on the message. The
+    // test used to be `message.includes("429")`, which Gemini's own 429 never
+    // satisfies — the status lives on the error object, not in its prose — so
+    // this branch was unreachable for the single most common failure on the
+    // free tier, and every rate-limited document was filed as broken instead
+    // of being handed back to the queue.
     const isRateLimit =
-      error instanceof EmbeddingBudgetExceededError ||
-      (error instanceof Error && error.message.includes("429"));
+      error instanceof EmbeddingBudgetExceededError || isRateLimitError(error);
     if (isRateLimit) {
       // Back to the queue, untouched. The old pipeline failed the document here
       // and made the admin upload the file again for what was a temporary
