@@ -27,6 +27,8 @@ export const LIMITS = {
   email: 254,
   /** A password. Bounded because scrypt hashes whatever it is given. */
   password: 200,
+  /** A BYOK provider key. Real Groq/Gemini keys are well under this. */
+  apiKey: 400,
 } as const;
 
 /**
@@ -40,6 +42,29 @@ export function optionalString(value: unknown, max: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > max) return null;
+  return trimmed;
+}
+
+// Deliberately not an RFC 5322 regex — those are pages long and still wrong.
+// This rejects the mistakes that actually arrive (missing @, missing dot,
+// embedded spaces, a trailing "..") and leaves real delivery to be proven by the
+// verification mail, which is the only check that ever really settles it.
+//
+// Written to be backtracking-safe: the inner class excludes the dot the group
+// starts with, so `(\.[^\s@.]+)+` has exactly one way to match any input and
+// cannot degrade into a ReDoS on a long hostile string.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+
+/**
+ * A trimmed, plausibly-shaped email address of at most `LIMITS.email` — or null.
+ *
+ * The trim is load-bearing, not cosmetic: an address pasted with a trailing
+ * space is stored with it, and the login form's trimmed value then never matches
+ * the stored row. The account exists and cannot be signed into.
+ */
+export function optionalEmail(value: unknown): string | null {
+  const trimmed = optionalString(value, LIMITS.email);
+  if (!trimmed || !EMAIL_PATTERN.test(trimmed)) return null;
   return trimmed;
 }
 
