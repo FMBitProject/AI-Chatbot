@@ -524,6 +524,17 @@ If no relevant information is found:
 
       let fullText = "";
       let lastError: unknown;
+      // Whether a model finished a generation cleanly. Tracked separately from
+      // `fullText` because "there is text on screen" and "the answer is
+      // complete" are different questions, and only the second one may persist.
+      let answered = false;
+      // Which model actually produced the answer, so the follow-up questions can
+      // be asked of the same one. They were hardcoded to the top model, which
+      // meant they failed precisely when a fallback had just happened — the top
+      // model being metered out is the whole reason we were on the second one —
+      // and the reader who most needed the conversation to keep moving was the
+      // one who silently got no suggestions.
+      let answeredBy: string | null = null;
 
       // Try each model in turn, and only because Groq meters them separately.
       //
@@ -535,7 +546,21 @@ If no relevant information is found:
       // is no answer at all.
       //
       // Ordered strongest first, and never used to "load balance": the top model
-      // answers whenever it can, and the others exist for the minute it cannot.
+      // answers whenever it can, and the other exists for the minute it cannot.
+      //
+      // llama-3.1-8b-instant was in this list and was removed after testing it.
+      // Given a context that plainly contained the answer — "penurunan 1,0
+      // mmol/L LDL menurunkan kejadian vaskuler mayor sebesar 22%" — and asked
+      // exactly that, it replied "Maaf, informasi tidak ditemukan dalam dokumen
+      // internal perusahaan." It obeys the grounding rules by refusing
+      // everything, which is the failure mode these rules make more likely in a
+      // small model, and it is worse than the error it was there to avoid: a
+      // false "your documents do not say" reads as an authoritative answer,
+      // while "layanan sedang sibuk" tells the truth and invites a retry. Its
+      // 6,000-token-per-minute ceiling barely cleared our ~5,750-token request
+      // anyway. gpt-oss-20b answered both the answerable question and the trap
+      // correctly, so the chain is two models and 20,000 TPM rather than three
+      // and 26,000.
       //
       // Falling back is only allowed when the attempt produced nothing AND was
       // refused for rate limiting. Two guards, both necessary. Once a token has
@@ -546,7 +571,6 @@ If no relevant information is found:
       const MODEL_CHAIN = [
         "llama-3.3-70b-versatile",
         "openai/gpt-oss-20b",
-        "llama-3.1-8b-instant",
       ] as const;
 
       for (const [attempt, modelId] of MODEL_CHAIN.entries()) {
@@ -574,8 +598,26 @@ If no relevant information is found:
         }
 
         if (attemptText.trim()) {
-          if (attempt > 0) console.log(`[chat] answered by fallback model ${modelId}`);
-          lastError = undefined;
+          // Text AND no error is the only success. Text *with* an error is a
+          // generation that died mid-sentence, and treating it as success —
+          // which this loop did until now — is worse than the empty bubble it
+          // replaced: the browser keeps a half-finished answer, the row is
+          // written to chat history as though complete, and the follow-up
+          // questions are generated from a fragment. Nothing anywhere says it
+          // was cut off. On a knowledge base whose answers carry doses and
+          // thresholds, an answer that stops after "dosis maksimalnya adalah"
+          // is not a partial answer, it is a wrong one.
+          //
+          // No fallback either: tokens have already reached the browser, so a
+          // second model would continue a sentence it never started.
+          if (!attemptError) {
+            if (attempt > 0) console.log(`[chat] answered by fallback model ${modelId}`);
+            answered = true;
+            answeredBy = modelId;
+            break;
+          }
+          lastError = attemptError;
+          console.error(`[chat] ${modelId} failed after emitting ${attemptText.length} chars:`, attemptError);
           break;
         }
 
@@ -590,13 +632,18 @@ If no relevant information is found:
         if (!canFallBack) break;
       }
 
-      // Every model refused, or one failed for a reason retrying cannot fix. A
-      // stream that ends cleanly with nothing in it is a failure too, and it is
-      // the shape these refusals actually take — "Request too large … tokens per
-      // minute (TPM): Limit 12000, Requested 12232" never rejects the stream.
-      // Without this the browser is handed silence and renders an empty bubble,
-      // which reads as a broken page rather than a limit that was hit.
-      if (!fullText.trim()) {
+      // Nothing usable: every model refused, one failed for a reason retrying
+      // cannot fix, or a generation died partway. Two shapes of failure end up
+      // here and the client renders both the same way — the error frame replaces
+      // whatever text had arrived, which is the point when that text is a
+      // fragment.
+      //
+      // "Ended cleanly with nothing in it" is the shape these refusals actually
+      // take: "Request too large … tokens per minute (TPM): Limit 12000,
+      // Requested 12232" never rejects the stream. Without this the browser is
+      // handed silence and renders an empty bubble, which reads as a broken page
+      // rather than a limit that was hit.
+      if (!answered) {
         await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(lastError))}\n`));
         await closeWriter();
         return;
@@ -605,20 +652,30 @@ If no relevant information is found:
       // Persisted here rather than in an onFinish callback, which would have
       // fired once per attempt — writing a row for a model that answered
       // nothing, or racing two rows when a fallback succeeded.
-      await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
-        id: assistantMsgId,
-        sessionId: resolvedSessionId,
-        role: "assistant",
-        content: fullText,
-        citationsJson: JSON.stringify(citations),
-      }));
+      //
+      // Wrapped, because this block has a `finally` and no `catch`: an
+      // unavailable database would otherwise throw past the suggestions, close
+      // the stream mid-flight and surface as an unhandled rejection. The answer
+      // is already in the reader's hands by now; losing the history row is bad
+      // and losing the rest of the response on top of it is worse.
+      try {
+        await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
+          id: assistantMsgId,
+          sessionId: resolvedSessionId,
+          role: "assistant",
+          content: fullText,
+          citationsJson: JSON.stringify(citations),
+        }));
+      } catch (err) {
+        console.error(`[chat] answer delivered but not saved (session=${resolvedSessionId}):`, err);
+      }
 
       // Generate suggested follow-up questions — silently skip if this fails
       try {
         const effectiveSuggestLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
         const suggestLang = effectiveSuggestLang === "en" ? "English" : "Bahasa Indonesia";
         const { text: suggestionsRaw } = await generateText({
-          model: groqClient("llama-3.3-70b-versatile"),
+          model: groqClient(answeredBy ?? MODEL_CHAIN[0]),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
 Question: ${question}
