@@ -1,0 +1,49 @@
+version: 2
+
+# Why this exists: before it, nothing watched dependencies at all. The August
+# 2026 audit found 15 advisories (6 high) that had simply accumulated —
+# `npm audit fix` cleared most of them in one command, which is the point. The
+# expensive part was never the fix, it was noticing.
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "02:00"
+      timezone: Asia/Jakarta
+    # `main` auto-deploys to production, so every one of these has to arrive as a
+    # PR to be reviewed and merged — never as a push. A repository ruleset
+    # enforces that too, but the limit below is what keeps the PR list readable.
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+    groups:
+      # One PR per family instead of one per package. Radix and the AI SDK each
+      # release a dozen packages that move together; ungrouped they alone would
+      # exhaust the PR limit every week and bury the security updates.
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      ai-sdk:
+        patterns:
+          - "@ai-sdk/*"
+          - "ai"
+      types:
+        patterns:
+          - "@types/*"
+      # Everything else, patch/minor only. Majors stay separate on purpose: this
+      # repo has no test suite, so a major has to be read rather than trusted.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # The DAST workflow's actions pin to major tags that still drift.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"

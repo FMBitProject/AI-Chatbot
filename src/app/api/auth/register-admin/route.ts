@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isPasswordValid } from "@/lib/password";
+import { LIMITS, optionalEmail, optionalString, readJsonObject } from "@/lib/validate";
 
 // Public endpoint that creates a company + admin — throttle per IP so it can't
 // be used for mass signup spam.
@@ -37,12 +38,21 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, password, companyName } = await req.json() as {
-      name: string;
-      email: string;
-      password: string;
-      companyName: string;
-    };
+    // Validated, not cast. This is a public, unauthenticated endpoint that
+    // writes two rows, so the body is as untrusted as the one on /api/v1/query.
+    // The old `as { name: string; ... }` was erased at runtime: `name` could
+    // arrive as an object and reach `companies.name`, and every field was
+    // unbounded — a megabyte-long companyName was stored verbatim, and the
+    // truthiness check below was the only thing standing in for validation.
+    const body = await readJsonObject(req);
+    if (!body) {
+      return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
+    }
+
+    const name = optionalString(body.name, LIMITS.name);
+    const companyName = optionalString(body.companyName, LIMITS.name);
+    const email = optionalEmail(body.email);
+    const password = typeof body.password === "string" ? body.password : "";
 
     if (!name || !email || !password || !companyName) {
       return NextResponse.json({ error: "Semua field wajib diisi." }, { status: 400 });
@@ -50,8 +60,10 @@ export async function POST(req: NextRequest) {
 
     // better-auth only enforces a length minimum, so the strength rules the
     // form shows have to be repeated here — otherwise a direct POST creates an
-    // account with a password the UI would have rejected.
-    if (!isPasswordValid(password)) {
+    // account with a password the UI would have rejected. The upper bound is
+    // ours: scrypt hashes whatever it is handed, so an unbounded password is a
+    // CPU bill payable by anyone who can reach this route.
+    if (password.length > LIMITS.password || !isPasswordValid(password)) {
       return NextResponse.json({
         error: "Password minimal 8 karakter dan harus memuat huruf besar, angka, dan karakter spesial.",
       }, { status: 400 });
