@@ -150,7 +150,7 @@ jobs:
           echo "cookie=better-auth.session_token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: ZAP full scan (authenticated)
-        uses: zaproxy/action-full-scan@v0.12.0
+        uses: zaproxy/action-full-scan@v0.13.0
         env:
           ZAP_AUTH_HEADER: Cookie
           ZAP_AUTH_HEADER_VALUE: ${{ steps.login.outputs.cookie }}
