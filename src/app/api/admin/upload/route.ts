@@ -172,10 +172,23 @@ export async function POST(req: NextRequest) {
   //
   // Stored in `documents.department`, whose meaning follows the workspace: a
   // folder for an individual, the owning department for a company (see the note
-  // in @/lib/db/schema). Validated like any other client string — it reaches a
-  // column and a `WHERE` clause — and an unusable value degrades to null, i.e.
-  // unfiled, rather than failing an upload over a label.
-  const folder = optionalString(formData.get("folder"), LIMITS.name);
+  // in @/lib/db/schema).
+  //
+  // Refused rather than dropped when it is unusable. Degrading a too-long name
+  // to null files the whole batch as unfiled and answers 200, so the admin is
+  // told the upload worked and only finds out where the documents went by
+  // looking — and with a large import, by looking through a lot of rows. A file
+  // is cheap to re-send; a batch silently filed in the wrong place is not cheap
+  // to sort out. Refusing before any parsing also means nothing is stored yet.
+  const rawFolder = formData.get("folder");
+  const folderOmitted = rawFolder === null || rawFolder === "";
+  const folder = folderOmitted ? null : optionalString(rawFolder, LIMITS.name);
+  if (!folderOmitted && folder === null) {
+    return NextResponse.json(
+      { error: `Nama folder harus berupa teks, maksimal ${LIMITS.name} karakter.` },
+      { status: 400 },
+    );
+  }
 
   if (!files.length) {
     return NextResponse.json({ error: "Tidak ada file yang dikirim." }, { status: 400 });

@@ -55,8 +55,25 @@ export async function POST(req: NextRequest) {
   // cannot find an answer, which is the honest outcome for "search a folder that
   // is empty". What keeps this safe is not the name but where it is applied:
   // narrowing on top of the department rule, never in place of it (see
-  // retrieveChunks). Bounded like every other client string.
-  const folder = optionalString(body.folder, LIMITS.name);
+  // retrieveChunks).
+  //
+  // Unusable is refused, not dropped. optionalString returns null both for
+  // "absent" and for "present but too long", and collapsing those two meant a
+  // request that asked to search *one* folder was answered from the whole
+  // knowledge base instead — the opposite of what it asked for, with no way for
+  // the caller to tell. Nothing leaks either way (null is the asker's own
+  // ordinary access), but silently widening a scope the client narrowed is the
+  // kind of difference that only shows up in an answer nobody can explain.
+  let folder: string | null = null;
+  if (body.folder !== undefined && body.folder !== null && body.folder !== "") {
+    folder = optionalString(body.folder, LIMITS.name);
+    if (!folder) {
+      return new Response(
+        JSON.stringify({ error: "INVALID_FOLDER", limit: LIMITS.name }),
+        { status: 400 },
+      );
+    }
+  }
 
   // Only the newest user message is taken from the request. Everything the model
   // is told about earlier turns is read back from the database further down —

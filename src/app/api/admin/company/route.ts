@@ -22,14 +22,32 @@ export async function GET(req: NextRequest) {
   // `plan` is the plan in force right now, so the dashboard gates on exactly
   // what the server enforces; `purchasedPlan` is only for messaging.
   const { subscription } = await resolvePlan(companyRow);
-  const { groqApiKey, geminiApiKey, ...safe } = companyRow;
+
+  // Named fields, not `{ groqApiKey, geminiApiKey, ...rest }`.
+  //
+  // Stripping the two credentials and shipping whatever else the row happens to
+  // hold is opt-out security: it protects the columns someone thought about on
+  // the day they wrote it, and nothing added afterwards. `account_type` proved
+  // the point — it was added for individual accounts and arrived in the browser
+  // without anyone deciding it should. Harmless that time, which is exactly why
+  // it went unnoticed; the next column may not be.
+  //
+  // Same rule the guards already apply to `users` (see SELECTED in
+  // @/lib/auth-guard, and its note about the twoFactorSecret column that reached
+  // the admin's browser by this very route). The list is short because only two
+  // callers read this endpoint: the dashboard shell needs name, plan and account
+  // type, the Langganan tab needs the two key flags. Adding a field here should
+  // mean some caller asked for it.
   return NextResponse.json({
-    ...safe,
+    name: companyRow.name,
+    accountType: companyRow.accountType,
     plan: subscription.plan,
     purchasedPlan: subscription.purchasedPlan,
     subscriptionStatus: subscription.status,
-    hasGroqKey: !!groqApiKey,
-    hasGeminiKey: !!geminiApiKey,
+    // Booleans, never the keys: the UI only ever needs to know whether one is
+    // set, and the plaintext key has no business leaving the server.
+    hasGroqKey: !!companyRow.groqApiKey,
+    hasGeminiKey: !!companyRow.geminiApiKey,
   });
 }
 

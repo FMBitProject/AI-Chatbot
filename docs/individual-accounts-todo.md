@@ -29,12 +29,6 @@ keliru saat `/api/admin/company` gagal.
 
 ## Ketidakkonsistenan yang tidak terlihat pemakai
 
-- **`src/app/api/chat/route.ts`** dan **`src/app/api/admin/upload/route.ts`** —
-  nama folder di atas 100 karakter diam-diam menjadi `null` (chat: cari semua
-  dokumen; upload: simpan tanpa folder), sementara `PATCH
-  /api/admin/documents/[id]` menolaknya dengan 400. UI tidak bisa menghasilkan
-  input itu (field-nya di-cap 100), dan `null` hanya melebar ke hak akses
-  normal pemakai itu sendiri — bukan celah akses.
 - **`src/app/api/folders/route.ts`** — `withTenant` tidak dibungkus try/catch,
   jadi database bermasalah menghasilkan 500, bukan 503 seperti yang dipakai
   `auth-guard` untuk kasus yang sama.
@@ -47,6 +41,31 @@ keliru saat `/api/admin/company` gagal.
 - **`src/components/admin/DocumentsTab.tsx`** — chip "Tanpa folder" memakai
   `key={key ?? "__all__"}`; `""` lolos dari `??`, jadi key-nya string kosong.
   Sah di React, tapi rapuh kalau daftar chip berubah.
+
+## Dari audit keamanan 11 Agustus 2026
+
+Audit menemukan 0 CRITICAL dan 0 MEDIUM. Tiga temuan MINOR sudah diperbaiki
+(daftar field eksplisit di `/api/admin/company`, folder tak terpakai ditolak
+alih-alih diabaikan, rate limit proxy untuk endpoint baru). Yang tersisa:
+
+- **`src/app/api/admin/documents/[id]/route.ts`** — parameter `id` tidak dicek
+  bentuknya (bukan UUID). Tidak bisa di-inject: nilainya masuk query drizzle
+  terparameter dan dibatasi `companyId` + RLS, jadi id sembarang berakhir 404.
+- **`src/app/api/admin/upload/route.ts`** dan **`.../documents/[id]/route.ts`**
+  — admin perusahaan bisa mengubah `department` sebuah dokumen (termasuk
+  melepasnya jadi `null`, yang membuat dokumen khusus-HR terlihat semua
+  karyawan) tanpa UI dan tanpa jejak audit. Bukan eskalasi hak — admin memang
+  sudah bisa membaca dan menghapus semua dokumen — tapi diam. Tidak ada audit
+  log aksi admin di aplikasi ini; itu keputusan yang sudah diambil, bukan
+  kelalaian.
+- **`src/app/api/auth/register-admin/route.ts`** — nama asli pemakai individu
+  kini tersimpan di `companies.name`, jadi PII yang sama ada di dua tabel.
+  Hanya terbaca pemiliknya sendiri, dan tidak pernah dikirim ke Midtrans
+  maupun email. Perlu diingat kalau ada permintaan penghapusan data. Efek
+  sampingnya: individu bisa memakai nama yang identik dengan perusahaan
+  terdaftar (index uniknya parsial). Hari ini tanpa akibat karena nama
+  workspace tidak pernah ditampilkan ke tenant lain — tinjau ulang kalau nanti
+  ada fitur yang menampilkan atau mencocokkan nama itu.
 
 ## Sudah rusak sebelum fitur ini (bukan regresi)
 
