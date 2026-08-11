@@ -287,13 +287,33 @@ export async function POST(req: NextRequest) {
     Math.floor(inputBudgetChars - promptOverheadChars - HISTORY_RESERVE_CHARS),
   );
 
-  // Take as many top-scored chunks as fit within the token budget
+  // Take the best-scoring chunks, capped by count first and by the token budget
+  // second.
+  //
+  // The count cap is new and it is the larger change. Selection used to be
+  // bounded only by MAX_CONTEXT_CHARS, which on this corpus meant about
+  // eighteen chunks — three to four times what retrieval-augmented generation
+  // normally sends, and the reason a single question cost nearly nine thousand
+  // tokens against a twelve-thousand-per-minute ceiling.
+  //
+  // Eight is not a compromise on quality so much as a bet against noise. The
+  // chunks arrive sorted by cosine similarity, so numbers nine through eighteen
+  // are the weakest matches by construction; including them asks the model to
+  // find the answer inside a larger pile of near-misses, and the grounding rules
+  // it must follow get harder to obey the more plausible-but-irrelevant text
+  // sits next to them. Fewer, better excerpts is the more common finding.
+  //
+  // It stays a named constant because it is a dial worth turning against a real
+  // corpus rather than a truth: raise it if answers start missing things a
+  // document plainly says, lower it if the rate limit still binds.
+  const MAX_CONTEXT_CHUNKS = 8;
   // Cap at 5 unique documents to avoid irrelevant sources
   const MAX_UNIQUE_DOCS = 5;
   const scored: typeof rankedChunks = [];
   const seenDocs = new Set<string>();
   let totalChars = 0;
   for (const c of rankedChunks) {
+    if (scored.length >= MAX_CONTEXT_CHUNKS) break;
     if (totalChars + c.text.length > MAX_CONTEXT_CHARS) break;
     if (!seenDocs.has(c.documentId)) {
       if (seenDocs.size >= MAX_UNIQUE_DOCS) continue;
@@ -491,44 +511,6 @@ If no relevant information is found:
 
   const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
 
-  // Set by onError below. The AI SDK does not always surface a provider refusal
-  // by rejecting textStream — a request rejected before generation starts ends
-  // the stream cleanly with nothing in it — so the error has to be captured
-  // where it is raised and checked after the loop.
-  let streamError: unknown;
-
-  const result = streamText({
-    model: groqClient("llama-3.3-70b-versatile"),
-    system: systemPromptWithContext,
-    messages: messagesWithLang,
-    temperature: RAG_TEMPERATURE,
-    // Reported, not swallowed. A failed generation used to reach the browser as
-    // a completed stream carrying no text: the for-await below ended without
-    // throwing, the catch never ran, and the page rendered an empty bubble with
-    // follow-up suggestions under it. The provider's refusal was logged on the
-    // server and nowhere else, so the one person who could act on it — the
-    // admin watching a blank answer — was told nothing at all.
-    onError: ({ error }) => {
-      streamError = error;
-      console.error("[chat] generation failed:", error);
-    },
-    onFinish: async ({ text }) => {
-      // An empty completion is not an answer and must not become one row of
-      // chat history. It would also be replayed to the model as a past turn in
-      // which the assistant said nothing.
-      if (!text.trim()) return;
-      // Runs after the stream completes, so it gets its own short tenant-scoped
-      // transaction rather than being held open across the LLM response.
-      await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
-        id: assistantMsgId,
-        sessionId: resolvedSessionId,
-        role: "assistant",
-        content: text,
-        citationsJson: JSON.stringify(citations),
-      }));
-    },
-  });
-
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer = writable.getWriter();
@@ -541,29 +523,95 @@ If no relevant information is found:
       await writer.write(encoder.encode(`2:${JSON.stringify({ citations, messageId: assistantMsgId, sessionId: activeSessionId })}\n`));
 
       let fullText = "";
-      try {
-        for await (const chunk of result.textStream) {
-          fullText += chunk;
-          await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
+      let lastError: unknown;
+
+      // Try each model in turn, and only because Groq meters them separately.
+      //
+      // Measured from the provider's own headers rather than assumed: on this
+      // account llama-3.3-70b-versatile allows 12,000 tokens per minute,
+      // openai/gpt-oss-20b 8,000 and llama-3.1-8b-instant 6,000, each with its
+      // own counter. A question refused by the first has a real chance with the
+      // second, so the alternative to falling back is not a better answer — it
+      // is no answer at all.
+      //
+      // Ordered strongest first, and never used to "load balance": the top model
+      // answers whenever it can, and the others exist for the minute it cannot.
+      //
+      // Falling back is only allowed when the attempt produced nothing AND was
+      // refused for rate limiting. Two guards, both necessary. Once a token has
+      // reached the browser the answer is already half-rendered and a second
+      // model would continue someone else's sentence. And a refusal that is not
+      // a rate limit — a bad key, a malformed request — will fail identically on
+      // every model, so retrying only delays an error that has to be shown.
+      const MODEL_CHAIN = [
+        "llama-3.3-70b-versatile",
+        "openai/gpt-oss-20b",
+        "llama-3.1-8b-instant",
+      ] as const;
+
+      for (const [attempt, modelId] of MODEL_CHAIN.entries()) {
+        let attemptError: unknown;
+        const result = streamText({
+          model: groqClient(modelId),
+          system: systemPromptWithContext,
+          messages: messagesWithLang,
+          temperature: RAG_TEMPERATURE,
+          // Captured here because the SDK does not always surface a provider
+          // refusal by rejecting textStream: a request rejected before
+          // generation starts ends the stream cleanly with nothing in it.
+          onError: ({ error }) => { attemptError = error; },
+        });
+
+        let attemptText = "";
+        try {
+          for await (const chunk of result.textStream) {
+            attemptText += chunk;
+            fullText += chunk;
+            await writer.write(encoder.encode(`0:${JSON.stringify(chunk)}\n`));
+          }
+        } catch (err) {
+          attemptError = err;
         }
-      } catch (err) {
-        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(err))}\n`));
+
+        if (attemptText.trim()) {
+          if (attempt > 0) console.log(`[chat] answered by fallback model ${modelId}`);
+          lastError = undefined;
+          break;
+        }
+
+        lastError = attemptError;
+        const canFallBack =
+          attempt < MODEL_CHAIN.length - 1 &&
+          describeAiFailure(attemptError).error === "AI_RATE_LIMIT";
+        console.error(
+          `[chat] ${modelId} produced nothing${canFallBack ? ", falling back" : ""}:`,
+          attemptError,
+        );
+        if (!canFallBack) break;
+      }
+
+      // Every model refused, or one failed for a reason retrying cannot fix. A
+      // stream that ends cleanly with nothing in it is a failure too, and it is
+      // the shape these refusals actually take — "Request too large … tokens per
+      // minute (TPM): Limit 12000, Requested 12232" never rejects the stream.
+      // Without this the browser is handed silence and renders an empty bubble,
+      // which reads as a broken page rather than a limit that was hit.
+      if (!fullText.trim()) {
+        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(lastError))}\n`));
         await closeWriter();
         return;
       }
 
-      // A stream that ended cleanly with nothing in it is a failure too, and it
-      // is the shape this provider's refusals actually take: "Request too large
-      // … tokens per minute (TPM): Limit 12000, Requested 12232" never reaches
-      // the catch above. Without this the browser is handed silence and renders
-      // an empty bubble, which reads as a bug in the page rather than a limit
-      // that was hit — and leaves the reader unsure whether the blank space is
-      // the answer.
-      if (!fullText.trim()) {
-        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(streamError))}\n`));
-        await closeWriter();
-        return;
-      }
+      // Persisted here rather than in an onFinish callback, which would have
+      // fired once per attempt — writing a row for a model that answered
+      // nothing, or racing two rows when a fallback succeeded.
+      await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
+        id: assistantMsgId,
+        sessionId: resolvedSessionId,
+        role: "assistant",
+        content: fullText,
+        citationsJson: JSON.stringify(citations),
+      }));
 
       // Generate suggested follow-up questions — silently skip if this fails
       try {
