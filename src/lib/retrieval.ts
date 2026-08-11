@@ -110,6 +110,12 @@ export async function retrieveChunks(opts: {
   companyId: string;
   queryEmbedding: number[];
   department?: string | null;
+  // Restrict the search to one folder, on top of everything else — never
+  // instead of it. See the condition below: `department` decides what the asker
+  // is allowed to see and `folder` decides how much of that they want to search,
+  // and the two are separate arguments precisely so a caller cannot pass the
+  // second where the first belongs and widen access by accident.
+  folder?: string | null;
   limit?: number;
   minScore?: number;
   // Document limit of the plan that applies right now (-1 = unlimited). Callers
@@ -117,7 +123,7 @@ export async function retrieveChunks(opts: {
   // subscription cannot keep querying documents it can no longer hold.
   maxDocuments?: number;
 }, tx: TenantTx): Promise<RetrievedChunk[]> {
-  const { companyId, queryEmbedding, department = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
+  const { companyId, queryEmbedding, department = null, folder = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
 
   const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
   if (activeIds !== null && activeIds.length === 0) return [];
@@ -137,6 +143,17 @@ export async function retrieveChunks(opts: {
   // Employees only see documents with no department (shared) or their own.
   if (department) {
     conditions.push(or(isNull(documents.department), eq(documents.department, department))!);
+  }
+  // Pushed as an additional AND, after the department rule and never in place of
+  // it. That is the whole safety argument for reusing one column for two
+  // purposes: an extra conjunct can only ever remove rows from a result the
+  // access rule already approved, so the worst a hostile `folder` can do is
+  // return fewer of the asker's own documents. Written as a strict equality
+  // rather than the department rule's NULL-or-match, because "search only
+  // Keuangan" that also returns every unfiled document is not the thing the
+  // person asked for.
+  if (folder) {
+    conditions.push(eq(documents.department, folder));
   }
 
   const rows = await tx

@@ -13,15 +13,37 @@
 //     status, limits and expiry. `custom` IS one of these; leaving it out
 //     would make getEffectiveSubscription() read a negotiated account as
 //     `starter` and drop it to 10 questions a day.
-export type PurchasablePlan = "professional" | "enterprise";
+export type PurchasablePlan = "personal" | "professional" | "enterprise";
 export type PaidPlan = PurchasablePlan | "custom";
 
+// Which account type may buy which plan. Both directions are refused, and both
+// for the same reason: the plans are priced around seats. Selling Professional
+// to one person charges them six times Personal for 49 employee slots they have
+// nowhere to put, and selling Personal to a company sells a 1-seat plan to a
+// workspace that already has more people in it than that.
+//
+// Enforced at checkout (/api/payment/create). Kept here so the price tables, the
+// checkout and the dashboard read the rule from one place.
+export function isPlanAllowedFor(
+  plan: PurchasablePlan,
+  accountType: "company" | "individual",
+): boolean {
+  return accountType === "individual" ? plan === "personal" : plan !== "personal";
+}
+
+// Personal is priced under the psychological line a person pays out of their own
+// pocket rather than a company card — the whole point of the tier. It is NOT a
+// researched number: pick a real one before the first individual customer and
+// change it here, which is the only place both the checkout charge and every
+// price on the site read from.
 export const NORMAL_PRICES: Record<PurchasablePlan, number> = {
+  personal: 99000,
   professional: 299000,
   enterprise: 799000,
 };
 
 export const PROMO_PRICES: Record<PurchasablePlan, number> = {
+  personal: 59000,
   professional: 200000,
   enterprise: 500000,
 };
@@ -31,6 +53,7 @@ export const PROMO_PRICES: Record<PurchasablePlan, number> = {
 export const PROMO_ENDS_AT = new Date("2026-12-31T17:00:00Z");
 
 export const PLAN_NAMES: Record<PurchasablePlan, string> = {
+  personal: "IntelliBase Personal — 1 Bulan",
   professional: "IntelliBase Professional — 1 Bulan",
   enterprise: "IntelliBase Enterprise — 1 Bulan",
 };
@@ -39,7 +62,7 @@ export const PLAN_NAMES: Record<PurchasablePlan, string> = {
 // It is what stops a hand-crafted POST from buying the unlimited tier for the
 // Enterprise price, or for nothing at all.
 export function isPurchasablePlan(value: unknown): value is PurchasablePlan {
-  return value === "professional" || value === "enterprise";
+  return value === "personal" || value === "professional" || value === "enterprise";
 }
 
 export function isPaidPlan(value: unknown): value is PaidPlan {
@@ -48,13 +71,24 @@ export function isPaidPlan(value: unknown): value is PaidPlan {
 
 export type Plan = "starter" | PaidPlan;
 
+// Ordering, not arithmetic: only the comparisons matter, so inserting a tier in
+// the middle is a renumbering and nothing else. Nothing persists these numbers.
+//
+// `personal` sits above starter and below professional even though the two are
+// sold to different account types and can never be compared in practice — an
+// individual is refused every plan but Personal, so the downgrade guard only
+// ever compares Personal with Personal (a renewal) or with starter (a lapsed
+// account coming back). Giving it a rank of its own keeps that guard meaningful
+// if the account-type rule is ever relaxed, instead of silently treating a paid
+// tier as rank 0.
 const PLAN_RANK: Record<Plan, number> = {
   starter: 0,
-  professional: 1,
-  enterprise: 2,
+  personal: 1,
+  professional: 2,
+  enterprise: 3,
   // Above enterprise so the downgrade guards in checkout and in the payment
   // webhook refuse to overwrite a negotiated account with a self-serve purchase.
-  custom: 3,
+  custom: 4,
 };
 
 // Ordinal tier of a plan (higher = more premium). Unknown/null → starter (0).

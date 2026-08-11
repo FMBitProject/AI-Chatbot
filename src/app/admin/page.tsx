@@ -38,6 +38,18 @@ export default function AdminPage() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyName, setCompanyName] = useState<string>("");
+  // Defaults to "company" so a dashboard that has not answered yet renders the
+  // shape it has always had.
+  //
+  // The access gate below keeps everything unmounted while the check is in
+  // flight, so this default is not shown during a normal load — but it *is*
+  // shown when the check fails, because failure still grants access (see the
+  // note there). The effect asks /api/user/me as a second chance in that case;
+  // if both fail, an individual sees two tabs that are not theirs until they
+  // reload. Defaulting the other way would be worse: every company admin would
+  // lose employee management on one flaky request.
+  const [accountType, setAccountType] = useState<"company" | "individual">("company");
+  const isIndividual = accountType === "individual";
   // Shared Plan type rather than a union spelled out here: this state is set
   // straight from the API response, so a plan added in plan-limits.ts and not
   // repeated here would arrive at runtime while the type insisted it could not.
@@ -84,12 +96,48 @@ export default function AdminPage() {
       // lock a legitimate admin out of their own dashboard.
       setAccess("granted");
 
+      // Read from the response rather than from state: setAccountType above
+      // does not take effect until the next render, and the decision below
+      // ("is there anyone to list?") is made in this one.
+      let resolvedAccountType: "company" | "individual" = "company";
+
       if (res?.ok) {
         const data = await res.json().catch(() => null) as
-          { name?: string; plan?: Plan } | null;
+          { name?: string; plan?: Plan; accountType?: "company" | "individual" } | null;
         if (!cancelled && data) {
           setCompanyName(data.name ?? "");
           if (data.plan) setPlan(data.plan);
+          if (data.accountType) {
+            setAccountType(data.accountType);
+            resolvedAccountType = data.accountType;
+          }
+        }
+      } else {
+        // The request above failed — a timeout, a dropped connection, a 500 —
+        // and the line before this one granted access anyway, on purpose. What
+        // it could not do is say *what kind* of workspace this is, so the
+        // account type falls back to its default and an individual account
+        // renders with the Karyawan and Analitik tabs: two tabs that answer 403
+        // and show one person's own activity respectively.
+        //
+        // One cheap second chance before settling for that. /api/user/me is a
+        // different route with a different query, so a transient failure of the
+        // first does not imply this one fails too, and it is the only question
+        // still outstanding — the header's name and plan are cosmetic, the tab
+        // list is not.
+        //
+        // No timeout signal: the one above may already have fired, and passing a
+        // spent signal would abort this before it left. Its own failure is fine
+        // and expected here — the default stands and a reload fixes it.
+        const meRes = await fetch("/api/user/me").catch(() => null);
+        if (cancelled) return;
+        if (meRes?.ok) {
+          const me = await meRes.json().catch(() => null) as
+            { accountType?: "company" | "individual" } | null;
+          if (!cancelled && me?.accountType) {
+            setAccountType(me.accountType);
+            resolvedAccountType = me.accountType;
+          }
         }
       }
 
@@ -97,9 +145,13 @@ export default function AdminPage() {
       fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
         if (!cancelled && Array.isArray(data)) setDocuments(data);
       }).catch(() => {});
-      fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
-        if (!cancelled && Array.isArray(data)) setEmployees(data);
-      }).catch(() => {});
+      // Skipped entirely for an individual account: there is no employee tab to
+      // fill and the only row it could return is the person asking.
+      if (resolvedAccountType === "company") {
+        fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
+          if (!cancelled && Array.isArray(data)) setEmployees(data);
+        }).catch(() => {});
+      }
     }
 
     // Last resort: anything unexpected thrown in there must still leave the page
@@ -135,13 +187,16 @@ export default function AdminPage() {
   // even attempted — with nothing on screen to say where it stopped. A batch is
   // now only finished when every file has an answer, and a failure is data the
   // caller can act on rather than an exception that discards the rest.
-  async function handleUpload(files: File[], onProgress: (done: number) => void): Promise<UploadOutcome[]> {
+  async function handleUpload(files: File[], folder: string | null, onProgress: (done: number) => void): Promise<UploadOutcome[]> {
     const outcomes: UploadOutcome[] = [];
 
     for (const [index, file] of files.entries()) {
       try {
         const formData = new FormData();
         formData.append("files", file);
+        // Sent with every file because each one is its own request — this loop
+        // is what keeps a 500-document import inside Vercel's body limit.
+        if (folder) formData.append("folder", folder);
         const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
 
         if (res.status === 413) {
@@ -258,6 +313,22 @@ export default function AdminPage() {
     setDocuments((prev) => prev.filter((d) => d.id !== id));
   }
 
+  async function handleSetFolder(id: string, folder: string | null) {
+    const res = await fetch(`/api/admin/documents/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => null) as { error?: string } | null;
+      throw new Error(body?.error ?? "Gagal memindahkan dokumen.");
+    }
+    // Patched in place rather than re-fetching the list: the server has already
+    // stored it, the row is the only thing that changed, and a refetch here
+    // would fight the three-second poll that runs during an import.
+    setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, department: folder } : d)));
+  }
+
   async function handleAddEmployee(data: { name: string; email: string; password: string; department?: string }) {
     const res = await fetch("/api/admin/users", {
       method: "POST",
@@ -283,9 +354,16 @@ export default function AdminPage() {
       <header className="bg-white border-b px-4 py-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <LogoFull size="sm" className="shrink-0" />
-          <span className="hidden sm:inline text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5 shrink-0">Admin</span>
-          {companyName && <span className="hidden md:inline text-sm text-gray-400 shrink-0">·</span>}
-          {companyName && <span className="hidden md:inline text-sm font-medium text-gray-600 truncate">{companyName}</span>}
+          {/* "Admin" is a role among colleagues; on a one-person workspace there
+              is nobody to be the admin of, and the word only raises the question
+              of who else is in here. */}
+          <span className="hidden sm:inline text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5 shrink-0">
+            {isIndividual ? (lang === "en" ? "Personal" : "Pribadi") : "Admin"}
+          </span>
+          {/* The workspace name is the person's own name on an individual
+              account, and it is already in the header on the right. */}
+          {companyName && !isIndividual && <span className="hidden md:inline text-sm text-gray-400 shrink-0">·</span>}
+          {companyName && !isIndividual && <span className="hidden md:inline text-sm font-medium text-gray-600 truncate">{companyName}</span>}
           {/* Every paid plan needs a case here: the fallback is "Free", so a
               plan this list has not heard of shows a paying customer — the
               negotiated Custom ones most of all — as being on the free tier. */}
@@ -293,9 +371,10 @@ export default function AdminPage() {
             plan === "custom" ? "bg-gray-900 text-white border-gray-900" :
             plan === "enterprise" ? "bg-teal-100 text-teal-700 border-teal-200" :
             plan === "professional" ? "bg-teal-100 text-teal-700 border-teal-200" :
+            plan === "personal" ? "bg-teal-100 text-teal-700 border-teal-200" :
             "bg-gray-100 text-gray-500 border-gray-200"
           }`}>
-            {plan === "custom" ? "★ Custom" : plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : "Free"}
+            {plan === "custom" ? "★ Custom" : plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : plan === "personal" ? "◆ Personal" : "Free"}
           </span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
@@ -330,7 +409,7 @@ export default function AdminPage() {
         </div>
       </header>
       <main className="max-w-5xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-4 text-gray-900">{T.title}</h1>
+        <h1 className="text-2xl font-bold mb-4 text-gray-900">{isIndividual ? T.titleIndividual : T.title}</h1>
         {access !== "granted" ? (
           // Nothing below this point may mount before access is settled: the
           // banners and tabs each fetch their own admin endpoint on mount, so
@@ -342,28 +421,44 @@ export default function AdminPage() {
         ) : (
         <>
         <RenewalBanner lang={lang} />
-        <OnboardingBanner hasDocuments={documents.length > 0} hasEmployees={employees.length > 1} lang={lang} />
+        <OnboardingBanner
+          hasDocuments={documents.length > 0}
+          hasEmployees={employees.length > 1}
+          isIndividual={isIndividual}
+          lang={lang}
+        />
         <Tabs defaultValue="documents">
           <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
-              {T.tabs.documents}
+              {isIndividual ? T.tabsIndividual.documents : T.tabs.documents}
             </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              {T.tabs.users}
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart2 className="h-4 w-4" />
-              {T.tabs.analytics}
-            </TabsTrigger>
+            {/* Employees and analytics are dropped for an individual account,
+                and for different reasons. Employees has nothing behind it — the
+                API refuses to create one (requireCompanyAdmin). Analytics works
+                perfectly well; it just answers "which of your employees asks the
+                most" for a workspace with one member, and the two numbers still
+                worth knowing (questions used, documents held) are on the
+                Langganan tab already. */}
+            {!isIndividual && (
+              <TabsTrigger value="users" className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                {T.tabs.users}
+              </TabsTrigger>
+            )}
+            {!isIndividual && (
+              <TabsTrigger value="analytics" className="flex items-center gap-2">
+                <BarChart2 className="h-4 w-4" />
+                {T.tabs.analytics}
+              </TabsTrigger>
+            )}
             <TabsTrigger value="persona" className="flex items-center gap-2">
               <Sparkles className="h-4 w-4" />
-              {T.tabs.persona}
+              {isIndividual ? T.tabsIndividual.persona : T.tabs.persona}
             </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
-              {T.tabs.audit}
+              {isIndividual ? T.tabsIndividual.audit : T.tabs.audit}
             </TabsTrigger>
             <TabsTrigger value="subscription" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
@@ -377,23 +472,33 @@ export default function AdminPage() {
               onIndex={handleIndex}
               onReindex={handleReindex}
               onDelete={handleDelete}
+              onSetFolder={handleSetFolder}
+              showFolders={isIndividual}
               lang={lang}
             />
           </TabsContent>
-          <TabsContent value="users">
-            <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />
-          </TabsContent>
-          <TabsContent value="analytics">
-            <AnalyticsTab lang={lang} />
-          </TabsContent>
+          {/* The panels come out with their triggers. A TabsContent left mounted
+              without one is unreachable by clicking but still rendered by Radix
+              when its value is active — and each of these fetches an admin
+              endpoint on mount. */}
+          {!isIndividual && (
+            <TabsContent value="users">
+              <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />
+            </TabsContent>
+          )}
+          {!isIndividual && (
+            <TabsContent value="analytics">
+              <AnalyticsTab lang={lang} />
+            </TabsContent>
+          )}
           <TabsContent value="persona">
             <PersonaTab lang={lang} />
           </TabsContent>
           <TabsContent value="audit">
-            <AuditTab lang={lang} />
+            <AuditTab isIndividual={isIndividual} lang={lang} />
           </TabsContent>
           <TabsContent value="subscription">
-            <SubscriptionTab lang={lang} />
+            <SubscriptionTab isIndividual={isIndividual} lang={lang} />
           </TabsContent>
         </Tabs>
         </>

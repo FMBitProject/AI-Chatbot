@@ -19,7 +19,19 @@ function SuccessContent() {
   // was, so this says nothing about whether anything settled. The query string
   // is only a hint (it can be absent, and anyone can edit it), so prefer this.
   const [orderPlan, setOrderPlan] = useState<string | null>(null);
-  const planName = (orderPlan ?? plan) === "enterprise" ? "Enterprise" : "Professional";
+  // Looked up rather than tested. The two-way check this replaces read
+  // "Enterprise, otherwise Professional", so the moment a third purchasable
+  // tier existed it congratulated Personal customers on buying Professional —
+  // a plan six times the price of the one they had just paid for. Anything
+  // unrecognised falls back to the plan key itself, which is at worst a
+  // lowercase word and never the name of a different product.
+  const PLAN_NAMES: Record<string, string> = {
+    personal: "Personal",
+    professional: "Professional",
+    enterprise: "Enterprise",
+  };
+  const planKey = orderPlan ?? plan;
+  const planName = PLAN_NAMES[planKey] ?? planKey;
   // How the *check itself* went, as opposed to whether the payment settled —
   // both used to render the same "sedang diverifikasi" copy, which blamed the
   // customer's payment for our own failures.

@@ -20,7 +20,7 @@ interface SubData {
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
 
-const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", professional: "Professional", enterprise: "Enterprise", custom: "Custom" };
+const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", personal: "Personal", professional: "Professional", enterprise: "Enterprise", custom: "Custom" };
 const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
   paid: { label: "Lunas", variant: "success" },
   pending: { label: "Menunggu", variant: "warning" },
@@ -38,7 +38,10 @@ interface ByokState {
   saving: boolean;
 }
 
-export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
+// `isIndividual` removes the seat count from the limits row. Nothing else on
+// this tab is team-specific: documents, questions, invoices and BYOK all mean
+// the same thing for one person as for fifty.
+export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndividual?: boolean; lang?: "id" | "en" }) {
   const [data, setData] = useState<SubData | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
   // Order ids currently being checked. A single boolean disabled every row's
@@ -233,10 +236,17 @@ export function SubscriptionTab({ lang = "id" }: { lang?: "id" | "en" }) {
           {statusLine && (
             <div className={`mb-4 text-sm font-medium ${statusLine.tone}`}>{statusLine.text}</div>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <div className={`grid grid-cols-2 ${isIndividual ? "sm:grid-cols-3" : "sm:grid-cols-4"} gap-3 mb-4`}>
             {[
               { label: lang === "en" ? "Documents" : "Dokumen", value: inf(data.limits.maxDocuments) },
-              { label: lang === "en" ? "Employees" : "Karyawan", value: inf(data.limits.maxEmployees) },
+              // Dropped for an individual account, and not merely as tidying:
+              // maxEmployees comes from the plan, not from the account type, so
+              // an individual on the free tier read "5 Karyawan" here — a seat
+              // allowance the API refuses to spend (requireCompanyAdmin) on the
+              // one tab an individual is most likely to open before paying.
+              // Advertising a plan limit we will not honour is worse than
+              // showing one number fewer.
+              ...(isIndividual ? [] : [{ label: lang === "en" ? "Employees" : "Karyawan", value: inf(data.limits.maxEmployees) }]),
               { label: lang === "en" ? "Questions/day" : "Pertanyaan/hari", value: inf(data.limits.maxQuestionsPerDay) },
               { label: lang === "en" ? "Questions/month" : "Pertanyaan/bulan", value: inf(data.limits.maxQuestionsPerMonth) },
             ].map((l) => (

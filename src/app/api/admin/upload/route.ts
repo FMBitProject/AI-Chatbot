@@ -15,6 +15,7 @@ import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/upload-limits";
+import { LIMITS, optionalString } from "@/lib/validate";
 import { randomUUID } from "crypto";
 
 // Failures an admin can actually act on (a scanned PDF, a corrupt file, a
@@ -166,11 +167,21 @@ export async function POST(req: NextRequest) {
   const formData = await req.formData();
   const files = formData.getAll("files") as File[];
 
+  // Where these documents go, applied to every file in the batch — the upload UI
+  // asks once per drop, not once per file.
+  //
+  // Stored in `documents.department`, whose meaning follows the workspace: a
+  // folder for an individual, the owning department for a company (see the note
+  // in @/lib/db/schema). Validated like any other client string — it reaches a
+  // column and a `WHERE` clause — and an unusable value degrades to null, i.e.
+  // unfiled, rather than failing an upload over a label.
+  const folder = optionalString(formData.get("folder"), LIMITS.name);
+
   if (!files.length) {
     return NextResponse.json({ error: "Tidak ada file yang dikirim." }, { status: 400 });
   }
 
-  const results: { id: string; name: string; status: string; errorMessage?: string; createdAt: string }[] = [];
+  const results: { id: string; name: string; status: string; department: string | null; errorMessage?: string; createdAt: string }[] = [];
   const limitMessage = `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`;
   let limitReached = false;
 
@@ -273,6 +284,7 @@ export async function POST(req: NextRequest) {
           id: docId,
           name: safeName,
           companyId,
+          department: folder,
           status: "queued",
           rawText,
         });
@@ -286,7 +298,7 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      results.push({ id: docId, name: file.name, status: "queued", createdAt });
+      results.push({ id: docId, name: file.name, status: "queued", department: folder, createdAt });
 
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
@@ -304,13 +316,14 @@ export async function POST(req: NextRequest) {
           id: docId,
           name: safeName,
           companyId,
+          department: folder,
           status: "failed",
           errorMessage,
         }));
       } catch (insertError) {
         console.error(`[upload] Could not record failure for ${file.name}:`, insertError);
       }
-      results.push({ id: docId, name: file.name, status: "failed", errorMessage, createdAt });
+      results.push({ id: docId, name: file.name, status: "failed", department: folder, errorMessage, createdAt });
     }
   }
 

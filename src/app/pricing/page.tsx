@@ -1,31 +1,46 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoHomeLink } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
-import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Info } from "lucide-react";
+import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Info, User, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPurchasablePlan } from "@/lib/pricing";
+import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
 import { consultationMailto } from "@/lib/contact";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
+
+type Audience = "individual" | "company";
 
 export default function PricingPage() {
   const { lang } = useLang();
   const T = pricing[lang];
+
+  // Which audience's cards are on screen. Two sets of plans rather than one long
+  // row, because the tiers are not points on a single scale: Personal is not a
+  // smaller Professional, it is the same product sold to one person, and putting
+  // them side by side asks every visitor to work out which half is about them.
+  const [audience, setAudience] = useState<Audience>("company");
 
   // The cards used to be addressed by position (`idx === 1 ? professional :
   // enterprise`), which silently mapped every card that was not Professional
   // onto Enterprise — so adding a fourth card sent its buyers to the wrong
   // checkout. Everything below is keyed by plan instead, and the key list is
   // what decides how many cards render.
-  const PLAN_KEYS = ["starter", "professional", "enterprise", "custom"] as const;
+  const COMPANY_PLAN_KEYS = ["starter", "professional", "enterprise", "custom"] as const;
+  const INDIVIDUAL_PLAN_KEYS = ["starter", "personal"] as const;
+  const isIndividual = audience === "individual";
+  const PLAN_KEYS: readonly ("starter" | "personal" | "professional" | "enterprise" | "custom")[] =
+    isIndividual ? INDIVIDUAL_PLAN_KEYS : COMPANY_PLAN_KEYS;
+  const PLAN_COPY = isIndividual ? T.individualPlans : T.plans;
+  const FEATURES = isIndividual ? T.individualFeatures : T.features;
 
   // Prices and promo state come from the shared pricing module, so this page
   // (and the checkout) automatically revert to normal prices once the promo ends.
@@ -36,14 +51,17 @@ export default function PricingPage() {
   const promoActive = isPromoActive();
   type PlanKey = (typeof PLAN_KEYS)[number];
   const ORIGINAL_PRICES: Partial<Record<PlanKey, string>> = {
+    personal: formatRupiah(NORMAL_PRICES.personal, lang),
     professional: formatRupiah(NORMAL_PRICES.professional, lang),
     enterprise: formatRupiah(NORMAL_PRICES.enterprise, lang),
   };
   const PROMO_PRICES: Partial<Record<PlanKey, string>> = {
+    personal: formatRupiah(PROMO.personal, lang),
     professional: formatRupiah(PROMO.professional, lang),
     enterprise: formatRupiah(PROMO.enterprise, lang),
   };
   const HAS_PROMO: Partial<Record<PlanKey, boolean>> = {
+    personal: promoActive,
     professional: promoActive,
     enterprise: promoActive,
   };
@@ -53,7 +71,39 @@ export default function PricingPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setMounted(true); }, []);
 
-  async function handlePay(plan: "professional" | "enterprise") {
+  // A signed-in visitor is shown their own side of the page. Most of them arrive
+  // from "Upgrade Paket" in the dashboard, and an individual landing on three
+  // team tiers would be choosing between plans the checkout is going to refuse.
+  //
+  // The session cannot answer this — it is a seven-day cookie carrying user
+  // columns, and the account type lives on the workspace — so it is asked for.
+  // Anonymous visitors and any failure leave the default tab alone, which is
+  // still switchable by hand: this decides where someone starts, not what they
+  // may see.
+  //
+  // It decides that exactly once. The dependency is `session?.user`, an object
+  // whose identity changes every time better-auth re-emits the session (a
+  // refetch on window focus is enough), so without this latch the effect fires
+  // again mid-visit and setAudience overwrites a tab the visitor chose by hand —
+  // an individual comparing the team plans would watch the page snap back under
+  // them. Latched on success only, so a failed request can still be answered by
+  // a later emission.
+  const audienceResolved = useRef(false);
+  useEffect(() => {
+    if (!session?.user || audienceResolved.current) return;
+    let cancelled = false;
+    fetch("/api/user/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { accountType?: Audience } | null) => {
+        if (cancelled || !data?.accountType) return;
+        audienceResolved.current = true;
+        setAudience(data.accountType);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [session?.user]);
+
+  async function handlePay(plan: PurchasablePlan) {
     // .assign() rather than assigning to .href: the React Compiler lint rejects
     // the assignment form here ("this value cannot be modified"). Same navigation.
     if (!session) { window.location.assign("/register"); return; }
@@ -156,25 +206,58 @@ export default function PricingPage() {
         <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           {T.badge}
         </span>
-        <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">{T.title}</h1>
-        <p className="text-gray-500 text-lg max-w-xl mx-auto">{T.subtitle}</p>
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">
+          {isIndividual ? T.titleIndividual : T.title}
+        </h1>
+        <p className="text-gray-500 text-lg max-w-xl mx-auto">
+          {isIndividual ? T.subtitleIndividual : T.subtitle}
+        </p>
       </section>
+
+      {/* Audience switch */}
+      <div className="flex flex-col items-center gap-2 px-6">
+        <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)}>
+          <TabsList>
+            <TabsTrigger value="individual" className="gap-1.5 px-4">
+              <User className="h-4 w-4" />
+              {T.audienceIndividual}
+            </TabsTrigger>
+            <TabsTrigger value="company" className="gap-1.5 px-4">
+              <Building2 className="h-4 w-4" />
+              {T.audienceCompany}
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <p className="text-xs text-gray-400 text-center max-w-md">
+          {isIndividual ? T.audienceIndividualHint : T.audienceCompanyHint}
+        </p>
+      </div>
 
       {/* Plans */}
       <section className="max-w-6xl mx-auto px-6 py-12">
         {/* Four cards inside max-w-6xl leaves ~258px each, so the padding that
             was comfortable at three columns now eats a quarter of the width and
-            is what pushed the prices onto two lines. */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {T.plans.map((plan, idx) => {
+            is what pushed the prices onto two lines. Two cards get the same
+            treatment in reverse: stretched across the full width they read as a
+            table with two columns missing, so the individual grid is narrowed
+            instead of letting the cards grow. */}
+        <div className={cn(
+          "grid gap-5",
+          isIndividual ? "sm:grid-cols-2 max-w-2xl mx-auto" : "md:grid-cols-2 lg:grid-cols-4",
+        )}>
+          {PLAN_COPY.map((plan, idx) => {
             // The copy lives in i18n.ts and the keys live here, so the two can
             // drift. Rendering nothing is the safe end of that: a card with no
             // key would fall through to the paid branches and sell whatever the
             // fallback happens to be.
-            const key: (typeof PLAN_KEYS)[number] | undefined = PLAN_KEYS[idx];
+            const key: PlanKey | undefined = PLAN_KEYS[idx];
             if (!key) return null;
             const isFree = key === "starter";
-            const isPopular = key === "professional";
+            // One highlighted card per tab — the one most visitors on that tab
+            // should buy. On the individual tab that is Personal, which is also
+            // the only paid card there; leaving the highlight on Professional
+            // would mark nothing, since Professional is not on this tab at all.
+            const isPopular = isIndividual ? key === "personal" : key === "professional";
             const isCustom = key === "custom";
             const hasPromo = HAS_PROMO[key] ?? false;
             return (
@@ -241,8 +324,8 @@ export default function PricingPage() {
                 )}
               </div>
               <ul className="space-y-3 flex-1 mb-6">
-                {T.features[idx].map((f, fi) => {
-                  const checkedCount = isFree ? 5 : T.features[idx].length;
+                {FEATURES[idx].map((f, fi) => {
+                  const checkedCount = isFree ? 5 : FEATURES[idx].length;
                   const hasCheck = fi < checkedCount;
                   const isGray = fi >= checkedCount;
                   return (
@@ -259,7 +342,11 @@ export default function PricingPage() {
                 })}
               </ul>
               {isFree ? (
-                <Link href="/register">
+                // The free card carries the tab with it. Without the hint the
+                // register page opens on Company, and someone who came from the
+                // individual side would have to notice and switch back — for a
+                // choice that cannot be undone afterwards.
+                <Link href={isIndividual ? "/register?type=individual" : "/register"}>
                   <Button variant="outline" className="w-full gap-2">
                     {T.startFree} <ArrowRight className="h-4 w-4" />
                   </Button>

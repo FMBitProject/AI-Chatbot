@@ -7,12 +7,16 @@ import Link from "next/link";
 interface OnboardingBannerProps {
   hasDocuments: boolean;
   hasEmployees: boolean;
+  // An individual account has no employees to invite, so its checklist is one
+  // step shorter — and the step it loses is the one it could never complete.
+  // Left in, the banner would sit at 1/2 for ever on an account that is finished.
+  isIndividual?: boolean;
   lang?: "id" | "en";
 }
 
-export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: OnboardingBannerProps) {
+export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = false, lang = "id" }: OnboardingBannerProps) {
   const [dismissed, setDismissed] = useState(false);
-  const allDone = hasDocuments && hasEmployees;
+  const allDone = hasDocuments && (isIndividual || hasEmployees);
 
   if (dismissed || allDone) return null;
 
@@ -20,23 +24,28 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: On
     {
       icon: Upload,
       title: lang === "en" ? "Upload your first document" : "Upload dokumen pertama",
-      desc: lang === "en" ? "Add an SOP or HR policy so AI can answer questions." : "Tambahkan SOP atau kebijakan HR agar AI bisa menjawab pertanyaan.",
+      desc: isIndividual
+        ? (lang === "en" ? "Add a note, guide or any document so the AI can answer from it." : "Tambahkan catatan, panduan, atau dokumen apa pun agar AI bisa menjawab darinya.")
+        : (lang === "en" ? "Add an SOP or HR policy so AI can answer questions." : "Tambahkan SOP atau kebijakan HR agar AI bisa menjawab pertanyaan."),
       done: hasDocuments,
       action: lang === "en" ? "Upload Now" : "Upload Sekarang",
       tab: "documents",
     },
-    {
+    ...(isIndividual ? [] : [{
       icon: Users,
       title: lang === "en" ? "Add your employees" : "Tambahkan karyawan",
       desc: lang === "en" ? "Invite employees so they can access the AI chat." : "Undang karyawan agar bisa mengakses chat AI.",
       done: hasEmployees,
       action: lang === "en" ? "Add Employee" : "Tambah Karyawan",
       tab: "users",
-    },
+      href: undefined as string | undefined,
+    }]),
     {
       icon: MessageSquare,
       title: lang === "en" ? "Try the AI chat" : "Coba chat AI",
-      desc: lang === "en" ? "Ask a question about your company documents." : "Tanyakan sesuatu tentang dokumen perusahaan Anda.",
+      desc: isIndividual
+        ? (lang === "en" ? "Ask a question about your own documents." : "Tanyakan sesuatu tentang dokumen Anda sendiri.")
+        : (lang === "en" ? "Ask a question about your company documents." : "Tanyakan sesuatu tentang dokumen perusahaan Anda."),
       done: false,
       action: lang === "en" ? "Open Chat" : "Buka Chat",
       tab: null,
@@ -44,7 +53,11 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: On
     },
   ];
 
-  const completedCount = [hasDocuments, hasEmployees].filter(Boolean).length;
+  // Counted against the steps that can actually be completed, which is what
+  // makes "1/1 selesai" true on an individual account instead of half-finished.
+  const trackedSteps = isIndividual ? [hasDocuments] : [hasDocuments, hasEmployees];
+  const completedCount = trackedSteps.filter(Boolean).length;
+  const totalSteps = trackedSteps.length;
 
   return (
     <div className="mb-6 bg-gradient-to-r from-teal-50 to-teal-100/50 border border-teal-100 rounded-2xl p-4 sm:p-6 relative">
@@ -57,11 +70,11 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, lang = "id" }: On
         </h3>
         <p className="text-gray-500 text-sm mt-1">
           {lang === "en"
-            ? `Complete these steps to get started. ${completedCount}/2 done.`
-            : `Selesaikan langkah berikut untuk mulai. ${completedCount}/2 selesai.`}
+            ? `Complete these steps to get started. ${completedCount}/${totalSteps} done.`
+            : `Selesaikan langkah berikut untuk mulai. ${completedCount}/${totalSteps} selesai.`}
         </p>
         <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(completedCount / 2) * 100}%` }} />
+          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${(completedCount / totalSteps) * 100}%` }} />
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

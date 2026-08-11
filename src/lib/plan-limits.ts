@@ -18,8 +18,19 @@
 // A company only lands on it when we set it by hand after agreeing terms —
 // which, per that conversation, means the customer brings their own API keys
 // (BYOK), so unlimited usage costs us nothing per question.
+//
+// `personal` is the only tier an individual account can buy, and the only tier a
+// company account cannot (both directions are enforced in /api/payment/create).
+// maxEmployees is 1 because an individual workspace holds exactly its owner —
+// the employee endpoints refuse it outright, so the number is a statement of
+// what the tier is rather than a fence anything has to test. Its question
+// allowance is deliberately close to Professional's per-user brake (60/day):
+// one person on Personal should never do worse than the same person on a team
+// plan, which is what would send them to a plan sold for six times the price to
+// get seats they have nobody to fill.
 export const PLAN_LIMITS = {
   starter:      { maxDocuments: 10,  maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
+  personal:     { maxDocuments: 50,  maxEmployees: 1,   maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 60,   maxQuestionsPerDayPerUser: -1 },
   professional: { maxDocuments: 100, maxEmployees: 50,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
   enterprise:   { maxDocuments: 500, maxEmployees: 200, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
   custom:       { maxDocuments: -1,  maxEmployees: -1,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,   maxQuestionsPerDayPerUser: -1 },

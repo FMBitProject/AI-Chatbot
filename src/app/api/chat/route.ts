@@ -48,6 +48,16 @@ export async function POST(req: NextRequest) {
     ? body.responseLang
     : "auto";
 
+  // Search only this folder, when the asker picked one. Not validated against
+  // the workspace's actual folders on purpose: a folder is only ever a value on
+  // a document (there is no folders table), so a name that matches nothing
+  // simply matches nothing — the query returns no chunks and the model says it
+  // cannot find an answer, which is the honest outcome for "search a folder that
+  // is empty". What keeps this safe is not the name but where it is applied:
+  // narrowing on top of the department rule, never in place of it (see
+  // retrieveChunks). Bounded like every other client string.
+  const folder = optionalString(body.folder, LIMITS.name);
+
   // Only the newest user message is taken from the request. Everything the model
   // is told about earlier turns is read back from the database further down —
   // see the note on `priorTurns`.
@@ -155,6 +165,13 @@ export async function POST(req: NextRequest) {
     if (dbUser.department) {
       catalogConditions.push(or(isNull(documents.department), eq(documents.department, dbUser.department))!);
     }
+    // The catalog has to be narrowed by the folder as well, for the same reason
+    // it is narrowed by expiry: it is the list the model is told it can answer
+    // from. Leave it whole while the retriever searches one folder and the model
+    // will happily name a document from another and be asked about it next.
+    if (folder) {
+      catalogConditions.push(eq(documents.department, folder));
+    }
     if (activeIds !== null) {
       catalogConditions.push(inArray(documents.id, activeIds));
     }
@@ -169,6 +186,7 @@ export async function POST(req: NextRequest) {
       companyId,
       queryEmbedding,
       department: dbUser.department,
+      folder,
       limit: 30,
       maxDocuments,
     }, tx);
