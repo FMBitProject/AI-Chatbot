@@ -9,8 +9,20 @@ import { verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
+import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 
-const SYSTEM_PROMPT = `You are an internal AI assistant. Answer ONLY based on the provided document context. Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.`;
+// Concise, but not looser. Slack's answers are the shortest this product gives
+// and were governed by the weakest rule of the four channels — a single
+// sentence, which a model can honour and still keep writing past. Brevity is a
+// formatting preference; grounding is not, so the shared rules come first and
+// "keep it short" is what is added on top.
+const SYSTEM_PROMPT = `You are an internal AI assistant.
+
+${GROUNDING_RULES}
+
+Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.
+
+${GROUNDING_REMINDER}`;
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
@@ -85,6 +97,7 @@ export async function POST(req: NextRequest) {
     const { text: answer } = await generateText({
       model: groqClient("llama-3.3-70b-versatile"),
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
+      temperature: RAG_TEMPERATURE,
       prompt: text,
     });
 
