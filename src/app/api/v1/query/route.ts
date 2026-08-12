@@ -10,7 +10,7 @@ import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { groqClientForKey, resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -74,6 +74,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Before the quota is consumed, for the reason spelled out in /api/chat: an
+  // unreadable key is a standing failure, not a passing one, so charging a
+  // question for it would drain the caller's whole allowance into 500s.
+  const byok = resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[v1/query] BYOK key unreadable for company ${apiKey.companyId}: ${byok.message}`);
+    return NextResponse.json({ error: "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
+  }
+
   const quotaFailure = await consumeQuestionQuota(apiKey.companyId, limits);
   if (quotaFailure) {
     return NextResponse.json(
@@ -82,8 +91,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
-  const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
+  const groqClient = groqClientForKey(byok.groq);
+  const queryEmbedding = await getEmbedding(question, byok.gemini);
   const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
     companyId: apiKey.companyId,
     queryEmbedding,

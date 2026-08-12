@@ -8,7 +8,7 @@ import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { geminiKey, groqClientFor } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   (async () => {
-    const queryEmbedding = await getEmbedding(text, company?.geminiApiKey);
+    const queryEmbedding = await getEmbedding(text, geminiKey(company));
     const scored = (await withTenant(companyId, (tx) => retrieveChunks({
       companyId,
       queryEmbedding,
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen tersedia.";
 
-    const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+    const groqClient = groqClientFor(company);
     const { text: answer } = await generateText({
       model: groqClient("llama-3.3-70b-versatile"),
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,

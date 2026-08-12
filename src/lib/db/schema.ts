@@ -36,6 +36,19 @@ export const companies = pgTable("companies", {
   aiName: text("ai_name").default("IntelliBase AI").notNull(),
   aiGreeting: text("ai_greeting"),
   aiPersonality: text("ai_personality"),
+  // BYOK: the customer's own provider credentials, available from Professional
+  // upwards. Stored ENCRYPTED — "v1:<iv>:<tag>:<ciphertext>", AES-256-GCM under
+  // BYOK_SECRET_KEY from the environment — so never read these columns directly.
+  // Go through @/lib/byok, which unwraps them and binds each ciphertext to this
+  // row's id and this column's name; a value moved between the two columns, or
+  // between two companies, fails to decrypt rather than quietly working.
+  //
+  // Unlike api_keys.key_hash these cannot be hashed: the plaintext is sent to
+  // Groq/Google on every question, so it has to survive the round trip.
+  //
+  // Nullable, and NULL is the normal case: it means "use the platform account".
+  // Truthiness alone still answers "has a key?" without any decryption, which is
+  // what /api/admin/company reports to the dashboard.
   groqApiKey: text("groq_api_key"),
   geminiApiKey: text("gemini_api_key"),
   dailyQuestionCount: integer("daily_question_count").default(0).notNull(),
