@@ -201,7 +201,14 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
   // authority — this only decides whether the field is rendered, and a stale copy
   // here shows a field whose save is refused rather than granting anything.
   const canEditKeys =
-    data.plan === "professional" || data.plan === "enterprise" || data.plan === "custom";
+    data.plan === "personal" || data.plan === "professional" ||
+    data.plan === "enterprise" || data.plan === "custom";
+
+  // The cheapest plan that unlocks BYOK *on this tab's account type*, which is
+  // not the same answer for both. An individual cannot buy Professional at all —
+  // /api/payment/create refuses it in both directions — so pointing them at it
+  // would be selling a plan the checkout will not sell them.
+  const upgradeTarget = isIndividual ? "Personal" : "Professional";
   const hasAnyKey = byok.hasGroqKey || byok.hasGeminiKey;
 
   // One line that always says where the subscription stands, including the two
@@ -303,8 +310,8 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
                       ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
                       : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
                     : (lang === "en"
-                      ? "Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires Professional or above — removing one is always yours to do."
-                      : "Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket Professional ke atas — menghapus selalu bisa Anda lakukan.")}
+                      ? `Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires ${upgradeTarget} or above — removing one is always yours to do.`
+                      : `Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket ${upgradeTarget} ke atas — menghapus selalu bisa Anda lakukan.`)}
                 </p>
               </div>
             </div>
@@ -387,8 +394,8 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
                   ? "Keys are encrypted before they are stored and are never shown again. If not set, platform shared capacity is used."
                   : "Key dienkripsi sebelum disimpan dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan.")
                 : (lang === "en"
-                  ? "Upgrade to Professional to add or replace keys again."
-                  : "Upgrade ke Professional untuk menambah atau mengganti key lagi.")}
+                  ? `Upgrade to ${upgradeTarget} to add or replace keys again.`
+                  : `Upgrade ke ${upgradeTarget} untuk menambah atau mengganti key lagi.`)}
             </p>
           </CardContent>
         </Card>

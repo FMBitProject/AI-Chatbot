@@ -126,7 +126,13 @@ export async function PATCH(req: NextRequest) {
   // PLAN_LIMITS then has to be considered here instead of silently defaulting to
   // "no BYOK". The admin header once carried a hand-written plan union and
   // rendered a Custom account as "Free" for exactly this reason.
-  const BYOK_PLANS: Plan[] = ["professional", "enterprise", "custom"];
+  // `personal` is on this list even though it is the smallest paid tier, and for
+  // the same reason as the rest: BYOK is sold as data residency, not capacity.
+  // The individual buying it is often the most privacy-sensitive user there is —
+  // a solo practitioner whose uploads are their own case notes — and telling
+  // them their documents can only stay inside their own provider account if they
+  // buy a fifty-seat team plan would be selling the wrong thing.
+  const BYOK_PLANS: Plan[] = ["personal", "professional", "enterprise", "custom"];
   const isRemovalOnly = Object.values(parsed).every((v) => v === null);
   if (!isRemovalOnly) {
     const { subscription } = await resolvePlan(companyRow);

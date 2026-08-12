@@ -486,8 +486,8 @@ export const pricing = {
       { name: "Personal", desc: "Untuk kebutuhan pribadi sehari-hari" },
     ],
     individualFeatures: [
-      ["Pencarian dokumen — temukan & baca kutipan aslinya", cap(idLimit(sta.maxDocuments, "dokumen")), "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Hanya Anda yang bisa membuka dokumen Anda", "Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota],
-      ["1 pengguna — hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda"],
+      ["Pencarian dokumen — temukan & baca kutipan aslinya", cap(idLimit(sta.maxDocuments, "dokumen")), "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Hanya Anda yang bisa membuka dokumen Anda", "Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Bisa pakai API key sendiri (BYOK)"],
+      ["1 pengguna — hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda", "Bisa pakai API key sendiri (BYOK)"],
     ],
     fairUseNote: "",
     faqs: [
@@ -553,8 +553,8 @@ export const pricing = {
       { name: "Personal", desc: "For everyday personal use" },
     ],
     individualFeatures: [
-      ["Document search — find and read the original passage", enLimit(sta.maxDocuments, "documents"), "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Only you can open your documents", "AI chat: written answers with their sources", enLimit(per.maxDocuments, "documents"), enPersonalQuota],
-      ["1 user — just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history"],
+      ["Document search — find and read the original passage", enLimit(sta.maxDocuments, "documents"), "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Only you can open your documents", "AI chat: written answers with their sources", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "Bring your own API key (BYOK)"],
+      ["1 user — just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history", "Bring your own API key (BYOK)"],
     ],
     fairUseNote: "",
     faqs: [
