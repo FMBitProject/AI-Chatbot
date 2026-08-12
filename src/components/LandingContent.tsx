@@ -31,11 +31,22 @@ const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
 import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
 import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
+// The individual flow gets its own pair rather than reusing the company shots.
+// Two steps that read identically in prose look nothing alike on screen: the
+// company dashboard shows departments and an employee list, and putting that
+// under copy about personal folders tells a visitor the tier is a team product
+// with the team hidden. These were taken from a real individual account after
+// the wording fix in PR #100 — the earlier attempt still said "kebijakan
+// perusahaan" in the chat box, which is exactly the impression to avoid.
+import personalUploadShot from "../../public/screenshots/personal-upload.png";
+import personalAskShot from "../../public/screenshots/personal-ask.png";
 
 const STEP_SHOTS = {
   upload: uploadDocumentsShot,
   invite: inviteEmployeesShot,
   ask: askAndAnswerShot,
+  uploadPersonal: personalUploadShot,
+  askPersonal: personalAskShot,
 };
 
 // Each step names its own screenshot instead of being paired to one by array
@@ -332,8 +343,8 @@ const INDIVIDUAL_CONTENT = {
     // back to three would mean inventing a step or reusing the screenshot of a
     // dialog this account never opens.
     steps: [
-      { n: "1", shot: "upload", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan — misalnya Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
-      { n: "2", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya — dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
+      { n: "1", shot: "uploadPersonal", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan — misalnya Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
+      { n: "2", shot: "askPersonal", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya — dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Harga untuk Pemakaian Pribadi",
     priceDesc: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
@@ -397,8 +408,8 @@ const INDIVIDUAL_CONTENT = {
     howTitle: "How It Works",
     howDesc: "Two steps. Nothing to set up on anyone else's behalf.",
     steps: [
-      { n: "1", shot: "upload", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy — Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
-      { n: "2", shot: "ask", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used — and you can narrow a specific question to a single folder.", icon: MessageSquare },
+      { n: "1", shot: "uploadPersonal", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy — Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
+      { n: "2", shot: "askPersonal", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used — and you can narrow a specific question to a single folder.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Pricing for Personal Use",
     priceDesc: "Start free. Move to Personal when your documents and questions outgrow it.",
