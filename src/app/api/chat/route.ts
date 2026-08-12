@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { groqClientForKey, resolveByok } from "@/lib/byok";
 import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
@@ -187,6 +187,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // BYOK keys are unwrapped here, ABOVE consumeQuestionQuota, and both halves of
+  // that placement are deliberate.
+  //
+  // Above the quota, because a key we cannot decrypt is not a transient failure
+  // the way a provider 429 is — it lasts until someone fixes BYOK_SECRET_KEY. A
+  // customer would otherwise spend their entire daily allowance on requests that
+  // charge them a question and then return 500.
+  //
+  // And as its own error rather than inside the embedding try below, because
+  // that try answers with `provider: "gemini"` — which sent the admin to check
+  // Google's status page for a problem that is entirely ours.
+  const byok = resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[chat] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+    return new Response(
+      JSON.stringify({ error: "BYOK_KEY_UNREADABLE", message: byok.message }),
+      { status: 503 }
+    );
+  }
+
   // Company-wide daily + monthly quota, shared with the public API and Slack.
   const quotaFailure = await consumeQuestionQuota(companyId, limits);
   if (quotaFailure) {
@@ -198,7 +218,7 @@ export async function POST(req: NextRequest) {
 
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(question, geminiKey(company));
+    queryEmbedding = await getEmbedding(question, byok.gemini);
   } catch (err) {
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
@@ -524,7 +544,7 @@ If no relevant information is found:
     { role: "user" as const, content: question },
   ];
 
-  const groqClient = groqClientFor(company);
+  const groqClient = groqClientForKey(byok.groq);
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();

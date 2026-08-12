@@ -5,7 +5,7 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { LIMITS } from "@/lib/validate";
-import { geminiKey } from "@/lib/byok";
+import { resolveByok } from "@/lib/byok";
 
 export async function GET(req: NextRequest) {
   const guard = await requireUser(req);
@@ -37,12 +37,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "SEAT_FROZEN", message: SEAT_FROZEN_MESSAGE }, { status: 403 });
   }
 
+  // Resolved before the embedding call, not inside its try, for the same reason
+  // as /api/chat: the catch below answers `provider: "gemini"`, and reporting an
+  // unreadable stored key as a Google outage sends the admin to the wrong place.
+  // No quota is consumed on this route, so unlike chat that is the only thing at
+  // stake here.
+  const byok = resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[search] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+    return NextResponse.json({ error: "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
+  }
+
   // Same shape of failure as chat, so it gets the same shape of answer: an
   // unwrapped throw here became a bare 500 with nothing the UI could show,
   // while /api/chat has always returned a typed reason for the identical call.
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(q, geminiKey(company));
+    queryEmbedding = await getEmbedding(q, byok.gemini);
   } catch (err) {
     console.error("[search] Embedding failed:", err);
     const is429 = err instanceof Error && err.message.includes("429");

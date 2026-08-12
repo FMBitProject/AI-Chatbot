@@ -376,10 +376,18 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   // there is one, like every other generation call: this prompt carries the
   // opening 2000 characters of the uploaded file, so it is document content
   // leaving the server, not metadata.
-  const groqClient = groqClientFor(company);
+  //
+  // Built INSIDE the try, not above it. groqClientFor decrypts, so unlike the
+  // plain `company.groqApiKey ? createGroq(…) : groq` it replaced, it can throw —
+  // and a throw one line above the try would have failed the whole document over
+  // an optional summary, after the embeddings had already been paid for. That is
+  // reachable without any Gemini key being involved: a company that configured
+  // only a Groq key gets `null` from geminiKey() above, embeds fine on the
+  // platform account, and then dies here.
   const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
   let summary: string | null = null;
   try {
+    const groqClient = groqClientFor(company);
     const { text } = await generateText({
       model: groqClient("llama-3.3-70b-versatile"),
       // The one call in this function that is optional, so it is the one that

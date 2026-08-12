@@ -5,7 +5,7 @@ import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
 import { LIMITS, readJsonObject } from "@/lib/validate";
-import { encryptProviderKey } from "@/lib/byok";
+import { encryptProviderKey, type ByokField } from "@/lib/byok";
 import type { Plan } from "@/lib/plan-limits";
 
 // This file used to carry its own getAuthedAdmin() — the only route that had
@@ -63,7 +63,13 @@ export async function PATCH(req: NextRequest) {
   const body = await readJsonObject(req);
   if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
 
-  const update: { groqApiKey?: string | null; geminiApiKey?: string | null } = {};
+  // Parsed to PLAINTEXT first, and encrypted further down only once the plan
+  // gate has passed. The order matters twice over: encrypting before the gate
+  // burned crypto on a request that was about to be refused, and — because
+  // encrypting is the one step that can fail on a missing BYOK_SECRET_KEY — it
+  // turned "your plan does not include BYOK" into an unexplained 500 whenever
+  // that variable was not set.
+  const parsed: { groqApiKey?: string | null; geminiApiKey?: string | null } = {};
   for (const field of ["groqApiKey", "geminiApiKey"] as const) {
     // Three distinct meanings, and the difference matters: absent leaves the key
     // alone, null (or blank) removes it, a string replaces it. Collapsing absent
@@ -71,13 +77,16 @@ export async function PATCH(req: NextRequest) {
     const value = body[field];
     if (value === undefined) continue;
     if (value === null) {
-      update[field] = null;
+      parsed[field] = null;
       continue;
     }
     // Anything else that is not a string used to reach `.trim()` and throw a
     // TypeError, which left the handler as a 500 — our outage, for their
     // malformed request. The length cap is the other half: a provider key is
     // ~200 characters, and nothing stops a client posting a megabyte otherwise.
+    // Measured on the plaintext, which is the only place it means anything: the
+    // ciphertext is ~40% longer plus a fixed header, and capping *that* would be
+    // capping our own encoding rather than their input.
     if (typeof value !== "string" || value.length > LIMITS.apiKey) {
       return NextResponse.json({ error: "Format API key tidak valid." }, { status: 400 });
     }
@@ -92,9 +101,9 @@ export async function PATCH(req: NextRequest) {
     // sealed inside it survives every later check and only surfaces as a 401 from
     // the provider.
     const trimmed = value.trim();
-    update[field] = trimmed ? encryptProviderKey(trimmed, companyRow.id, field) : null;
+    parsed[field] = trimmed || null;
   }
-  if (Object.keys(update).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
+  if (Object.keys(parsed).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
 
   // Storing a key is a paid-plan feature, judged on the plan in force right now
   // so a lapsed subscription cannot keep configuring dedicated capacity.
@@ -109,13 +118,16 @@ export async function PATCH(req: NextRequest) {
   // own credential, and a company whose key was revoked upstream must be able
   // to clear it themselves — otherwise their chat stays broken until we step in.
   // This is also what keeps a downgrade recoverable: a company that drops to
-  // Starter can still delete the key it can no longer edit.
+  // Starter can still delete the key it can no longer edit. Removal also never
+  // reaches the encryption below, so clearing a key still works when the master
+  // key is the very thing that is broken.
+  //
   // Typed as Plan[] rather than string[] on purpose: the next plan added to
   // PLAN_LIMITS then has to be considered here instead of silently defaulting to
   // "no BYOK". The admin header once carried a hand-written plan union and
   // rendered a Custom account as "Free" for exactly this reason.
   const BYOK_PLANS: Plan[] = ["professional", "enterprise", "custom"];
-  const isRemovalOnly = Object.values(update).every((v) => v === null);
+  const isRemovalOnly = Object.values(parsed).every((v) => v === null);
   if (!isRemovalOnly) {
     const { subscription } = await resolvePlan(companyRow);
     if (!BYOK_PLANS.includes(subscription.plan)) {
@@ -124,6 +136,24 @@ export async function PATCH(req: NextRequest) {
         { status: 403 },
       );
     }
+  }
+
+  // Encryption is the last thing before the write, and the only step here that
+  // depends on the environment rather than on the request. Caught rather than
+  // left to become a bare 500, because the one way it fails in practice is a
+  // deploy that forgot BYOK_SECRET_KEY — and the admin staring at the dialog
+  // needs to be told it is our configuration, not their key.
+  const update: { groqApiKey?: string | null; geminiApiKey?: string | null } = {};
+  try {
+    for (const [field, plaintext] of Object.entries(parsed) as [ByokField, string | null][]) {
+      update[field] = plaintext === null ? null : encryptProviderKey(plaintext, companyRow.id, field);
+    }
+  } catch (error) {
+    console.error("[admin/company] Failed to encrypt provider key:", error);
+    return NextResponse.json(
+      { error: "Konfigurasi enkripsi server belum lengkap, key belum tersimpan. Hubungi dukungan." },
+      { status: 500 },
+    );
   }
 
   await db.update(companies).set(update).where(eq(companies.id, companyRow.id));

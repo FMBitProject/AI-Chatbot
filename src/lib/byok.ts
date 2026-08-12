@@ -78,6 +78,39 @@ export function geminiKey(company: Company | undefined): string | null {
  * had been copied into five files. Same behaviour, one place to be wrong.
  */
 export function groqClientFor(company: Company | undefined) {
-  const key = providerKey(company, "groqApiKey");
+  return groqClientForKey(providerKey(company, "groqApiKey"));
+}
+
+/** Same, for callers that already resolved the key through `resolveByok`. */
+export function groqClientForKey(key: string | null) {
   return key ? createGroq({ apiKey: key }) : groq;
+}
+
+export type ByokResolution =
+  | { ok: true; gemini: string | null; groq: string | null }
+  | { ok: false; message: string };
+
+/**
+ * Both keys at once, as a value rather than a throw.
+ *
+ * The throwing helpers above are right for callers that sit inside an error
+ * boundary already — the indexer, the Slack routes. They are wrong for the
+ * request paths, and for one specific reason: `consumeQuestionQuota` runs before
+ * the first key is needed, so a throw after it means the customer is billed a
+ * question for a request that then 500s. A decrypt failure is not transient the
+ * way a provider 429 is — it persists until an operator fixes the environment —
+ * so the same customer would lose their whole daily allowance to failed requests.
+ *
+ * Resolving both keys up front, before the quota is touched, is what makes that
+ * impossible. It also stops the failure being mislabelled: unwrapping the Gemini
+ * key inside the embedding try meant an unreadable key was reported to the admin
+ * as `AI_ERROR provider: gemini`, sending them to check Google's status page for
+ * a problem that is entirely ours.
+ */
+export function resolveByok(company: Company | undefined): ByokResolution {
+  try {
+    return { ok: true, gemini: providerKey(company, "geminiApiKey"), groq: providerKey(company, "groqApiKey") };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
 }
