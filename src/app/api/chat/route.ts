@@ -9,6 +9,7 @@ import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate"
 import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { canUseAiAnswers } from "@/lib/pricing";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
@@ -138,7 +139,21 @@ export async function POST(req: NextRequest) {
   // resolvePlan applies the grace period and persists the downgrade once it is
   // over, so everything below runs on the plan that is actually in force.
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  const { company, limits } = await resolvePlan(companyRow);
+  const { company, subscription, limits } = await resolvePlan(companyRow);
+
+  // Answers are a paid feature; search is not. Checked here — before the seat
+  // check, before the per-user cap, and above all before consumeQuestionQuota —
+  // because a refusal must not spend the question it refuses. The daily counter
+  // is decremented by nothing, so a quota burned here would be gone for the day.
+  //
+  // 403 with a code the chat page knows, not a bare message: it renders this as
+  // an invitation to /search rather than as an error, which is what it is.
+  if (!canUseAiAnswers(subscription.plan)) {
+    return new Response(
+      JSON.stringify({ error: "AI_REQUIRES_PAID_PLAN", plan: subscription.plan }),
+      { status: 403 },
+    );
+  }
   const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
 
   const companyId = dbUser.companyId;

@@ -113,7 +113,7 @@ const CONTENT = {
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
-      { name: "Starter", price: "Gratis", desc: "5 karyawan · 10 dokumen" },
+      { name: "Starter", price: "Gratis", desc: "5 karyawan · 10 dokumen · pencarian" },
       { name: "Professional", price: "Rp 200rb/bln", desc: "50 karyawan · 100 dokumen", promo: true },
       { name: "Enterprise", price: "Rp 500rb/bln", desc: "200 karyawan · 500 dokumen", promo: true },
       { name: "Custom", price: "Hubungi kami", desc: "Grup RS & multi-cabang" },
@@ -223,7 +223,7 @@ const CONTENT = {
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
-      { name: "Starter", price: "Free", desc: "5 employees · 10 documents" },
+      { name: "Starter", price: "Free", desc: "5 employees · 10 documents · search" },
       { name: "Professional", price: "Rp 200k/mo", desc: "50 employees · 100 documents", promo: true },
       { name: "Enterprise", price: "Rp 500k/mo", desc: "200 employees · 500 documents", promo: true },
       { name: "Custom", price: "Contact us", desc: "Hospital groups & multi-site" },
@@ -338,7 +338,7 @@ const INDIVIDUAL_CONTENT = {
     priceTitle: "Harga untuk Pemakaian Pribadi",
     priceDesc: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
     pricePlans: [
-      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen · ${PLAN_LIMITS.starter.maxQuestionsPerMonth} pertanyaan/bulan` },
+      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen · pencarian dokumen` },
       { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} dokumen · pertanyaan bulanan tanpa batas` },
     ],
     faqDesc: "Sebelum mengunggah dokumen pribadi, ini biasanya yang ingin dipastikan lebih dulu.",
@@ -403,7 +403,7 @@ const INDIVIDUAL_CONTENT = {
     priceTitle: "Pricing for Personal Use",
     priceDesc: "Start free. Move to Personal when your documents and questions outgrow it.",
     pricePlans: [
-      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents · ${PLAN_LIMITS.starter.maxQuestionsPerMonth} questions/month` },
+      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents · document search` },
       { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} documents · unlimited questions per month` },
     ],
     faqDesc: "Before uploading personal documents, this is usually what people want settled first.",

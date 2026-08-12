@@ -12,6 +12,7 @@ import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { canUseAiAnswers } from "@/lib/pricing";
 
 // Only failed key lookups count toward this, so valid integrations are never
 // throttled here (they are governed by the plan quotas below instead).
@@ -56,7 +57,22 @@ export async function POST(req: NextRequest) {
 
   // Same effective plan, grace period and quotas as the chat UI — an expired
   // subscription must not survive just because the caller uses the API.
-  const { company, limits } = await resolvePlanById(apiKey.companyId);
+  const { company, subscription, limits } = await resolvePlanById(apiKey.companyId);
+
+  // Same rule as the chat UI, and it has to be here or it is not a rule: an API
+  // key is created by any admin regardless of plan, so without this a Starter
+  // workspace could have every question answered by pointing a script at this
+  // endpoint instead of opening the app. Checked before the quota for the same
+  // reason as there — a refusal must not spend the question it refuses.
+  if (!canUseAiAnswers(subscription.plan)) {
+    return NextResponse.json(
+      {
+        error: "AI_REQUIRES_PAID_PLAN",
+        message: "Jawaban AI tersedia mulai paket berbayar. Paket gratis dapat memakai pencarian dokumen.",
+      },
+      { status: 403 },
+    );
+  }
 
   const quotaFailure = await consumeQuestionQuota(apiKey.companyId, limits);
   if (quotaFailure) {

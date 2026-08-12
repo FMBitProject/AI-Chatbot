@@ -158,6 +158,17 @@ export default function ChatPage() {
         }
         if (res.status === 403) {
           const data = await res.json().catch(() => ({ error: "" })) as { error?: string };
+          // A plan boundary, not a fault. It is written as an offer — search is
+          // open, and the link goes straight there — because someone on the free
+          // tier meeting this message is the person most likely to be deciding
+          // whether the product is worth paying for.
+          if (data.error === "AI_REQUIRES_PAID_PLAN") {
+            const upgradeMsg = langCode === "en"
+              ? `🔒 **AI answers are part of the paid plans.**\n\nOn the free plan you can still **search your documents** and read the matching passages with their sources.\n\n[Search documents](/search) · [See plans](/pricing)`
+              : `🔒 **Jawaban AI tersedia mulai paket berbayar.**\n\nDi paket gratis Anda tetap bisa **mencari dokumen** dan membaca bagian yang cocok beserta sumbernya.\n\n[Cari dokumen](/search) · [Lihat paket](/pricing)`;
+            setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: upgradeMsg } : m));
+            return;
+          }
           if (data.error === "SEAT_FROZEN") {
             const seatMsg = langCode === "en"
               ? `🔒 **Your account is currently inactive.**\n\nThe number of employees exceeds your company plan's limit. Ask your admin to renew the subscription to reactivate your account.\n\n📧 Contact: ${SUPPORT_EMAIL}`

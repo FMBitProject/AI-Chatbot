@@ -10,6 +10,7 @@ import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAG
 import { generateText } from "ai";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { canUseAiAnswers } from "@/lib/pricing";
 
 // Concise, but not looser. Slack's answers are the shortest this product gives
 // and were governed by the weakest rule of the four channels — a single
@@ -59,7 +60,18 @@ export async function POST(req: NextRequest) {
   // Slack is a full answering channel, so it runs the same plan rules as the
   // chat UI and the public API: effective plan (with grace period), frozen
   // seats, company quota and frozen documents.
-  const { company, limits } = await resolvePlanById(companyId);
+  const { company, subscription, limits } = await resolvePlanById(companyId);
+
+  // Same rule as the chat UI. Slack is a full answering channel, so leaving it
+  // open would make the gate a suggestion: a Starter workspace would simply ask
+  // from Slack instead. Ephemeral, because a plan notice is for the person who
+  // typed the command, not for the channel.
+  if (!canUseAiAnswers(subscription.plan)) {
+    return NextResponse.json({
+      response_type: "ephemeral",
+      text: "🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.",
+    });
+  }
 
   if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
     return NextResponse.json({ response_type: "ephemeral", text: `❌ ${SEAT_FROZEN_MESSAGE}` });
