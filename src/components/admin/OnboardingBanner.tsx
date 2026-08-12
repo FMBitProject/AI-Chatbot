@@ -1,12 +1,37 @@
 "use client";
 import { useState } from "react";
-import { CheckCircle2, Upload, Users, MessageSquare, X } from "lucide-react";
+import { CheckCircle2, Upload, Users, MessageSquare, X, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+
+// The two tabs a checklist step can send someone to. Narrow on purpose: the
+// dashboard owns six tabs, and a step that could name any of them is a step
+// that can name one that isn't rendered — the employee tab does not exist on an
+// individual account.
+type StepTab = "documents" | "users";
+
+interface Step {
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  done: boolean;
+  action: string;
+  // Exactly one of these carries the action. A step either switches a tab on
+  // this page or navigates away; the union stops a third state — both unset —
+  // from type-checking, which is what the previous shape allowed and shipped.
+  tab?: StepTab;
+  href?: string;
+}
 
 interface OnboardingBannerProps {
   hasDocuments: boolean;
   hasEmployees: boolean;
+  // Switches the dashboard's tab. Required, not optional: the first version of
+  // this banner reached for the tab through the DOM
+  // (`[data-value="documents"]`), an attribute Radix Tabs never renders, so the
+  // button did nothing for every account that ever saw it. A prop the page must
+  // pass is the version of this that cannot silently stop working.
+  onOpenTab: (tab: StepTab) => void;
   // An individual account has no employees to invite, so its checklist is one
   // step shorter — and the step it loses is the one it could never complete.
   // Left in, the banner would sit at 1/2 for ever on an account that is finished.
@@ -14,13 +39,13 @@ interface OnboardingBannerProps {
   lang?: "id" | "en";
 }
 
-export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = false, lang = "id" }: OnboardingBannerProps) {
+export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = false, lang = "id", onOpenTab }: OnboardingBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const allDone = hasDocuments && (isIndividual || hasEmployees);
 
   if (dismissed || allDone) return null;
 
-  const steps = [
+  const steps: Step[] = [
     {
       icon: Upload,
       title: lang === "en" ? "Upload your first document" : "Upload dokumen pertama",
@@ -38,8 +63,10 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = fa
       done: hasEmployees,
       action: lang === "en" ? "Add Employee" : "Tambah Karyawan",
       tab: "users",
-      href: undefined as string | undefined,
-    }]),
+      // A conditional spread is not contextually typed by the annotation on
+      // `steps`, so without this the literal widens to `string` and the array
+      // stops being a Step[].
+    }] satisfies Step[]),
     {
       icon: MessageSquare,
       title: lang === "en" ? "Try the AI chat" : "Coba chat AI",
@@ -48,7 +75,6 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = fa
         : (lang === "en" ? "Ask a question about your company documents." : "Tanyakan sesuatu tentang dokumen perusahaan Anda."),
       done: false,
       action: lang === "en" ? "Open Chat" : "Buka Chat",
-      tab: null,
       href: "/chat",
     },
   ];
@@ -78,7 +104,12 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = fa
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {steps.map((step) => (
+        {steps.map((step) => {
+          // Read out of the object so the narrowing survives into the click
+          // handler; `step.tab` is a mutable property and TypeScript widens it
+          // back to `StepTab | undefined` inside the closure.
+          const tab = step.tab;
+          return (
           <div key={step.title} className={`rounded-xl p-4 border ${step.done ? "bg-green-50 border-green-200" : "bg-white border-gray-200"}`}>
             <div className="flex items-center gap-2 mb-2">
               {step.done
@@ -92,12 +123,13 @@ export function OnboardingBanner({ hasDocuments, hasEmployees, isIndividual = fa
             {!step.done && (
               step.href
                 ? <Link href={step.href}><Button size="sm" variant="outline" className="text-xs h-7">{step.action}</Button></Link>
-                : <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => {
-                  document.querySelector(`[data-value="${step.tab}"]`)?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-                }}>{step.action}</Button>
+                : tab
+                  ? <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => onOpenTab(tab)}>{step.action}</Button>
+                  : null
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

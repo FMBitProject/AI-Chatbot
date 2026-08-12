@@ -34,6 +34,11 @@ export default function AdminPage() {
   const { lang } = useLang();
   const T = adminT[lang];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Controlled rather than `defaultValue`, so the onboarding banner can move the
+  // dashboard to the tab a checklist step is about. Radix only exposes that
+  // through `value`/`onValueChange`; reaching into the DOM for the trigger is
+  // what the banner used to do, and it never worked.
+  const [activeTab, setActiveTab] = useState("documents");
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -426,8 +431,9 @@ export default function AdminPage() {
           hasEmployees={employees.length > 1}
           isIndividual={isIndividual}
           lang={lang}
+          onOpenTab={setActiveTab}
         />
-        <Tabs defaultValue="documents">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
