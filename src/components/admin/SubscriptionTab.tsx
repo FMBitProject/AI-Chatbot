@@ -191,12 +191,17 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
   const graceStr = data.graceEndsAt ? fmtDate(data.graceEndsAt) : null;
   const purchasedLabel = PLAN_LABELS[data.purchasedPlan ?? data.plan] ?? data.plan;
 
-  // Storing a key is Enterprise-and-above, but a company that already stored one
-  // keeps the right to see and remove it after the plan lapses — it is their
+  // Storing a key is Professional-and-above, but a company that already stored
+  // one keeps the right to see and remove it after the plan lapses — it is their
   // credential, and clearing it is the fix if the key stops working upstream.
   // Custom must be included: BYOK is what makes an uncapped plan viable, so the
   // one tier that most needs this field cannot be the one locked out of it.
-  const canEditKeys = data.plan === "enterprise" || data.plan === "custom";
+  //
+  // Kept in step with BYOK_PLANS in /api/admin/company by hand. The server is the
+  // authority — this only decides whether the field is rendered, and a stale copy
+  // here shows a field whose save is refused rather than granting anything.
+  const canEditKeys =
+    data.plan === "professional" || data.plan === "enterprise" || data.plan === "custom";
   const hasAnyKey = byok.hasGroqKey || byok.hasGeminiKey;
 
   // One line that always says where the subscription stands, including the two
@@ -272,7 +277,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
         </CardContent>
       </Card>
 
-      {/* BYOK — configurable on Enterprise; visible + removable whenever a key exists */}
+      {/* BYOK — configurable on Professional+; visible + removable whenever a key exists */}
       {(canEditKeys || hasAnyKey) && (
         <Card className="border-violet-200">
           <CardHeader className="pb-3">
@@ -298,8 +303,8 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
                       ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
                       : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
                     : (lang === "en"
-                      ? "Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires Enterprise — removing one is always yours to do."
-                      : "Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket Enterprise — menghapus selalu bisa Anda lakukan.")}
+                      ? "Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires Professional or above — removing one is always yours to do."
+                      : "Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket Professional ke atas — menghapus selalu bisa Anda lakukan.")}
                 </p>
               </div>
             </div>
@@ -379,11 +384,11 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
             <p className="text-xs text-gray-400 pt-1">
               {canEditKeys
                 ? (lang === "en"
-                  ? "Keys are stored securely and never shown again. If not set, platform shared capacity is used."
-                  : "Key disimpan secara aman dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan.")
+                  ? "Keys are encrypted before they are stored and are never shown again. If not set, platform shared capacity is used."
+                  : "Key dienkripsi sebelum disimpan dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan.")
                 : (lang === "en"
-                  ? "Upgrade to Enterprise to add or replace keys again."
-                  : "Upgrade ke Enterprise untuk menambah atau mengganti key lagi.")}
+                  ? "Upgrade to Professional to add or replace keys again."
+                  : "Upgrade ke Professional untuk menambah atau mengganti key lagi.")}
             </p>
           </CardContent>
         </Card>

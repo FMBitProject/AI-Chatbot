@@ -10,7 +10,7 @@ import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { geminiKey, groqClientFor } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -82,8 +82,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
-  const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
+  const groqClient = groqClientFor(company);
+  const queryEmbedding = await getEmbedding(question, geminiKey(company));
   const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
     companyId: apiKey.companyId,
     queryEmbedding,

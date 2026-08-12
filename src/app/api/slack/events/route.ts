@@ -8,7 +8,7 @@ import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE, type Company } from "@/lib/subscription";
 import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { geminiKey, groqClientFor } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -30,7 +30,7 @@ ${GROUNDING_REMINDER}`;
 // embedding and the generation, which meant an Enterprise customer's Slack
 // traffic quietly bypassed the keys they had configured.
 async function runRAG(question: string, companyId: string, maxDocuments: number, company: Company | undefined): Promise<string> {
-  const queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
+  const queryEmbedding = await getEmbedding(question, geminiKey(company));
 
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
@@ -42,7 +42,7 @@ async function runRAG(question: string, companyId: string, maxDocuments: number,
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
-  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+  const groqClient = groqClientFor(company);
   const { text } = await generateText({
     model: groqClient("llama-3.3-70b-versatile"),
     system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,

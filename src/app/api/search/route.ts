@@ -5,6 +5,7 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { LIMITS } from "@/lib/validate";
+import { geminiKey } from "@/lib/byok";
 
 export async function GET(req: NextRequest) {
   const guard = await requireUser(req);
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
   // while /api/chat has always returned a typed reason for the identical call.
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(q, company?.geminiApiKey);
+    queryEmbedding = await getEmbedding(q, geminiKey(company));
   } catch (err) {
     console.error("[search] Embedding failed:", err);
     const is429 = err instanceof Error && err.message.includes("429");

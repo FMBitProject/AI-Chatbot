@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { geminiKey, groqClientFor } from "@/lib/byok";
 import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
 
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(question, company?.geminiApiKey);
+    queryEmbedding = await getEmbedding(question, geminiKey(company));
   } catch (err) {
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
@@ -524,7 +524,7 @@ If no relevant information is found:
     { role: "user" as const, content: question },
   ];
 
-  const groqClient = company?.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+  const groqClient = groqClientFor(company);
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();

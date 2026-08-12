@@ -1,6 +1,6 @@
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { generateText } from "ai";
-import { groq, createGroq } from "@ai-sdk/groq";
+import { geminiKey, groqClientFor } from "@/lib/byok";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
@@ -301,12 +301,28 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
     );
   }
 
+  // Decrypted once, before the try, so that a key we cannot unwrap is not filed
+  // as an embedding failure. The two are different problems with different
+  // fixes — one is the provider being busy, the other is BYOK_SECRET_KEY being
+  // wrong — and the catch below exists to tell the admin which of those it was.
+  //
+  // Re-thrown as an IndexError so the reason reaches the admin: the outer handler
+  // only surfaces IndexError messages, and files anything else as "kesalahan tak
+  // terduga di server", which would send someone hunting through the document
+  // instead of through the environment.
+  let ownGeminiKey: string | null;
+  try {
+    ownGeminiKey = geminiKey(company);
+  } catch (error) {
+    throw new IndexError(error instanceof Error ? error.message : String(error));
+  }
+
   let embeddings: number[][];
   try {
-    embeddings = await getEmbeddings(chunks, company.geminiApiKey);
+    embeddings = await getEmbeddings(chunks, ownGeminiKey);
   } catch (error) {
     console.error(`[indexing] Embedding failed for ${doc.name}:`, error);
-    const ownKey = !!company.geminiApiKey;
+    const ownKey = !!ownGeminiKey;
     // Any 429 counts as rate limiting, not just the budget error: when the
     // provider's retry-after is short, five attempts can be spent inside the
     // budget and the raw 429 propagates instead. Both mean "too fast", and
@@ -360,7 +376,7 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   // there is one, like every other generation call: this prompt carries the
   // opening 2000 characters of the uploaded file, so it is document content
   // leaving the server, not metadata.
-  const groqClient = company.groqApiKey ? createGroq({ apiKey: company.groqApiKey }) : groq;
+  const groqClient = groqClientFor(company);
   const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
   let summary: string | null = null;
   try {

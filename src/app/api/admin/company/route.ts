@@ -5,6 +5,8 @@ import { companies } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
 import { LIMITS, readJsonObject } from "@/lib/validate";
+import { encryptProviderKey } from "@/lib/byok";
+import type { Plan } from "@/lib/plan-limits";
 
 // This file used to carry its own getAuthedAdmin() — the only route that had
 // bothered to factor the check out. It is gone in favour of the shared guard,
@@ -85,22 +87,42 @@ export async function PATCH(req: NextRequest) {
     // one never falls back to the platform account — it is simply rejected
     // upstream. Since these keys now also index uploaded documents, that turns a
     // stray newline into every upload failing.
-    update[field] = value.trim() || null;
+    //
+    // Trim before encrypting, never after: the ciphertext is opaque, so a newline
+    // sealed inside it survives every later check and only surfaces as a 401 from
+    // the provider.
+    const trimmed = value.trim();
+    update[field] = trimmed ? encryptProviderKey(trimmed, companyRow.id, field) : null;
   }
   if (Object.keys(update).length === 0) return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
 
-  // Storing a key is the Enterprise-and-above feature (judged on the plan in
-  // force right now, so a lapsed Enterprise cannot keep configuring dedicated
-  // capacity). Custom counts too — an uncapped plan is only viable when the
-  // customer's own key pays for the usage, so it must be able to set one.
+  // Storing a key is a paid-plan feature, judged on the plan in force right now
+  // so a lapsed subscription cannot keep configuring dedicated capacity.
+  //
+  // Professional was added to this list deliberately, and it does NOT come with
+  // a quota change: BYOK is sold as data residency ("your documents are embedded
+  // and answered inside your own provider account"), not as a way around the
+  // plan's question limits. Custom is the one place the two are linked — an
+  // uncapped plan is only viable when the customer's key pays per question.
+  //
   // REMOVING a key is always allowed, whatever the plan: it is the customer's
   // own credential, and a company whose key was revoked upstream must be able
   // to clear it themselves — otherwise their chat stays broken until we step in.
+  // This is also what keeps a downgrade recoverable: a company that drops to
+  // Starter can still delete the key it can no longer edit.
+  // Typed as Plan[] rather than string[] on purpose: the next plan added to
+  // PLAN_LIMITS then has to be considered here instead of silently defaulting to
+  // "no BYOK". The admin header once carried a hand-written plan union and
+  // rendered a Custom account as "Free" for exactly this reason.
+  const BYOK_PLANS: Plan[] = ["professional", "enterprise", "custom"];
   const isRemovalOnly = Object.values(update).every((v) => v === null);
   if (!isRemovalOnly) {
     const { subscription } = await resolvePlan(companyRow);
-    if (subscription.plan !== "enterprise" && subscription.plan !== "custom") {
-      return NextResponse.json({ error: "Fitur ini hanya tersedia untuk paket Enterprise." }, { status: 403 });
+    if (!BYOK_PLANS.includes(subscription.plan)) {
+      return NextResponse.json(
+        { error: "Fitur ini hanya tersedia untuk paket Professional ke atas." },
+        { status: 403 },
+      );
     }
   }
 
