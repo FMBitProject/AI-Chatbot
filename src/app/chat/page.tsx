@@ -36,6 +36,17 @@ export default function ChatPage() {
   // is the same as having nothing to narrow. See /api/folders — it returns an
   // empty list for company accounts on purpose.
   const [folders, setFolders] = useState<string[]>([]);
+  // Only the wording depends on this — an individual has no company policies to
+  // ask about and no supervisor to check an answer against, and being told to
+  // consult one is the kind of detail that tells a paying customer the tier they
+  // bought is a relabelled company product.
+  //
+  // Not derived from `folders` even though that list is empty for company
+  // accounts: it is also empty for an individual who has not filed anything yet,
+  // so it answers "are there folders", never "who is this". Defaults to the
+  // company wording, which is what everyone saw before this and is the safe
+  // answer while the request is still in flight.
+  const [isIndividual, setIsIndividual] = useState(false);
   // "" is every folder. Held in a ref as well because handleSubmit reads it
   // inside an async flow, exactly like responseLang: the state is for rendering,
   // the ref is what the request is built from.
@@ -56,6 +67,20 @@ export default function ChatPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { folders?: string[] } | null) => {
         if (!cancelled && Array.isArray(data?.folders)) setFolders(data.folders);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Failures are swallowed on purpose: this decides two sentences of copy, and
+    // a chat that refuses to render because a label lookup timed out would be a
+    // far worse trade than a company-worded placeholder.
+    fetch("/api/user/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { accountType?: string } | null) => {
+        if (!cancelled && data?.accountType === "individual") setIsIndividual(true);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -447,7 +472,11 @@ export default function ChatPage() {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={responseLang === "en" ? "Ask anything about company policies..." : "Tanyakan sesuatu tentang kebijakan perusahaan..."}
+              placeholder={
+                responseLang === "en"
+                  ? (isIndividual ? "Ask anything about your documents..." : "Ask anything about company policies...")
+                  : (isIndividual ? "Tanyakan sesuatu tentang dokumen Anda..." : "Tanyakan sesuatu tentang kebijakan perusahaan...")
+              }
               disabled={isLoading}
               className="flex-1"
             />
@@ -457,8 +486,12 @@ export default function ChatPage() {
           </form>
           <p className="text-xs text-gray-400 text-center max-w-3xl mx-auto">
             {responseLang === "en"
-              ? "IntelliBase AI can make mistakes. Always verify important information with official documents or your supervisor."
-              : "IntelliBase AI dapat membuat kesalahan. Selalu verifikasi informasi penting dengan dokumen resmi atau atasan Anda."}
+              ? (isIndividual
+                ? "IntelliBase AI can make mistakes. Always check important information against the source document itself."
+                : "IntelliBase AI can make mistakes. Always verify important information with official documents or your supervisor.")
+              : (isIndividual
+                ? "IntelliBase AI dapat membuat kesalahan. Selalu periksa informasi penting langsung pada dokumen sumbernya."
+                : "IntelliBase AI dapat membuat kesalahan. Selalu verifikasi informasi penting dengan dokumen resmi atau atasan Anda.")}
           </p>
         </div>
       </div>

@@ -492,7 +492,7 @@ export default function AdminPage() {
             </TabsContent>
           )}
           <TabsContent value="persona">
-            <PersonaTab lang={lang} />
+            <PersonaTab lang={lang} isIndividual={isIndividual} />
           </TabsContent>
           <TabsContent value="audit">
             <AuditTab isIndividual={isIndividual} lang={lang} />

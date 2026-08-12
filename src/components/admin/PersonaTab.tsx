@@ -16,7 +16,12 @@ interface PersonaData {
   aiPersonality: string;
 }
 
-export function PersonaTab({ lang = "id" }: { lang?: Lang }) {
+// `isIndividual` changes only the example text and the preview's fallback
+// greeting. The persona itself is not team-specific — one person customising the
+// assistant's name and tone wants exactly what a company admin wants — but the
+// samples were all written for a company, and a placeholder naming a fictional
+// PT is what tells an individual customer this tier is a relabelled team product.
+export function PersonaTab({ lang = "id", isIndividual = false }: { lang?: Lang; isIndividual?: boolean }) {
   const T = adminT[lang];
   const [form, setForm] = useState<PersonaData>({ aiName: "IntelliBase AI", aiGreeting: "", aiPersonality: "" });
   const [saving, setSaving] = useState(false);
@@ -66,7 +71,7 @@ export function PersonaTab({ lang = "id" }: { lang?: Lang }) {
             <div className="bg-white rounded-2xl rounded-tl-sm px-4 py-3 text-sm shadow-sm max-w-sm">
               <p className="font-semibold text-blue-700 text-xs mb-1">{form.aiName || "IntelliBase AI"}</p>
               <p className="text-gray-700">
-                {form.aiGreeting || "Selamat datang! Saya siap membantu Anda menemukan informasi dari dokumen internal perusahaan."}
+                {form.aiGreeting || (isIndividual ? T.previewGreetingIndividual : T.previewGreeting)}
               </p>
             </div>
           </div>
@@ -77,18 +82,18 @@ export function PersonaTab({ lang = "id" }: { lang?: Lang }) {
         <div className="space-y-2">
           <Label>{T.aiName}</Label>
           <Input
-            placeholder="Contoh: Ava, Max, Aria, atau nama kustom"
+            placeholder={T.aiNamePlaceholder}
             value={form.aiName}
             onChange={(e) => setForm({ ...form, aiName: e.target.value })}
           />
-          <p className="text-xs text-gray-400">Nama ini akan muncul di header chat dan respons AI</p>
+          <p className="text-xs text-gray-400">{T.aiNameHint}</p>
         </div>
 
         <div className="space-y-2">
           <Label>{T.greeting}</Label>
           <textarea
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-            placeholder="Contoh: Halo! Saya Ava, asisten AI PT Maju Bersama. Ada yang bisa saya bantu?"
+            placeholder={isIndividual ? T.greetingPlaceholderIndividual : T.greetingPlaceholder}
             value={form.aiGreeting}
             onChange={(e) => setForm({ ...form, aiGreeting: e.target.value })}
           />
@@ -100,11 +105,11 @@ export function PersonaTab({ lang = "id" }: { lang?: Lang }) {
           </Label>
           <textarea
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-            placeholder="Contoh: Selalu jawab dengan nada ramah namun profesional. Gunakan kata 'Anda' bukan 'kamu'. Tambahkan emoji relevan di akhir jawaban."
+            placeholder={T.personalityPlaceholder}
             value={form.aiPersonality}
             onChange={(e) => setForm({ ...form, aiPersonality: e.target.value })}
           />
-          <p className="text-xs text-gray-400">Instruksi tambahan untuk mengatur gaya dan tone AI</p>
+          <p className="text-xs text-gray-400">{T.personalityHint}</p>
         </div>
 
         <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700">

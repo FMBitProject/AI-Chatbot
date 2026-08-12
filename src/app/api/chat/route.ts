@@ -42,6 +42,28 @@ function describeAiFailure(err: unknown): { error: string; provider: string } {
   return { error: isRateLimit ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" };
 }
 
+// The "not found in your documents" line. It exists in one place because it is
+// used twice in ways that must agree: the shortcut below sends it directly when
+// the workspace has no documents at all, and the LANGUAGE RULE instructs the
+// model to reproduce it verbatim when nothing matched. Two copies drifting apart
+// would give the same situation two different answers depending on which path
+// produced it.
+//
+// The individual wording matters more than it looks. An individual account has
+// no "company internal documents" — being told their own uploads could not be
+// found in a company's files is the moment the tier stops feeling like it was
+// built for them.
+function notFoundMessage(lang: "id" | "en", isIndividual: boolean): string {
+  if (lang === "en") {
+    return isIndividual
+      ? "Sorry, the information could not be found in your documents."
+      : "Sorry, the information could not be found in the company's internal documents.";
+  }
+  return isIndividual
+    ? "Maaf, informasi tidak ditemukan dalam dokumen Anda."
+    : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
+}
+
 function detectLang(text: string): "id" | "en" {
   const idPattern = /\b(apa|bagaimana|jelaskan|saya|yang|adalah|dan|dengan|untuk|ini|itu|tidak|bisa|cara|tolong|mohon|sebutkan|berikan|apakah|mengapa|kapan|siapa|dimana|berapa|boleh|perlu|harus|bisa|ingin|mau)\b/i;
   return idPattern.test(text) ? "id" : "en";
@@ -398,9 +420,7 @@ export async function POST(req: NextRequest) {
   // continue to the AI so it can answer from the catalog.
   if (scored.length === 0 && docCatalogNames.length === 0) {
     const effectiveLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
-    const noDocMsg = effectiveLang === "en"
-      ? "Sorry, the information could not be found in the company's internal documents."
-      : "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
+    const noDocMsg = notFoundMessage(effectiveLang, company?.accountType === "individual");
 
     const noDocMsgId = randomUUID();
     await withTenant(companyId, async (tx) => {
@@ -437,6 +457,10 @@ export async function POST(req: NextRequest) {
       + "not-found message from the LANGUAGE RULE and stop. The catalog above lists titles only — it can "
       + "still answer questions about which documents exist, never about their contents.)";
 
+  const solo = company?.accountType === "individual";
+  const notFoundId = notFoundMessage("id", solo);
+  const notFoundEn = notFoundMessage("en", solo);
+
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
 
@@ -445,13 +469,13 @@ export async function POST(req: NextRequest) {
 You MUST write your ENTIRE response in ENGLISH only.
 Do NOT use any Indonesian words. Do NOT mix languages.
 Even if the user writes in Indonesian, your response MUST be 100% in English.
-If no relevant information is found in the documents, respond with exactly: "Sorry, the information could not be found in the company's internal documents."
+If no relevant information is found in the documents, respond with exactly: "${notFoundEn}"
 Violation of this rule is not acceptable under any circumstance.`
     : responseLang === "id"
     ? `ATURAN BAHASA (MUTLAK — MENGGANTIKAN SEMUA ATURAN LAIN):
 Anda WAJIB menulis SELURUH respons dalam Bahasa Indonesia yang baik dan benar.
 JANGAN gunakan kata-kata dalam bahasa Inggris kecuali istilah teknis dari dokumen.
-Jika informasi tidak ditemukan dalam dokumen, balas dengan: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan."
+Jika informasi tidak ditemukan dalam dokumen, balas dengan: "${notFoundId}"
 Tidak ada pengecualian untuk aturan ini.`
     : `LANGUAGE RULE (AUTO-DETECT):
 Detect the language of the user's question and respond in that SAME language.
@@ -459,8 +483,8 @@ Detect the language of the user's question and respond in that SAME language.
 - User writes in English → respond entirely in English.
 - Do NOT mix languages in a single response.
 If no relevant information is found:
-- Indonesian question → "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan."
-- English question → "Sorry, the information could not be found in the company's internal documents."`;
+- Indonesian question → "${notFoundId}"
+- English question → "${notFoundEn}"`;
 
   const langReminder = responseLang === "en"
     ? "Remember: respond in ENGLISH only, regardless of the question language."
