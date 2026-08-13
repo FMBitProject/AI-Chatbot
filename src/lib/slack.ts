@@ -25,14 +25,70 @@ export function toAdminWithSlackStatus(status: "connected" | "denied" | "error" 
   return NextResponse.redirect(url);
 }
 
+/**
+ * Escapes text before it is interpolated into a message this app posts.
+ *
+ * Slack renders a message's `text` as mrkdwn, which makes these three
+ * characters markup rather than content: `<https://evil.example|Klik di sini>`
+ * becomes a labelled hyperlink, `<!channel>` a broadcast. Every message this
+ * app sends carries its own name and icon, and a slash command's answer is
+ * posted `in_channel` — so echoing a question unescaped let any member publish
+ * a link that appears to come from the company's own document assistant. That
+ * is the shape internal phishing takes, and it is a privilege the member does
+ * not otherwise have: they can post a link themselves, but not one attributed
+ * to the system.
+ *
+ * Exactly the three characters Slack documents, ampersand first so the escapes
+ * it introduces are not escaped again. Applied only to values that come from
+ * outside — the question, the generated answer, and document names (an admin
+ * can upload a file called `<!channel>.pdf`). The markup this app writes
+ * itself, `*Pertanyaan:*` and `_Sumber:_`, stays outside these calls or it
+ * would render as literal asterisks.
+ */
+export function escapeSlackText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// How far out of date a signed request may be. Slack's own recommendation.
+const MAX_SIGNATURE_AGE_SECONDS = 60 * 5;
+
+/**
+ * The largest request body either Slack webhook will read.
+ *
+ * Both entry points are public — they authenticate with an HMAC over the whole
+ * body, which means an unauthenticated caller can make us buffer and hash
+ * whatever it sends before we get to say no. Vercel's 4.5 MB request cap is the
+ * only bound today; this makes the first no much cheaper.
+ *
+ * Generous on purpose. A slash command's payload is a few hundred bytes and
+ * Slack caps the command text at 4,000 characters; the fattest realistic event
+ * is an `app_mention` carrying a 40,000-character message, which is still well
+ * under 100 KB once JSON-encoded. 256 KB leaves several times that in headroom,
+ * so no genuine Slack request can trip it — this is a floor on abuse, not a
+ * limit anyone should ever notice.
+ */
+export const MAX_SLACK_BODY_BYTES = 256 * 1024;
+
 export function verifySlackSignature(
   signingSecret: string,
   signature: string,
   timestamp: string,
   body: string
 ): boolean {
-  const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 60 * 5;
-  if (parseInt(timestamp) < fiveMinutesAgo) return false;
+  // The timestamp is part of the signed base string below, so it cannot be
+  // moved without breaking the HMAC — this bound is what stops a captured,
+  // still-valid request from being replayed indefinitely.
+  //
+  // Parsed with Number and bounded in both directions. `parseInt` was used
+  // here before and yields NaN for a missing or non-numeric header, and every
+  // comparison against NaN is false — so the guard passed anything unparseable
+  // straight through instead of rejecting it. Nothing could be forged that way,
+  // since the signature still had to verify, but a check that never fires reads
+  // like protection while providing none. The upper bound is new: a timestamp
+  // far in the future used to be accepted.
+  const ts = Number(timestamp);
+  const now = Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(ts) || Math.abs(now - ts) > MAX_SIGNATURE_AGE_SECONDS) return false;
 
   const baseString = `v0:${timestamp}:${body}`;
   const hmac = createHmac("sha256", signingSecret).update(baseString).digest("hex");

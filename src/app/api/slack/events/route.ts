@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { verifySlackSignature, installationFor, resolveSlackUser, slackClient } from "@/lib/slack";
+import { verifySlackSignature, installationFor, resolveSlackUser, slackClient, escapeSlackText, MAX_SLACK_BODY_BYTES } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
 import { canUseAiAnswers } from "@/lib/pricing";
@@ -25,6 +25,12 @@ export const maxDuration = 60;
  * once the ack is already on its way back to Slack.
  */
 export async function POST(req: NextRequest) {
+  // Before the body is buffered and hashed — see MAX_SLACK_BODY_BYTES.
+  const declaredLength = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SLACK_BODY_BYTES) {
+    return new Response("Payload too large", { status: 413 });
+  }
+
   const rawBody = await req.text();
   const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
   const signature = req.headers.get("x-slack-signature") ?? "";
@@ -163,8 +169,13 @@ export async function POST(req: NextRequest) {
           label: "slack/events",
         });
 
-        const footer = sources.length > 0 ? `\n\n_Sumber: ${sources.join(", ")}_` : "";
-        await say(`${answer}${footer}`);
+        // Escaped for the same reason the slash command's reply is: this posts
+        // into the channel under the app's name, and both the answer and the
+        // document names originate outside it. See escapeSlackText.
+        const footer = sources.length > 0
+          ? `\n\n_Sumber: ${sources.map(escapeSlackText).join(", ")}_`
+          : "";
+        await say(`${escapeSlackText(answer)}${footer}`);
       } catch (err) {
         console.error(`[slack/events] Failed to answer company ${companyId}:`, err);
         await say("❌ Terjadi kesalahan. Silakan coba lagi.");
