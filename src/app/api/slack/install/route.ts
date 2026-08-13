@@ -40,13 +40,23 @@ const STATE_TTL_MS = 10 * 60 * 1000;
  * requires the browser that started it, not merely the string it was handed.
  * `SameSite=Lax` is deliberate and required — the callback arrives as a
  * top-level GET navigation from slack.com, which Lax allows and Strict would
- * not. Scoped to /api/slack so it is never sent anywhere else.
+ * not.
  *
  * Exported for the callback route, which reads it back. Same reasoning as
  * SLACK_INSTALL_STATE_CONTEXT above: one definition, so a typo cannot make
  * every install fail in a way that looks like a Slack problem.
  */
 export const SLACK_INSTALL_NONCE_COOKIE = "slack_install_nonce";
+
+/**
+ * Path the nonce cookie is scoped to — the OAuth routes and nothing else.
+ *
+ * Narrower than `/api/slack`, which would also attach it to the two webhooks.
+ * Slack's servers hold no cookies so nothing would have leaked, but a value
+ * that only the callback reads has no business travelling anywhere else.
+ * Shared with the callback so setting and clearing cannot disagree.
+ */
+export const SLACK_INSTALL_NONCE_PATH = "/api/slack/oauth";
 
 /**
  * Starts the "Add to Slack" OAuth flow for the caller's company.
@@ -109,7 +119,7 @@ export async function GET(req: NextRequest) {
     // into a nonce mismatch.
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/api/slack",
+    path: SLACK_INSTALL_NONCE_PATH,
     maxAge: STATE_TTL_MS / 1000,
   });
   return res;

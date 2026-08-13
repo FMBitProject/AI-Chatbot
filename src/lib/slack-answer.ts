@@ -3,6 +3,7 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { generateWithFallback } from "@/lib/models";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { escapeSlackText } from "@/lib/slack";
 
 // The exact sentence the model is told to send when the documents do not
 // answer the question, in both languages this product answers in.
@@ -92,6 +93,26 @@ export interface SlackAnswerOptions {
 export interface SlackAnswer {
   text: string;
   sources: string[];
+}
+
+/**
+ * Renders an answer as the message body both entry points post.
+ *
+ * Lives here for the reason this file exists at all: the escaping and the
+ * source footer were briefly copied into both routes, differing only in
+ * indentation, which is the arrangement the header comment above describes as
+ * the thing this module was created to end. The slash command still prefixes
+ * its own `*Pertanyaan:*` line — that part genuinely differs between the two —
+ * but everything downstream of the answer is one implementation.
+ *
+ * Escaping belongs inside rather than at the call sites, so posting an answer
+ * without it requires deliberately reaching past this function.
+ */
+export function formatSlackAnswer(answer: SlackAnswer): string {
+  const footer = answer.sources.length > 0
+    ? `\n\n_Sumber: ${answer.sources.map((name) => escapeSlackText(name)).join(", ")}_`
+    : "";
+  return `${escapeSlackText(answer.text)}${footer}`;
 }
 
 /**

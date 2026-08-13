@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, MAX_SLACK_BODY_BYTES } from "@/lib/slack";
+import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, readSlackBody } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
 import { canUseAiAnswers } from "@/lib/pricing";
-import { answerForSlack } from "@/lib/slack-answer";
+import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
 import { LIMITS } from "@/lib/validate";
 
 // The deferred work runs inside `after`, which on Vercel extends the
@@ -49,15 +49,11 @@ async function reply(responseUrl: string, text: string, inChannel = false): Prom
  * through response_url, which Slack keeps open for 30 minutes.
  */
 export async function POST(req: NextRequest) {
-  // Before the body is buffered and hashed — see MAX_SLACK_BODY_BYTES. The
-  // declared length is not trustworthy on its own, which is why it is a cheap
-  // first refusal rather than a replacement for the signature check below.
-  const declaredLength = Number(req.headers.get("content-length"));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_SLACK_BODY_BYTES) {
-    return new Response("Payload too large", { status: 413 });
-  }
+  // Bounded rather than unbounded: this endpoint is public and cannot
+  // authenticate anything until it has the whole body. See readSlackBody.
+  const rawBody = await readSlackBody(req);
+  if (rawBody === null) return new Response("Payload too large", { status: 413 });
 
-  const rawBody = await req.text();
   const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
   const signature = req.headers.get("x-slack-signature") ?? "";
   const signingSecret = process.env.SLACK_SIGNING_SECRET ?? "";
@@ -155,7 +151,7 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const { text: answer, sources } = await answerForSlack({
+      const answer = await answerForSlack({
         question: text,
         companyId,
         department: dbUser.department,
@@ -164,16 +160,13 @@ export async function POST(req: NextRequest) {
         label: "slack/command",
       });
 
-      // Escaped, because this message is posted in_channel under this app's
-      // name and all three values come from outside it: the question is typed
-      // by whoever ran the command, the answer is model output, and document
-      // names are chosen by whoever uploaded them. See escapeSlackText.
-      const footer = sources.length > 0
-        ? `\n\n_Sumber: ${sources.map(escapeSlackText).join(", ")}_`
-        : "";
+      // The question is escaped here because only this route echoes it; the
+      // answer and its source footer are escaped inside formatSlackAnswer,
+      // which /api/slack/events shares. Posted in_channel, under this app's
+      // name, so every value in it comes from outside — see escapeSlackText.
       await reply(
         responseUrl,
-        `*Pertanyaan:* ${escapeSlackText(text)}\n\n*Jawaban:*\n${escapeSlackText(answer)}${footer}`,
+        `*Pertanyaan:* ${escapeSlackText(text)}\n\n*Jawaban:*\n${formatSlackAnswer(answer)}`,
         true,
       );
     } catch (err) {

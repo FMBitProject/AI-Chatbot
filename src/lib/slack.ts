@@ -19,7 +19,10 @@ import { absoluteUrl } from "@/lib/site-url";
  * than in either route file avoids a circular import between the two (the
  * callback route already imports install's SLACK_INSTALL_STATE_CONTEXT).
  */
-export function toAdminWithSlackStatus(status: "connected" | "denied" | "error" | "taken" | "plan") {
+/** The `?slack=` values SlackTab knows how to turn into a toast. */
+export type SlackStatus = "connected" | "denied" | "error" | "taken" | "plan";
+
+export function toAdminWithSlackStatus(status: SlackStatus) {
   const url = new URL(absoluteUrl("/admin"));
   url.searchParams.set("slack", status);
   return NextResponse.redirect(url);
@@ -28,22 +31,18 @@ export function toAdminWithSlackStatus(status: "connected" | "denied" | "error" 
 /**
  * Escapes text before it is interpolated into a message this app posts.
  *
- * Slack renders a message's `text` as mrkdwn, which makes these three
- * characters markup rather than content: `<https://evil.example|Klik di sini>`
- * becomes a labelled hyperlink, `<!channel>` a broadcast. Every message this
- * app sends carries its own name and icon, and a slash command's answer is
- * posted `in_channel` — so echoing a question unescaped let any member publish
- * a link that appears to come from the company's own document assistant. That
- * is the shape internal phishing takes, and it is a privilege the member does
- * not otherwise have: they can post a link themselves, but not one attributed
- * to the system.
+ * Slack renders a message's `text` as mrkdwn, so these three characters are
+ * markup rather than content: `<https://evil.example|Klik>` is a labelled
+ * hyperlink and `<!channel>` a broadcast. Applied to values that originate
+ * outside the app — the question, the model's answer, document names — and
+ * never to the markup written here, which would render as literal asterisks.
+ * Ampersand first, so the escapes it introduces are not escaped again.
  *
- * Exactly the three characters Slack documents, ampersand first so the escapes
- * it introduces are not escaped again. Applied only to values that come from
- * outside — the question, the generated answer, and document names (an admin
- * can upload a file called `<!channel>.pdf`). The markup this app writes
- * itself, `*Pertanyaan:*` and `_Sumber:_`, stays outside these calls or it
- * would render as literal asterisks.
+ * Assumes the Slack app's "Escape channels, users, and links sent to your app"
+ * setting stays OFF, which is how it is configured today. Turning it on makes
+ * Slack pre-escape the text it sends, and this would escape it a second time —
+ * `<` would reach the reader as a literal `&lt;`. Cosmetic, not a security
+ * regression, but it is a dashboard toggle no code change would announce.
  */
 export function escapeSlackText(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -53,21 +52,61 @@ export function escapeSlackText(text: string): string {
 const MAX_SIGNATURE_AGE_SECONDS = 60 * 5;
 
 /**
- * The largest request body either Slack webhook will read.
- *
- * Both entry points are public — they authenticate with an HMAC over the whole
- * body, which means an unauthenticated caller can make us buffer and hash
- * whatever it sends before we get to say no. Vercel's 4.5 MB request cap is the
- * only bound today; this makes the first no much cheaper.
+ * The largest request body either Slack webhook will decode and hash.
  *
  * Generous on purpose. A slash command's payload is a few hundred bytes and
  * Slack caps the command text at 4,000 characters; the fattest realistic event
- * is an `app_mention` carrying a 40,000-character message, which is still well
- * under 100 KB once JSON-encoded. 256 KB leaves several times that in headroom,
- * so no genuine Slack request can trip it — this is a floor on abuse, not a
- * limit anyone should ever notice.
+ * is an `app_mention` carrying a 40,000-character message, still well under
+ * 100 KB once JSON-encoded. 256 KB leaves several times that in headroom, so no
+ * genuine Slack request can trip it.
  */
 export const MAX_SLACK_BODY_BYTES = 256 * 1024;
+
+/**
+ * Reads a webhook body, stopping at MAX_SLACK_BODY_BYTES. Returns null if the
+ * body is larger, so the caller can refuse without having decoded it.
+ *
+ * Counted while draining the stream rather than read off `Content-Length`. That
+ * header is optional and self-reported: a sender that omits it (any chunked
+ * request does) or simply lies gets no scrutiny at all from a check that trusts
+ * it, which makes such a check worth exactly nothing against the only caller it
+ * is meant to stop — an unauthenticated one, since both entry points
+ * authenticate by HMAC over the whole body and cannot say no until they have it.
+ *
+ * What this bounds honestly: how much we decode to a string and hash. It does
+ * NOT promise the bytes never reached this process — on Vercel the platform may
+ * have buffered the request before the handler ran, and its own 4.5 MB request
+ * cap is the real ceiling on that. Worth having anyway, because the work this
+ * skips is the part that scales with attacker input; not worth describing as
+ * more than it is.
+ */
+export async function readSlackBody(req: Request): Promise<string | null> {
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_SLACK_BODY_BYTES) {
+      // Releases the connection instead of draining the rest of a body we have
+      // already decided to reject.
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+
+  const joined = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    joined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(joined);
+}
 
 export function verifySlackSignature(
   signingSecret: string,

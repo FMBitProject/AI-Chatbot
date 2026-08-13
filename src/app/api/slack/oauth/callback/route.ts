@@ -5,8 +5,12 @@ import { slackInstallations } from "@/lib/db/schema";
 import { withTransaction } from "@/lib/db/transaction";
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import { absoluteUrl } from "@/lib/site-url";
-import { toAdminWithSlackStatus } from "@/lib/slack";
-import { SLACK_INSTALL_STATE_CONTEXT, SLACK_INSTALL_NONCE_COOKIE } from "@/app/api/slack/install/route";
+import { toAdminWithSlackStatus, type SlackStatus } from "@/lib/slack";
+import {
+  SLACK_INSTALL_STATE_CONTEXT,
+  SLACK_INSTALL_NONCE_COOKIE,
+  SLACK_INSTALL_NONCE_PATH,
+} from "@/app/api/slack/install/route";
 
 /**
  * Answers the admin's browser and burns the install nonce on the way out.
@@ -15,12 +19,22 @@ import { SLACK_INSTALL_STATE_CONTEXT, SLACK_INSTALL_NONCE_COOKIE } from "@/app/a
  * nonce has done its job the moment this callback runs, and leaving the cookie
  * in place would keep it valid for the rest of its ten minutes — a second
  * callback could then reuse it, which is the property the cookie exists to
- * remove. Cleared with the same path the install route set it on; a mismatch
- * there would leave the original cookie untouched.
+ * remove.
+ *
+ * Every attribute mirrors the one the install route set. Only name, domain and
+ * path decide which cookie this replaces, so the rest is not strictly required
+ * — but an asymmetric pair is how a later edit to `path` on one side silently
+ * stops clearing the other.
  */
-function finish(status: Parameters<typeof toAdminWithSlackStatus>[0]) {
+function finish(status: SlackStatus) {
   const res = toAdminWithSlackStatus(status);
-  res.cookies.set(SLACK_INSTALL_NONCE_COOKIE, "", { httpOnly: true, path: "/api/slack", maxAge: 0 });
+  res.cookies.set(SLACK_INSTALL_NONCE_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: SLACK_INSTALL_NONCE_PATH,
+    maxAge: 0,
+  });
   return res;
 }
 
@@ -71,9 +85,14 @@ export async function GET(req: NextRequest) {
     // browser did. Without this, a leaked state value would be enough to finish
     // the flow from somewhere else — see SLACK_INSTALL_NONCE_COOKIE.
     //
-    // A plain comparison is sufficient: there is no oracle to time against,
-    // because every attempt burns a single-use OAuth code and the nonce carries
-    // 256 bits of entropy.
+    // Compared with `!==` rather than in constant time, and the reason is
+    // entropy alone. An attacker can retry this freely — the check runs before
+    // the OAuth code is exchanged, so a junk `code` costs them nothing and
+    // there is no rate limit in front of it — which means a timing oracle does
+    // exist. It is simply not usable: the nonce is 256 random bits, so the
+    // comparison almost always ends on the first byte, and distinguishing that
+    // over a network would take far longer than the ten-minute window the value
+    // survives. Widen the window or shorten the nonce and this stops being true.
     const cookieNonce = req.cookies.get(SLACK_INSTALL_NONCE_COOKIE)?.value;
     if (!cookieNonce || cookieNonce !== decoded.nonce) throw new Error("state/cookie nonce mismatch");
 
