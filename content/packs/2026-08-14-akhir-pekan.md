@@ -1,10 +1,15 @@
 # Paket akhir pekan — Jumat–Minggu, 14–16 Agustus 2026
 
-Menambah **Facebook + Threads + skrip video Gemini 10 detik** untuk tiga hari yang
-sudah punya LinkedIn/YouTube Shorts/Instagram di `2026-08-10.md` (bagian "Jumat",
-"Sabtu", "Minggu" — kartu Instagram-nya juga sudah dirender dan live di
-`public/social/2026-08-10/05-jumat.png`, `06-sabtu.png`, `07-minggu.png`). Bagian
-itu tidak diubah di sini.
+Awalnya menambah **Facebook + Threads + skrip video Gemini 10 detik** untuk tiga
+hari yang sudah punya LinkedIn/YouTube Shorts/Instagram di `2026-08-10.md`
+(bagian "Jumat", "Sabtu", "Minggu"). Sekarang **LinkedIn + YouTube Shorts +
+Instagram untuk ketiga hari ini juga ditulis di sini**, dengan sudut pandang
+baru di tabel di bawah — jadi untuk Jumat/Sabtu/Minggu 14–16 Agustus, paket di
+file ini yang dipakai (semua channel), bukan bagian "Jumat"/"Sabtu"/"Minggu" di
+`2026-08-10.md`. Kartu Instagram render lama
+(`public/social/2026-08-10/05-jumat.png`, `06-sabtu.png`, `07-minggu.png`) juga
+sudah tidak relevan untuk tiga hari ini — kartu baru perlu dirender dari teks
+Instagram di bawah.
 
 **Revisi dari draf pertama:** tiga hari ini sekarang punya tiga sudut pandang
 yang sengaja berbeda, bukan variasi dari cerita "upload dokumen, tanya AI" yang
@@ -29,9 +34,9 @@ Ditulis manual, dicek dengan `node scripts/content/lint.mjs` — bersih.
 
 # Jumat, 14 Agustus — Akun Individu: bukan cuma buat tim
 
-*(LinkedIn/YouTube Shorts/Instagram hari ini di `2026-08-10.md` masih bahas
-Akun Perusahaan — Starter tanpa risiko anggaran. Facebook/Threads/Gemini di
-bawah ini sengaja ambil sudut berbeda: audiens individu.)*
+*(Semua channel di bawah ini — Facebook, Threads, LinkedIn, YouTube Shorts,
+Instagram, skrip Gemini — sudah pakai sudut pandang Akun Individu, mengganti
+bagian "Jumat" di `2026-08-10.md` yang masih bahas Akun Perusahaan/Starter.)*
 
 ## Facebook
 
@@ -100,14 +105,67 @@ menghadap kamera, tanpa suasana kantor/tim.
 
 **Teks di layar:** "BUKAN BUAT TIM. BUAT ANDA SENDIRI."
 
+## LinkedIn
+
+```
+Selama ini kita menulis IntelliBase seolah selalu soal tim — HR, Ops, SOP
+perusahaan. Ada satu jalur yang belum pernah kita bahas: Akun Individu.
+
+Ini bukan akun perusahaan yang kebetulan dipakai satu orang. Sejak
+pendaftaran, jalurnya terpisah — folder pribadi, dokumen sendiri, tanpa
+konsep "karyawan" atau "anggota tim" sama sekali. Ditujukan untuk satu orang
+yang ingin merapikan catatan kerja, panduan, atau dokumen pribadinya sendiri,
+lalu bertanya langsung ke situ dalam bahasa biasa.
+
+Mulai gratis untuk coba pencarian dokumennya. Kalau butuh jawaban AI tanpa
+batas bulanan (dibatasi 60 pertanyaan per hari, sampai 50 dokumen), paket
+Personal-nya Rp59.000/bulan — harga promo peluncuran, berlaku sampai 31
+Desember 2026. Personal ini khusus Akun Individu, bukan pengganti paket tim.
+
+#ProduktivitasPribadi #KnowledgeBase
+```
+
+Dokumen atau catatan pribadi apa yang paling sering Anda cari-cari sendiri?
+
+
+### YouTube Shorts — Akun Individu: Bukan Cuma Buat Tim
+
+**Hook:** Kirain IntelliBase cuma buat perusahaan?
+
+**Perlu direkam:** Layar pendaftaran IntelliBase menunjukkan dua tab pilihan, "Individu" dan "Perusahaan", dengan tab Individu diklik.
+
+**Skrip:**
+
+Selama ini IntelliBase memang paling sering dibahas sebagai alat untuk tim HR
+dan Ops. Tapi sejak pendaftaran, ada jalur terpisah untuk satu orang: Akun
+Individu. Bukan akun perusahaan yang dipakai sendirian, tapi memang didesain
+dari awal untuk satu orang — folder pribadi, dokumen sendiri, tanpa perlu
+mengelola siapa pun. Cocok untuk merapikan catatan kerja atau dokumen
+pribadi, lalu bertanya langsung ke situ.
+
+**Deskripsi:**
+
+Akun Individu IntelliBase: knowledge base pribadi untuk satu orang, terpisah
+dari Akun Perusahaan sejak pendaftaran.
+
+
+### Instagram
+
+**Perlu dibuat:** Kartu teks berlatar teal menonjolkan kalimat "Bukan cuma buat tim."
+
+Selama ini IntelliBase kelihatan seperti alat khusus perusahaan. Ternyata ada
+jalur terpisah untuk Anda sendiri: Akun Individu — folder pribadi, dokumen
+sendiri, tanpa perlu mengelola siapa pun. Mulai gratis untuk coba pencarian
+dokumennya. Catatan kerja atau dokumen pribadi apa yang paling sering Anda
+cari-cari sendiri?
+
 ---
 
 # Sabtu, 15 Agustus — Sekarang bisa nanya langsung dari Slack
 
-*(LinkedIn/YouTube Shorts/Instagram hari ini di `2026-08-10.md` bahas SOP resmi
-yang kalah populer dari file di grup chat. Facebook/Threads/Gemini di bawah ini
-menutup cerita itu dari sisi lain: integrasi Slack, bukan cuma "upload
-dokumennya".)*
+*(Semua channel di bawah ini sudah pakai sudut pandang integrasi Slack,
+mengganti bagian "Sabtu" di `2026-08-10.md` yang masih bahas SOP resmi vs file
+di grup chat tanpa menyebut Slack.)*
 
 ## Facebook
 
@@ -173,14 +231,72 @@ karakter yang berbicara menghadap kamera.
 
 **Teks di layar:** "TANYA DI SLACK. JAWABANNYA DI SLACK JUGA."
 
+## LinkedIn
+
+```
+SOP resmi sering kalah dipercaya dibanding file revisi yang beredar di grup
+chat — itu yang kita bahas kemarin. Hari ini, satu cara kita menutup celah
+itu dari sisi lain: integrasi Slack.
+
+Admin cukup klik "Tambahkan ke Slack" sekali dari dashboard. Setelah itu,
+karyawan yang emailnya terdaftar di IntelliBase bisa bertanya langsung dengan
+command /tanya atau menyebut bot-nya di channel. Jawabannya muncul di thread
+yang sama, lengkap dengan nama dokumen sumbernya — tanpa perlu pindah
+aplikasi dulu.
+
+Ini fitur di paket Professional dan Enterprise, bukan biaya tambahan
+terpisah. Tidak tersedia di paket Starter yang gratis, dan tidak pernah di
+paket Personal — Personal hanya untuk Akun Individu, yang memang tidak bisa
+memasang Slack sama sekali.
+
+#SlackIntegration #HRIndonesia #OperasionalKantor
+```
+
+Berapa kali seminggu tim Anda menanyakan sesuatu yang jawabannya sebenarnya
+sudah ada di dokumen, tapi ditanyakan lewat chat ke orang lagi?
+
+
+### YouTube Shorts — Tanya Dokumen Perusahaan Langsung dari Slack
+
+**Hook:** Masih harus buka aplikasi lain cuma buat tanya SOP?
+
+**Perlu direkam:** Layar Slack menunjukkan seseorang mengetik "/tanya cuti tahunan berapa hari" di sebuah channel, lalu balasan bot muncul di thread yang sama lengkap dengan nama dokumen sumber (isi balasan blur/tidak terbaca).
+
+**Skrip:**
+
+Karyawan sering sudah punya kebiasaan bertanya lewat chat ke rekan kerja
+ketimbang mencari dokumen resminya sendiri. Sekarang IntelliBase bisa
+dihubungkan ke Slack tim Anda — admin klik "Tambahkan ke Slack" sekali dari
+dashboard, lalu karyawan tinggal pakai command /tanya atau mention bot-nya di
+channel. Jawaban muncul di thread yang sama, lengkap dengan nama dokumen
+sumbernya, tanpa pindah aplikasi.
+
+**Deskripsi:**
+
+Integrasi Slack IntelliBase (paket Professional & Enterprise): tanya dokumen
+internal langsung dari channel, jawab di thread yang sama.
+
+
+### Instagram
+
+**Perlu dibuat:** Kartu teks berlatar teal dengan logo/ikon Slack TIDAK disertakan — hanya teks.
+
+Kemarin kita bahas SOP resmi yang kalah populer dibanding file di grup chat.
+Sekarang IntelliBase bisa terhubung ke Slack tim Anda: admin connect sekali,
+karyawan tinggal /tanya atau mention bot-nya di channel, jawaban muncul di
+thread yang sama lengkap nama dokumen sumbernya. Fitur paket Professional dan
+Enterprise. Berapa kali seminggu tim Anda menanyakan hal yang jawabannya
+sudah ada di dokumen?
+
 ---
 
 # Minggu, 16 Agustus — Akun Perusahaan: satu knowledge base, dipakai bersama
 
-*(LinkedIn/YouTube Shorts/Instagram hari ini di `2026-08-10.md` bahas tantangan
-teknis XLSX/PPTX — masih relevan, tidak diubah. Facebook/Threads di bawah ini
-sengaja jadi penutup akhir pekan: kontraskan Akun Individu (Jumat) dan Slack
-untuk tim (Sabtu) dengan menjelaskan Akun Perusahaan itu sendiri.)*
+*(Semua channel di bawah ini jadi penutup akhir pekan: kontraskan Akun
+Individu (Jumat) dan Slack untuk tim (Sabtu) dengan menjelaskan Akun
+Perusahaan itu sendiri — mengganti bagian "Minggu" di `2026-08-10.md` yang
+masih bahas tantangan teknis XLSX/PPTX. Materi XLSX/PPTX itu sendiri masih
+valid, hanya tidak dipakai untuk slot Minggu ini lagi.)*
 
 ## Facebook
 
@@ -249,10 +365,75 @@ menghadap kamera.
 
 **Teks di layar:** "SATU KNOWLEDGE BASE. SELURUH TIM."
 
+## LinkedIn
+
+```
+Dua hari terakhir kita bahas dua hal yang kelihatan mirip tapi tujuannya
+beda: Akun Individu (Jumat) dan integrasi Slack untuk tim (kemarin). Hari ini
+soal Akun Perusahaan itu sendiri.
+
+Bedanya bukan cuma harga. Di Akun Perusahaan, satu knowledge base dipakai
+bersama: admin yang mengatur siapa jadi anggota, dokumen yang diunggah bisa
+dibaca dan ditanyakan oleh karyawan yang diberi akses, dan riwayat
+pertanyaannya bisa dipantau tim. Akun Individu tidak punya konsep anggota
+sama sekali — memang untuk satu orang.
+
+Kalau kebutuhan Anda cuma untuk diri sendiri, Akun Individu sudah cukup.
+Begitu ada lebih dari satu orang yang perlu akses ke dokumen yang sama, itu
+tandanya waktunya Akun Perusahaan. Paket Starter-nya gratis untuk mulai — 5
+pengguna, 10 dokumen, 100 pertanyaan per bulan.
+
+#ManajemenOperasional #SaaSIndonesia
+```
+
+Dokumen kerja tim Anda sekarang dibagikan lewat cara apa — Drive bersama,
+grup chat, atau belum ada satu tempat resmi?
+
+
+### YouTube Shorts — Kapan Butuh Akun Perusahaan, Bukan Akun Individu
+
+**Hook:** Cukup satu orang, atau sudah butuh seluruh tim?
+
+**Perlu direkam:** Layar dashboard Akun Perusahaan menunjukkan daftar anggota tim dengan status akses berbeda-beda (nama disamarkan/blur).
+
+**Skrip:**
+
+Akun Individu cocok kalau kebutuhannya cuma untuk diri sendiri. Tapi begitu
+lebih dari satu orang perlu akses ke dokumen yang sama, itu tandanya waktunya
+Akun Perusahaan. Di sana, satu knowledge base dipakai bersama: admin yang
+mengatur siapa jadi anggota, dokumen yang diunggah bisa dibaca dan ditanyakan
+oleh karyawan yang diberi akses, dan riwayat pertanyaannya bisa dipantau tim.
+Paket Starter-nya gratis untuk mulai mencoba.
+
+**Deskripsi:**
+
+Akun Perusahaan IntelliBase: satu knowledge base dipakai bersama tim, admin
+atur akses. Mulai gratis dari paket Starter.
+
+
+### Instagram
+
+**Perlu dibuat:** Kartu teks berlatar teal menonjolkan kalimat "Satu knowledge base, seluruh tim."
+
+Dua hari terakhir kita bahas Akun Individu dan integrasi Slack untuk tim.
+Hari ini closing-nya: Akun Perusahaan itu beda desain, bukan cuma beda harga.
+Satu knowledge base, dipakai bersama, admin yang atur aksesnya. Cuma buat
+diri sendiri → Akun Individu. Lebih dari satu orang perlu akses dokumen yang
+sama → Akun Perusahaan. Paket Starter-nya gratis untuk mulai.
+
 ---
 
 ## Checklist upload
 
+- **Instagram (baru):** teks IG dari tiga hari ini belum dirender jadi kartu —
+  jalankan `npm run content:cards` (butuh field `cardText` di JSON; teks di atas
+  ditulis manual jadi belum ada JSON-nya, render manual atau pindahkan dulu ke
+  format `content:generate`) sebelum dijadwalkan. Kartu lama di
+  `public/social/2026-08-10/05-jumat.png`, `06-sabtu.png`, `07-minggu.png`
+  jangan dipakai lagi untuk slot ini.
+- **LinkedIn (baru):** belum di-push ke Buffer — `content:push` membaca dari
+  JSON hasil `content:generate`, bukan dari `.md` yang ditulis manual, jadi
+  posting tiga LinkedIn di atas untuk sekarang manual dulu.
 - **Facebook:** unggah video native (jangan tautan YouTube), subtitle
   di-burn-in, tautan tetap ditulis di caption bukan cuma komentar, teks layar
   6 detik terakhir wajib memuat alamat situs. Detail lengkap di
