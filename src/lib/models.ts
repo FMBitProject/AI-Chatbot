@@ -123,10 +123,33 @@ function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
   return provider === "groq" ? keys.groq : keys.gemini;
 }
 
-/** Whether a link can be attempted at all — own key or platform key present. */
+/**
+ * Whether a link can be attempted at all — own key or platform key present.
+ *
+ * Asymmetric between the two providers, and deliberately so.
+ *
+ * Groq may always fall back to the platform account: Groq states it does not
+ * train on customer API data, so a company's traffic landing there is a billing
+ * detail, not a disclosure one. That is also the behaviour every BYOK customer
+ * has had since BYOK shipped.
+ *
+ * Google may not. Our platform Gemini account is on the free tier, whose terms
+ * let Google use submitted content to improve their models. A company that
+ * connected its own keys did so precisely to keep its documents out of that
+ * account — the Terms promise them "all questions are processed through your
+ * own provider accounts" — so a BYOK company without a Gemini key of its own
+ * loses this rung rather than being quietly routed onto ours. Two Groq links is
+ * a smaller loss than a broken promise.
+ *
+ * A company with no keys at all is not BYOK and keeps the full chain on the
+ * platform accounts, which is what its own Terms describe.
+ */
 function isConfigured(link: ChainLink, keys: ProviderKeys): boolean {
-  const envKey = link.provider === "groq" ? process.env.GROQ_API_KEY : process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-  return !!(keyFor(link.provider, keys) || envKey);
+  if (link.provider === "google") {
+    const usesByok = !!(keys.groq || keys.gemini);
+    return usesByok ? !!keys.gemini : !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  }
+  return !!(keys.groq || process.env.GROQ_API_KEY);
 }
 
 /**
@@ -228,10 +251,16 @@ export async function generateWithFallback(
   for (const [attempt, link] of links.entries()) {
     try {
       const { text } = await generateText({ model: modelFor(link, keys), ...rest });
-      // An empty answer is not a success. A provider that refuses before
-      // generation starts can resolve cleanly with nothing in it, and returning
-      // that would hand the caller a blank answer while the chain still had
-      // links left to try.
+      // An empty answer is not a success — returning it would hand the caller a
+      // blank string it has no way to distinguish from a real answer, and Slack
+      // would post it into a channel.
+      //
+      // This ENDS the chain rather than continuing down it, which is the same
+      // rule the streaming loop in /api/chat follows: a generation that came
+      // back clean and empty was not rate limited, and nothing about the next
+      // model makes an empty completion more likely to have been a quota
+      // problem. Spending another provider's allowance on that guess is the
+      // wrong trade. It surfaces to the caller as a normal failure.
       if (!text.trim()) throw new Error(`${link.id} returned an empty response`);
       if (attempt > 0) console.log(`[${label}] answered by fallback model ${link.id}`);
       return { text, model: link };

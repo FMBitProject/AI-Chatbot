@@ -303,12 +303,18 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
                     real quota numbers, an own key buys isolated provider
                     capacity but does not lift the plan's question limit, and a
                     customer who read otherwise would find that out by hitting
-                    the cap. */}
+                    the cap.
+                    Mentions both keys because a Groq key on its own now costs
+                    the company the Gemini step of the answer chain: rather than
+                    send a BYOK customer's document excerpts to our shared
+                    free-tier Google account, that step is skipped for them. It
+                    is the right default, but only if the admin is told, or
+                    "busy" errors during a Groq rate limit look like our fault. */}
                 <p className="text-xs text-gray-500 mt-0.5">
                   {canEditKeys
                     ? (lang === "en"
-                      ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API."
-                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API.")
+                      ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API. Connect both — with a Groq key alone, questions can no longer fall back to Gemini when Groq is busy, because we will not route your documents through our shared account."
+                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API. Hubungkan keduanya — bila hanya key Groq yang dipasang, pertanyaan tidak lagi bisa dialihkan ke Gemini saat Groq sibuk, karena dokumen Anda tidak akan kami lewatkan ke akun bersama kami.")
                     : (lang === "en"
                       ? `Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires ${upgradeTarget} or above — removing one is always yours to do.`
                       : `Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket ${upgradeTarget} ke atas — menghapus selalu bisa Anda lakukan.`)}

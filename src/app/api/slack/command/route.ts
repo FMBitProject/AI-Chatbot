@@ -77,6 +77,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response_type: "ephemeral", text: `❌ ${SEAT_FROZEN_MESSAGE}` });
   }
 
+  // Before the quota, for the reason spelled out in resolveByok: a key we cannot
+  // decrypt is a standing failure, so charging a question for it would drain the
+  // whole daily allowance into errors. This ran inside the deferred worker
+  // below, i.e. after the meter had already counted the question.
+  const byok = resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[slack/command] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+    return NextResponse.json({ response_type: "ephemeral", text: `❌ ${byok.message}` });
+  }
+
   const quotaFailure = await consumeQuestionQuota(companyId, limits);
   if (quotaFailure) {
     return NextResponse.json({
@@ -94,11 +104,6 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   (async () => {
-    // Both keys up front, as in /api/slack/events: generation can now reach two
-    // providers, so the Gemini key is no longer only the embedding's business.
-    const byok = resolveByok(company);
-    if (!byok.ok) throw new Error(byok.message);
-
     const queryEmbedding = await getEmbedding(text, byok.gemini);
     const scored = (await withTenant(companyId, (tx) => retrieveChunks({
       companyId,
