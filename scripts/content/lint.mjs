@@ -119,6 +119,33 @@ const RULES = [
     // handling would exempt this rule from itself. Always blocking.
     negationAware: false,
   },
+  {
+    id: "plan-enumeration",
+    // Personal and Professional/Enterprise are sold to different account types:
+    // isPlanAllowedFor() in src/lib/pricing.ts refuses a company account
+    // Personal, and refuses an individual account everything else. So no reader
+    // can ever choose from a list containing both, and a sentence offering one
+    // describes a product we do not sell.
+    //
+    // Keyed on the *enumeration* rather than on any one feature claim, which is
+    // what makes it work. The bug that prompted this rule read "Ini fitur di
+    // paket berbayar (Personal, Professional, Enterprise)" — the feature it was
+    // wrongly granting (Slack) was named two sentences earlier and referred to
+    // here only as "Ini", so every rule shaped as "Slack near Personal" missed
+    // it entirely. The impossible plan list is the part that is always present,
+    // and it carries any other feature claim just as wrongly.
+    pattern:
+      /\bPersonal\b\s*[,/&]\s*(dan\s+)?Professional|\bProfessional\b\s*[,/&]\s*(dan\s+)?Personal|\bPersonal\b\s+dan\s+(Professional|Enterprise)/i,
+    why: "Personal hanya untuk akun Individu; Professional/Enterprise hanya untuk akun Perusahaan (isPlanAllowedFor di src/lib/pricing.ts). Tidak ada pembaca yang bisa memilih dari daftar berisi keduanya — pisahkan per audiens.",
+    // The negation window cannot tell *what* a "bukan" refers to, and that is
+    // not hypothetical here: the sentence that shipped this bug ended "...,
+    // bukan biaya tambahan terpisah", negating the fee rather than the plan
+    // list, which downgraded a real error to a warning nobody would act on.
+    // Nothing correct enumerates these tiers together — copy that needs to name
+    // both splits them by audience, the way the pricing page does — so there is
+    // no legitimate sentence for negation-awareness to protect.
+    negationAware: false,
+  },
 ];
 
 // Any Rupiah figure in the copy has to be a price we actually charge today.
@@ -126,9 +153,11 @@ const RULES = [
 function checkPrices(text, now) {
   const p = currentPrices(now);
   const allowed = new Set([
+    formatRupiah(p.personal),
     formatRupiah(p.professional),
     formatRupiah(p.enterprise),
     // Shorthand the landing page also uses.
+    `Rp${Math.round(p.personal / 1000)}rb`,
     `Rp${Math.round(p.professional / 1000)}rb`,
     `Rp${Math.round(p.enterprise / 1000)}rb`,
   ]);

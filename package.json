@@ -13,6 +13,7 @@
     "db:studio": "node --env-file=.env.local node_modules/.bin/drizzle-kit studio",
     "content:generate": "node scripts/content/generate.mjs",
     "content:lint": "node scripts/content/lint.mjs",
+    "content:lint:test": "node scripts/content/lint.test.mjs",
     "content:channels": "node scripts/content/push-buffer.mjs --channels",
     "content:push": "node scripts/content/push-buffer.mjs",
     "content:models": "node scripts/content/generate.mjs --list-models",

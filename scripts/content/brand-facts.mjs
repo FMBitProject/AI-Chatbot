@@ -12,8 +12,8 @@
 // Deliberately re-implements the promo window instead of hardcoding "Rp200rb".
 // The promo reverts on 1 Jan 2027 and the app's prices revert with it; a literal
 // here would keep generating posts advertising a price we no longer charge.
-const NORMAL_PRICES = { professional: 299000, enterprise: 799000 };
-const PROMO_PRICES = { professional: 200000, enterprise: 500000 };
+const NORMAL_PRICES = { personal: 119000, professional: 399000, enterprise: 999000 };
+const PROMO_PRICES = { personal: 59000, professional: 200000, enterprise: 500000 };
 const PROMO_ENDS_AT = new Date("2026-12-31T17:00:00Z");
 
 export function currentPrices(now = new Date()) {
@@ -28,6 +28,33 @@ export function formatRupiah(amount) {
 
 // --- plan limits: keep in sync with src/lib/plan-limits.ts ------------------
 const STARTER = { maxDocuments: 10, maxEmployees: 5, maxQuestionsPerMonth: 100 };
+// Individual accounts (shipped 2026-08-11): their own tab at signup, own
+// pricing tier, no employees to manage. maxQuestionsPerMonth is -1 (unlimited)
+// on Personal, capped per-day instead — see PLAN_LIMITS.personal.
+const PERSONAL = { maxDocuments: 50, maxQuestionsPerDay: 60 };
+
+// --- which plans get Slack: one finished sentence, not a fact to paraphrase --
+//
+// Handed to the model as a quotable line for the same reason priceLine is
+// derived rather than spelled out as "Rp200rb": a prompt is a request, and a
+// model given the underlying fact will re-word it. Re-wording is exactly where
+// this claim breaks — "Slack tersedia di semua paket berbayar" is a natural
+// paraphrase, it is false (Personal is a paid plan with no Slack), and no rule
+// in lint.mjs can catch it because it names no plan at all. The
+// `plan-enumeration` rule there closes the other shape of this error, the one
+// that does name plans; this closes the shape that does not.
+//
+// Slack is company-only twice over, and either fact alone is enough:
+//   - requireCompanyAdmin() (src/lib/auth-guard.ts) 403s an individual account
+//     at /api/slack/install.
+//   - isPlanAllowedFor() (src/lib/pricing.ts) means a Personal plan is only
+//     ever held by an individual account.
+// So the correct list is exactly Professional + Enterprise, and Personal is not
+// merely absent from it — it is unreachable.
+const SLACK_PLANS_LINE =
+  "Integrasi Slack hanya untuk akun Perusahaan di paket Professional dan Enterprise. " +
+  "Bukan paket Starter yang gratis, dan tidak pernah paket Personal — Personal hanya " +
+  "dimiliki akun Individu, dan akun Individu tidak bisa memasang Slack sama sekali.";
 
 // --- the prompt ------------------------------------------------------------
 
@@ -36,6 +63,9 @@ export function buildSystemPrompt(now = new Date()) {
   const priceLine = p.promoActive
     ? `Professional ${formatRupiah(p.professional)}/bulan dan Enterprise ${formatRupiah(p.enterprise)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
     : `Professional ${formatRupiah(p.professional)}/bulan dan Enterprise ${formatRupiah(p.enterprise)}/bulan`;
+  const personalPriceLine = p.promoActive
+    ? `${formatRupiah(p.personal)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
+    : `${formatRupiah(p.personal)}/bulan`;
 
   return `Anda menulis konten media sosial untuk IntelliBase, sebuah produk SaaS
 Indonesia. Bahasa Indonesia, register "Anda", nada yang sama dengan halaman depan
@@ -56,18 +86,40 @@ keterbatasan produk — yang berubah hanya siapa yang berbicara, bukan seberapa
 jujur atau seberapa manusiawi tulisannya.
 
 # Produk
-IntelliBase adalah asisten AI yang menjawab pertanyaan karyawan berdasarkan
-dokumen internal perusahaan (SOP, kebijakan HR, panduan produk). Karyawan bertanya
-dengan bahasa biasa; jawabannya datang dari dokumen perusahaan itu sendiri.
+IntelliBase adalah asisten AI yang menjawab pertanyaan berdasarkan dokumen yang
+diunggah. Ada dua jenis akun dengan tujuan berbeda, bukan satu produk yang
+dipaksakan ke dua audiens:
+- **Akun Perusahaan** — karyawan bertanya ke dokumen internal perusahaan (SOP,
+  kebijakan HR, panduan produk) dengan bahasa biasa; jawabannya datang dari
+  dokumen perusahaan itu sendiri.
+- **Akun Individu** — knowledge base pribadi untuk satu orang: catatan, panduan,
+  dokumen pribadi sendiri, tanpa perlu mengelola karyawan. Terpisah sejak
+  pendaftaran, bukan "akun perusahaan" yang dipakai sendirian.
+Jangan campur keduanya dalam satu post seolah sama — sebutkan jelas yang mana
+yang sedang dibahas.
 
 # Yang BOLEH diklaim (semua ini benar dan bisa dibuktikan)
 - Isolasi data antar perusahaan di level database (Postgres Row Level Security),
   sudah diverifikasi lewat pengujian.
 - Setiap jawaban menyertakan sitasi ke dokumen sumbernya, jadi pembaca bisa
-  mengecek sendiri dari mana jawaban itu datang.
+  mengecek sendiri dari mana jawaban itu datang. (Di web: tautan ke halaman
+  spesifik dalam dokumen. Di Slack: nama dokumen sumbernya saja, tanpa tautan
+  ke halaman — jangan disamakan.)
 - Mendukung PDF, DOCX, XLSX, PPTX.
-- Paket Starter gratis: ${STARTER.maxEmployees} pengguna, ${STARTER.maxDocuments} dokumen, ${STARTER.maxQuestionsPerMonth} pertanyaan/bulan.
-- Harga: ${priceLine}.
+- Paket Starter gratis (akun Perusahaan): ${STARTER.maxEmployees} pengguna, ${STARTER.maxDocuments} dokumen, ${STARTER.maxQuestionsPerMonth} pertanyaan/bulan.
+- Harga akun Perusahaan: ${priceLine}.
+- Akun Individu juga mulai gratis (paket Starter, pencarian dokumen), lalu
+  paket Personal ${personalPriceLine} untuk jawaban AI tanpa batas bulanan
+  (dibatasi ${PERSONAL.maxQuestionsPerDay}/hari), sampai ${PERSONAL.maxDocuments} dokumen. Personal HANYA
+  untuk akun Individu — bukan pengganti Professional/Enterprise untuk tim.
+- ${SLACK_PLANS_LINE}
+  Kutip batasan paket itu apa adanya; jangan diringkas jadi "semua paket
+  berbayar", karena Personal juga paket berbayar dan justru tidak dapat Slack.
+  Admin menghubungkan lewat tombol "Tambahkan ke Slack", lalu karyawan yang
+  email profil Slack-nya cocok dengan akun IntelliBase mereka bisa bertanya
+  dengan command \`/tanya <pertanyaan>\` atau menyebut bot di channel; jawaban
+  muncul di thread yang sama lengkap dengan nama dokumen sumbernya. Tidak ada
+  biaya tambahan di luar paket yang sudah dibeli.
 - Cocok untuk beberapa industri: rumah sakit & klinik, manufaktur, jasa keuangan,
   pendidikan, retail & F&B.
 
@@ -95,8 +147,13 @@ Kalau ragu sebuah angka boleh dipakai: jangan pakai. Post yang membosankan tapi
 jujur jauh lebih murah daripada satu klaim palsu yang ketahuan praktisi HR.
 
 # Pembaca
-HRD / HR Manager dan IT / Ops Manager di perusahaan Indonesia berkaryawan 20–200.
-Mereka sibuk, skeptis, dan sudah kenyang dijanjikan hal-hal oleh vendor.
+Dua audiens berbeda, jangan ditulis seolah satu:
+- Akun Perusahaan: HRD / HR Manager dan IT / Ops Manager di perusahaan
+  Indonesia berkaryawan 20–200. Sibuk, skeptis, sudah kenyang dijanjikan
+  hal-hal oleh vendor.
+- Akun Individu: satu orang (bisa profesional, freelancer, siapa pun) yang mau
+  merapikan catatan/dokumen pribadinya sendiri. Bukan pembeli untuk timnya —
+  ini keputusan personal, bukan keputusan yang perlu persetujuan atasan.
 
 # Cara menulis
 - Mulai dari masalah nyata yang mereka alami, bukan dari fitur.
@@ -109,4 +166,4 @@ Mereka sibuk, skeptis, dan sudah kenyang dijanjikan hal-hal oleh vendor.
 - Caption Instagram: lebih pendek dari LinkedIn, 60–100 kata.`;
 }
 
-export const BRAND = { STARTER, NORMAL_PRICES, PROMO_PRICES, PROMO_ENDS_AT };
+export const BRAND = { STARTER, PERSONAL, NORMAL_PRICES, PROMO_PRICES, PROMO_ENDS_AT };
