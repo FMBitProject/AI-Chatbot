@@ -1,6 +1,14 @@
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
-import { groqClientForKey, resolveByok } from "@/lib/byok";
+import { resolveByok } from "@/lib/byok";
+import {
+  INTERACTIVE_CHAIN,
+  describeAiFailure,
+  isRateLimitFailure,
+  modelFor,
+  usableChain,
+  type ChainLink,
+} from "@/lib/models";
 import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
@@ -14,33 +22,10 @@ import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
 
-/**
- * Turns whatever the model provider threw into the two codes the chat page
- * already knows how to render.
- *
- * Shared by the two paths a generation can fail on — a rejected stream and a
- * stream that ends empty — because they are the same failure to the person
- * waiting, and previously only one of them said anything.
- *
- * The rate-limit test looks for the words Groq actually uses. Its TPM refusal
- * is "Request too large for model … tokens per minute (TPM): Limit 12000,
- * Requested 12232", which contains neither "429" nor the phrase "rate limit" —
- * the same class of mistake as matching a Gemini 429 on its message text. The
- * distinction is worth keeping: AI_RATE_LIMIT tells the reader to wait a moment
- * and try again, which is true and actionable; AI_ERROR tells them something
- * broke, which for an over-long request is neither.
- */
-function describeAiFailure(err: unknown): { error: string; provider: string } {
-  const msg = (err instanceof Error ? err.message : String(err ?? "")).toLowerCase();
-  const isRateLimit =
-    msg.includes("429") ||
-    msg.includes("rate limit") ||
-    msg.includes("rate_limit") ||
-    msg.includes("quota") ||
-    msg.includes("tokens per minute") ||
-    msg.includes("request too large");
-  return { error: isRateLimit ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "groq" };
-}
+// `describeAiFailure` used to live here, matching only the wording Groq uses.
+// It moved to src/lib/models.ts when the chain gained a second provider: the
+// classifier has to recognise Google's refusal too, and the three other
+// answering channels need the same judgement to fall back at all.
 
 // The "not found in your documents" line. It exists in one place because it is
 // used twice in ways that must agree: the shortcut below sends it directly when
@@ -568,7 +553,9 @@ If no relevant information is found:
     { role: "user" as const, content: question },
   ];
 
-  const groqClient = groqClientForKey(byok.groq);
+  // Both providers' keys, resolved once. The chain below can end on a different
+  // provider than it started on, so a single Groq client is no longer enough.
+  const providerKeys = { groq: byok.groq, gemini: byok.gemini };
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -593,33 +580,13 @@ If no relevant information is found:
       // model being metered out is the whole reason we were on the second one —
       // and the reader who most needed the conversation to keep moving was the
       // one who silently got no suggestions.
-      let answeredBy: string | null = null;
+      let answeredBy: ChainLink | null = null;
 
-      // Try each model in turn, and only because Groq meters them separately.
-      //
-      // Measured from the provider's own headers rather than assumed: on this
-      // account llama-3.3-70b-versatile allows 12,000 tokens per minute,
-      // openai/gpt-oss-20b 8,000 and llama-3.1-8b-instant 6,000, each with its
-      // own counter. A question refused by the first has a real chance with the
-      // second, so the alternative to falling back is not a better answer — it
-      // is no answer at all.
-      //
-      // Ordered strongest first, and never used to "load balance": the top model
-      // answers whenever it can, and the other exists for the minute it cannot.
-      //
-      // llama-3.1-8b-instant was in this list and was removed after testing it.
-      // Given a context that plainly contained the answer — "penurunan 1,0
-      // mmol/L LDL menurunkan kejadian vaskuler mayor sebesar 22%" — and asked
-      // exactly that, it replied "Maaf, informasi tidak ditemukan dalam dokumen
-      // internal perusahaan." It obeys the grounding rules by refusing
-      // everything, which is the failure mode these rules make more likely in a
-      // small model, and it is worse than the error it was there to avoid: a
-      // false "your documents do not say" reads as an authoritative answer,
-      // while "layanan sedang sibuk" tells the truth and invites a retry. Its
-      // 6,000-token-per-minute ceiling barely cleared our ~5,750-token request
-      // anyway. gpt-oss-20b answered both the answerable question and the trap
-      // correctly, so the chain is two models and 20,000 TPM rather than three
-      // and 26,000.
+      // The chain, its ordering and the evidence behind each link live in
+      // src/lib/models.ts, which is also where the other three answering
+      // channels get theirs. Filtered to the links this workspace can actually
+      // reach: a provider with no key fails on credentials rather than a rate
+      // limit, which would end the chain early and report the wrong reason.
       //
       // Falling back is only allowed when the attempt produced nothing AND was
       // refused for rate limiting. Two guards, both necessary. Once a token has
@@ -627,15 +594,18 @@ If no relevant information is found:
       // model would continue someone else's sentence. And a refusal that is not
       // a rate limit — a bad key, a malformed request — will fail identically on
       // every model, so retrying only delays an error that has to be shown.
-      const MODEL_CHAIN = [
-        "llama-3.3-70b-versatile",
-        "openai/gpt-oss-20b",
-      ] as const;
+      const chain = usableChain(INTERACTIVE_CHAIN, providerKeys);
 
-      for (const [attempt, modelId] of MODEL_CHAIN.entries()) {
+      // Which link failed last, so the error frame names the provider that
+      // actually refused. Reporting "groq" after Gemini turned us down sends an
+      // admin to the wrong status page.
+      let lastProvider: ChainLink["provider"] = chain[0]?.provider ?? "groq";
+
+      for (const [attempt, link] of chain.entries()) {
         let attemptError: unknown;
+        lastProvider = link.provider;
         const result = streamText({
-          model: groqClient(modelId),
+          model: modelFor(link, providerKeys),
           system: systemPromptWithContext,
           messages: messagesWithLang,
           temperature: RAG_TEMPERATURE,
@@ -670,22 +640,20 @@ If no relevant information is found:
           // No fallback either: tokens have already reached the browser, so a
           // second model would continue a sentence it never started.
           if (!attemptError) {
-            if (attempt > 0) console.log(`[chat] answered by fallback model ${modelId}`);
+            if (attempt > 0) console.log(`[chat] answered by fallback model ${link.id}`);
             answered = true;
-            answeredBy = modelId;
+            answeredBy = link;
             break;
           }
           lastError = attemptError;
-          console.error(`[chat] ${modelId} failed after emitting ${attemptText.length} chars:`, attemptError);
+          console.error(`[chat] ${link.id} failed after emitting ${attemptText.length} chars:`, attemptError);
           break;
         }
 
         lastError = attemptError;
-        const canFallBack =
-          attempt < MODEL_CHAIN.length - 1 &&
-          describeAiFailure(attemptError).error === "AI_RATE_LIMIT";
+        const canFallBack = attempt < chain.length - 1 && isRateLimitFailure(attemptError);
         console.error(
-          `[chat] ${modelId} produced nothing${canFallBack ? ", falling back" : ""}:`,
+          `[chat] ${link.id} produced nothing${canFallBack ? ", falling back" : ""}:`,
           attemptError,
         );
         if (!canFallBack) break;
@@ -703,7 +671,7 @@ If no relevant information is found:
       // handed silence and renders an empty bubble, which reads as a broken page
       // rather than a limit that was hit.
       if (!answered) {
-        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(lastError))}\n`));
+        await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(lastError, lastProvider))}\n`));
         await closeWriter();
         return;
       }
@@ -734,7 +702,11 @@ If no relevant information is found:
         const effectiveSuggestLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
         const suggestLang = effectiveSuggestLang === "en" ? "English" : "Bahasa Indonesia";
         const { text: suggestionsRaw } = await generateText({
-          model: groqClient(answeredBy ?? MODEL_CHAIN[0]),
+          // The model that just answered, so the suggestions come from the one
+          // provider we know is currently letting us through. No fallback of its
+          // own: this is a nicety wrapped in a silent catch, and it must not
+          // spend a second provider's quota on the way to being discarded.
+          model: modelFor(answeredBy ?? chain[0], providerKeys),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
 Question: ${question}

@@ -1,6 +1,6 @@
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
-import { generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { geminiKey, resolveByok } from "@/lib/byok";
+import { BATCH_CHAIN, generateWithFallback } from "@/lib/models";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
@@ -68,8 +68,16 @@ export const INDEX_RUN_BUDGET_MS = 120 * 1000;
 // so that a pass working normally never loses the lease it still holds.
 const INDEXING_LEASE_MS = 5 * 60 * 1000;
 
-// How long the optional summary call may take before it is abandoned. See the
-// call site: the summary is the only part of indexing a document can do without.
+// How long the optional summary may take IN TOTAL before it is abandoned. See
+// the call site: the summary is the only part of indexing a document can do
+// without.
+//
+// Total, not per attempt, and that distinction is load-bearing now that the
+// summary runs down a chain. The pass budget above is built on this number: at
+// 30s per attempt a two-link chain would put the worst case at 120 + 120 + 60 =
+// 300, which is exactly maxDuration and leaves nothing for the response. The
+// call site divides this across the chain so the arithmetic that comment relies
+// on stays true however many links BATCH_CHAIN grows to.
 const SUMMARY_TIMEOUT_MS = 30 * 1000;
 
 // Why a pass stopped, so the caller knows whether to come straight back.
@@ -377,25 +385,39 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   // opening 2000 characters of the uploaded file, so it is document content
   // leaving the server, not metadata.
   //
-  // Built INSIDE the try, not above it. groqClientFor decrypts, so unlike the
-  // plain `company.groqApiKey ? createGroq(…) : groq` it replaced, it can throw —
-  // and a throw one line above the try would have failed the whole document over
-  // an optional summary, after the embeddings had already been paid for. That is
-  // reachable without any Gemini key being involved: a company that configured
-  // only a Groq key gets `null` from geminiKey() above, embeds fine on the
-  // platform account, and then dies here.
+  // Key resolution stays INSIDE the try, not above it. It decrypts, so unlike
+  // the plain `company.groqApiKey ? createGroq(…) : groq` it replaced, it can
+  // fail — and failing one line above the try would have lost the whole document
+  // over an optional summary, after the embeddings had already been paid for.
+  // That is reachable without any Gemini key being involved: a company that
+  // configured only a Groq key gets `null` from geminiKey() above, embeds fine
+  // on the platform account, and then dies here.
   const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
   let summary: string | null = null;
   try {
-    const groqClient = groqClientFor(company);
-    const { text } = await generateText({
-      model: groqClient("llama-3.3-70b-versatile"),
+    const byok = resolveByok(company);
+    if (!byok.ok) throw new Error(byok.message);
+    const { text } = await generateWithFallback({
+      label: "indexing",
+      keys: { groq: byok.groq, gemini: byok.gemini },
+      // BATCH_CHAIN, not the interactive one: this runs once per document and
+      // hundreds of times during a bulk import. Letting it climb to the Gemini
+      // rung would spend a shared daily free-tier allowance on summaries nobody
+      // is waiting for, and the person who paid for it would be an employee
+      // whose question hits a metered-out Groq that afternoon.
+      chain: BATCH_CHAIN,
       // The one call in this function that is optional, so it is the one that
       // least deserves to hold a pass open. Without a deadline a silent Groq
       // would stall a document that is otherwise finished — its embeddings paid
       // for, its chunks ready to write — for the sake of a summary nobody would
       // miss. Failing here costs a bullet list; hanging here costs the document.
-      timeout: SUMMARY_TIMEOUT_MS,
+      //
+      // Split across the chain, because the option is applied per attempt and
+      // the pass budget is sized on the summary's total. Trading a shorter first
+      // attempt for a bounded whole is the right way round here: the cost of
+      // giving up early is a bullet list nobody asked for, while the cost of
+      // overrunning is a document stranded mid-index in "processing".
+      timeout: Math.floor(SUMMARY_TIMEOUT_MS / BATCH_CHAIN.length),
       prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${doc.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
     });
     summary = text.trim();

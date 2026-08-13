@@ -7,8 +7,8 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE, type Company } from "@/lib/subscription";
-import { generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { generateWithFallback } from "@/lib/models";
+import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -29,8 +29,14 @@ ${GROUNDING_REMINDER}`;
 // honour the same BYOK keys. It previously used the platform key for both the
 // embedding and the generation, which meant an Enterprise customer's Slack
 // traffic quietly bypassed the keys they had configured.
-async function runRAG(question: string, companyId: string, maxDocuments: number, company: Company | undefined): Promise<string> {
-  const queryEmbedding = await getEmbedding(question, geminiKey(company));
+// Takes already-resolved keys rather than resolving them itself. Unwrapping has
+// to happen before the caller consumes the quota — see the call site — and a
+// function that both needs the keys and is invoked after the meter has run is
+// the shape that made that mistake easy.
+type ResolvedKeys = { groq: string | null; gemini: string | null };
+
+async function runRAG(question: string, companyId: string, maxDocuments: number, company: Company | undefined, keys: ResolvedKeys): Promise<string> {
+  const queryEmbedding = await getEmbedding(question, keys.gemini);
 
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
@@ -42,9 +48,9 @@ async function runRAG(question: string, companyId: string, maxDocuments: number,
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
-  const groqClient = groqClientFor(company);
-  const { text } = await generateText({
-    model: groqClient("llama-3.3-70b-versatile"),
+  const { text } = await generateWithFallback({
+    label: "slack/events",
+    keys,
     system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
     temperature: RAG_TEMPERATURE,
     prompt: question,
@@ -129,6 +135,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Before the quota, for the reason spelled out in resolveByok: a key we
+    // cannot decrypt is a standing failure, not a passing one. Charging a
+    // question for it would drain the whole daily allowance into errors —
+    // every mention would spend a question and answer "Terjadi kesalahan"
+    // until an operator fixed BYOK_SECRET_KEY. /api/chat and /v1/query already
+    // resolve here; this route ran it inside runRAG, after the meter.
+    const byok = resolveByok(company);
+    if (!byok.ok) {
+      console.error(`[slack/events] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+      await getSlackClient().chat.postMessage({
+        channel,
+        thread_ts: event.ts,
+        text: `❌ ${byok.message}`,
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     const quotaFailure = await consumeQuestionQuota(companyId, limits);
     if (quotaFailure) {
       await getSlackClient().chat.postMessage({
@@ -147,7 +170,7 @@ export async function POST(req: NextRequest) {
       text: "⏳ Sedang mencari jawaban dari dokumen internal...",
     }).catch(() => {});
 
-    runRAG(question, companyId, limits.maxDocuments, company).then(async (answer) => {
+    runRAG(question, companyId, limits.maxDocuments, company, { groq: byok.groq, gemini: byok.gemini }).then(async (answer) => {
       await getSlackClient().chat.postMessage({
         channel,
         thread_ts: event.ts,

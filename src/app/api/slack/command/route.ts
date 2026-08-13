@@ -7,8 +7,8 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
-import { generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { generateWithFallback } from "@/lib/models";
+import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -77,6 +77,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ response_type: "ephemeral", text: `❌ ${SEAT_FROZEN_MESSAGE}` });
   }
 
+  // Before the quota, for the reason spelled out in resolveByok: a key we cannot
+  // decrypt is a standing failure, so charging a question for it would drain the
+  // whole daily allowance into errors. This ran inside the deferred worker
+  // below, i.e. after the meter had already counted the question.
+  const byok = resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[slack/command] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+    return NextResponse.json({ response_type: "ephemeral", text: `❌ ${byok.message}` });
+  }
+
   const quotaFailure = await consumeQuestionQuota(companyId, limits);
   if (quotaFailure) {
     return NextResponse.json({
@@ -94,7 +104,7 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   (async () => {
-    const queryEmbedding = await getEmbedding(text, geminiKey(company));
+    const queryEmbedding = await getEmbedding(text, byok.gemini);
     const scored = (await withTenant(companyId, (tx) => retrieveChunks({
       companyId,
       queryEmbedding,
@@ -105,9 +115,9 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen tersedia.";
 
-    const groqClient = groqClientFor(company);
-    const { text: answer } = await generateText({
-      model: groqClient("llama-3.3-70b-versatile"),
+    const { text: answer } = await generateWithFallback({
+      label: "slack/command",
+      keys: { groq: byok.groq, gemini: byok.gemini },
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
       temperature: RAG_TEMPERATURE,
       prompt: text,
