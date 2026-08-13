@@ -21,6 +21,11 @@ import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+// Tabs an individual account does not get. Both their triggers and their panels
+// are conditional further down, so a controlled <Tabs> pointing at one of them
+// selects nothing and renders an empty page.
+const COMPANY_ONLY_TABS = ["users", "analytics"];
+
 export default function AdminPage() {
   const { data: session } = authClient.useSession();
   const user = session?.user as { name?: string } | undefined;
@@ -34,6 +39,11 @@ export default function AdminPage() {
   const { lang } = useLang();
   const T = adminT[lang];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Controlled rather than `defaultValue`, so the onboarding banner can move the
+  // dashboard to the tab a checklist step is about. Radix only exposes that
+  // through `value`/`onValueChange`; reaching into the DOM for the trigger is
+  // what the banner used to do, and it never worked.
+  const [activeTab, setActiveTab] = useState("documents");
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -50,6 +60,20 @@ export default function AdminPage() {
   // lose employee management on one flaky request.
   const [accountType, setAccountType] = useState<"company" | "individual">("company");
   const isIndividual = accountType === "individual";
+  // Which tab is actually shown, which is not always the one that was chosen.
+  //
+  // accountType defaults to "company" until /api/admin/company answers, so an
+  // individual briefly sees the Karyawan step in the onboarding banner and the
+  // Karyawan tab beside it. Now that the banner's button genuinely switches
+  // tabs — before this branch it did nothing at all — pressing it inside that
+  // window sets activeTab to a tab that is about to unmount, and the dashboard
+  // would render blank until something else was clicked.
+  //
+  // Derived instead of corrected in an effect: an effect would let the blank
+  // frame render once before putting it right, and would fight the user's next
+  // click. activeTab keeps the chosen value, so nothing is lost if the account
+  // turns out to be a company after all.
+  const visibleTab = isIndividual && COMPANY_ONLY_TABS.includes(activeTab) ? "documents" : activeTab;
   // Shared Plan type rather than a union spelled out here: this state is set
   // straight from the API response, so a plan added in plan-limits.ts and not
   // repeated here would arrive at runtime while the type insisted it could not.
@@ -426,8 +450,9 @@ export default function AdminPage() {
           hasEmployees={employees.length > 1}
           isIndividual={isIndividual}
           lang={lang}
+          onOpenTab={setActiveTab}
         />
-        <Tabs defaultValue="documents">
+        <Tabs value={visibleTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />

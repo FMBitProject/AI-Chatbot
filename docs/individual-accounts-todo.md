@@ -103,11 +103,12 @@ disembunyikan di tab individu). Yang tersisa:
 
 ## Sudah rusak sebelum fitur ini (bukan regresi)
 
-- **`src/components/admin/OnboardingBanner.tsx`** — tombol langkah pertama
-  memanggil `document.querySelector('[data-value="documents"]')`. Radix Tabs
-  tidak pernah merender atribut `data-value` (dicek di
-  `node_modules/@radix-ui/react-tabs`: nol kemunculan), jadi tombol itu tidak
-  melakukan apa-apa. Sekarang jalur mati yang sama juga dipakai akun individu.
+- ~~**`src/components/admin/OnboardingBanner.tsx`** — tombol langkah pertama
+  memanggil `document.querySelector('[data-value="documents"]')`, atribut yang
+  tidak pernah dirender Radix Tabs, jadi tombol itu tidak melakukan apa-apa.~~
+  **SUDAH DIPERBAIKI 12 Agustus 2026:** tab-nya sekarang dioper lewat prop
+  `onOpenTab` dan `<Tabs>` jadi controlled. Naik prioritas karena ini tombol
+  pertama yang diklik pemakai baru.
 - **`src/app/api/auth/register-admin/route.ts`** — cek nama perusahaan unik
   masih read-then-write, jadi dua pendaftaran serentak dengan nama sama
   menghasilkan pelanggaran unik (23505) yang tidak ditangani → 500. Index
