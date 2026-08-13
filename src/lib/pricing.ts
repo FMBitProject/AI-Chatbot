@@ -36,10 +36,26 @@ export function isPlanAllowedFor(
 // researched number: pick a real one before the first individual customer and
 // change it here, which is the only place both the checkout charge and every
 // price on the site read from.
+// Set so the launch promo lands just under half price on every tier (~50% off,
+// against the lopsided 33%/37%/40% these used to give), then charm-priced to
+// the nearest 9 — which is why they are 399/999/119 rather than a literal
+// double. If a promo price changes, re-derive these with it; the ~50% is the
+// intent, the exact figures are only its rounding.
+//
+// Sized against src/lib/roi.ts rather than against competitors. At these
+// prices the calculator's own (thrice-discounted, deliberately conservative)
+// model still returns roughly 20x for Professional at its 50-employee limit
+// and ~31x for Enterprise at its 200 — each read at the headcount that tier is
+// sold for, NOT at a shared one (Enterprise at 50 employees is only ~8x, which
+// is the honest reason it is not the tier to push a small team toward).
+// So the headroom that remains is deliberate. It is what we
+// have to trade with before there is a single paying customer or a reference
+// to point at; raising into it is a decision to make once the product has
+// customers proving it gets used, not now.
 export const NORMAL_PRICES: Record<PurchasablePlan, number> = {
-  personal: 99000,
-  professional: 299000,
-  enterprise: 799000,
+  personal: 119000,
+  professional: 399000,
+  enterprise: 999000,
 };
 
 export const PROMO_PRICES: Record<PurchasablePlan, number> = {
