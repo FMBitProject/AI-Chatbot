@@ -10,18 +10,26 @@ import Link from "next/link";
 // individual account.
 type StepTab = "documents" | "users";
 
-interface Step {
+interface StepBase {
   icon: LucideIcon;
   title: string;
   desc: string;
   done: boolean;
   action: string;
-  // Exactly one of these carries the action. A step either switches a tab on
-  // this page or navigates away; the union stops a third state — both unset —
-  // from type-checking, which is what the previous shape allowed and shipped.
-  tab?: StepTab;
-  href?: string;
 }
+
+// Exactly one of `tab` and `href` carries the action: a step either switches a
+// tab on this page or navigates away.
+//
+// A real union, with `never` on the arm that must stay empty, rather than two
+// optional fields. Two optionals would let a step set neither and type-check —
+// and a step with no action renders no button at all, silently, which is the
+// same shape of failure as the dead querySelector this component just stopped
+// relying on. The whole point of describing it is to make that unrepresentable.
+type Step = StepBase & (
+  | { tab: StepTab; href?: never }
+  | { href: string; tab?: never }
+);
 
 interface OnboardingBannerProps {
   hasDocuments: boolean;
