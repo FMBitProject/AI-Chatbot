@@ -6,7 +6,23 @@ import { withTransaction } from "@/lib/db/transaction";
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import { absoluteUrl } from "@/lib/site-url";
 import { toAdminWithSlackStatus } from "@/lib/slack";
-import { SLACK_INSTALL_STATE_CONTEXT } from "@/app/api/slack/install/route";
+import { SLACK_INSTALL_STATE_CONTEXT, SLACK_INSTALL_NONCE_COOKIE } from "@/app/api/slack/install/route";
+
+/**
+ * Answers the admin's browser and burns the install nonce on the way out.
+ *
+ * Every exit from this route goes through here, success and failure alike. The
+ * nonce has done its job the moment this callback runs, and leaving the cookie
+ * in place would keep it valid for the rest of its ten minutes — a second
+ * callback could then reuse it, which is the property the cookie exists to
+ * remove. Cleared with the same path the install route set it on; a mismatch
+ * there would leave the original cookie untouched.
+ */
+function finish(status: Parameters<typeof toAdminWithSlackStatus>[0]) {
+  const res = toAdminWithSlackStatus(status);
+  res.cookies.set(SLACK_INSTALL_NONCE_COOKIE, "", { httpOnly: true, path: "/api/slack", maxAge: 0 });
+  return res;
+}
 
 // Thrown (and only thrown) when the workspace being installed already belongs
 // to a *different* company. Distinguished from a generic failure so the outer
@@ -28,39 +44,58 @@ export async function GET(req: NextRequest) {
   const slackError = req.nextUrl.searchParams.get("error");
 
   // The admin declined on Slack's consent screen. Not a failure, just a no-op.
-  if (slackError) return toAdminWithSlackStatus("denied");
-  if (!code || !stateParam) return toAdminWithSlackStatus("error");
+  if (slackError) return finish("denied");
+  if (!code || !stateParam) return finish("error");
 
   let companyId: string;
   let userId: string;
   try {
     const decoded = JSON.parse(decryptSecret(stateParam, SLACK_INSTALL_STATE_CONTEXT)) as {
-      companyId: string;
-      userId: string;
-      exp: number;
+      companyId?: unknown;
+      userId?: unknown;
+      nonce?: unknown;
+      exp?: unknown;
     };
-    // TODO(minor): exp isn't checked to actually be a number before this
-    // comparison — `Date.now() > undefined` is always false, so a state
-    // object missing exp would silently skip expiry. Not reachable today
-    // (this app always sets exp, and the ciphertext can't be forged without
-    // BYOK_SECRET_KEY), but unlike the presence check on the next line it has
-    // no explicit guard.
-    if (Date.now() > decoded.exp) throw new Error("state expired");
-    if (!decoded.companyId || !decoded.userId) throw new Error("state missing fields");
+    // Typed before it is compared. `Date.now() > undefined` is false, so a
+    // state object without a numeric exp used to skip the expiry check
+    // silently — unreachable without BYOK_SECRET_KEY, but the one field here
+    // that had no explicit guard.
+    if (typeof decoded.exp !== "number" || Date.now() > decoded.exp) throw new Error("state expired");
+    if (typeof decoded.companyId !== "string" || !decoded.companyId
+      || typeof decoded.userId !== "string" || !decoded.userId
+      || typeof decoded.nonce !== "string" || !decoded.nonce) {
+      throw new Error("state missing fields");
+    }
+
+    // The state proves *a* company started an install; the cookie proves this
+    // browser did. Without this, a leaked state value would be enough to finish
+    // the flow from somewhere else — see SLACK_INSTALL_NONCE_COOKIE.
+    //
+    // A plain comparison is sufficient: there is no oracle to time against,
+    // because every attempt burns a single-use OAuth code and the nonce carries
+    // 256 bits of entropy.
+    const cookieNonce = req.cookies.get(SLACK_INSTALL_NONCE_COOKIE)?.value;
+    if (!cookieNonce || cookieNonce !== decoded.nonce) throw new Error("state/cookie nonce mismatch");
+
     companyId = decoded.companyId;
     userId = decoded.userId;
   } catch (err) {
-    // Wrong signature, tampered value, or expired — all the same response to
-    // the caller: the install did not happen, try again from the dashboard.
+    // Wrong signature, tampered value, expired, or started in another browser —
+    // all the same response to the caller: the install did not happen, try
+    // again from the dashboard.
+    //
+    // An install already in flight when this deploys lands here too, because
+    // its state predates the nonce field. It costs that admin one retry, which
+    // is why the window is ten minutes and not ten hours.
     console.error("[slack/oauth/callback] Invalid or expired state:", err);
-    return toAdminWithSlackStatus("error");
+    return finish("error");
   }
 
   const clientId = process.env.SLACK_CLIENT_ID;
   const clientSecret = process.env.SLACK_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
     console.error("[slack/oauth/callback] SLACK_CLIENT_ID/SLACK_CLIENT_SECRET not configured");
-    return toAdminWithSlackStatus("error");
+    return finish("error");
   }
 
   try {
@@ -136,11 +171,11 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     if (err instanceof WorkspaceOwnedByAnotherCompanyError) {
       console.warn(`[slack/oauth/callback] ${err.message} — refused reassignment to company ${companyId}`);
-      return toAdminWithSlackStatus("taken");
+      return finish("taken");
     }
     console.error(`[slack/oauth/callback] Failed to complete install for company ${companyId}:`, err);
-    return toAdminWithSlackStatus("error");
+    return finish("error");
   }
 
-  return toAdminWithSlackStatus("connected");
+  return finish("connected");
 }

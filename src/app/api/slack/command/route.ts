@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { verifySlackSignature, installationFor, resolveSlackUser } from "@/lib/slack";
+import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, MAX_SLACK_BODY_BYTES } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
 import { canUseAiAnswers } from "@/lib/pricing";
@@ -49,6 +49,14 @@ async function reply(responseUrl: string, text: string, inChannel = false): Prom
  * through response_url, which Slack keeps open for 30 minutes.
  */
 export async function POST(req: NextRequest) {
+  // Before the body is buffered and hashed — see MAX_SLACK_BODY_BYTES. The
+  // declared length is not trustworthy on its own, which is why it is a cheap
+  // first refusal rather than a replacement for the signature check below.
+  const declaredLength = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SLACK_BODY_BYTES) {
+    return new Response("Payload too large", { status: 413 });
+  }
+
   const rawBody = await req.text();
   const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
   const signature = req.headers.get("x-slack-signature") ?? "";
@@ -156,8 +164,18 @@ export async function POST(req: NextRequest) {
         label: "slack/command",
       });
 
-      const footer = sources.length > 0 ? `\n\n_Sumber: ${sources.join(", ")}_` : "";
-      await reply(responseUrl, `*Pertanyaan:* ${text}\n\n*Jawaban:*\n${answer}${footer}`, true);
+      // Escaped, because this message is posted in_channel under this app's
+      // name and all three values come from outside it: the question is typed
+      // by whoever ran the command, the answer is model output, and document
+      // names are chosen by whoever uploaded them. See escapeSlackText.
+      const footer = sources.length > 0
+        ? `\n\n_Sumber: ${sources.map(escapeSlackText).join(", ")}_`
+        : "";
+      await reply(
+        responseUrl,
+        `*Pertanyaan:* ${escapeSlackText(text)}\n\n*Jawaban:*\n${escapeSlackText(answer)}${footer}`,
+        true,
+      );
     } catch (err) {
       console.error("[slack/command] Failed to answer:", err);
       await reply(responseUrl, "❌ Terjadi kesalahan. Silakan coba lagi.");
