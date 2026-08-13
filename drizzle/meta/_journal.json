@@ -120,6 +120,13 @@
       "when": 1786412713982,
       "tag": "0016_married_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786608798492,
+      "tag": "0017_mean_tyrannus",
+      "breakpoints": true
     }
   ]
 }

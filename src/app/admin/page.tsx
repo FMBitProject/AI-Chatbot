@@ -9,9 +9,10 @@ import { AuditTab } from "@/components/admin/AuditTab";
 import { OnboardingBanner } from "@/components/admin/OnboardingBanner";
 import { RenewalBanner } from "@/components/admin/RenewalBanner";
 import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
+import { SlackTab } from "@/components/admin/SlackTab";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard, MoreVertical } from "lucide-react";
+import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard, MoreVertical, Link2 } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
@@ -24,7 +25,7 @@ import Link from "next/link";
 // Tabs an individual account does not get. Both their triggers and their panels
 // are conditional further down, so a controlled <Tabs> pointing at one of them
 // selects nothing and renders an empty page.
-const COMPANY_ONLY_TABS = ["users", "analytics"];
+const COMPANY_ONLY_TABS = ["users", "analytics", "slack"];
 
 export default function AdminPage() {
   const { data: session } = authClient.useSession();
@@ -43,7 +44,24 @@ export default function AdminPage() {
   // dashboard to the tab a checklist step is about. Radix only exposes that
   // through `value`/`onValueChange`; reaching into the DOM for the trigger is
   // what the banner used to do, and it never worked.
-  const [activeTab, setActiveTab] = useState("documents");
+  //
+  // Lazy initializer rather than a plain default: /api/slack/oauth/callback
+  // redirects back here as `/admin?slack=connected|denied|error|taken`, and
+  // SlackTab is the thing that reads that param and shows the toast — but
+  // Radix's TabsContent does not render an inactive panel, so SlackTab never
+  // mounts unless the "slack" tab is already selected when this component
+  // first renders. Reading the query param here, once, before anything is
+  // painted, is what makes the redirect actually land on the tab whose result
+  // it is reporting instead of silently discarding it. Safe against a
+  // server/client hydration mismatch because the whole <Tabs> tree stays
+  // unmounted behind the `access === "checking"` gate below until well after
+  // hydration completes, so this value cannot affect what the server and the
+  // client's first paint agree on.
+  const [activeTab, setActiveTab] = useState(() => (
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).has("slack")
+      ? "slack"
+      : "documents"
+  ));
 
   const [documents, setDocuments] = useState<Document[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -489,6 +507,16 @@ export default function AdminPage() {
               <CreditCard className="h-4 w-4" />
               {lang === "en" ? "Subscription" : "Langganan"}
             </TabsTrigger>
+            {/* Company-only for the same reason as Employees: it authenticates
+                Slack members against this workspace's employees, and an
+                individual account has none. requireCompanyAdmin refuses the
+                install route the same way it refuses POST /api/admin/users. */}
+            {!isIndividual && (
+              <TabsTrigger value="slack" className="flex items-center gap-2">
+                <Link2 className="h-4 w-4" />
+                Slack
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="documents">
             <DocumentsTab
@@ -525,6 +553,11 @@ export default function AdminPage() {
           <TabsContent value="subscription">
             <SubscriptionTab isIndividual={isIndividual} lang={lang} />
           </TabsContent>
+          {!isIndividual && (
+            <TabsContent value="slack">
+              <SlackTab plan={plan} lang={lang} />
+            </TabsContent>
+          )}
         </Tabs>
         </>
         )}
