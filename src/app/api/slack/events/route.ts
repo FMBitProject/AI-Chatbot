@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, slackClient } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
@@ -6,6 +6,24 @@ import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack } from "@/lib/slack-answer";
 import { LIMITS } from "@/lib/validate";
 
+// Same reasoning as /api/slack/command: the answering work runs inside
+// `after`, past the response, and needs more room than the platform default.
+export const maxDuration = 60;
+
+/**
+ * Events API entry point — answers an `app_mention` in-thread.
+ *
+ * Slack expects an acknowledgement within 3 seconds and retries the delivery
+ * up to three times when it does not get one. That made the old shape
+ * doubly wrong: every check (installation, profile match, plan, seat, quota)
+ * ran before the ack, so a cold start could blow the window — and each retry
+ * would then re-enter the handler, spend another question from the quota and
+ * post another answer into the thread.
+ *
+ * Acking first fixes both. Nothing that touches the network happens before the
+ * response now; the work moves into `after`, which keeps the invocation alive
+ * once the ack is already on its way back to Slack.
+ */
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
   const timestamp = req.headers.get("x-slack-request-timestamp") ?? "";
@@ -36,6 +54,8 @@ export async function POST(req: NextRequest) {
     };
   };
 
+  // Answered synchronously, and it has to be: Slack reads the challenge out of
+  // this response body when verifying the Request URL.
   if (body.type === "url_verification") {
     return NextResponse.json({ challenge: body.challenge });
   }
@@ -45,150 +65,109 @@ export async function POST(req: NextRequest) {
     if (event.bot_id || event.type !== "app_mention") {
       return NextResponse.json({ ok: true });
     }
-    // TODO(minor): no idempotency check on event.ts — a genuine Slack retry
-    // (transient 5xx, deploy blip) re-runs this whole handler, consuming
-    // another quota question and posting a duplicate answer in the thread.
-    // Lower risk than it looks since the response is returned well before
-    // the RAG work is awaited, which avoids the most common retry trigger
-    // (a slow response past Slack's ~3s ack window). Same gap exists in
-    // /api/slack/command for repeated response_url posts.
 
     const teamId = body.team_id ?? "";
     const slackUserId = event.user ?? "";
     const channel = event.channel ?? "";
+    const threadTs = event.ts;
     const question = (event.text ?? "").replace(/<@[^>]+>/g, "").trim();
 
     if (!question) return NextResponse.json({ ok: true });
 
-    const installation = await installationFor(teamId);
-    if (!installation.ok) {
-      // Either way there is no usable bot token to post a reply with — a
-      // decrypt_failed is already logged loudly inside installationFor, which
-      // is the operator-facing signal for that case; not_installed should not
-      // be reachable here anyway (a workspace that never installed the app
-      // should not be able to trigger app_mention in the first place). Ack
-      // and stop either way.
-      return NextResponse.json({ ok: true });
-    }
-    const { companyId, botToken } = installation;
-    const client = slackClient(botToken);
+    after(async () => {
+      // Resolved before anything can post: every reply below needs a client,
+      // and without an installation there is no token to build one from.
+      const installation = await installationFor(teamId);
+      if (!installation.ok) {
+        // Nothing to reply with either way — decrypt_failed is already logged
+        // loudly inside installationFor, and not_installed should not be
+        // reachable here at all (a workspace that never installed the app
+        // cannot trigger app_mention).
+        return;
+      }
+      const { companyId, botToken } = installation;
+      const client = slackClient(botToken);
 
-    // Same bound /api/chat and /api/v1/query enforce (see @/lib/validate).
-    // Checked here, after the client is available but before the more
-    // expensive resolveSlackUser/plan lookups, so an oversized mention is
-    // rejected cheaply and the asker still gets a reply either way.
-    if (question.length > LIMITS.question) {
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: `❌ Pertanyaan terlalu panjang (maksimum ${LIMITS.question} karakter).`,
-      });
-      return NextResponse.json({ ok: true });
-    }
+      const say = async (text: string) => {
+        try {
+          await client.chat.postMessage({ channel, thread_ts: threadTs, text });
+        } catch (err) {
+          console.error(`[slack/events] Failed to post to channel ${channel}:`, err);
+        }
+      };
 
-    // Scoped to this installation's companyId — see resolveSlackUser for why
-    // that, not the email alone, is what makes this safe across tenants.
-    const userLookup = await resolveSlackUser(companyId, slackUserId, botToken);
-    if (!userLookup.ok) {
-      // lookup_failed already logged loudly inside resolveSlackUser — a Slack
-      // API problem is not the same thing as "you never linked your
-      // account", and telling someone who IS linked to go link it again is
-      // not a helpful message.
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: userLookup.reason === "lookup_failed"
-          ? "❌ Terjadi gangguan teknis saat memeriksa akun Slack Anda. Coba lagi sebentar lagi."
-          : "❌ Akun Slack Anda belum terhubung ke IntelliBase. Pastikan email profil Slack Anda sama dengan email akun IntelliBase Anda, lalu hubungi admin jika masih gagal.",
-      });
-      return NextResponse.json({ ok: true });
-    }
-    const dbUser = userLookup.user;
-
-    // Same plan rules as the chat UI and the public API (see resolvePlan).
-    const { company, subscription, limits } = await resolvePlanById(companyId);
-
-    // Answers are a paid feature; a mention and a slash command must agree about
-    // that, or the gate is only as strong as whichever entry point was forgotten.
-    if (!canUseAiAnswers(subscription.plan)) {
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: "🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.",
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: `❌ ${SEAT_FROZEN_MESSAGE}`,
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    // Before the quota, for the reason spelled out in resolveByok: a key we
-    // cannot decrypt is a standing failure, not a passing one. Charging a
-    // question for it would drain the whole daily allowance into errors.
-    const byok = resolveByok(company);
-    if (!byok.ok) {
-      console.error(`[slack/events] BYOK key unreadable for company ${companyId}: ${byok.message}`);
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: `❌ ${byok.message}`,
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    const quotaFailure = await consumeQuestionQuota(companyId, limits);
-    if (quotaFailure) {
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: quotaFailure.period === "daily"
-          ? `❌ Kuota pertanyaan harian perusahaan sudah habis (${quotaFailure.limit}/hari). Coba lagi besok atau upgrade paket.`
-          : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`,
-      });
-      return NextResponse.json({ ok: true });
-    }
-
-    client.chat.postMessage({
-      channel,
-      thread_ts: event.ts,
-      text: "⏳ Sedang mencari jawaban dari dokumen internal...",
-    }).catch(() => {});
-
-    answerForSlack({
-      question,
-      companyId,
-      department: dbUser.department,
-      maxDocuments: limits.maxDocuments,
-      keys: { groq: byok.groq, gemini: byok.gemini },
-      label: "slack/events",
-    }).then(async ({ text: answer, sources }) => {
-      const footer = sources.length > 0 ? `\n\n_Sumber: ${sources.join(", ")}_` : "";
-      await client.chat.postMessage({
-        channel,
-        thread_ts: event.ts,
-        text: `${answer}${footer}`,
-      });
-    }).catch(async (err) => {
-      console.error(`[slack/events] Failed to answer company ${companyId}:`, err);
-      // Nested try/catch rather than a bare await: this is already the last
-      // link in the chain, so a rejection here (bot removed from the
-      // channel, network blip) would otherwise be an unhandled promise
-      // rejection instead of just a mention that quietly never got its error
-      // message.
       try {
-        await client.chat.postMessage({
-          channel,
-          thread_ts: event.ts,
-          text: "❌ Terjadi kesalahan. Silakan coba lagi.",
+        // Same bound /api/chat and /api/v1/query enforce (see @/lib/validate).
+        if (question.length > LIMITS.question) {
+          await say(`❌ Pertanyaan terlalu panjang (maksimum ${LIMITS.question} karakter).`);
+          return;
+        }
+
+        // Scoped to this installation's companyId — see resolveSlackUser for
+        // why that, not the email alone, is what makes this safe across tenants.
+        const userLookup = await resolveSlackUser(companyId, slackUserId, botToken);
+        if (!userLookup.ok) {
+          // lookup_failed already logged loudly inside resolveSlackUser — a
+          // Slack API problem is not the same thing as "you never linked your
+          // account", and telling someone who IS linked to go link it again is
+          // not a helpful message.
+          await say(userLookup.reason === "lookup_failed"
+            ? "❌ Terjadi gangguan teknis saat memeriksa akun Slack Anda. Coba lagi sebentar lagi."
+            : "❌ Akun Slack Anda belum terhubung ke IntelliBase. Pastikan email profil Slack Anda sama dengan email akun IntelliBase Anda, lalu hubungi admin jika masih gagal.");
+          return;
+        }
+        const dbUser = userLookup.user;
+
+        // Same plan rules as the chat UI and the public API (see resolvePlan).
+        const { company, subscription, limits } = await resolvePlanById(companyId);
+
+        // Answers are a paid feature; a mention and a slash command must agree
+        // about that, or the gate is only as strong as whichever entry point
+        // was forgotten.
+        if (!canUseAiAnswers(subscription.plan)) {
+          await say("🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.");
+          return;
+        }
+
+        if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+          await say(`❌ ${SEAT_FROZEN_MESSAGE}`);
+          return;
+        }
+
+        // Before the quota, for the reason spelled out in resolveByok: a key
+        // we cannot decrypt is a standing failure, not a passing one. Charging
+        // a question for it would drain the whole daily allowance into errors.
+        const byok = resolveByok(company);
+        if (!byok.ok) {
+          console.error(`[slack/events] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+          await say(`❌ ${byok.message}`);
+          return;
+        }
+
+        const quotaFailure = await consumeQuestionQuota(companyId, limits);
+        if (quotaFailure) {
+          await say(quotaFailure.period === "daily"
+            ? `❌ Kuota pertanyaan harian perusahaan sudah habis (${quotaFailure.limit}/hari). Coba lagi besok atau upgrade paket.`
+            : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`);
+          return;
+        }
+
+        await say("⏳ Sedang mencari jawaban dari dokumen internal...");
+
+        const { text: answer, sources } = await answerForSlack({
+          question,
+          companyId,
+          department: dbUser.department,
+          maxDocuments: limits.maxDocuments,
+          keys: { groq: byok.groq, gemini: byok.gemini },
+          label: "slack/events",
         });
-      } catch (notifyErr) {
-        console.error(`[slack/events] Also failed to notify the channel for company ${companyId}:`, notifyErr);
+
+        const footer = sources.length > 0 ? `\n\n_Sumber: ${sources.join(", ")}_` : "";
+        await say(`${answer}${footer}`);
+      } catch (err) {
+        console.error(`[slack/events] Failed to answer company ${companyId}:`, err);
+        await say("❌ Terjadi kesalahan. Silakan coba lagi.");
       }
     });
   }
