@@ -54,6 +54,27 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
     return null;
   }
 
+  // Slack's two webhook endpoints get a reply shaped the way Slack expects,
+  // not the generic /api 503 below. A slash command's response_type/text is
+  // posted into the channel verbatim — a caller sees raw JSON exactly where a
+  // human would otherwise read an error message — and an events request left
+  // unacknowledged is retried by Slack with backoff and eventually marked
+  // broken in the app's own console. Neither of those is what "maintenance,
+  // try again later" was meant to communicate.
+  //
+  // Not a bypass like the Midtrans webhook above: the request is still
+  // refused, just in the shape its caller understands, and neither reaches
+  // the RAG pipeline or a company's data.
+  if (pathname === "/api/slack/command") {
+    return NextResponse.json({
+      response_type: "ephemeral",
+      text: "🔧 IntelliBase sedang pemeliharaan. Coba lagi sebentar lagi.",
+    });
+  }
+  if (pathname === "/api/slack/events") {
+    return NextResponse.json({ ok: true });
+  }
+
   // 1. Maintainer unlocks a bypass cookie via ?mnt-bypass=<secret>.
   if (secret && req.nextUrl.searchParams.get(BYPASS_QUERY) === secret) {
     const url = req.nextUrl.clone();

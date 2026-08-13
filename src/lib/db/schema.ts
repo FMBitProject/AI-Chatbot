@@ -94,6 +94,11 @@ export const users = pgTable("users", {
   companyId: text("company_id").references(() => companies.id),
   role: text("role").$type<"admin" | "employee">().default("employee").notNull(),
   department: text("department"),
+  // Cache of the Slack member id (e.g. "U01ABC234") this row was matched to by
+  // email via @/lib/slack's resolveSlackUser. Purely a cache: deleting it only
+  // costs one extra Slack users.info call on the next question, it does not
+  // break the link (email is re-resolved on a cache miss).
+  slackUserId: text("slack_user_id"),
   twoFactorEnabled: boolean("two_factor_enabled").default(false),
   // No `twoFactorSecret` here on purpose. better-auth's twoFactor plugin only
   // contributes `twoFactorEnabled` to the user model; the secret and backup
@@ -104,7 +109,17 @@ export const users = pgTable("users", {
   // a credential column nobody notices filling up.
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Slack lookups are always "this Slack member, within this company" (see
+  // resolveSlackUser) — the composite index matches that query, not a bare
+  // lookup on slack_user_id which no caller ever does.
+  // TODO(minor): not a partial index — it indexes every user row, including
+  // the majority that never link Slack and hold slack_user_id NULL. A
+  // `.where(sql`slack_user_id is not null`)` predicate would be smaller and
+  // equally effective, since the only query against it always filters for a
+  // specific non-null id. Left as-is: would need a new migration to change.
+  index("users_company_slack_idx").on(t.companyId, t.slackUserId),
+]);
 
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(),
@@ -334,3 +349,28 @@ export const chatMessages = pgTable("chat_messages", {
   feedback: text("feedback").$type<"up" | "down">(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// One row per company that has installed the Slack app to their workspace via
+// OAuth. Deliberately NOT RLS-protected, like transactions and api_keys: this
+// table is read to *discover* companyId from a Slack team_id, so it is read
+// before any tenant context exists to set. It stays application-scoped.
+export const slackInstallations = pgTable("slack_installations", {
+  // Slack's workspace id (e.g. "T0123ABCD"). Primary key rather than a
+  // generated id so a re-install of the same workspace is an upsert, not a
+  // second row racing the first for which one answers questions.
+  teamId: text("team_id").primaryKey(),
+  companyId: text("company_id").references(() => companies.id, { onDelete: "cascade" }).notNull(),
+  teamName: text("team_name"),
+  // AES-256-GCM ciphertext from @/lib/secret-box, never the raw xoxb- token —
+  // same treatment as companies.groqApiKey / geminiApiKey.
+  botToken: text("bot_token").notNull(),
+  botUserId: text("bot_user_id"),
+  scopes: text("scopes"),
+  installedByUserId: text("installed_by_user_id").references(() => users.id),
+  installedAt: timestamp("installed_at").defaultNow().notNull(),
+}, (t) => [
+  // One workspace per company. Deliberate v1 limit — a company that needs a
+  // second workspace re-runs the OAuth flow and takes over the row, rather
+  // than the app silently fanning a company's documents out to N workspaces.
+  uniqueIndex("slack_installations_company_idx").on(t.companyId),
+]);

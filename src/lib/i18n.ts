@@ -481,8 +481,8 @@ export const pricing = {
       // answers became a paid feature, which would have been a promise the app
       // refuses to keep the moment someone signs up.
       [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Pencarian dokumen — temukan & baca kutipan aslinya", "Upload PDF, DOCX, Excel & PowerPoint", "Isolasi data penuh antar perusahaan", "Chat AI: jawaban otomatis lengkap dengan sumber", "Analytics lengkap", "Notifikasi email", "Role per departemen", "Prioritas dukungan"],
-      [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 24 jam"],
-      [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Slack integration (segera hadir)", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
+      [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 24 jam"],
+      [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Analytics lengkap + ekspor", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
     ],
     // The Individu tab. Its own arrays rather than extra entries in `plans` /
@@ -523,7 +523,7 @@ export const pricing = {
       { title: "Manajemen Tim", desc: "Kelola karyawan, role, dan akses per departemen" },
       { title: "Keamanan Multi-Tenant", desc: "Data tiap perusahaan terisolasi penuh, tidak ada kebocoran" },
       { title: "Analytics & Insight", desc: "Pantau pertanyaan terpopuler dan aktivitas karyawan" },
-      { title: "Integrasi Slack", desc: "Tanya langsung dari Slack tanpa buka browser — segera hadir" },
+      { title: "Integrasi Slack", desc: "Tanya langsung dari Slack tanpa buka browser" },
     ],
   },
   en: {
@@ -558,8 +558,8 @@ export const pricing = {
     ],
     features: [
       [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "Document search — find and read the original passage", "PDF, DOCX, Excel & PowerPoint upload", "Full data isolation between companies", "AI chat: written answers with their sources", "Full analytics", "Email notifications", "Department roles", "Priority support"],
-      [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 24h"],
-      [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration (coming soon)", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
+      [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 24h"],
+      [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Full analytics + export", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
     ],
     audienceIndividual: "Individual",
@@ -590,7 +590,7 @@ export const pricing = {
       { title: "Team Management", desc: "Manage employees, roles, and department-based access" },
       { title: "Multi-Tenant Security", desc: "Each company's data is fully isolated, no leaks" },
       { title: "Analytics & Insights", desc: "Monitor top questions and employee activity" },
-      { title: "Slack Integration", desc: "Ask directly from Slack without opening a browser — coming soon" },
+      { title: "Slack Integration", desc: "Ask directly from Slack without opening a browser" },
     ],
   },
 } as const;
