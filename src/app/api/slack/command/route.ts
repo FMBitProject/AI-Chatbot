@@ -7,8 +7,8 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
-import { generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { generateWithFallback } from "@/lib/models";
+import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -94,7 +94,12 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   (async () => {
-    const queryEmbedding = await getEmbedding(text, geminiKey(company));
+    // Both keys up front, as in /api/slack/events: generation can now reach two
+    // providers, so the Gemini key is no longer only the embedding's business.
+    const byok = resolveByok(company);
+    if (!byok.ok) throw new Error(byok.message);
+
+    const queryEmbedding = await getEmbedding(text, byok.gemini);
     const scored = (await withTenant(companyId, (tx) => retrieveChunks({
       companyId,
       queryEmbedding,
@@ -105,9 +110,9 @@ export async function POST(req: NextRequest) {
       ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
       : "Tidak ada dokumen tersedia.";
 
-    const groqClient = groqClientFor(company);
-    const { text: answer } = await generateText({
-      model: groqClient("llama-3.3-70b-versatile"),
+    const { text: answer } = await generateWithFallback({
+      label: "slack/command",
+      keys: { groq: byok.groq, gemini: byok.gemini },
       system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
       temperature: RAG_TEMPERATURE,
       prompt: text,

@@ -7,8 +7,8 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { getSlackClient, verifySlackSignature } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE, type Company } from "@/lib/subscription";
-import { generateText } from "ai";
-import { geminiKey, groqClientFor } from "@/lib/byok";
+import { generateWithFallback } from "@/lib/models";
+import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -30,7 +30,12 @@ ${GROUNDING_REMINDER}`;
 // embedding and the generation, which meant an Enterprise customer's Slack
 // traffic quietly bypassed the keys they had configured.
 async function runRAG(question: string, companyId: string, maxDocuments: number, company: Company | undefined): Promise<string> {
-  const queryEmbedding = await getEmbedding(question, geminiKey(company));
+  // Both keys up front. The generation step can now reach two providers, so it
+  // is no longer enough to unwrap the Gemini key for the embedding alone.
+  const byok = resolveByok(company);
+  if (!byok.ok) throw new Error(byok.message);
+
+  const queryEmbedding = await getEmbedding(question, byok.gemini);
 
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
@@ -42,9 +47,9 @@ async function runRAG(question: string, companyId: string, maxDocuments: number,
     ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
-  const groqClient = groqClientFor(company);
-  const { text } = await generateText({
-    model: groqClient("llama-3.3-70b-versatile"),
+  const { text } = await generateWithFallback({
+    label: "slack/events",
+    keys: { groq: byok.groq, gemini: byok.gemini },
     system: `${SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
     temperature: RAG_TEMPERATURE,
     prompt: question,

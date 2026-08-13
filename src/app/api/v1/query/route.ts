@@ -9,8 +9,8 @@ import { consumeQuestionQuota, resolvePlanById } from "@/lib/subscription";
 import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
-import { generateText } from "ai";
-import { groqClientForKey, resolveByok } from "@/lib/byok";
+import { generateWithFallback } from "@/lib/models";
+import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 
@@ -91,7 +91,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const groqClient = groqClientForKey(byok.groq);
   const queryEmbedding = await getEmbedding(question, byok.gemini);
   const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
     companyId: apiKey.companyId,
@@ -102,8 +101,12 @@ export async function POST(req: NextRequest) {
   const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
   const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";
 
-  const { text } = await generateText({
-    model: groqClient("llama-3.3-70b-versatile"),
+  // Down the shared chain rather than one hardcoded model. This endpoint is
+  // called by scripts and integrations, which retry badly or not at all, so a
+  // one-minute Groq refusal used to surface as a 500 in someone else's system.
+  const { text, model } = await generateWithFallback({
+    label: "v1/query",
+    keys: { groq: byok.groq, gemini: byok.gemini },
     // The grounding rule here used to be one sentence: "Answer ONLY based on
     // the provided document context… If not found, say so clearly." Not wrong,
     // just not enough — a model obeys it, reports the gap, and keeps writing.
@@ -119,6 +122,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     answer: text,
     sources: scored.map((c) => ({ id: c.id, excerpt: c.text.slice(0, 200) })),
-    model: "llama-3.3-70b-versatile",
+    // The model that actually answered, not the one at the top of the chain.
+    // This field was a hardcoded string; with a fallback behind it that would
+    // have become a lie told to an integration that has no other way to know
+    // which model wrote the answer it is about to store.
+    model: model.id,
   });
 }
