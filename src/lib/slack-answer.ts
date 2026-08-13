@@ -4,6 +4,30 @@ import { withTenant } from "@/lib/db/tenant";
 import { generateWithFallback } from "@/lib/models";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 
+// The exact sentence the model is told to send when the documents do not
+// answer the question, in both languages this product answers in.
+//
+// Named constants rather than literals inside the prompt because the footer
+// logic below has to recognise them: the instruction and the check are one fact
+// written twice, and if they ever drifted the symptom would be silent — a
+// "not found" answer quietly carrying a source list again, which is the exact
+// bug this pair of constants exists to close.
+//
+// The English variant is new. The prompt already said "respond in the same
+// language as the user" and then supplied only the Indonesian sentence, so an
+// English question was being asked to answer in English using a fixed
+// Indonesian string — the model resolved that contradiction by improvising,
+// which no check could have matched.
+//
+// `chat/route.ts` keeps its own copy in `notFoundMessage`, which additionally
+// has individual-account wording ("dokumen Anda" rather than "dokumen internal
+// perusahaan"). Not shared yet on purpose: Slack is company-only — an
+// individual account has no workspace to install into — so those variants are
+// unreachable from here, and hoisting the whole thing into @/lib/rag-prompt is
+// a job worth doing on its own rather than inside a footer fix.
+const NOT_FOUND_ID = "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan.";
+const NOT_FOUND_EN = "Sorry, the information could not be found in the company's internal documents.";
+
 // Shared between /api/slack/command and /api/slack/events so the two entry
 // points cannot drift the way they had before this file existed — both used to
 // carry their own copy of this prompt, word for word, enforced only by a
@@ -18,11 +42,39 @@ const SLACK_SYSTEM_PROMPT = `You are an internal AI assistant.
 
 ${GROUNDING_RULES}
 
-Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply: "Maaf, informasi tidak ditemukan dalam dokumen internal perusahaan." Keep answers concise and professional.
+Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply with exactly "${NOT_FOUND_ID}" for an Indonesian question or "${NOT_FOUND_EN}" for an English one, and nothing else. Keep answers concise and professional.
 
 ${GROUNDING_REMINDER}`;
 
 const MAX_SLACK_CHUNKS = 3;
+
+/**
+ * Whether an answer is the not-found message and nothing else.
+ *
+ * Exact match after normalising, deliberately not `includes`. Rule 4 of the
+ * grounding contract allows a partial answer — quote what the documents do
+ * cover, then state plainly what they do not — and such an answer *does* rest
+ * on documents; it merely contains this sentence as well. Only an answer that
+ * is the message on its own means nothing was quoted.
+ *
+ * Normalising folds case and every run of non-letter, non-digit characters
+ * into a single space, so only the words themselves have to match. That is
+ * deliberately broad: a model reproducing a sentence it was handed does not
+ * reproduce the punctuation reliably. The first version of this check listed
+ * the characters to ignore by hand (`[\s"'*_.]`) and missed five of seven
+ * realistic variants — the one that matters most being the curly apostrophe in
+ * "company’s", which models emit far more often than the straight one the
+ * constant is written with.
+ *
+ * Dropping punctuation cannot cause a false positive here: the comparison is
+ * against a whole sentence, and two different sentences do not become equal
+ * because their commas were removed.
+ */
+function isNotFoundAnswer(answer: string): boolean {
+  const normalise = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  const normalised = normalise(answer);
+  return normalised === normalise(NOT_FOUND_ID) || normalised === normalise(NOT_FOUND_EN);
+}
 
 export interface SlackAnswerOptions {
   question: string;
@@ -75,10 +127,27 @@ export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAns
     prompt: question,
   });
 
+  // An answer that found nothing cites nothing.
+  //
+  // `scored` is what retrieval *offered*, not what the answer used. Vector
+  // search always returns its nearest neighbours, so a question the documents
+  // do not cover still comes back with the closest few — and the footer was
+  // built from that list alone. The result read as a citation for a refusal:
+  // "informasi tidak ditemukan" followed by "Sumber: 3_SOP_Expense_
+  // Reimbursement.pdf, 2_SOP_Pengajuan_Cuti_Leave.pdf", which invites the
+  // reader to go open two documents that do not contain the answer, and quietly
+  // undermines the refusal by dressing it as sourced.
+  //
+  // Nothing needed here for the empty-retrieval case: with no chunks the list
+  // is already empty, which is why this only ever showed up when documents were
+  // retrieved and then judged irrelevant.
+  //
   // De-duplicated, in retrieval order: several chunks commonly come from the
   // same document, and repeating its name in the footer would look like a
   // second, different source.
-  const sources = [...new Set(scored.map((c) => c.documentName))];
+  const sources = isNotFoundAnswer(text)
+    ? []
+    : [...new Set(scored.map((c) => c.documentName))];
 
   return { text, sources };
 }
