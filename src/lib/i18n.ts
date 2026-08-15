@@ -322,6 +322,9 @@ export const admin = {
     resumeIndexBtn: "Lanjutkan",
     reindexFailed: "Gagal memasukkan dokumen ke antrean.",
     payloadTooLarge: `File ini terlalu besar untuk dikirim (batas ${MAX_UPLOAD_MB} MB). Kecilkan filenya, lalu upload lagi.`,
+    driveImportProgress: "Mengimpor dari Google Drive",
+    driveImportFailedTitle: "Impor Gagal",
+    driveImportGenericError: "Terjadi kesalahan saat mengimpor dari Google Drive.",
     // Folders — individual accounts only. A folder is created by typing its name
     // when uploading; it exists as long as a document is in it.
     colFolder: "Folder",
@@ -424,6 +427,9 @@ export const admin = {
     resumeIndexBtn: "Resume",
     reindexFailed: "Could not queue the document.",
     payloadTooLarge: `This file is too large to send (${MAX_UPLOAD_MB} MB limit). Shrink it, then upload again.`,
+    driveImportProgress: "Importing from Google Drive",
+    driveImportFailedTitle: "Import Failed",
+    driveImportGenericError: "Something went wrong while importing from Google Drive.",
     colFolder: "Folder",
     folderLabel: "Folder (optional)",
     folderPlaceholder: "e.g. Research, Finance, Personal",

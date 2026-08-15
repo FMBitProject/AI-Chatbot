@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome } from "@/components/admin/DocumentsTab";
+import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome, type DriveImportOutcome } from "@/components/admin/DocumentsTab";
+import type { DrivePickedFile } from "@/components/admin/GoogleDrivePicker";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
 import { AnalyticsTab } from "@/components/admin/AnalyticsTab";
 import { PersonaTab } from "@/components/admin/PersonaTab";
@@ -26,6 +27,12 @@ import Link from "next/link";
 // are conditional further down, so a controlled <Tabs> pointing at one of them
 // selects nothing and renders an empty page.
 const COMPANY_ONLY_TABS = ["users", "analytics", "slack"];
+
+// Google Drive import is sold the same way Slack is (see SlackTab's own
+// PAID_PLANS): Professional and Enterprise, not Starter. This is only what
+// hides the button before an admin tries — /api/admin/google-drive/import
+// enforces the real gate with the same canUseAiAnswers check server-side.
+const DRIVE_IMPORT_PLANS: Plan[] = ["personal", "professional", "enterprise", "custom"];
 
 export default function AdminPage() {
   const { data: session } = authClient.useSession();
@@ -271,6 +278,63 @@ export default function AdminPage() {
     }
 
     return outcomes;
+  }
+
+  // The Drive equivalent of handleUpload above — one request for the whole
+  // batch rather than one per file, because these bytes never pass through
+  // this browser: they go straight from Google to the server, so there is no
+  // Vercel body-size reason to split them up the way manual uploads are.
+  async function handleGoogleDriveImport(
+    accessToken: string,
+    files: DrivePickedFile[],
+    folder: string | null,
+  ): Promise<DriveImportOutcome[]> {
+    try {
+      const res = await fetch("/api/admin/google-drive/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken, files, folder }),
+      });
+      // driveFileId only exists on this endpoint's response — it is not part
+      // of the general Document shape (manual-upload documents have no Drive
+      // file behind them), so it is typed locally here rather than added to
+      // the shared Document interface.
+      const data = await res.json().catch(() => null) as
+        { documents?: (Document & { driveFileId: string })[]; error?: string } | null;
+
+      if (!res.ok) {
+        // A batch-level failure (plan gate, bad request) — every picked file
+        // shares the same reason, so each gets its own outcome row with its
+        // real name rather than one vague "N file" summary.
+        const error = data?.error ?? "Impor gagal.";
+        return files.map((f) => ({ name: f.name, error }));
+      }
+
+      const documents = data?.documents ?? [];
+      setDocuments((prev) => [...documents, ...prev]);
+      const outcomes: DriveImportOutcome[] = documents.map((d) =>
+        d.status === "failed"
+          ? { name: d.name, error: d.errorMessage ?? "Dokumen gagal diproses." }
+          : { name: d.name }
+      );
+
+      // The batch can stop partway (e.g. the document quota is hit mid-way) —
+      // when it does, some of the files the admin picked never get a result
+      // row in `documents` at all. Matched by Drive file id rather than array
+      // position or name: position breaks if the two arrays could ever
+      // diverge in order, name breaks if two picked files share one.
+      if (data?.error) {
+        const attemptedIds = new Set(documents.map((d) => d.driveFileId));
+        for (const f of files) {
+          if (!attemptedIds.has(f.id)) outcomes.push({ name: f.name, error: data.error });
+        }
+      }
+
+      return outcomes;
+    } catch {
+      const error = "Koneksi terputus saat mengimpor dari Drive.";
+      return files.map((f) => ({ name: f.name, error }));
+    }
   }
 
   // Drives the server's indexing queue until it is empty.
@@ -526,6 +590,7 @@ export default function AdminPage() {
               onReindex={handleReindex}
               onDelete={handleDelete}
               onSetFolder={handleSetFolder}
+              onImportFromDrive={!isIndividual && DRIVE_IMPORT_PLANS.includes(plan) ? handleGoogleDriveImport : undefined}
               showFolders={isIndividual}
               lang={lang}
             />

@@ -3,6 +3,7 @@ import { useState, useRef, useMemo, Fragment } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { FileDropzone } from "./FileDropzone";
+import { GoogleDrivePicker, type DrivePickedFile } from "./GoogleDrivePicker";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,16 @@ export interface UploadOutcome {
   error?: string;
 }
 
+// The Drive equivalent of UploadOutcome — named by filename rather than by a
+// File object, because a Drive-picked file was never bytes in the browser to
+// begin with. That also means a failed Drive import can't offer the same
+// resend-the-same-bytes retry as a failed manual upload; the admin re-picks
+// it from Drive instead.
+export interface DriveImportOutcome {
+  name: string;
+  error?: string;
+}
+
 export interface IndexProgress {
   remaining: number;
   // Documents this run has finished, successfully or not. Only ever grows.
@@ -51,6 +62,12 @@ interface DocumentsTabProps {
   onDelete: (id: string) => Promise<void>;
   // Moves a document between folders; null unfiles it.
   onSetFolder: (id: string, folder: string | null) => Promise<void>;
+  // Only present for company accounts on Professional/Enterprise — see
+  // AdminPage's gating, which mirrors the server-side check in
+  // /api/admin/google-drive/import. Its absence is what hides the button,
+  // not a disabled prop, so there is nothing to wire up for plans that can't
+  // use it.
+  onImportFromDrive?: (accessToken: string, files: DrivePickedFile[], folder: string | null) => Promise<DriveImportOutcome[]>;
   // Folders are shown for individual accounts only. The column behind them means
   // something else for a company — which department may read the document — and
   // handing an admin a "folder" control that quietly changes who can see a file
@@ -66,7 +83,7 @@ const STATUS_MAP = {
   failed: { variant: "destructive" as const },
 };
 
-export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, onSetFolder, showFolders = false, lang = "id" }: DocumentsTabProps) {
+export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, onSetFolder, onImportFromDrive, showFolders = false, lang = "id" }: DocumentsTabProps) {
   const T = adminT[lang];
   const STATUS_LABELS = {
     queued: T.statusQueued,
@@ -94,6 +111,8 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   // button can send the very same bytes without asking the admin to find them
   // in the file picker again.
   const [failedFiles, setFailedFiles] = useState<UploadOutcome[]>([]);
+  const [isImportingDrive, setIsImportingDrive] = useState(false);
+  const [driveFailed, setDriveFailed] = useState<DriveImportOutcome[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reindexingId, setReindexingId] = useState<string | null>(null);
   const [expandedSummary, setExpandedSummary] = useState<string | null>(null);
@@ -178,6 +197,45 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     } finally {
       setProgress(null);
       setIsUploading(false);
+    }
+  }
+
+  async function handleDriveFilesPicked(accessToken: string, files: DrivePickedFile[]) {
+    if (!onImportFromDrive) return;
+    setIsImportingDrive(true);
+    setDriveFailed([]);
+    // No fractional "x / N" here, unlike handleUpload — this is one atomic
+    // request for the whole batch (see handleGoogleDriveImport), so there is
+    // no intermediate count to report; a static "0 / N" would just be a
+    // number that never moves until the whole thing finishes.
+    setProgress({ label: `${T.driveImportProgress} (${files.length})`, percent: null });
+    const folder = showFolders ? uploadFolder.trim() || null : null;
+    try {
+      const outcomes = await onImportFromDrive(accessToken, files, folder);
+      const failed = outcomes.filter((o) => o.error);
+      setDriveFailed(failed);
+      const stored = outcomes.length - failed.length;
+
+      if (stored > 0) {
+        toast({ title: "Berhasil!", description: `${stored} ${T.uploadedCount} ${T.indexingContinues}` });
+      }
+      if (failed.length > 0) {
+        toast({
+          variant: "destructive",
+          title: T.driveImportFailedTitle,
+          description: failed.length === 1
+            ? `"${failed[0].name}": ${failed[0].error}`
+            : `${failed.length} dari ${outcomes.length} file gagal diimpor.`,
+        });
+      }
+
+      if (stored > 0) await runIndexing();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : T.driveImportGenericError;
+      toast({ variant: "destructive", title: T.driveImportFailedTitle, description: msg });
+    } finally {
+      setProgress(null);
+      setIsImportingDrive(false);
     }
   }
 
@@ -315,7 +373,16 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
             <p className="text-xs text-gray-400">{T.folderHint}</p>
           </div>
         )}
-        <FileDropzone onUpload={handleUpload} isUploading={isUploading} lang={lang} />
+        <FileDropzone onUpload={handleUpload} isUploading={isUploading || isImportingDrive} lang={lang} />
+        {onImportFromDrive && (
+          <div className="mt-3">
+            <GoogleDrivePicker
+              lang={lang}
+              disabled={isUploading || isImportingDrive}
+              onFilesPicked={handleDriveFilesPicked}
+            />
+          </div>
+        )}
         {progress && (
           // Its own row, outside the dropzone, so nothing about the dropzone's
           // internal state can take it off the screen.
@@ -354,6 +421,23 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
               <RefreshCw className="h-3.5 w-3.5" />
               {T.retryFailedBtn}
             </Button>
+          </div>
+        )}
+        {driveFailed.length > 0 && !isImportingDrive && (
+          // No retry button here, unlike the manual-upload failure panel: a
+          // Drive import never held onto file bytes to resend, so retrying
+          // means re-opening the picker and choosing the file again.
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 space-y-2">
+            <p className="text-sm font-medium text-red-700">
+              {T.failedPanelTitle} ({driveFailed.length})
+            </p>
+            <ul className="space-y-1">
+              {driveFailed.map(({ name, error }, i) => (
+                <li key={`${name}-${i}`} className="text-xs text-red-700">
+                  <span className="font-medium">{name}</span> — {error}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {queuedCount > 0 && !isUploading && !isIndexing && (
