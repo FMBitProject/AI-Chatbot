@@ -7,139 +7,14 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 300;
 import { requireAdmin } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
-// Aliased: `companies` is also the name of the plan-limits concept all over this
-// file's neighbours, and an unqualified import here reads like the plan rather
-// than the table it locks.
-import { companies as companiesTable, documents } from "@/lib/db/schema";
+import { documents } from "@/lib/db/schema";
 import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/lib/upload-limits";
-import { LIMITS, optionalString } from "@/lib/validate";
 import { randomUUID } from "crypto";
-
-// Failures an admin can actually act on (a scanned PDF, a corrupt file, a
-// password-protected one) carry a specific message that gets stored on the
-// document row and shown in the admin UI. Everything else falls back to a
-// generic message, with the real detail left in the server log.
-class DocumentError extends Error {}
-
-// pdf.js (bundled inside unpdf) calls Math.sumPrecise, which only lands in
-// Node 24. On older runtimes every page logs a TypeError warning, so provide it
-// before the library loads. Extraction output is identical either way.
-//
-// Neumaier compensated summation rather than a plain loop, because this is
-// installed on the *global* Math: anything else that feature-detects the method
-// gets this implementation, so it has to be worth having. Be honest about the
-// limit — the specification returns the exactly-rounded sum, and this returns a
-// very close approximation. It is well inside what pdf.js needs for glyph
-// widths, and it is removed the moment the runtime ships its own.
-function polyfillSumPrecise() {
-  const M = Math as typeof Math & { sumPrecise?: (values: Iterable<number>) => number };
-  if (typeof M.sumPrecise === "function") return;
-  M.sumPrecise = (values) => {
-    let sum = 0;
-    let compensation = 0;
-    for (const value of values) {
-      const tentative = sum + value;
-      // Accumulate the low-order bits that `sum + value` just discarded.
-      compensation += Math.abs(sum) >= Math.abs(value)
-        ? (sum - tentative) + value
-        : (value - tentative) + sum;
-      sum = tentative;
-    }
-    return sum + compensation;
-  };
-}
-
-// Extracted with unpdf, which wraps a current pdf.js. The previous parser
-// (pdf-parse@1.1.1) shipped a frozen copy of pdf.js 1.10.100 from 2018 and
-// rejected ordinary PDFs with lexer-level errors — "bad XRef entry",
-// "FormatError: Illegal character" — that modern pdf.js recovers from.
-async function extractPdfText(buffer: Buffer, fileName: string): Promise<string> {
-  polyfillSumPrecise();
-  const { extractText: extractPdf, getDocumentProxy } = await import("unpdf");
-
-  try {
-    const pdf = await getDocumentProxy(new Uint8Array(buffer));
-    const { text } = await extractPdf(pdf, { mergePages: true });
-    return text;
-  } catch (error) {
-    console.error(`[upload] pdf.js could not parse ${fileName}:`, error);
-    if (error instanceof Error && error.name === "PasswordException") {
-      throw new DocumentError(
-        "PDF ini diproteksi password. Buka proteksinya dulu, lalu upload ulang."
-      );
-    }
-    throw new DocumentError(
-      "PDF ini tidak bisa dibaca — kemungkinan filenya rusak. Coba buka di PDF reader, " +
-      "lalu simpan ulang atau print ke PDF, kemudian upload lagi."
-    );
-  }
-}
-
-async function unwrapParseError(
-  fileName: string,
-  format: string,
-  parse: () => Promise<string>,
-): Promise<string> {
-  try {
-    return await parse();
-  } catch (error) {
-    console.error(`[upload] ${format} parser could not read ${fileName}:`, error);
-    throw new DocumentError(
-      `File ${format} ini tidak bisa dibaca — kemungkinan filenya rusak atau ekstensinya ` +
-      `tidak sesuai isinya. Coba buka lalu simpan ulang dari aplikasi aslinya, kemudian upload lagi.`
-    );
-  }
-}
-
-async function extractText(file: File): Promise<string> {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const name = file.name.toLowerCase();
-
-  if (name.endsWith(".pdf")) {
-    return extractPdfText(buffer, file.name);
-  }
-
-  // The Office parsers get the same treatment as the PDF path above: their raw
-  // exceptions ("Corrupted zip", "central directory not found") reach the admin
-  // as "kesalahan tak terduga di server", which reads like our bug rather than
-  // their file. Both formats are zip containers, so a truncated or renamed file
-  // is the common cause and the advice is the same for all three.
-  if (name.endsWith(".docx")) {
-    return unwrapParseError(file.name, "DOCX", async () => {
-      const mammoth = await import("mammoth");
-      const result = await mammoth.extractRawText({ buffer });
-      return result.value;
-    });
-  }
-
-  if (name.endsWith(".xlsx")) {
-    // Parsed via officeparser (like pptx below) instead of the abandoned `xlsx`
-    // package, which has unpatched prototype-pollution/ReDoS advisories in its
-    // parser. The "csv" destination keeps the tabular structure for retrieval.
-    return unwrapParseError(file.name, "XLSX", async () => {
-      const { parseOffice } = await import("officeparser");
-      const ast = await parseOffice(buffer, { fileType: "xlsx" });
-      const { value: text } = await ast.to("csv");
-      return text as string;
-    });
-  }
-
-  if (name.endsWith(".pptx")) {
-    return unwrapParseError(file.name, "PPTX", async () => {
-      const { parseOffice } = await import("officeparser");
-      const ast = await parseOffice(buffer, { fileType: "pptx" });
-      const { value: text } = await ast.to("text");
-      return text as string;
-    });
-  }
-
-  throw new DocumentError(
-    `Format file "${file.name}" tidak didukung. Gunakan PDF, DOCX, XLSX, atau PPTX.`
-  );
-}
+import { DocumentError, extractText } from "@/lib/document-extraction";
+import { queueDocument, recordDocumentFailure, resolveFolderParam } from "@/lib/document-ingest";
 
 /**
  * Receives uploaded files, extracts their text, and queues them for indexing.
@@ -180,15 +55,11 @@ export async function POST(req: NextRequest) {
   // looking — and with a large import, by looking through a lot of rows. A file
   // is cheap to re-send; a batch silently filed in the wrong place is not cheap
   // to sort out. Refusing before any parsing also means nothing is stored yet.
-  const rawFolder = formData.get("folder");
-  const folderOmitted = rawFolder === null || rawFolder === "";
-  const folder = folderOmitted ? null : optionalString(rawFolder, LIMITS.name);
-  if (!folderOmitted && folder === null) {
-    return NextResponse.json(
-      { error: `Nama folder harus berupa teks, maksimal ${LIMITS.name} karakter.` },
-      { status: 400 },
-    );
+  const folderResult = resolveFolderParam(formData.get("folder"));
+  if ("error" in folderResult) {
+    return NextResponse.json({ error: folderResult.error }, { status: 400 });
   }
+  const { folder } = folderResult;
 
   if (!files.length) {
     return NextResponse.json({ error: "Tidak ada file yang dikirim." }, { status: 400 });
@@ -248,7 +119,8 @@ export async function POST(req: NextRequest) {
     const createdAt = new Date().toISOString();
 
     try {
-      const rawText = await extractText(file);
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const rawText = await extractText(buffer, file.name);
 
       // No text at all means the file holds images rather than a text layer — a
       // scan or a photo saved as a PDF. Caught here, where the file is still in
@@ -265,43 +137,15 @@ export async function POST(req: NextRequest) {
 
       // Written once, already in its resting state: there is no long-running
       // work left in this request for it to be interrupted by, so the row never
-      // needs a "processing" phase here.
-      //
-      // Counted and inserted inside one transaction, behind a lock on the
-      // company row, because a cap enforced by "count, then insert" is not
-      // enforced at all. Two tabs — or an admin on a laptop and the same admin
-      // on a phone — both read 49 of 50, both insert, and the company owns 51
-      // documents on a plan that sells 50. Nothing about it looks like a bug
-      // afterwards: no error, no log, just a number that should have been
-      // impossible.
-      //
-      // The lock is taken on `companies` rather than on the document rows
-      // because there is no row to lock for a document that does not exist yet;
-      // what needs serialising is the decision, and the tenant is what the
-      // decision is about. It is held for a count and an insert — microseconds —
-      // and the expensive part of this loop (parsing the file) has already
-      // happened outside it, so uploads from one company queue up here only for
-      // as long as it takes Postgres to answer two indexed queries.
-      const stored = await withTenant(companyId, async (tx) => {
-        await tx.select({ id: companiesTable.id })
-          .from(companiesTable)
-          .where(eq(companiesTable.id, companyId))
-          .for("update");
-
-        const [{ count: current }] = await tx.select({ count: count() })
-          .from(documents)
-          .where(eq(documents.companyId, companyId));
-        if (!isUnderLimit(current, limits.maxDocuments)) return false;
-
-        await tx.insert(documents).values({
-          id: docId,
-          name: safeName,
-          companyId,
-          department: folder,
-          status: "queued",
-          rawText,
-        });
-        return true;
+      // needs a "processing" phase here. See queueDocument for why the count +
+      // insert has to be one locked transaction.
+      const stored = await queueDocument({
+        companyId,
+        maxDocuments: limits.maxDocuments,
+        docId,
+        name: safeName,
+        department: folder,
+        rawText,
       });
 
       if (!stored) {
@@ -325,14 +169,7 @@ export async function POST(req: NextRequest) {
       // would lose the per-file results collected so far. Recording the reason
       // is a nicety; not derailing the batch is not.
       try {
-        await withTenant(companyId, (tx) => tx.insert(documents).values({
-          id: docId,
-          name: safeName,
-          companyId,
-          department: folder,
-          status: "failed",
-          errorMessage,
-        }));
+        await recordDocumentFailure({ companyId, docId, name: safeName, department: folder, errorMessage });
       } catch (insertError) {
         console.error(`[upload] Could not record failure for ${file.name}:`, insertError);
       }

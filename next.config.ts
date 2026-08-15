@@ -27,18 +27,33 @@ const GA_ANALYTICS = "https://*.google-analytics.com https://*.analytics.google.
 // img-src needs no YouTube host.
 const YOUTUBE_EMBED = "https://www.youtube-nocookie.com";
 
+// Admin-only: the Google Drive import feature (GoogleDrivePicker.tsx) loads
+// Google Identity Services + the Picker's gapi loader as scripts, calls the
+// Drive/Picker APIs, and renders the Picker itself in an iframe from Google's
+// domain. None of this runs on any public page, but CSP is site-wide, so it
+// has to be here rather than scoped to /admin.
+const GOOGLE_IDENTITY = "https://accounts.google.com";
+const GOOGLE_APIS = "https://apis.google.com";
+const GOOGLE_DRIVE_API = "https://www.googleapis.com";
+const GOOGLE_PICKER_FRAME = "https://accounts.google.com https://content.googleapis.com https://docs.google.com";
+const GOOGLE_THUMBNAILS = "https://*.googleusercontent.com";
+
 // No nonces: per the Next.js CSP guide, nonce-based CSP forces every page into
 // dynamic rendering. 'unsafe-inline' keeps static optimization; the policy
 // still blocks external script injection, exfiltration and framing.
 // Dev needs 'unsafe-eval' (React error stacks) and ws: (HMR).
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
+  `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_THUMBNAILS}`,
   "font-src 'self' data:",
-  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS}`,
-  `frame-src ${MIDTRANS_APP} ${YOUTUBE_EMBED}`,
+  // apis.google.com is in connect-src (not just script-src) because
+  // gapi.load('picker', ...) fetches its module config from there, not just
+  // a script tag — unverified against a live API key, but cheap insurance
+  // against a CSP violation nobody would think to look for.
+  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_DRIVE_API} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
+  `frame-src ${MIDTRANS_APP} ${YOUTUBE_EMBED} ${GOOGLE_PICKER_FRAME}`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
