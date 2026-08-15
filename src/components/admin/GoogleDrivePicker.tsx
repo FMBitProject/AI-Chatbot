@@ -72,6 +72,7 @@ interface GooglePickerBuilder {
   addView(view: GoogleDocsView): GooglePickerBuilder;
   setOAuthToken(token: string): GooglePickerBuilder;
   setDeveloperKey(key: string): GooglePickerBuilder;
+  setAppId(appId: string): GooglePickerBuilder;
   enableFeature(feature: string): GooglePickerBuilder;
   setCallback(cb: (result: PickerResult) => void): GooglePickerBuilder;
   build(): { setVisible(visible: boolean): void };
@@ -179,6 +180,16 @@ export function GoogleDrivePicker({ lang = "id", disabled, onFilesPicked }: Goog
           .addView(view)
           .setOAuthToken(accessToken)
           .setDeveloperKey(apiKey)
+          // Required for the `drive.file` scope specifically: without an App
+          // ID, Picker lets the user select a file but never actually grants
+          // this app per-file access to it — the selection UI succeeds, then
+          // every server-side Drive API call on that file comes back
+          // permission-denied. The App ID is the numeric Google Cloud project
+          // number, which is also the leading digits of the OAuth Client ID
+          // before its first hyphen (e.g. "100854270864" from
+          // "100854270864-xxxx.apps.googleusercontent.com") — derived here
+          // instead of a separate env var, since the two can never disagree.
+          .setAppId(clientId.split("-")[0])
           .enableFeature(window.google!.picker.Feature.MULTISELECT_ENABLED)
           .setCallback((result) => {
             if (result.action === window.google!.picker.Action.PICKED && result.docs) {
