@@ -6,7 +6,7 @@ import { LogoHomeLink } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { pricing } from "@/lib/i18n";
-import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, Loader2, Info, User, Building2 } from "lucide-react";
+import { CheckCircle2, XCircle, Zap, ArrowRight, MessageSquare, FileText, Users, Shield, BarChart2, Link2, HardDrive, Loader2, Info, User, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -15,7 +15,7 @@ import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPu
 import { consultationMailto } from "@/lib/contact";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2];
+const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2, HardDrive];
 
 type Audience = "individual" | "company";
 
