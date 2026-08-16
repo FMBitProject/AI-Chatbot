@@ -30,6 +30,15 @@ import { resolveModel, listGoogleModels, PROVIDERS } from "./provider.mjs";
 const ROOT = new URL("../../", import.meta.url).pathname;
 const PACKS_DIR = join(ROOT, "content", "packs");
 
+// Bare domain, not a full https:// URL — LinkedIn/YouTube both auto-linkify
+// it, and the apex 308-redirects to www (see push-buffer.mjs) so it resolves
+// either way. Every LinkedIn/YouTube item had zero click-through despite good
+// impressions because none of them ever gave the reader a link at all — see
+// content/packs/2026-08-10.json before this fix. Appended in code rather than
+// asked for in the prompt, same reasoning as the `question` field below: a
+// prompt-only instruction is a suggestion the model can silently drop.
+const SITE_URL = "intellibaseai.com";
+
 function fromEnvFile(key) {
   try {
     const file = readFileSync(join(ROOT, ".env.local"), "utf8");
@@ -257,6 +266,25 @@ async function generatePlatform(platform) {
     for (const item of items) {
       const question = (item.question ?? "").trim();
       item.text = question ? `${item.body.trim()}\n\n${question}` : item.body.trim();
+      if (!item.text.includes(SITE_URL)) {
+        item.text += `\n\nCoba gratis: ${SITE_URL}`;
+      }
+    }
+  } else if (platform === "youtube") {
+    for (const item of items) {
+      item.description = (item.description ?? "").trim();
+      if (!item.description.includes(SITE_URL)) {
+        item.description += `\n\nCoba gratis: ${SITE_URL}`;
+      }
+    }
+  } else if (platform === "instagram") {
+    // No clickable link in an IG caption regardless of what we write — the cue
+    // has to point at the bio link instead.
+    for (const item of items) {
+      item.caption = (item.caption ?? "").trim();
+      if (!item.caption.toLowerCase().includes("link di bio")) {
+        item.caption += `\n\nLink di bio.`;
+      }
     }
   }
   return { platform, ...result.object, items, usage: result.usage };
@@ -317,7 +345,7 @@ if (invalid) {
   process.exit(1);
 }
 
-const missingQuestion = (pack.linkedin ?? []).filter((p) => !p.text.trimEnd().endsWith("?"));
+const missingQuestion = (pack.linkedin ?? []).filter((p) => !(p.question ?? "").trim().endsWith("?"));
 if (missingQuestion.length) {
   console.warn(`⚠ ${missingQuestion.length} post LinkedIn tidak diakhiri pertanyaan: ${missingQuestion.map((p) => `${p.day}/${p.slot}`).join(", ")}`);
 }
