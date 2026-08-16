@@ -1,0 +1,199 @@
+{
+  "weekOf": "2026-08-17",
+  "generatedAt": "2026-08-15T23:45:35.955Z",
+  "provider": "google",
+  "model": "gemini-3.6-flash",
+  "theme": {
+    "linkedin": "Strategi praktis pengelolaan dokumen dan akses pengetahuan internal perusahaan yang transparan.",
+    "youtube": "Memahami fitur, batasan, dan penerapan riil IntelliBase untuk tim maupun individu tanpa klaim berlebihan.",
+    "instagram": "Transparansi pengelolaan dokumen internal dan catatan pribadi secara efektif bersama IntelliBase."
+  },
+  "linkedin": [
+    {
+      "day": "Senin",
+      "slot": "sore",
+      "angle": "Kendala onboarding karyawan baru saat mencari informasi kebijakan HR.",
+      "body": "Onboarding karyawan baru sering kali terhambat bukan karena kurangnya materi, melainkan karena sulitnya menemukan jawaban spesifik secara cepat. Dokumen kebijakan perusahaan dan panduan kerja biasanya ada di folder bersama, tetapi karyawan baru ragu untuk bertanya terus-menerus kepada tim HR. Untuk akun Perusahaan di IntelliBase, kami menyediakan asisten AI yang menjawab pertanyaan internal langsung dari dokumen resmi yang diunggah. Setiap jawaban disertai sitasi dokumen sumber agar karyawan dapat memverifikasi informasi tersebut secara mandiri. Kami menggunakan Postgres Row Level Security untuk memastikan isolasi data antarperusahaan. Dokumen yang diunggah dikirim ke Google Gemini untuk proses indeks dan Groq untuk pemrosesan jawaban. Paket Starter kami sediakan gratis untuk 5 pengguna dan 10 dokumen, sehingga tim dapat mencoba alur kerjanya terlebih dahulu. #OnboardingHR #ManajemenPengetahuan #IntelliBase",
+      "question": "Bagaimana cara tim Anda saat ini memastikan karyawan baru membaca dan memahami dokumen kebijakan perusahaan secara mandiri?",
+      "text": "Onboarding karyawan baru sering kali terhambat bukan karena kurangnya materi, melainkan karena sulitnya menemukan jawaban spesifik secara cepat. Dokumen kebijakan perusahaan dan panduan kerja biasanya ada di folder bersama, tetapi karyawan baru ragu untuk bertanya terus-menerus kepada tim HR. Untuk akun Perusahaan di IntelliBase, kami menyediakan asisten AI yang menjawab pertanyaan internal langsung dari dokumen resmi yang diunggah. Setiap jawaban disertai sitasi dokumen sumber agar karyawan dapat memverifikasi informasi tersebut secara mandiri. Kami menggunakan Postgres Row Level Security untuk memastikan isolasi data antarperusahaan. Dokumen yang diunggah dikirim ke Google Gemini untuk proses indeks dan Groq untuk pemrosesan jawaban. Paket Starter kami sediakan gratis untuk 5 pengguna dan 10 dokumen, sehingga tim dapat mencoba alur kerjanya terlebih dahulu. #OnboardingHR #ManajemenPengetahuan #IntelliBase\n\nBagaimana cara tim Anda saat ini memastikan karyawan baru membaca dan memahami dokumen kebijakan perusahaan secara mandiri?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Selasa",
+      "slot": "sore",
+      "angle": "Integrasi pencarian dokumen kebijakan perusahaan langsung di Slack tim.",
+      "body": "Banyak waktu kerja berkurang hanya karena karyawan harus berpindah aplikasi dari Slack ke penyimpanan awan untuk mengecek aturan pengajuan klaim atau SOP. Bagi tim yang menggunakan akun Perusahaan IntelliBase pada paket Professional atau Enterprise, integrasi Slack dapat dikonfigurasi langsung oleh admin melalui tombol Tambahkan ke Slack. Karyawan yang email Slack-nya cocok dengan akun IntelliBase dapat bertanya menggunakan perintah /tanya atau menyebut bot di channel. Jawaban akan muncul di thread yang sama lengkap dengan nama dokumen sumbernya. Fitur integrasi Slack ini khusus untuk paket Professional (Rp200.000/bulan) dan Enterprise (Rp500.000/bulan), dan tidak tersedia di paket Starter atau paket Personal akun Individu. Kami menyampaikan transparan bahwa dokumen diindeks via Google Gemini dan dijawab via Groq. #SlackIntegration #SOPDigital #ProduktivitasTim",
+      "question": "Berapa banyak channel Slack di perusahaan Anda yang sering menjadi tempat berulangnya pertanyaan seputar kebijakan internal?",
+      "text": "Banyak waktu kerja berkurang hanya karena karyawan harus berpindah aplikasi dari Slack ke penyimpanan awan untuk mengecek aturan pengajuan klaim atau SOP. Bagi tim yang menggunakan akun Perusahaan IntelliBase pada paket Professional atau Enterprise, integrasi Slack dapat dikonfigurasi langsung oleh admin melalui tombol Tambahkan ke Slack. Karyawan yang email Slack-nya cocok dengan akun IntelliBase dapat bertanya menggunakan perintah /tanya atau menyebut bot di channel. Jawaban akan muncul di thread yang sama lengkap dengan nama dokumen sumbernya. Fitur integrasi Slack ini khusus untuk paket Professional (Rp200.000/bulan) dan Enterprise (Rp500.000/bulan), dan tidak tersedia di paket Starter atau paket Personal akun Individu. Kami menyampaikan transparan bahwa dokumen diindeks via Google Gemini dan dijawab via Groq. #SlackIntegration #SOPDigital #ProduktivitasTim\n\nBerapa banyak channel Slack di perusahaan Anda yang sering menjadi tempat berulangnya pertanyaan seputar kebijakan internal?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Rabu",
+      "slot": "sore",
+      "angle": "Perbedaan mendasar akun Perusahaan dan akun Individu dalam pengelolaan dokumen.",
+      "body": "Kami sering menerima pertanyaan tentang perbedaan alokasi akun di IntelliBase. Sejak awal pendaftaran, akun Perusahaan dan akun Individu dirancang terpisah karena kebutuhan pengelolaannya berbeda. Akun Perusahaan ditujukan untuk kolaborasi tim seperti HRD dan Ops Manager yang mengelola dokumen internal bersumber dari SOP organisasi. Sementara itu, akun Individu difungsikan khusus sebagai knowledge base pribadi satu orang untuk catatan atau panduan mandiri tanpa fitur pengelolaan karyawan. Akun Individu menyediakan paket Personal seharga Rp59.000/bulan dengan batas 60 jawaban AI per hari dan hingga 50 dokumen. Paket Personal ini tidak diposisikan sebagai pengganti paket tim Professional atau Enterprise, serta tidak memiliki akses integrasi Slack. Pemisahan struktur ini menjaga kerapihan hak akses dan relevansi dokumen. #KnowledgeManagement #IntelliBase #SaaSIndonesia",
+      "question": "Bagaimana tim Anda memisahkan pengelolaan dokumen kerja operasional dengan catatan riset pribadi karyawan saat ini?",
+      "text": "Kami sering menerima pertanyaan tentang perbedaan alokasi akun di IntelliBase. Sejak awal pendaftaran, akun Perusahaan dan akun Individu dirancang terpisah karena kebutuhan pengelolaannya berbeda. Akun Perusahaan ditujukan untuk kolaborasi tim seperti HRD dan Ops Manager yang mengelola dokumen internal bersumber dari SOP organisasi. Sementara itu, akun Individu difungsikan khusus sebagai knowledge base pribadi satu orang untuk catatan atau panduan mandiri tanpa fitur pengelolaan karyawan. Akun Individu menyediakan paket Personal seharga Rp59.000/bulan dengan batas 60 jawaban AI per hari dan hingga 50 dokumen. Paket Personal ini tidak diposisikan sebagai pengganti paket tim Professional atau Enterprise, serta tidak memiliki akses integrasi Slack. Pemisahan struktur ini menjaga kerapihan hak akses dan relevansi dokumen. #KnowledgeManagement #IntelliBase #SaaSIndonesia\n\nBagaimana tim Anda memisahkan pengelolaan dokumen kerja operasional dengan catatan riset pribadi karyawan saat ini?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Kamis",
+      "slot": "sore",
+      "angle": "Tantangan pengelolaan SOP pada operasional rumah sakit dan klinik kesehatan.",
+      "body": "Di industri jasa kesehatan seperti rumah sakit dan klinik, akurasi panduan operasional sangat krusial. Perubahan prosedur administrasi atau standar pelayanan medis non-klinis sering kali membingungkan staf lapangan jika tidak terdistribusi dengan rapi. Akun Perusahaan IntelliBase dirancang untuk membantu industri seperti layanan kesehatan, manufaktur, dan jasa keuangan dalam mengakses dokumen internal secara terstruktur. Saat staf mengajukan pertanyaan terkait kebijakan operasional, sistem merespons berdasarkan dokumen yang diunggah dengan menyertakan tautan halaman spesifik pada tampilan web. Kami tidak mengklaim akurasi 100% atau kecepatan instan, karena kualitas jawaban sangat bergantung pada kelengkapan dokumen sumber. Dokumen diproses menggunakan Google Gemini untuk pengindeksan dan Groq untuk penanganan teks jawaban secara transparan. #OperasionalKesehatan #ManajemenSOP #IntelliBase",
+      "question": "Apakah rumah sakit atau klinik Anda memiliki metode khusus untuk memperbarui SOP operasional tanpa membingungkan staf?",
+      "text": "Di industri jasa kesehatan seperti rumah sakit dan klinik, akurasi panduan operasional sangat krusial. Perubahan prosedur administrasi atau standar pelayanan medis non-klinis sering kali membingungkan staf lapangan jika tidak terdistribusi dengan rapi. Akun Perusahaan IntelliBase dirancang untuk membantu industri seperti layanan kesehatan, manufaktur, dan jasa keuangan dalam mengakses dokumen internal secara terstruktur. Saat staf mengajukan pertanyaan terkait kebijakan operasional, sistem merespons berdasarkan dokumen yang diunggah dengan menyertakan tautan halaman spesifik pada tampilan web. Kami tidak mengklaim akurasi 100% atau kecepatan instan, karena kualitas jawaban sangat bergantung pada kelengkapan dokumen sumber. Dokumen diproses menggunakan Google Gemini untuk pengindeksan dan Groq untuk penanganan teks jawaban secara transparan. #OperasionalKesehatan #ManajemenSOP #IntelliBase\n\nApakah rumah sakit atau klinik Anda memiliki metode khusus untuk memperbarui SOP operasional tanpa membingungkan staf?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Jumat",
+      "slot": "sore",
+      "angle": "Fleksibilitas format file dokumen operasional dari PDF hingga spreadsheet XLSX.",
+      "body": "Dokumen operasional perusahaan jarang hadir dalam satu format seragam. Kebijakan HR mungkin berbentuk PDF, sementara daftar inventaris atau skema kompensasi disimpan dalam format XLSX atau PPTX. Akun Perusahaan IntelliBase mendukung pengunggahan format PDF, DOCX, XLSX, dan PPTX agar tim tidak perlu mengonversi file secara manual sebelum diunggah. Ketika pertanyaan diajukan, sistem memindai isi dokumen dan memberikan rujukan sumber secara tepat. Informasi dokumen Anda diproses melalui Google Gemini untuk indeksasi dan Groq untuk komputasi jawaban. Untuk memulainya, paket Starter akun Perusahaan tersedia tanpa biaya untuk 5 pengguna, 10 dokumen, dan 100 pertanyaan per bulan, memungkinkan evaluasi langsung sesuai struktur dokumen yang tim Anda miliki saat ini. #DokumenPerusahaan #FormatFile #IntelliBase",
+      "question": "Format file dokumen apa yang paling sering membuat tim Anda kesulitan saat mencari informasi operasional harian?",
+      "text": "Dokumen operasional perusahaan jarang hadir dalam satu format seragam. Kebijakan HR mungkin berbentuk PDF, sementara daftar inventaris atau skema kompensasi disimpan dalam format XLSX atau PPTX. Akun Perusahaan IntelliBase mendukung pengunggahan format PDF, DOCX, XLSX, dan PPTX agar tim tidak perlu mengonversi file secara manual sebelum diunggah. Ketika pertanyaan diajukan, sistem memindai isi dokumen dan memberikan rujukan sumber secara tepat. Informasi dokumen Anda diproses melalui Google Gemini untuk indeksasi dan Groq untuk komputasi jawaban. Untuk memulainya, paket Starter akun Perusahaan tersedia tanpa biaya untuk 5 pengguna, 10 dokumen, dan 100 pertanyaan per bulan, memungkinkan evaluasi langsung sesuai struktur dokumen yang tim Anda miliki saat ini. #DokumenPerusahaan #FormatFile #IntelliBase\n\nFormat file dokumen apa yang paling sering membuat tim Anda kesulitan saat mencari informasi operasional harian?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Sabtu",
+      "slot": "sore",
+      "angle": "Pengamatan alur komunikasi internal saat perubahan kebijakan terjadi secara mendadak.",
+      "body": "Ketika sebuah kebijakan operasional baru diterbitkan di akhir pekan atau hari Jumat sore, tim HR biasanya dibanjiri pertanyaan yang sama sepanjang minggu berikutnya. Meskipun pengumuman resmi sudah dikirimkan melalui email atau diunggah ke folder bersama perusahaan, kecenderungan umum karyawan adalah langsung bertanya kepada tim HR karena dianggap lebih praktis daripada mencari file dokumennya sendiri. Hal ini memperlihatkan bahwa hambatan utama dalam distribusi informasi internal perusahaan sering kali bukan pada ketersediaan dokumen, melainkan pada kemudahan akses saat informasi tersebut dibutuhkan secara mendadak di tengah rutinitas harian. Ketika pencarian informasi terasa rumit, saluran komunikasi langsung seperti pesan singkat selalu menjadi pilihan utama karyawan. #HRManagement #OperasionalPerusahaan #BudayaKerja",
+      "question": "Seberapa sering tim HR di tempat Anda menerima pertanyaan berulang terkait kebijakan yang sebenarnya sudah pernah diumumkan?",
+      "text": "Ketika sebuah kebijakan operasional baru diterbitkan di akhir pekan atau hari Jumat sore, tim HR biasanya dibanjiri pertanyaan yang sama sepanjang minggu berikutnya. Meskipun pengumuman resmi sudah dikirimkan melalui email atau diunggah ke folder bersama perusahaan, kecenderungan umum karyawan adalah langsung bertanya kepada tim HR karena dianggap lebih praktis daripada mencari file dokumennya sendiri. Hal ini memperlihatkan bahwa hambatan utama dalam distribusi informasi internal perusahaan sering kali bukan pada ketersediaan dokumen, melainkan pada kemudahan akses saat informasi tersebut dibutuhkan secara mendadak di tengah rutinitas harian. Ketika pencarian informasi terasa rumit, saluran komunikasi langsung seperti pesan singkat selalu menjadi pilihan utama karyawan. #HRManagement #OperasionalPerusahaan #BudayaKerja\n\nSeberapa sering tim HR di tempat Anda menerima pertanyaan berulang terkait kebijakan yang sebenarnya sudah pernah diumumkan?\n\nCoba gratis: intellibaseai.com"
+    },
+    {
+      "day": "Minggu",
+      "slot": "sore",
+      "angle": "Catatan teknis pentingnya struktur penamaan file dokumen untuk indeksasi data.",
+      "body": "Penyusunan struktur dan penamaan file dokumen sering kali diabaikan saat menyimpan arsip digital perusahaan. Menggunakan nama file yang terlalu generik tanpa deskripsi subjek yang jelas dapat menyulitkan identifikasi manual maupun proses indeksasi data digital. Dalam arsitektur sistem berbasis pemrosesan dokumen, kejelasan judul, struktur headings, serta pemisahan topik dalam dokumen memegang peranan sangat penting agar ekstraksi informasi berjalan lebih terstruktur dan presisi. Menjaga kerapihan tata kelola dokumen sejak awal penyimpanan merupakan langkah dasar yang sangat membantu efisiensi pencarian arsip internal tim dalam jangka panjang. Ketika standar penulisan dokumen teratur, pengelolaan pengetahuan operasional perusahaan menjadi jauh lebih mudah dikelola. #ArsitekturData #ManajemenDokumen #TechNote",
+      "question": "Aturan penamaan file seperti apa yang saat ini diterapkan di perusahaan Anda untuk mempermudah pencarian arsip digital?",
+      "text": "Penyusunan struktur dan penamaan file dokumen sering kali diabaikan saat menyimpan arsip digital perusahaan. Menggunakan nama file yang terlalu generik tanpa deskripsi subjek yang jelas dapat menyulitkan identifikasi manual maupun proses indeksasi data digital. Dalam arsitektur sistem berbasis pemrosesan dokumen, kejelasan judul, struktur headings, serta pemisahan topik dalam dokumen memegang peranan sangat penting agar ekstraksi informasi berjalan lebih terstruktur dan presisi. Menjaga kerapihan tata kelola dokumen sejak awal penyimpanan merupakan langkah dasar yang sangat membantu efisiensi pencarian arsip internal tim dalam jangka panjang. Ketika standar penulisan dokumen teratur, pengelolaan pengetahuan operasional perusahaan menjadi jauh lebih mudah dikelola. #ArsitekturData #ManajemenDokumen #TechNote\n\nAturan penamaan file seperti apa yang saat ini diterapkan di perusahaan Anda untuk mempermudah pencarian arsip digital?\n\nCoba gratis: intellibaseai.com"
+    }
+  ],
+  "youtube": [
+    {
+      "day": "Senin",
+      "slot": "sore",
+      "angle": "Memahami perbedaan mendasar antara Akun Perusahaan dan Akun Individu.",
+      "title": "Akun Tim dan Individu Itu Beda Kebutuhan",
+      "hook": "Jangan pakai software perusahaan kalau cuma buat catatan pribadi.",
+      "script": "Saat cari asisten AI untuk dokumen, banyak orang bingung antara kebutuhan tim dan kebutuhan pribadi. Di IntelliBase, kami memisahkan dua jenis akun ini sejak pendaftaran. Akun Perusahaan dibuat untuk kolaborasi tim dengan akses dokumen bersama seperti kebijakan HR atau SOP kerja. Sementara Akun Individu dirancang khusus sebagai knowledge base pribadi untuk satu orang yang ingin mengelola catatan atau riset sendiri, tanpa perlu mengelola anggota tim. Keduanya terpisah sejak awal dengan paket harga berbeda, jadi Anda tidak perlu bayar fitur tim yang tidak Anda pakai.",
+      "description": "IntelliBase memisahkan Akun Perusahaan dan Akun Individu sejak pendaftaran. Pelajari perbedaannya di intellibaseai.com.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Tampilan layar laptop memperlihatkan dua jendela browser berdampingan: sebelah kiri dashboard IntelliBase Perusahaan dengan daftar anggota tim, sebelah kanan dashboard Akun Individu yang bersih tanpa menu kelola pengguna."
+    },
+    {
+      "day": "Selasa",
+      "slot": "sore",
+      "angle": "Kemudahan bertanya dokumen prosedur internal langsung dari aplikasi Slack.",
+      "title": "Tanya Dokumen Kantor Langsung di Slack",
+      "hook": "Karyawan Anda masih sering keluar-masuk folder cuma buat cari SOP?",
+      "script": "Mencari informasi internal sebenarnya tidak perlu bikin repot. Untuk akun Perusahaan di paket Professional dan Enterprise, IntelliBase bisa dihubungkan ke workspace Slack Anda. Admin cukup klik tombol Tambahkan ke Slack. Setelah terhubung, karyawan yang email profil Slack-nya cocok dengan akun IntelliBase bisa bertanya menggunakan command slash tanya diikuti pertanyaannya, atau menyebut bot di channel. Jawaban AI muncul di thread yang sama lengkap dengan nama dokumen sumbernya. Tanpa biaya tambahan di luar paket yang sudah dibeli.",
+      "description": "Integrasi Slack IntelliBase khusus untuk akun Perusahaan paket Professional dan Enterprise. Tanya SOP langsung dari Slack.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Tangkapan layar aplikasi Slack desktop. Kursor mengetik '/tanya berapa batas klaim kacamata tahunan?' lalu bot IntelliBase membalas di thread pesan dengan jawaban ringkas dan mencantumkan nama dokumen sumber."
+    },
+    {
+      "day": "Rabu",
+      "slot": "sore",
+      "angle": "Keterbatasan tampilan sitasi dokumen antara web app dan Slack.",
+      "title": "Perbedaan Sitasi Dokumen di Web dan Slack",
+      "hook": "Mengapa tampilan sitasi AI kami beda di Web dan Slack?",
+      "script": "Transparansi adalah hal penting bagi kami. Saat Anda bertanya di IntelliBase, AI kami selalu menyertakan dari mana jawaban itu diambil. Tapi ada perbedaan tampilan. Jika Anda bertanya lewat aplikasi web, sitasi berupa tautan langsung yang bisa diklik menuju ke halaman spesifik dalam dokumen PDF atau DOCX Anda. Sedangkan jika bertanya lewat integrasi Slack, sitasi hanya menampilkan nama dokumen sumbernya saja tanpa tautan ke halaman. Ini karena keterbatasan antarmuka di Slack. Kami rasa penting menyampaikan batasan ini apa adanya.",
+      "description": "Penjelasan jujur tentang perbedaan tampilan sitasi sumber dokumen IntelliBase di aplikasi web vs integrasi Slack.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Layar terbagi dua. Sisi kiri memperlihatkan web IntelliBase dengan teks sitasi bergaris bawah yang diklik lalu membuka halaman 4 PDF. Sisi kanan memperlihatkan pesan Slack yang hanya menampilkan nama dokumen dalam teks tebal."
+    },
+    {
+      "day": "Kamis",
+      "slot": "sore",
+      "angle": "Solusi knowledge base pribadi lewat Paket Personal Akun Individu.",
+      "title": "Knowledge Base Pribadi Bebas Batasan Bulanan",
+      "hook": "Punya puluhan PDF dan catatan pribadi yang berantakan?",
+      "script": "Jika Anda tidak membutuhkan fitur tim atau integrasi Slack, Akun Individu IntelliBase dibuat khusus untuk Anda. Anda bisa mulai dengan paket Starter yang gratis. Tapi jika butuh jawaban AI tanpa batasan kuota bulanan, ada paket Personal seharga lima puluh sembilan ribu rupiah per bulan. Paket Personal mendukung hingga 50 dokumen pribadi dengan batasan 60 pertanyaan per hari. Ingat, paket Personal ini HANYA untuk akun Individu dan tidak bisa dipasang ke Slack atau dipakai mengelola tim. Solusi rapi untuk dokumen pribadi Anda.",
+      "description": "Paket Personal Rp59.000/bulan khusus Akun Individu IntelliBase. Tanpa batas bulanan, maksimal 60 pertanyaan per hari.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Kursor mengunggah beberapa berkas catatan personal (PDF dan DOCX) ke dashboard Akun Individu IntelliBase, lalu mengarah ke halaman pilihan paket yang menampilkan paket Personal Rp59.000/bulan."
+    },
+    {
+      "day": "Jumat",
+      "slot": "sore",
+      "angle": "Penerapan asisten AI dokumen pada lingkungan rumah sakit dan klinik.",
+      "title": "Asisten AI Dokumen untuk Rumah Sakit & Klinik",
+      "hook": "Prosedur medis dan administrasi klinik sering membuat staf bingung?",
+      "script": "Di lingkungan rumah sakit atau klinik, akses cepat ke dokumen panduan operasional sangat krusial. IntelliBase cocok untuk membantu tenaga medis atau staf administrasi mencari referensi internal. Misalnya, mencari panduan alur pelayanan pasien atau regulasi klaim asuransi. Cukup unggah dokumen panduan ke akun Perusahaan, dan staf bisa bertanya menggunakan bahasa biasa. Setiap jawaban menyertakan sitasi ke dokumen resmi, sehingga staf bisa mengecek kembali ke dokumen asli sebelum mengambil keputusan.",
+      "description": "IntelliBase cocok untuk rumah sakit & klinik dalam mengelola akses dokumen operasional dan kebijakan medis internal.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Kamera merekam layar monitor yang menampilkan dokumen SOP Pelayanan Klinik berformat PDF diunggah ke IntelliBase, dilanjutkan dengan mengetik pertanyaan seputar alur penanganan pasien."
+    },
+    {
+      "day": "Sabtu",
+      "slot": "sore",
+      "angle": "Transparansi batasan dan kegunaan Paket Starter gratis akun Perusahaan.",
+      "title": "Uji Coba Tim Kecil dengan Paket Starter Gratis",
+      "hook": "Mau coba AI dokumen internal tanpa keluar biaya?",
+      "script": "Kami menyediakan paket Starter gratis untuk Akun Perusahaan tanpa perlu kartu kredit. Batasannya terbuka: untuk 5 pengguna, 10 dokumen, dan 100 pertanyaan per bulan. Paket ini bukan untuk operasional skala besar, tapi dibuat agar Anda dan tim bisa menguji langsung bagaimana sistem kami mengindeks dokumen dan memberikan jawaban bersitasi. Jika dokumen Anda bertambah atau butuh integrasi Slack, Anda baru perlu mempertimbangkan upgrade ke paket Professional. Coba dulu batasannya sebelum menentukan anggaran.",
+      "description": "Uji coba IntelliBase Akun Perusahaan dengan Paket Starter Gratis: 5 pengguna, 10 dokumen, 100 pertanyaan/bulan.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Tampilan layar pendaftaran akun Perusahaan IntelliBase, memilih Paket Starter Gratis, lalu memperlihatkan halaman manajemen pengguna yang berisi batasan 5 kuota anggota."
+    },
+    {
+      "day": "Minggu",
+      "slot": "sore",
+      "angle": "Pengelolaan standar operasional resep dan layanan pada bisnis Retail & F&B.",
+      "title": "Kelola SOP dan Resep Standar Retail & F&B",
+      "hook": "Punya banyak cabang toko tapi SOP sering tidak seragam?",
+      "script": "Bisnis retail dan F&B sering menghadapi tantangan konsistensi pelayanan dan resep standar antar cabang. IntelliBase cocok digunakan untuk menyimpan panduan operasional toko, manual servis, hingga detail bahan resep dalam format PDF, DOCX, maupun Excel. Staf toko atau restoran bisa bertanya langsung tentang takaran standar atau prosedur penanganan keluhan. Karena setiap jawaban melampirkan nama dokumen sumbernya, manajemen bisa memastikan staf mengacu pada dokumen resmi yang benar.",
+      "description": "IntelliBase cocok untuk industri retail & F&B dalam menyelaraskan SOP toko dan resep standar di berbagai cabang.\n\nCoba gratis: intellibaseai.com",
+      "shotNote": "Tampilan file spreadsheet XLSX berisi daftar resep dan panduan porsi F&B diunggah ke IntelliBase, lalu memperlihatkan AI menjawab pertanyaan takaran bahan beserta sitasi nama file Excel tersebut."
+    }
+  ],
+  "instagram": [
+    {
+      "day": "Senin",
+      "slot": "sore",
+      "angle": "Akses jawaban dokumen internal langsung di Slack tanpa berpindah aplikasi.",
+      "caption": "Karyawan sering bertanya hal mendasar di Slack, lalu Anda harus membuka Drive untuk mencari dokumennya. Untuk akun Perusahaan paket Professional dan Enterprise, IntelliBase dapat dihubungkan ke Slack. Karyawan cukup mengetik command `/tanya` atau menyebut bot di channel. Jawaban langsung muncul di thread beserta nama dokumen sumbernya. Tanpa perlu pindah aplikasi atau mencari manual. Tim Anda bekerja lebih tenang tanpa interupsi berulang.\n\nLink di bio.",
+      "cardText": "Masih harus buka Google Drive cuma buat jawab satu pertanyaan di Slack?",
+      "imageIdea": "Kartu teks latar teal dengan teks pancingan putih kontras tentang kerumitan pindah aplikasi."
+    },
+    {
+      "day": "Selasa",
+      "slot": "sore",
+      "angle": "Perbedaan mendasar struktur Akun Individu dan Akun Perusahaan sejak pendaftaran.",
+      "caption": "Banyak vendor menggabungkan fitur individu dan tim dalam satu akun yang rumit. Di IntelliBase, kami memisahkan Akun Perusahaan dan Akun Individu sejak pendaftaran. Akun Perusahaan dirancang untuk kolaborasi tim dengan verifikasi email domains. Sementara Akun Individu murni untuk catatan pribadi Anda tanpa fitur kelola karyawan. Masing-masing punya tujuan jelas, tanpa pemaksaan fitur yang tidak Anda butuhkan.\n\nLink di bio.",
+      "cardText": "Jangan paksakan akun personal untuk mengelola dokumen tim Anda.",
+      "imageIdea": "Teks tegas di atas latar teal yang menyoroti pemisahan jenis akun."
+    },
+    {
+      "day": "Rabu",
+      "slot": "sore",
+      "angle": "Relevansi asisten AI dokumen untuk efisiensi operasional Rumah Sakit & Klinik.",
+      "caption": "Rumah sakit dan klinik mengelola ratusan panduan medis, regulasi akreditasi, dan SOP pelayanan. Saat tenaga medis membutuhkan informasi cepat, mencari lembar cetak atau file PDF memakan waktu. IntelliBase cocok untuk industri kesehatan yang ingin memudahkan staf mengakses kebijakan internal lewat pertanyaan biasa. Setiap jawaban dilengkapi sitasi ke halaman dokumen sumber, sehingga informasi dapat diverifikasi langsung demi keamanan prosedur.\n\nLink di bio.",
+      "cardText": "Berkas akreditasi dan panduan medis klinik Anda menumpuk tanpa terbaca?",
+      "imageIdea": "Teks pertanyaan tajam berlatar teal yang relevan bagi praktisi fasilitas kesehatan."
+    },
+    {
+      "day": "Kamis",
+      "slot": "sore",
+      "angle": "Transparansi skema paket Starter gratis tanpa tenggat waktu coba-coba.",
+      "caption": "Kami tidak menyukai uji coba gratis yang meminta kartu kredit lalu menagih diam-diam. Paket Starter untuk akun Perusahaan di IntelliBase sepenuhnya gratis tanpa batas waktu. Anda mendapatkan akses untuk 5 pengguna, 10 dokumen, dan 100 pertanyaan setiap bulan. Jika kebutuhan tim bertambah, Anda bisa naik ke paket Professional kapan saja. Jika tidak, paket gratis ini tetap bisa Anda pakai.\n\nLink di bio.",
+      "cardText": "Paket gratis yang jujur tanpa kejutan tagihan di akhir bulan.",
+      "imageIdea": "Pernyataan transparan berwarna putih bersih di atas latar teal."
+    },
+    {
+      "day": "Jumat",
+      "slot": "sore",
+      "angle": "Membantu proses onboarding karyawan baru tanpa membebani staf senior.",
+      "caption": "Minggu pertama karyawan baru sering diisi rasa canggung. Mereka ingin mempelajari SOP operasional, namun enggan terus-menerus mengganggu senior. Dengan IntelliBase Akun Perusahaan, karyawan baru bisa bertanya langsung ke dokumen kebijakan internal menggunakan bahasa sehari-hari. Jawaban yang keluar disertai sitasi dokumen asli. Proses adaptasi anggota tim baru menjadi lebih mandiri tanpa mengurangi akurasi informasi perusahaan.\n\nLink di bio.",
+      "cardText": "Karyawan baru sering segan bertanya, senior lelah menjawab hal sama.",
+      "imageIdea": "Kartu berisi dilema onboarding internal perusahaan dengan warna teal."
+    },
+    {
+      "day": "Sabtu",
+      "slot": "sore",
+      "angle": "Kemudahan Akun Individu Paket Personal untuk merapikan pengetahuan mandiri.",
+      "caption": "Jika Anda seorang profesional atau freelancer yang ingin merapikan puluhan dokumen riset dan catatan pribadi, Akun Individu IntelliBase siap membantu. Mulai dari paket Starter gratis, hingga paket Personal seharga Rp59.000/bulan untuk pencarian berbasis AI hingga 60 pertanyaan per hari dan 50 dokumen. Tanpa fitur tim yang membingungkan, murni untuk membantu Anda mengingat isi dokumen pribadi dengan cepat.\n\nLink di bio.",
+      "cardText": "Tempat menyimpan catatan pribadi tanpa ribet mengelola akun tim.",
+      "imageIdea": "Teks simpel mengenai produktivitas personal berlatar teal modern."
+    },
+    {
+      "day": "Minggu",
+      "slot": "sore",
+      "angle": "Penerapan asisten dokumen AI pada operasional bisnis Retail & F&B.",
+      "caption": "Bisnis retail dan F&B dengan banyak gerai sering menghadapi kendala konsistensi operasional. SOP kebersihan, standar resep, hingga petunjuk penanganan keluhan pelanggan kerap tersimpan di folder yang jarang dibuka staf lapangan. IntelliBase cocok untuk industri retail yang ingin memudahkan staf toko mencari panduan kerja. Cukup ketik pertanyaan dengan bahasa biasa, jawaban lengkap beserta rujukan dokumennya langsung ditampilkan secara jelas.\n\nLink di bio.",
+      "cardText": "Staf gerai bingung mencari SOP resep standar atau penanganan keluhan?",
+      "imageIdea": "Pertanyaan berlatar teal yang menggugah pengelola gerai retail dan F&B."
+    }
+  ]
+}
