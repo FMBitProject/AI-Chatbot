@@ -381,8 +381,20 @@ export const slackInstallations = pgTable("slack_installations", {
 // for an address that just wants a follow-up.
 export const landingLeads = pgTable("landing_leads", {
   id: text("id").primaryKey(),
+  // Stored lowercased by the route, which is what makes the unique index below
+  // mean anything — Postgres compares text case-sensitively, so "Budi@X.com"
+  // and "budi@x.com" are two rows to it and one person to us.
   email: text("email").notNull(),
   audience: text("audience").$type<"company" | "individual">().notNull(),
   locale: text("locale").$type<"id" | "en">().notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // One row per address. A repeat submit is someone clicking twice or coming
+  // back later, not a second lead — and without this the table quietly fills
+  // with duplicates that nothing in the app is there to clean up.
+  //
+  // The first `audience`/`locale` seen wins, since the insert does nothing on
+  // conflict. That is the right way round: it keeps the context from the page
+  // they first decided on, rather than the last one they happened to reload.
+  uniqueIndex("landing_leads_email_unique").on(t.email),
+]);

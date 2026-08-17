@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "landing_leads_email_unique" ON "landing_leads" USING btree ("email");
