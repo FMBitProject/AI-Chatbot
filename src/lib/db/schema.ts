@@ -374,3 +374,15 @@ export const slackInstallations = pgTable("slack_installations", {
   // than the app silently fanning a company's documents out to N workspaces.
   uniqueIndex("slack_installations_company_idx").on(t.companyId),
 ]);
+
+// A landing-page visitor who isn't ready to sign up, leaving an email instead
+// of a full account. No relation to `companies` or `users` — most of these
+// never become either, and forcing one now would mean inventing a workspace
+// for an address that just wants a follow-up.
+export const landingLeads = pgTable("landing_leads", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  audience: text("audience").$type<"company" | "individual">().notNull(),
+  locale: text("locale").$type<"id" | "en">().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
