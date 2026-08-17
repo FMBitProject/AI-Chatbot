@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState, type FormEvent } from "react";
+import { useState, useRef, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -600,20 +600,42 @@ export function LandingContent() {
   const [leadEmail, setLeadEmail] = useState("");
   const [leadWebsite, setLeadWebsite] = useState("");
   const [leadStatus, setLeadStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  // A ref, not the status above, because the guard has to hold *within* a tick.
+  // Two submits fired before React re-renders (Enter pressed twice) both read
+  // the same "idle" from the closure and both POST — two rows for one person,
+  // and the disabled button never gets a chance to intervene.
+  const leadInFlight = useRef(false);
 
   async function submitLead(e: FormEvent) {
     e.preventDefault();
-    if (leadStatus === "loading" || leadStatus === "done") return;
+    if (leadInFlight.current || leadStatus === "done") return;
+    leadInFlight.current = true;
     setLeadStatus("loading");
+
+    // Without this a server that accepts the connection and then never answers
+    // leaves the form disabled forever: fetch does not reject on its own, so
+    // the button stays greyed out with no way back short of reloading.
+    //
+    // Feature-detected for the same reason /admin does it — AbortSignal.timeout
+    // throws on older browsers, and calling it unguarded here would put every
+    // one of those visitors straight into the error branch, turning a working
+    // form into one that never submits.
+    const timeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(10_000)
+      : undefined;
+
     try {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: leadEmail, audience, locale: lang, website: leadWebsite }),
+        signal: timeout,
       });
       setLeadStatus(res.ok ? "done" : "error");
     } catch {
       setLeadStatus("error");
+    } finally {
+      leadInFlight.current = false;
     }
   }
 
@@ -1155,9 +1177,28 @@ export function LandingContent() {
             <>
               <p className="text-teal-100 text-xs">{T.leadLabel}</p>
               <div className="flex w-full gap-2">
-                {/* Off-screen, not display:none — a screen reader still
-                    ignores it via tabIndex/aria-hidden, but some bots skip
-                    fields display:none hides while still filling this one. */}
+                {/* aria-label, not the <p> above: that paragraph is not tied to
+                    this input by anything, and a placeholder is not a name — a
+                    screen reader would announce this field as unlabelled. */}
+                <input
+                  type="email"
+                  required
+                  value={leadEmail}
+                  onChange={(e) => setLeadEmail(e.target.value)}
+                  placeholder={T.leadPlaceholder}
+                  aria-label={T.leadLabel}
+                  className="flex-1 h-10 rounded-md border border-white/30 bg-white/10 px-3 text-sm text-white placeholder:text-teal-200/60 focus:outline-none focus:border-white/60"
+                />
+                {/* Honeypot, and deliberately the *last* field rather than the
+                    first. Password managers fill by position and heuristic as
+                    much as by name, and a bare text input sitting ahead of the
+                    email box is what "username" looks like to one — which would
+                    trip the trap on a real person and drop their address while
+                    still telling them it went through. No name or id either,
+                    for the same reason: nothing here for a matcher to grab.
+
+                    Off-screen rather than display:none, because some bots skip
+                    what that hides while still filling this. */}
                 <input
                   type="text"
                   value={leadWebsite}
@@ -1166,14 +1207,6 @@ export function LandingContent() {
                   autoComplete="off"
                   aria-hidden="true"
                   className="absolute -left-[9999px] h-0 w-0"
-                />
-                <input
-                  type="email"
-                  required
-                  value={leadEmail}
-                  onChange={(e) => setLeadEmail(e.target.value)}
-                  placeholder={T.leadPlaceholder}
-                  className="flex-1 h-10 rounded-md border border-white/30 bg-white/10 px-3 text-sm text-white placeholder:text-teal-200/60 focus:outline-none focus:border-white/60"
                 />
                 <Button
                   type="submit"
