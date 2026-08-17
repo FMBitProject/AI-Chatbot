@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -108,6 +108,13 @@ const CONTENT = {
       { v: "100%", l: "Isolasi data antar perusahaan" },
       { v: "10 menit", l: "Waktu setup hingga siap pakai" },
     ] satisfies Stat[],
+    problemTitle: "Masalahnya Bukan Karyawan Anda",
+    problemDesc: "Ini yang biasanya terjadi setiap hari sebelum ada satu tempat untuk bertanya.",
+    problemPoints: [
+      "Karyawan baru menghabiskan berjam-jam mencari SOP yang benar — atau menebak-nebak lewat rekan kerja yang belum tentu tahu jawabannya.",
+      "Kebijakan tersebar di email, folder bersama, dan grup chat. Versi mana yang terbaru sering jadi tebakan.",
+      "Admin HR dan IT dibanjiri pertanyaan berulang yang jawabannya sebenarnya sudah ada di dokumen resmi.",
+    ],
     // "Cocok untuk", not "dipakai oleh": we have no customers in these
     // industries to point at yet, and the row only claims the product fits
     // their documents — which is what the doc types under each name show.
@@ -178,6 +185,11 @@ const CONTENT = {
     // an unconvinced visitor leaves a trace instead of just leaving.
     consult: "Belum yakin? Konsultasi gratis dulu",
     consultNote: "Balasan lewat email · Tanpa biaya, tanpa komitmen",
+    leadLabel: "Atau tinggalkan email, kami hubungi lebih dulu",
+    leadPlaceholder: "email@perusahaan.com",
+    leadBtn: "Kirim",
+    leadSuccess: "Terima kasih — kami akan menghubungi Anda.",
+    leadError: "Gagal mengirim. Coba lagi sebentar lagi.",
     roiTeaser: {
       badge: "💡 Hitung Sendiri",
       title: "Berapa Kerugian Perusahaan Anda Setiap Bulan?",
@@ -221,6 +233,13 @@ const CONTENT = {
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
     ] satisfies Stat[],
+    problemTitle: "It's Not Your Employees — It's the Search",
+    problemDesc: "This is what usually happens every day before there's one place to ask.",
+    problemPoints: [
+      "New hires spend hours hunting for the right SOP — or guess by asking a coworker who may not know either.",
+      "Policies are scattered across email, shared folders, and group chats. Which version is current is often a guess.",
+      "HR and IT admins get flooded with the same repeat questions that already have an answer sitting in an official document.",
+    ],
     industriesTitle: "Also fits other industries",
     industriesDesc: "Every industry has its own document vocabulary. The AI answers from your official documents, whatever you call them.",
     industriesMore: "Learn more",
@@ -282,6 +301,11 @@ const CONTENT = {
     ctaBtn2: "Talk to Us First",
     consult: "Not sure yet? Book a free consultation",
     consultNote: "We reply by email · Free, no commitment",
+    leadLabel: "Or leave your email and we'll reach out first",
+    leadPlaceholder: "email@company.com",
+    leadBtn: "Send",
+    leadSuccess: "Thanks — we'll be in touch.",
+    leadError: "Something went wrong. Please try again shortly.",
     roiTeaser: {
       badge: "💡 Calculate Yourself",
       title: "How Much Is Your Company Losing Every Month?",
@@ -336,6 +360,13 @@ const INDIVIDUAL_CONTENT = {
       { v: "Hanya Anda", l: "Yang bisa membuka dokumen Anda" },
       { v: "10 menit", l: "Waktu setup hingga siap pakai", estimate: true },
     ] satisfies Stat[],
+    problemTitle: "Rasanya Familiar?",
+    problemDesc: "Ini yang biasanya terjadi sebelum semua dokumen Anda ada di satu tempat yang bisa ditanya.",
+    problemPoints: [
+      "Catatan kuliah, kontrak, dan manual alat tersebar di banyak folder dan aplikasi berbeda.",
+      "Ctrl+F menemukan kata yang tepat, tapi tidak menemukan maknanya — jadi Anda tetap harus membaca ulang halaman demi halaman.",
+      "Detail kecil yang sebenarnya sudah pernah Anda baca, harus dicari ulang dari awal setiap kali lupa.",
+    ],
     howTitle: "Cara Kerjanya",
     howDesc: "Dua langkah. Tidak ada yang perlu disiapkan untuk orang lain.",
     // Two steps, not three. The company flow's middle step is inviting
@@ -405,6 +436,13 @@ const INDIVIDUAL_CONTENT = {
       { v: "Only you", l: "Can open your documents" },
       { v: "10 min", l: "Setup time until ready", estimate: true },
     ] satisfies Stat[],
+    problemTitle: "Sound Familiar?",
+    problemDesc: "This is what usually happens before every document you own lives in one place you can just ask.",
+    problemPoints: [
+      "Lecture notes, contracts, and equipment manuals scattered across different folders and apps.",
+      "Ctrl+F finds the right word, but not the right meaning — so you still end up rereading page after page.",
+      "A small detail you already read once has to be hunted down again from scratch every time you forget it.",
+    ],
     howTitle: "How It Works",
     howDesc: "Two steps. Nothing to set up on anyone else's behalf.",
     steps: [
@@ -553,6 +591,31 @@ export function LandingContent() {
   // input the visitor moves — so the teaser and the calculator it links to
   // cannot quote different numbers for the same company size.
   const teaser = calculateRoi({ ...ROI_DEFAULTS, employees: teaserEmployees });
+
+  // The bottom CTA's other exit is a mailto link — real, but it hands the
+  // visitor off to their own mail client with nothing kept on our side. This
+  // is the low-friction alternative: an email stored against this audience
+  // and language, for someone not ready to open /register but willing to
+  // leave a trace. `leadWebsite` is the honeypot the form below never shows.
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadWebsite, setLeadWebsite] = useState("");
+  const [leadStatus, setLeadStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+
+  async function submitLead(e: FormEvent) {
+    e.preventDefault();
+    if (leadStatus === "loading" || leadStatus === "done") return;
+    setLeadStatus("loading");
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: leadEmail, audience, locale: lang, website: leadWebsite }),
+      });
+      setLeadStatus(res.ok ? "done" : "error");
+    } catch {
+      setLeadStatus("error");
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -763,6 +826,26 @@ export function LandingContent() {
       </section>
       )}
 
+      {/* Problem
+          The page went straight from the hero's promise into the industries
+          band and the product demo — nothing named the visitor's actual pain
+          first. Three flat cards, not an icon-heavy section: the point is to
+          be recognised in a few seconds, not to compete with the hero above
+          or the proof below it. */}
+      <section className="pb-10 px-6">
+        <div className="max-w-4xl mx-auto text-center mb-8">
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.problemTitle}</h2>
+          <p className="text-gray-500">{T.problemDesc}</p>
+        </div>
+        <div className="max-w-4xl mx-auto grid gap-4 sm:grid-cols-3">
+          {T.problemPoints.map((p) => (
+            <div key={p} className="rounded-xl border border-hairline bg-raised p-5">
+              <p className="text-sm text-gray-700 leading-relaxed">{p}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Demo video */}
       <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
@@ -773,8 +856,12 @@ export function LandingContent() {
             {T.stats.map((s) => (
               // aria-describedby, not a bare "*": it points a screen reader at
               // the footnote instead of announcing a star with no explanation.
+              // The asterisk alone wasn't doing its job — at the same size and
+              // weight as the hard facts next to it, an estimate like "< 3 detik"
+              // still read as a headline number. One size and weight down keeps
+              // it legible but visibly secondary to what's actually measured.
               <div key={s.l} className="text-center" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
-                <p className="text-3xl font-bold text-white mb-1">{s.v}</p>
+                <p className={s.estimate ? "text-2xl font-semibold text-white/90 mb-1" : "text-3xl font-bold text-white mb-1"}>{s.v}</p>
                 <p className="text-teal-100 text-sm">
                   {s.l}
                   {s.estimate && <sup aria-hidden="true"> *</sup>}
@@ -1049,13 +1136,57 @@ export function LandingContent() {
         </div>
         {/* The address in plain text, not only behind the mailto: a browser
             with no mail handler registered does nothing at all when that link
-            is clicked — no error, no window — and this is the one CTA on the
-            page for visitors not ready to sign up. Reading the address is the
+            is clicked — no error, no window. Reading the address is the
             fallback for a click that silently goes nowhere. */}
         <p className="text-teal-200/80 text-xs mt-5">
           {T.consultNote} ·{" "}
           <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-4 hover:text-white">{SUPPORT_EMAIL}</a>
         </p>
+
+        {/* A second, lower-friction exit next to the mailto above: no mail
+            client to switch to, and — unlike the mailto — a record on our
+            side to follow up on. Kept to one field on purpose; audience and
+            language are already known from page state, so the form asks for
+            nothing the visitor would have to think about. */}
+        <form onSubmit={submitLead} className="max-w-sm mx-auto mt-8 flex flex-col items-center gap-2">
+          {leadStatus === "done" ? (
+            <p className="text-white text-sm font-medium">{T.leadSuccess}</p>
+          ) : (
+            <>
+              <p className="text-teal-100 text-xs">{T.leadLabel}</p>
+              <div className="flex w-full gap-2">
+                {/* Off-screen, not display:none — a screen reader still
+                    ignores it via tabIndex/aria-hidden, but some bots skip
+                    fields display:none hides while still filling this one. */}
+                <input
+                  type="text"
+                  value={leadWebsite}
+                  onChange={(e) => setLeadWebsite(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  aria-hidden="true"
+                  className="absolute -left-[9999px] h-0 w-0"
+                />
+                <input
+                  type="email"
+                  required
+                  value={leadEmail}
+                  onChange={(e) => setLeadEmail(e.target.value)}
+                  placeholder={T.leadPlaceholder}
+                  className="flex-1 h-10 rounded-md border border-white/30 bg-white/10 px-3 text-sm text-white placeholder:text-teal-200/60 focus:outline-none focus:border-white/60"
+                />
+                <Button
+                  type="submit"
+                  disabled={leadStatus === "loading"}
+                  className="bg-white text-teal-700 hover:bg-teal-50 h-10 px-4 shrink-0"
+                >
+                  {T.leadBtn}
+                </Button>
+              </div>
+              {leadStatus === "error" && <p className="text-teal-100 text-xs">{T.leadError}</p>}
+            </>
+          )}
+        </form>
       </section>
 
       {/* Footer
