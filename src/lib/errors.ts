@@ -54,7 +54,14 @@ export type ErrorCode =
   | "AI_REQUIRES_PAID_PLAN"
   | "BYOK_KEY_UNREADABLE"
   | "AI_RATE_LIMIT"
-  | "AI_ERROR";
+  | "AI_ERROR"
+  // Input bounds. Also already in use — /api/chat and /api/search send these
+  // with a `limit` alongside. They were missing from this union at first, which
+  // meant getUserMessage fell through to INTERNAL_ERROR and told someone whose
+  // question was too long that something had gone wrong on our end.
+  | "QUESTION_TOO_LONG"
+  | "QUERY_TOO_LONG"
+  | "INVALID_FOLDER";
 
 /** The body every failed request answers with, once a route has been migrated. */
 export interface ErrorEnvelope {
@@ -86,12 +93,20 @@ export class AppError extends Error {
    * `getUserMessage` answers instead.
    */
   readonly userMessage?: string;
+  /**
+   * The language this failure should be reported in, when the throw site knows
+   * it and the response layer cannot. /api/v1/query is the case that needs it:
+   * the caller asks for English in the request body, which is long out of scope
+   * by the time withApiErrors turns the throw into a response, so without this
+   * an English integration was answered in Indonesian.
+   */
+  readonly lang?: Lang;
 
   constructor(
     message: string,
     code: ErrorCode,
     statusCode = 500,
-    options: { details?: unknown; userMessage?: string; cause?: unknown } = {},
+    options: { details?: unknown; userMessage?: string; cause?: unknown; lang?: Lang } = {},
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -99,6 +114,7 @@ export class AppError extends Error {
     this.statusCode = statusCode;
     this.details = options.details;
     this.userMessage = options.userMessage;
+    this.lang = options.lang;
     if (options.cause !== undefined) this.cause = options.cause;
     // Not strictly required at the current ES2017 build target, where `extends
     // Error` already produces a real subclass. It is one call, and it makes
@@ -108,12 +124,17 @@ export class AppError extends Error {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 
-  /** The wire body for this error, ready to be serialised. */
+  /**
+   * The wire body for this error, ready to be serialised.
+   *
+   * `lang` is the responder's best guess; the error's own `lang` wins when it
+   * has one, because the throw site knew and the responder is guessing.
+   */
   envelope(lang: Lang = "id"): ErrorEnvelope {
     return {
       error: {
         code: this.code,
-        message: this.userMessage ?? getUserMessage(this.code, lang),
+        message: this.userMessage ?? getUserMessage(this.code, this.lang ?? lang),
         ...(this.details !== undefined ? { details: this.details } : {}),
       },
     };
@@ -258,7 +279,7 @@ export class ByokUnreadableError extends AppError {
  * wrong-status-page problem the parameter exists to prevent.
  */
 export class AiUnavailableError extends AppError {
-  constructor(rateLimited: boolean, provider?: string, options: { cause?: unknown } = {}) {
+  constructor(rateLimited: boolean, provider?: string, options: { cause?: unknown; lang?: Lang } = {}) {
     super(
       provider
         ? `AI provider ${provider} ${rateLimited ? "rate limited" : "failed"}`
@@ -340,6 +361,22 @@ const USER_MESSAGES: Record<ErrorCode, { id: string; en: string }> = {
   AI_ERROR: {
     id: "Layanan AI sedang mengalami gangguan. Silakan coba lagi.",
     en: "The AI service is having trouble. Please try again.",
+  },
+  // These three arrive with a `limit` in `details`, and a caller that shows it
+  // can say something better than the sentence here. The sentence still has to
+  // stand on its own, because the generic fallback for an unknown code claims
+  // the fault is ours — which is the opposite of true for all three.
+  QUESTION_TOO_LONG: {
+    id: "Pertanyaan Anda terlalu panjang. Persingkat lalu coba lagi.",
+    en: "Your question is too long. Please shorten it and try again.",
+  },
+  QUERY_TOO_LONG: {
+    id: "Kata kunci pencarian terlalu panjang. Persingkat lalu coba lagi.",
+    en: "That search is too long. Please shorten it and try again.",
+  },
+  INVALID_FOLDER: {
+    id: "Folder yang dipilih tidak valid. Pilih folder lain lalu coba lagi.",
+    en: "That folder is not valid. Pick another one and try again.",
   },
 };
 
