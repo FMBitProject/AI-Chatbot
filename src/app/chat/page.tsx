@@ -58,6 +58,17 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const responseLangRef = useRef<ResponseLang>(getStoredResponseLang());
+  // Temporary client id -> the server id that replaced it when the stream ended.
+  //
+  // An assistant message is rendered under a locally generated id and only takes
+  // the server's id once the stream finishes (see the setMessages below the read
+  // loop). The rating buttons appear as soon as there is text, so a rating sent
+  // mid-stream is sent under the temporary id and, by the time it comes back,
+  // the row it belongs to is under a different one. Without this map the revert
+  // in handleFeedback matches nothing: the toast says the rating was not saved
+  // while the thumb stays filled, which is the exact failure that fix existed to
+  // remove. Cleared whenever the transcript is, so it cannot grow unbounded.
+  const messageIdAliasRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
     loadSessions();
@@ -298,6 +309,9 @@ export default function ChatPage() {
         }
       }
 
+      // Recorded before the swap, so a rating already in flight under the
+      // temporary id can still find its row afterwards.
+      if (realMsgId !== assistantMsgId) messageIdAliasRef.current.set(assistantMsgId, realMsgId);
       setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, id: realMsgId, citations } : m));
       if (newSessionId && !activeSessionId) {
         setActiveSessionId(newSessionId);
@@ -339,6 +353,15 @@ export default function ChatPage() {
     const previous = messages.find((m) => m.id === messageId)?.feedback;
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback } : m));
 
+    // The row may be renamed while this request is in flight — see
+    // messageIdAliasRef. Resolved at revert time rather than now, because the
+    // rename happens *during* the await.
+    const revert = () =>
+      setMessages((prev) => {
+        const current = messageIdAliasRef.current.get(messageId) ?? messageId;
+        return prev.map((m) => (m.id === current ? { ...m, feedback: previous } : m));
+      });
+
     try {
       const res = await fetch("/api/chat/feedback", {
         method: "POST",
@@ -348,7 +371,7 @@ export default function ChatPage() {
       if (res.ok) return;
 
       const { code, message } = await readApiError(res, responseLangRef.current === "en" ? "en" : "id");
-      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback: previous } : m));
+      revert();
       toast({
         variant: "destructive",
         title: responseLangRef.current === "en" ? "Rating not saved." : "Penilaian tidak tersimpan.",
@@ -361,7 +384,7 @@ export default function ChatPage() {
           : message,
       });
     } catch {
-      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback: previous } : m));
+      revert();
       toast({
         variant: "destructive",
         title: responseLangRef.current === "en" ? "Rating not saved." : "Penilaian tidak tersimpan.",
@@ -376,12 +399,14 @@ export default function ChatPage() {
     abortRef.current?.abort();
     setActiveSessionId(null);
     setMessages([]);
+    messageIdAliasRef.current.clear();
   }
 
   async function handleSelectSession(id: string) {
     abortRef.current?.abort();
     setActiveSessionId(id);
     setMessages([]);
+    messageIdAliasRef.current.clear();
     await loadMessages(id);
   }
 

@@ -26,7 +26,11 @@ const ALERT_WINDOW_MS = 30 * 60 * 1000;
  * request. Use the same string the route's other log lines use — "chat",
  * "payment/webhook", "admin/upload".
  */
-export function handleApiError(error: unknown, label: string, lang: Lang = "id"): NextResponse<ErrorEnvelope> {
+export async function handleApiError(
+  error: unknown,
+  label: string,
+  lang: Lang = "id",
+): Promise<NextResponse<ErrorEnvelope>> {
   // Something we raised on purpose. The status, the code and the sentence were
   // all decided at the throw site, by the code that actually knew what went
   // wrong; there is nothing to work out here.
@@ -54,11 +58,19 @@ export function handleApiError(error: unknown, label: string, lang: Lang = "id")
   // driver error can carry a connection string, and a stack trace names files.
   console.error(`[${label}] Unhandled error:`, error);
 
-  // Raises it to a human. Deliberately fire-and-forget in effect but awaited in
-  // form — alertOps never throws and never rejects, so this cannot turn a 500
-  // into a hang or a second failure. It stays log-only until ALERT_EMAIL is set
-  // in the environment, which is the one remaining step to make it audible.
-  void alertOps({
+  // Raises it to a human, and genuinely awaited — this used to be `void`, which
+  // meant the alert was a floating promise on a serverless runtime that is free
+  // to freeze the instance the moment the response is returned. The mail simply
+  // would not be sent, for exactly the errors it exists to report. @/lib/alerts
+  // says so in its own docstring, and it is the same fire-and-forget the error
+  // handling checklist forbids.
+  //
+  // Awaiting is affordable because alertOps claims its dedupe slot *before* it
+  // sends: only the first unhandled error from a route in ALERT_WINDOW_MS pays
+  // the wait, and that wait is bounded to 5s inside alertOps. It never throws or
+  // rejects, so it cannot turn this 500 into a hang or a second failure. Stays
+  // log-only until ALERT_EMAIL is set in the environment.
+  await alertOps({
     dedupeKey: `route-error:${label}:${error instanceof Error ? error.name : "unknown"}`,
     subject: `Unhandled error in ${label}`,
     details: {
