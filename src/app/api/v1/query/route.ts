@@ -14,7 +14,7 @@ import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withApiErrors } from "@/lib/api-error";
-import { AiUnavailableError } from "@/lib/errors";
+import { AiUnavailableError, AppError } from "@/lib/errors";
 
 // Only failed key lookups count toward this, so valid integrations are never
 // throttled here (they are governed by the plan quotas below instead).
@@ -93,19 +93,28 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     );
   }
 
-  // Everything past the quota charge runs inside this block, and the catch gives
-  // the question back.
+  // The three steps that can fail after the question has been paid for, and the
+  // catch below gives it back for all of them.
   //
   // The charge has to happen first — that is what makes the limit atomic and
-  // stops concurrent callers overshooting it — so every failure below is one the
+  // stops concurrent callers overshooting it — so every failure here is one the
   // customer paid for and did not cause. Without the refund, an afternoon of
-  // Groq 429s silently eats a Starter workspace's monthly allowance, and nothing
-  // in the product ever explains where the questions went. The comment above
-  // consumeQuestionQuota already made this argument for the BYOK case; it is the
-  // same argument, and it applies to the three calls below just as well.
+  // Groq 429s silently eats a Starter workspace's monthly allowance and nothing
+  // in the product ever explains where the questions went.
+  //
+  // `stage` is what lets the catch say which of the three actually failed. It is
+  // not bookkeeping: without it a Postgres outage during retrieval was reported
+  // to the integration as AI_ERROR, which is the "wrong status page" mistake the
+  // note further down congratulates itself on avoiding.
+  let stage: "embedding" | "retrieval" | "generation" = "embedding";
+  let answer: { text: string; model: { id: string } };
+  let scored: { id: string; text: string }[];
+
   try {
     const queryEmbedding = await getEmbedding(question, byok.gemini);
-    const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
+
+    stage = "retrieval";
+    scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
       companyId: apiKey.companyId,
       queryEmbedding,
       maxDocuments: limits.maxDocuments,
@@ -117,7 +126,8 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     // Down the shared chain rather than one hardcoded model. This endpoint is
     // called by scripts and integrations, which retry badly or not at all, so a
     // one-minute Groq refusal used to surface as a 500 in someone else's system.
-    const { text, model } = await generateWithFallback({
+    stage = "generation";
+    answer = await generateWithFallback({
       label: "v1/query",
       keys: { groq: byok.groq, gemini: byok.gemini },
       // The grounding rule here used to be one sentence: "Answer ONLY based on
@@ -132,30 +142,44 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       temperature: RAG_TEMPERATURE,
     });
 
-    return NextResponse.json({
-      answer: text,
-      sources: scored.map((c) => ({ id: c.id, excerpt: c.text.slice(0, 200) })),
-      // The model that actually answered, not the one at the top of the chain.
-      // This field was a hardcoded string; with a fallback behind it that would
-      // have become a lie told to an integration that has no other way to know
-      // which model wrote the answer it is about to store.
-      model: model.id,
-    });
   } catch (error) {
-    // Refunded before the error is raised, so the question is back even if
-    // building the response somehow fails after this. refundQuestionQuota never
-    // throws, so it cannot displace the real error.
+    // Refunded first, and it never throws, so it cannot displace the real error.
     await refundQuestionQuota(apiKey.companyId, limits, "v1/query");
 
-    // A 503 with a code, not the bare 500 this used to be. The route had no
+    // A coded response, not the bare 500 this used to be. The route had no
     // try/catch at all, so any of the three awaits above reached Next's default
     // handler and answered with a non-JSON body — which an integration calling
     // res.json() turns into a SyntaxError on its side, blaming its own parser
     // for our outage.
     //
-    // No provider named: generateWithFallback rethrows the last error unchanged
-    // without saying which link raised it, and getEmbedding is Gemini either
-    // way. Guessing here is how an admin ends up reading the wrong status page.
-    throw new AiUnavailableError(isRateLimitFailure(error), undefined, { cause: error });
+    // Our database is not an AI provider. Telling an integration that the AI
+    // service is down when Postgres is unreachable sends whoever reads that log
+    // to Groq's status page over our own outage.
+    if (stage === "retrieval") {
+      throw new AppError("Document retrieval failed", "INTERNAL_ERROR", 500, { cause: error });
+    }
+
+    // Named for the embedding step because there is only one provider it can be;
+    // left unnamed for generation because generateWithFallback rethrows the last
+    // error unchanged without saying which link in the chain raised it, and
+    // guessing is how an admin ends up reading the wrong status page.
+    throw new AiUnavailableError(
+      isRateLimitFailure(error),
+      stage === "embedding" ? "gemini" : undefined,
+      { cause: error },
+    );
   }
+
+  // Outside the try on purpose: serialising the response is not one of the three
+  // steps the catch above refunds for, and a failure here would otherwise hand
+  // back a question that was answered.
+  return NextResponse.json({
+    answer: answer.text,
+    sources: scored.map((c) => ({ id: c.id, excerpt: c.text.slice(0, 200) })),
+    // The model that actually answered, not the one at the top of the chain.
+    // This field was a hardcoded string; with a fallback behind it that would
+    // have become a lie told to an integration that has no other way to know
+    // which model wrote the answer it is about to store.
+    model: answer.model.id,
+  });
 });
