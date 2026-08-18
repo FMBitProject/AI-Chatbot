@@ -61,10 +61,15 @@ async function driveFetch(path: string, accessToken: string, timeoutMs: number):
     // doesn't imply the file itself is the problem.
     console.error(`[google-drive] ${path} did not complete:`, error);
     throw new DocumentError(
-      "Google Drive tidak merespons tepat waktu untuk file ini. Coba lagi sebentar lagi."
+      "Google Drive tidak merespons tepat waktu untuk file ini. Coba lagi sebentar lagi.",
+      { code: "UPSTREAM_ERROR", statusCode: 502, cause: error }
     );
   }
   if (res.status === 401) {
+    // Deliberately left at the default 400 rather than 401. This is Google's
+    // token expiring, not ours, and a 401 leaving this app is the signal a
+    // client uses to decide the user has been signed out — answering one here
+    // would sign an admin out of IntelliBase because their Drive grant lapsed.
     throw new DocumentError(
       "Sesi Google Drive sudah berakhir. Klik \"Sambungkan Google Drive\" lagi lalu pilih ulang filenya."
     );
@@ -72,7 +77,10 @@ async function driveFetch(path: string, accessToken: string, timeoutMs: number):
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     console.error(`[google-drive] ${path} failed: ${res.status} ${body}`);
-    throw new DocumentError("Google Drive tidak bisa dihubungi untuk file ini. Coba lagi sebentar lagi.");
+    throw new DocumentError(
+      "Google Drive tidak bisa dihubungi untuk file ini. Coba lagi sebentar lagi.",
+      { code: "UPSTREAM_ERROR", statusCode: 502 }
+    );
   }
   return res;
 }
@@ -93,7 +101,10 @@ function parseDriveMetadata(data: unknown): DriveFileMetadata {
     typeof (data as Record<string, unknown>).mimeType !== "string"
   ) {
     console.error("[google-drive] unexpected metadata shape:", data);
-    throw new DocumentError("Google Drive mengirim data file yang tidak dikenali. Coba lagi.");
+    throw new DocumentError(
+      "Google Drive mengirim data file yang tidak dikenali. Coba lagi.",
+      { code: "UPSTREAM_ERROR", statusCode: 502 }
+    );
   }
   const d = data as { id: string; name: string; mimeType: string; size?: unknown };
   const size = typeof d.size === "string" && d.size !== "" ? Number(d.size) : null;

@@ -4,11 +4,32 @@
 // FormData vs a Drive API download), and need identical parsing behavior so a
 // document reads the same regardless of how it entered the system.
 
+import { AppError, type ErrorCode } from "./errors";
+
 // Failures an admin can actually act on (a scanned PDF, a corrupt file, a
 // password-protected one) carry a specific message that gets stored on the
 // document row and shown in the admin UI. Everything else falls back to a
 // generic message, with the real detail left in the server log.
-export class DocumentError extends Error {}
+//
+// Under AppError rather than Error, because that promise — "this message was
+// written for an admin to read" — is exactly what `userMessage` means, and
+// saying it in the type saves every call site from having to remember it. The
+// default status is 400: the common case is a file this system cannot make
+// sense of, which the caller fixes by uploading a different one. `code` and
+// `statusCode` are overridable for the cases that are not, notably the Drive
+// fetch failures in @/lib/google-drive — somebody else's outage, which should
+// not be reported as a bad request.
+export class DocumentError extends AppError {
+  constructor(
+    message: string,
+    options: { code?: ErrorCode; statusCode?: number; cause?: unknown } = {},
+  ) {
+    super(message, options.code ?? "VALIDATION_ERROR", options.statusCode ?? 400, {
+      userMessage: message,
+      cause: options.cause,
+    });
+  }
+}
 
 // pdf.js (bundled inside unpdf) calls Math.sumPrecise, which only lands in
 // Node 24. On older runtimes every page logs a TypeError warning, so provide it
