@@ -142,6 +142,64 @@ export async function consumeQuestionQuota(
     : { limit: maxQuestionsPerMonth, period: "monthly" };
 }
 
+/**
+ * Gives back a question that `consumeQuestionQuota` charged for but that was
+ * never answered.
+ *
+ * The quota has to be spent *before* the model is called — that is what makes
+ * the check atomic and stops concurrent questions overshooting a limit — which
+ * means a provider outage charges the customer for our failure. On a Starter
+ * workspace of 30 questions a month, a bad afternoon at Groq could quietly eat
+ * a third of what they paid for, and nothing in the product would ever tell
+ * them why the number went down.
+ *
+ * Only for failures that produced no answer. A question that was answered and
+ * then failed to save is still a question that was answered.
+ *
+ * Never throws. Callers are already on a failure path, building an error
+ * response for someone; a failed refund must not turn that into a second,
+ * worse failure. It logs loudly instead — an unrefunded question is a customer
+ * one short, which is worth a human noticing.
+ */
+export async function refundQuestionQuota(
+  companyId: string,
+  limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number },
+  label: string,
+): Promise<void> {
+  // Nothing was charged, so there is nothing to give back. Mirrors the same
+  // early return in consumeQuestionQuota — the two must agree, or a refund here
+  // would decrement a counter that was never incremented.
+  if (limits.maxQuestionsPerDay === -1 && limits.maxQuestionsPerMonth === -1) return;
+
+  const now = new Date();
+  const today = now.toISOString().split("T")[0]; // "YYYY-MM-DD" (UTC)
+  const month = today.slice(0, 7);               // "YYYY-MM"   (UTC)
+
+  try {
+    // Both counters, because consumeQuestionQuota's SET clause increments both
+    // regardless of which limits are -1.
+    //
+    // Each is guarded on its own date still matching. A question charged at
+    // 23:59:59 and refunded at 00:00:01 finds `daily_question_date` already
+    // rolled to the new day, and the guard declines rather than taking one off a
+    // day that never charged it. That leaves the customer one question short in
+    // a vanishingly rare window, which is the right way round: a counter that is
+    // slightly too high self-corrects at midnight, one that is wrong for the
+    // wrong day does not.
+    //
+    // GREATEST(…, 0) so a double refund — a retry, a second error path — can
+    // never drive a counter negative and hand out free questions.
+    await db.update(companies)
+      .set({
+        dailyQuestionCount: sql`CASE WHEN daily_question_date = ${today} THEN GREATEST(daily_question_count - 1, 0) ELSE daily_question_count END`,
+        monthlyQuestionCount: sql`CASE WHEN monthly_question_month = ${month} THEN GREATEST(monthly_question_count - 1, 0) ELSE monthly_question_count END`,
+      })
+      .where(eq(companies.id, companyId));
+  } catch (err) {
+    console.error(`[${label}] Could not refund the question quota for company ${companyId}:`, err);
+  }
+}
+
 // Seats above the plan's employee limit are frozen, not deleted: the accounts
 // created first keep working and the rest come back untouched the moment the
 // company subscribes again. Admins are never frozen — locking the admin out of

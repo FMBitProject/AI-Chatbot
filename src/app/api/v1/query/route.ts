@@ -1,24 +1,26 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
-import { consumeQuestionQuota, resolvePlanById } from "@/lib/subscription";
+import { consumeQuestionQuota, refundQuestionQuota, resolvePlanById } from "@/lib/subscription";
 import { hashApiKey } from "@/lib/api-key";
 import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
-import { generateWithFallback } from "@/lib/models";
+import { generateWithFallback, isRateLimitFailure } from "@/lib/models";
 import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
+import { withApiErrors } from "@/lib/api-error";
+import { AiUnavailableError } from "@/lib/errors";
 
 // Only failed key lookups count toward this, so valid integrations are never
 // throttled here (they are governed by the plan quotas below instead).
 const BAD_KEY_LIMIT = { max: 10, windowMs: 60 * 1000 };
 
-export async function POST(req: NextRequest) {
+export const POST = withApiErrors("v1/query", async (req: Request) => {
   const authorization = req.headers.get("authorization");
   const key = authorization?.replace("Bearer ", "").trim();
 
@@ -91,41 +93,69 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const queryEmbedding = await getEmbedding(question, byok.gemini);
-  const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
-    companyId: apiKey.companyId,
-    queryEmbedding,
-    maxDocuments: limits.maxDocuments,
-  }, tx))).slice(0, 4);
+  // Everything past the quota charge runs inside this block, and the catch gives
+  // the question back.
+  //
+  // The charge has to happen first — that is what makes the limit atomic and
+  // stops concurrent callers overshooting it — so every failure below is one the
+  // customer paid for and did not cause. Without the refund, an afternoon of
+  // Groq 429s silently eats a Starter workspace's monthly allowance, and nothing
+  // in the product ever explains where the questions went. The comment above
+  // consumeQuestionQuota already made this argument for the BYOK case; it is the
+  // same argument, and it applies to the three calls below just as well.
+  try {
+    const queryEmbedding = await getEmbedding(question, byok.gemini);
+    const scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
+      companyId: apiKey.companyId,
+      queryEmbedding,
+      maxDocuments: limits.maxDocuments,
+    }, tx))).slice(0, 4);
 
-  const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
-  const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";
+    const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
+    const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";
 
-  // Down the shared chain rather than one hardcoded model. This endpoint is
-  // called by scripts and integrations, which retry badly or not at all, so a
-  // one-minute Groq refusal used to surface as a 500 in someone else's system.
-  const { text, model } = await generateWithFallback({
-    label: "v1/query",
-    keys: { groq: byok.groq, gemini: byok.gemini },
-    // The grounding rule here used to be one sentence: "Answer ONLY based on
-    // the provided document context… If not found, say so clearly." Not wrong,
-    // just not enough — a model obeys it, reports the gap, and keeps writing.
-    // This channel answers machines rather than people, which makes an invented
-    // figure worse, not better: it arrives as JSON in someone else's system with
-    // a `sources` array beside it, and nothing downstream can tell which
-    // sentence came from a document.
-    system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant.\n\n${GROUNDING_RULES}\n\n${langRule}\n\n${GROUNDING_REMINDER}`,
-    prompt: `Context:\n${context}\n\nQuestion: ${question}`,
-    temperature: RAG_TEMPERATURE,
-  });
+    // Down the shared chain rather than one hardcoded model. This endpoint is
+    // called by scripts and integrations, which retry badly or not at all, so a
+    // one-minute Groq refusal used to surface as a 500 in someone else's system.
+    const { text, model } = await generateWithFallback({
+      label: "v1/query",
+      keys: { groq: byok.groq, gemini: byok.gemini },
+      // The grounding rule here used to be one sentence: "Answer ONLY based on
+      // the provided document context… If not found, say so clearly." Not wrong,
+      // just not enough — a model obeys it, reports the gap, and keeps writing.
+      // This channel answers machines rather than people, which makes an invented
+      // figure worse, not better: it arrives as JSON in someone else's system with
+      // a `sources` array beside it, and nothing downstream can tell which
+      // sentence came from a document.
+      system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant.\n\n${GROUNDING_RULES}\n\n${langRule}\n\n${GROUNDING_REMINDER}`,
+      prompt: `Context:\n${context}\n\nQuestion: ${question}`,
+      temperature: RAG_TEMPERATURE,
+    });
 
-  return NextResponse.json({
-    answer: text,
-    sources: scored.map((c) => ({ id: c.id, excerpt: c.text.slice(0, 200) })),
-    // The model that actually answered, not the one at the top of the chain.
-    // This field was a hardcoded string; with a fallback behind it that would
-    // have become a lie told to an integration that has no other way to know
-    // which model wrote the answer it is about to store.
-    model: model.id,
-  });
-}
+    return NextResponse.json({
+      answer: text,
+      sources: scored.map((c) => ({ id: c.id, excerpt: c.text.slice(0, 200) })),
+      // The model that actually answered, not the one at the top of the chain.
+      // This field was a hardcoded string; with a fallback behind it that would
+      // have become a lie told to an integration that has no other way to know
+      // which model wrote the answer it is about to store.
+      model: model.id,
+    });
+  } catch (error) {
+    // Refunded before the error is raised, so the question is back even if
+    // building the response somehow fails after this. refundQuestionQuota never
+    // throws, so it cannot displace the real error.
+    await refundQuestionQuota(apiKey.companyId, limits, "v1/query");
+
+    // A 503 with a code, not the bare 500 this used to be. The route had no
+    // try/catch at all, so any of the three awaits above reached Next's default
+    // handler and answered with a non-JSON body — which an integration calling
+    // res.json() turns into a SyntaxError on its side, blaming its own parser
+    // for our outage.
+    //
+    // No provider named: generateWithFallback rethrows the last error unchanged
+    // without saying which link raised it, and getEmbedding is Gemini either
+    // way. Guessing here is how an admin ends up reading the wrong status page.
+    throw new AiUnavailableError(isRateLimitFailure(error), undefined, { cause: error });
+  }
+});
