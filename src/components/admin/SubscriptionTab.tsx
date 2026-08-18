@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,12 +60,47 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
     showGroq: false, showGemini: false, saving: false,
   });
 
-  useEffect(() => {
-    fetch("/api/admin/subscription").then((r) => r.json()).then((d: SubData) => setData(d)).catch(() => {});
-    fetch("/api/admin/company").then((r) => r.json()).then((d: { hasGroqKey: boolean; hasGeminiKey: boolean }) => {
-      if (d) setByok((p) => ({ ...p, hasGroqKey: !!d.hasGroqKey, hasGeminiKey: !!d.hasGeminiKey }));
-    }).catch(() => {});
+  // `data === null` cannot tell "still loading" from "the request failed", and
+  // the render below reports the second as a permanent "Memuat..." — a lie the
+  // reader has no way to see through. Same flag AnalyticsTab and AuditTab use.
+  const [failed, setFailed] = useState(false);
+
+  const load = useCallback(() => {
+    // `r.ok` before `r.json()`, and a shape check after it. Neither is optional
+    // here: an expired session answers 401 with `{ error: "Unauthorized" }`,
+    // which is valid JSON, so the old `.catch()` never fired and `setData`
+    // stored the error body. `if (!data)` on line below then passed — an object
+    // is truthy — and the render reached `data.limits.maxDocuments`, which threw
+    // a TypeError and took the whole admin page down to the 500 screen. The real
+    // problem was "please sign in again".
+    fetch("/api/admin/subscription")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: SubData | null) => {
+        if (d && d.limits && Array.isArray(d.history)) {
+          setData(d);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
+
+    // BYOK is a secondary read: the tab is still useful without it, so a failure
+    // here leaves the two flags false rather than failing the whole panel. The
+    // `r.ok` guard still matters — without it an error body's missing fields
+    // coerce to false anyway, but silently, and "no key stored" is exactly what
+    // an admin would act on by pasting theirs in again.
+    fetch("/api/admin/company")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { hasGroqKey?: boolean; hasGeminiKey?: boolean } | null) => {
+        if (d) setByok((p) => ({ ...p, hasGroqKey: !!d.hasGroqKey, hasGeminiKey: !!d.hasGeminiKey }));
+      })
+      .catch(() => {
+        console.warn("[SubscriptionTab] Could not read BYOK key status");
+      });
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   async function saveByokKey(provider: "groq" | "gemini", value: string | null) {
     setByok((p) => ({ ...p, saving: true }));
@@ -176,7 +211,19 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
     }
   }
 
-  if (!data) return <div className="text-center py-10 text-gray-400 text-sm">Memuat...</div>;
+  if (failed) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-sm text-gray-500 mb-3">
+          {lang === "en"
+            ? "Could not load your subscription. Check your connection, then try again."
+            : "Gagal memuat data langganan. Periksa koneksi Anda, lalu coba lagi."}
+        </p>
+        <Button variant="outline" size="sm" onClick={load}>{lang === "en" ? "Retry" : "Coba Lagi"}</Button>
+      </div>
+    );
+  }
+  if (!data) return <div className="text-center py-10 text-gray-400 text-sm">{lang === "en" ? "Loading..." : "Memuat..."}</div>;
 
   const inf = (v: number | null | undefined) => {
     if (v === null || v === undefined || v < 0) return lang === "en" ? "Unlimited" : "∞ Tak Terbatas";
