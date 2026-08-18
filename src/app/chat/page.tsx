@@ -5,6 +5,8 @@ import { ChatMessages, type Message, type Citation } from "@/components/chat/Cha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toaster } from "@/components/ui/toaster";
+import { toast } from "@/components/ui/use-toast";
+import { readApiError } from "@/lib/errors";
 import { Send, Download, Menu } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { SUPPORT_EMAIL } from "@/lib/contact";
@@ -317,13 +319,57 @@ export default function ChatPage() {
     setSuggestions([]);
   }
 
+  // Optimistic, then reverted if the server disagrees.
+  //
+  // This used to be neither: the fetch was fire-and-forget with no `res.ok`
+  // check and no catch, and the thumb turned blue whatever happened. That is
+  // the worst shape a failure can take here, because it corrupts the one
+  // signal we have about answer quality *and* hides that it did. Nobody
+  // reports a button that looks like it worked, so the numbers in the Audit tab
+  // would quietly stop counting with no way to tell how many were lost.
+  //
+  // A 404 is not hypothetical either: /api/chat/feedback answers one when the
+  // message row is not in the database, and the assistant row is only inserted
+  // after the stream finishes — so rating an answer while it is still being
+  // written is a legitimate way to get one, as is rating an answer whose insert
+  // failed (which /api/chat swallows on purpose to protect the response).
   async function handleFeedback(messageId: string, feedback: "up" | "down") {
-    await fetch("/api/chat/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messageId, feedback }),
-    });
+    // Captured before the optimistic write so the revert restores what was
+    // actually there, rather than clearing a rating the user had set earlier.
+    const previous = messages.find((m) => m.id === messageId)?.feedback;
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback } : m));
+
+    try {
+      const res = await fetch("/api/chat/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, feedback }),
+      });
+      if (res.ok) return;
+
+      const { code, message } = await readApiError(res, responseLangRef.current === "en" ? "en" : "id");
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback: previous } : m));
+      toast({
+        variant: "destructive",
+        title: responseLangRef.current === "en" ? "Rating not saved." : "Penilaian tidak tersimpan.",
+        // A 404 here means "this answer is not stored yet", which is a wait, not
+        // a fault — worth saying plainly instead of the generic "not found".
+        description: code === "NOT_FOUND"
+          ? (responseLangRef.current === "en"
+            ? "This answer is still being saved. Try again in a moment."
+            : "Jawaban ini masih disimpan. Coba lagi sebentar lagi.")
+          : message,
+      });
+    } catch {
+      setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback: previous } : m));
+      toast({
+        variant: "destructive",
+        title: responseLangRef.current === "en" ? "Rating not saved." : "Penilaian tidak tersimpan.",
+        description: responseLangRef.current === "en"
+          ? "Check your connection and try again."
+          : "Periksa koneksi Anda lalu coba lagi.",
+      });
+    }
   }
 
   function handleNewChat() {

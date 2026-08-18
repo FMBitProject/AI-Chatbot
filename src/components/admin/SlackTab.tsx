@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,16 +24,35 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
   const router = useRouter();
   const [status, setStatus] = useState<SlackStatus | null>(null);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [failed, setFailed] = useState(false);
   const canUseSlack = PAID_PLANS.includes(plan);
 
-  // TODO(minor): doesn't check r.ok before r.json() — a 401/403 (expired
-  // session) parses into a shape that doesn't match SlackStatus and silently
-  // renders as "not connected" instead of surfacing the real error.
-  function loadStatus() {
-    fetch("/api/admin/slack").then((r) => r.json()).then((d: SlackStatus) => setStatus(d)).catch(() => {});
-  }
+  // Checks r.ok before r.json(), which the TODO that used to sit here did not.
+  // The failure it describes was worse than "silently renders as not
+  // connected": an expired session answers 401 with `{ error: "Unauthorized" }`,
+  // which parses fine, so `.catch()` never ran and `status.connected` read
+  // `undefined` off the error body. A workspace that *is* connected then
+  // rendered the "Tambahkan ke Slack" button, and an admin following it would
+  // reinstall an integration that was never broken.
+  //
+  // `failed` is separate from `status === null` because that alone cannot tell
+  // "still loading" from "the request failed", and the render reports the
+  // second as a spinner that never stops.
+  const loadStatus = useCallback(() => {
+    fetch("/api/admin/slack")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: SlackStatus | null) => {
+        if (d && typeof d.connected === "boolean") {
+          setStatus(d);
+          setFailed(false);
+        } else {
+          setFailed(true);
+        }
+      })
+      .catch(() => setFailed(true));
+  }, []);
 
-  useEffect(loadStatus, []);
+  useEffect(() => { loadStatus(); }, [loadStatus]);
 
   // Picks up the redirect from /api/slack/oauth/callback (?slack=connected |
   // denied | error) once on mount, then strips the param so a refresh does not
@@ -110,6 +129,19 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
             </p>
           </CardContent>
         </Card>
+      ) : failed ? (
+        // Before the "Add to Slack" button, deliberately. A failed read cannot
+        // tell us whether this workspace is connected, and guessing "not
+        // connected" is the guess that costs something: it invites an admin to
+        // reinstall an integration that may be working perfectly.
+        <div className="text-sm">
+          <p className="text-gray-500 mb-3">
+            {lang === "en"
+              ? "Could not read the Slack connection status. Check your connection, then try again."
+              : "Gagal membaca status koneksi Slack. Periksa koneksi Anda, lalu coba lagi."}
+          </p>
+          <Button variant="outline" size="sm" onClick={loadStatus}>{lang === "en" ? "Retry" : "Coba Lagi"}</Button>
+        </div>
       ) : status === null ? (
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <Loader2 className="h-4 w-4 animate-spin" /> {lang === "en" ? "Loading…" : "Memuat…"}
