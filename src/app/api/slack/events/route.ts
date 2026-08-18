@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, slackClient, readSlackBody } from "@/lib/slack";
-import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
+import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
@@ -100,6 +100,12 @@ export async function POST(req: NextRequest) {
         }
       };
 
+      // Set only once a question has actually been charged, and holds the
+      // limits that charged it. The catch below covers the whole block, most of
+      // which runs before the quota is touched — refunding unconditionally
+      // there would hand back a question nobody paid for, and under concurrency
+      // that means taking one off a charge another request had just made.
+      let charged: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } | null = null;
       try {
         // Same bound /api/chat and /api/v1/query enforce (see @/lib/validate).
         if (question.length > LIMITS.question) {
@@ -155,6 +161,7 @@ export async function POST(req: NextRequest) {
             : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`);
           return;
         }
+        charged = limits;
 
         await say("⏳ Sedang mencari jawaban dari dokumen internal...");
 
@@ -170,6 +177,9 @@ export async function POST(req: NextRequest) {
         await say(formatSlackAnswer(answer));
       } catch (err) {
         console.error(`[slack/events] Failed to answer company ${companyId}:`, err);
+        // A charged question that produced no answer goes back. Guarded on
+        // `charged` because this catch also covers everything above the charge.
+        if (charged) await refundQuestionQuota(companyId, charged, "slack/events");
         await say("❌ Terjadi kesalahan. Silakan coba lagi.");
       }
     });

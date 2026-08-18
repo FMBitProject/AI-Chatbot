@@ -19,7 +19,7 @@ import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withTenant } from "@/lib/db/tenant";
-import { consumeQuestionQuota, isSeatActive, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
+import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
 
 // `describeAiFailure` used to live here, matching only the wording Groq uses.
@@ -227,6 +227,10 @@ export async function POST(req: NextRequest) {
   try {
     queryEmbedding = await getEmbedding(question, byok.gemini);
   } catch (err) {
+    // The question was charged one line above and no answer will come of it, so
+    // it goes back. Nothing about a Gemini outage is the reader's doing, and a
+    // Starter workspace has 30 a month to lose.
+    await refundQuestionQuota(companyId, limits, "chat");
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
       JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" }),
@@ -671,6 +675,14 @@ If no relevant information is found:
       // handed silence and renders an empty bubble, which reads as a broken page
       // rather than a limit that was hit.
       if (!answered) {
+        // Every model refused, or a generation died partway and its text is
+        // about to be replaced by the error frame. Either way the reader ends
+        // up with no answer, so the question they were charged for goes back.
+        //
+        // Deliberately not in the `answered` path below: an answer that arrived
+        // and then failed to save is still an answer that arrived, and refunding
+        // it would let a reader keep the reply *and* the question.
+        await refundQuestionQuota(companyId, limits, "chat");
         await writer.write(encoder.encode(`1:${JSON.stringify(describeAiFailure(lastError, lastProvider))}\n`));
         await closeWriter();
         return;

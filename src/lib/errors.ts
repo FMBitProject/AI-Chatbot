@@ -247,14 +247,22 @@ export class ByokUnreadableError extends AppError {
  * wrong status page. `rateLimited` separates "come back in a minute" from
  * "something is broken", which are different messages to a reader and different
  * decisions to a script.
+ *
+ * `provider` is optional, and omitting it is a real answer rather than
+ * laziness: `generateWithFallback` rethrows the last error unchanged without
+ * saying which link raised it, so a caller using that helper genuinely does not
+ * know. Leaving the field out says so. Guessing would produce exactly the
+ * wrong-status-page problem the parameter exists to prevent.
  */
 export class AiUnavailableError extends AppError {
-  constructor(provider: string, rateLimited: boolean, options: { cause?: unknown } = {}) {
+  constructor(rateLimited: boolean, provider?: string, options: { cause?: unknown } = {}) {
     super(
-      rateLimited ? `AI provider ${provider} rate limited` : `AI provider ${provider} failed`,
+      provider
+        ? `AI provider ${provider} ${rateLimited ? "rate limited" : "failed"}`
+        : `Every AI provider in the chain ${rateLimited ? "rate limited" : "failed"}`,
       rateLimited ? "AI_RATE_LIMIT" : "AI_ERROR",
       503,
-      { ...options, details: { provider } },
+      { ...options, ...(provider ? { details: { provider } } : {}) },
     );
   }
 }

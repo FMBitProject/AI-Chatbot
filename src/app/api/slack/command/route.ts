@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, readSlackBody } from "@/lib/slack";
-import { consumeQuestionQuota, isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
+import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
@@ -86,6 +86,12 @@ export async function POST(req: NextRequest) {
   }
 
   after(async () => {
+    // Set only once a question has actually been charged, and holds the limits
+    // that charged it. The catch below covers this whole block, most of which
+    // runs before the quota is touched — refunding unconditionally there would
+    // hand back a question nobody paid for, and under concurrency that means
+    // taking one off a charge some *other* request had just made.
+    let charged: { companyId: string; limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } } | null = null;
     try {
       const installation = await installationFor(teamId);
       if (!installation.ok) {
@@ -150,6 +156,7 @@ export async function POST(req: NextRequest) {
           : `❌ Kuota pertanyaan bulanan perusahaan sudah habis (${quotaFailure.limit}/bulan). Upgrade paket untuk menambah kuota.`);
         return;
       }
+      charged = { companyId, limits };
 
       const answer = await answerForSlack({
         question: text,
@@ -171,6 +178,9 @@ export async function POST(req: NextRequest) {
       );
     } catch (err) {
       console.error("[slack/command] Failed to answer:", err);
+      // A charged question that produced no answer goes back. Guarded on
+      // `charged` because this catch also covers everything above the charge.
+      if (charged) await refundQuestionQuota(charged.companyId, charged.limits, "slack/command");
       await reply(responseUrl, "❌ Terjadi kesalahan. Silakan coba lagi.");
     }
   });
