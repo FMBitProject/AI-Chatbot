@@ -432,6 +432,24 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       await tx.insert(chatMessages).values({ id: noDocMsgId, sessionId: resolvedSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
     });
 
+    // The question goes back. No model was asked anything here — the reply is a
+    // constant, chosen because the workspace has no documents at all — so
+    // charging for it bills someone for a sentence this file already knew.
+    //
+    // It lands on exactly the people least able to absorb it: a Starter
+    // workspace has 30 questions a month, and the days before anyone uploads
+    // anything are the days every question takes this path. A trial could spend
+    // its whole allowance being told there is nothing to search.
+    //
+    // Only this shortcut, not the model-produced "not found". When the catalog
+    // does have documents the model is asked, answers, and reports that nothing
+    // matched — a real generation on real content, charged like any other.
+    //
+    // After the inserts rather than before them, so this cannot double-refund:
+    // a throw above still leaves the give-back to POST's catch, and by the time
+    // control reaches here nothing else can fail before the response returns.
+    await refundQuestionQuota(companyId, limits, "chat");
+
     const encoder2 = new TextEncoder();
     const { readable: r2, writable: w2 } = new TransformStream<Uint8Array, Uint8Array>();
     const writer2 = w2.getWriter();

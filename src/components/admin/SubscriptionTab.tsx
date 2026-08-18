@@ -65,7 +65,19 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
   // reader has no way to see through. Same flag AnalyticsTab and AuditTab use.
   const [failed, setFailed] = useState(false);
 
+  // Bumped on every load. A response whose token no longer matches belongs to a
+  // request this component has already replaced — two clicks on "Coba Lagi", and
+  // the slower one lands last — and applying it would let a stale answer
+  // overwrite a fresher one.
+  //
+  // No unmount cleanup on purpose: React 18 discards a setState on an unmounted
+  // component silently rather than leaking, so invalidating here would buy
+  // nothing and only trip the exhaustive-deps rule about reading a ref in a
+  // cleanup function.
+  const loadTokenRef = useRef(0);
+
   const load = useCallback(() => {
+    const token = ++loadTokenRef.current;
     // `r.ok` before `r.json()`, and a shape check after it. Neither is optional
     // here: an expired session answers 401 with `{ error: "Unauthorized" }`,
     // which is valid JSON, so the old `.catch()` never fired and `setData`
@@ -76,6 +88,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
     fetch("/api/admin/subscription")
       .then((r) => (r.ok ? r.json() : null))
       .then((d: SubData | null) => {
+        if (token !== loadTokenRef.current) return;
         if (d && d.limits && Array.isArray(d.history)) {
           setData(d);
           setFailed(false);
@@ -83,7 +96,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
           setFailed(true);
         }
       })
-      .catch(() => setFailed(true));
+      .catch(() => { if (token === loadTokenRef.current) setFailed(true); });
 
     // BYOK is a secondary read: the tab is still useful without it, so a failure
     // here leaves the two flags false rather than failing the whole panel. The
@@ -93,6 +106,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
     fetch("/api/admin/company")
       .then((r) => (r.ok ? r.json() : null))
       .then((d: { hasGroqKey?: boolean; hasGeminiKey?: boolean } | null) => {
+        if (token !== loadTokenRef.current) return;
         if (d) setByok((p) => ({ ...p, hasGroqKey: !!d.hasGroqKey, hasGeminiKey: !!d.hasGeminiKey }));
       })
       .catch(() => {

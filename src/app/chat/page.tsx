@@ -69,6 +69,15 @@ export default function ChatPage() {
   // while the thumb stays filled, which is the exact failure that fix existed to
   // remove. Cleared whenever the transcript is, so it cannot grow unbounded.
   const messageIdAliasRef = useRef<Map<string, string>>(new Map());
+  // Message ids with a rating request already in flight.
+  //
+  // Two clicks on the same message before the first comes back would send two
+  // requests and, worse, read `previous` twice from a `messages` React has not
+  // re-rendered yet — so a failed second click would revert past the first
+  // instead of back to it. A ref rather than state because the second click has
+  // to be rejected before any re-render, exactly like the double-submit guard in
+  // SubscriptionTab.
+  const feedbackInFlightRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     loadSessions();
@@ -311,7 +320,17 @@ export default function ChatPage() {
 
       // Recorded before the swap, so a rating already in flight under the
       // temporary id can still find its row afterwards.
-      if (realMsgId !== assistantMsgId) messageIdAliasRef.current.set(assistantMsgId, realMsgId);
+      if (realMsgId !== assistantMsgId) {
+        messageIdAliasRef.current.set(assistantMsgId, realMsgId);
+        // The in-flight marker moves with the id. Without this a rating still
+        // running under the temporary id leaves the new id unguarded, and a
+        // second click would race the first: one request 404s and reverts while
+        // the other succeeds and sets, with the final state decided by whichever
+        // happened to land last.
+        if (feedbackInFlightRef.current.delete(assistantMsgId)) {
+          feedbackInFlightRef.current.add(realMsgId);
+        }
+      }
       setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, id: realMsgId, citations } : m));
       if (newSessionId && !activeSessionId) {
         setActiveSessionId(newSessionId);
@@ -348,8 +367,13 @@ export default function ChatPage() {
   // written is a legitimate way to get one, as is rating an answer whose insert
   // failed (which /api/chat swallows on purpose to protect the response).
   async function handleFeedback(messageId: string, feedback: "up" | "down") {
+    if (feedbackInFlightRef.current.has(messageId)) return;
+    feedbackInFlightRef.current.add(messageId);
+
     // Captured before the optimistic write so the revert restores what was
     // actually there, rather than clearing a rating the user had set earlier.
+    // Safe to read from this render's `messages` because the guard above means
+    // no other request for this id is outstanding.
     const previous = messages.find((m) => m.id === messageId)?.feedback;
     setMessages((prev) => prev.map((m) => m.id === messageId ? { ...m, feedback } : m));
 
@@ -392,6 +416,12 @@ export default function ChatPage() {
           ? "Check your connection and try again."
           : "Periksa koneksi Anda lalu coba lagi.",
       });
+    } finally {
+      // Both ids: the request may have started under the temporary one and
+      // finished after the rename moved the marker to the server one.
+      feedbackInFlightRef.current.delete(messageId);
+      const renamed = messageIdAliasRef.current.get(messageId);
+      if (renamed) feedbackInFlightRef.current.delete(renamed);
     }
   }
 
@@ -400,6 +430,7 @@ export default function ChatPage() {
     setActiveSessionId(null);
     setMessages([]);
     messageIdAliasRef.current.clear();
+    feedbackInFlightRef.current.clear();
   }
 
   async function handleSelectSession(id: string) {
@@ -407,6 +438,7 @@ export default function ChatPage() {
     setActiveSessionId(id);
     setMessages([]);
     messageIdAliasRef.current.clear();
+    feedbackInFlightRef.current.clear();
     await loadMessages(id);
   }
 

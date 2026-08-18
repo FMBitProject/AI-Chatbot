@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,10 +38,24 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
   // `failed` is separate from `status === null` because that alone cannot tell
   // "still loading" from "the request failed", and the render reports the
   // second as a spinner that never stops.
+
+  // Bumped on every load. A response whose token no longer matches belongs to a
+  // request this component has already replaced — two clicks on "Coba Lagi", and
+  // the slower one lands last — and applying it would let a stale answer
+  // overwrite a fresher one.
+  //
+  // No unmount cleanup on purpose: React 18 discards a setState on an unmounted
+  // component silently rather than leaking, so invalidating here would buy
+  // nothing and only trip the exhaustive-deps rule about reading a ref in a
+  // cleanup function.
+  const loadTokenRef = useRef(0);
+
   const loadStatus = useCallback(() => {
+    const token = ++loadTokenRef.current;
     fetch("/api/admin/slack")
       .then((r) => (r.ok ? r.json() : null))
       .then((d: SlackStatus | null) => {
+        if (token !== loadTokenRef.current) return;
         if (d && typeof d.connected === "boolean") {
           setStatus(d);
           setFailed(false);
@@ -49,7 +63,7 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
           setFailed(true);
         }
       })
-      .catch(() => setFailed(true));
+      .catch(() => { if (token === loadTokenRef.current) setFailed(true); });
   }, []);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
@@ -119,6 +133,22 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
         </p>
       </div>
 
+      {/* Shown above whichever panel follows when the last refresh failed but an
+          earlier read succeeded: the panel is real, just possibly out of date,
+          and saying so is better than either hiding it or pretending it is fresh. */}
+      {failed && status !== null && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <p className="text-xs text-amber-700">
+            {lang === "en"
+              ? "Could not refresh — showing the last known status."
+              : "Gagal memperbarui — menampilkan status terakhir yang terbaca."}
+          </p>
+          <Button variant="ghost" size="sm" className="shrink-0 text-amber-700 hover:bg-amber-100" onClick={loadStatus}>
+            {lang === "en" ? "Retry" : "Coba Lagi"}
+          </Button>
+        </div>
+      )}
+
       {!canUseSlack ? (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="pt-4">
@@ -129,11 +159,18 @@ export function SlackTab({ lang = "id", plan }: { lang?: Lang; plan: Plan }) {
             </p>
           </CardContent>
         </Card>
-      ) : failed ? (
+      ) : failed && status === null ? (
         // Before the "Add to Slack" button, deliberately. A failed read cannot
         // tell us whether this workspace is connected, and guessing "not
         // connected" is the guess that costs something: it invites an admin to
         // reinstall an integration that may be working perfectly.
+        //
+        // Only when there is nothing to show, though. This used to fire on any
+        // failure, so a refresh that 401'd — the one right after a successful
+        // install, for instance — threw away a status we had already read
+        // correctly and replaced a working panel with an error. A stale answer
+        // we know we fetched beats no answer at all; the banner below says it is
+        // stale.
         <div className="text-sm">
           <p className="text-gray-500 mb-3">
             {lang === "en"

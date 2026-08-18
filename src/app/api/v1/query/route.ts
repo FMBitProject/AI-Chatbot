@@ -156,7 +156,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     // service is down when Postgres is unreachable sends whoever reads that log
     // to Groq's status page over our own outage.
     if (stage === "retrieval") {
-      throw new AppError("Document retrieval failed", "INTERNAL_ERROR", 500, { cause: error });
+      throw new AppError("Document retrieval failed", "INTERNAL_ERROR", 500, { cause: error, lang: language });
     }
 
     // Named for the embedding step because there is only one provider it can be;
@@ -166,7 +166,9 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     throw new AiUnavailableError(
       isRateLimitFailure(error),
       stage === "embedding" ? "gemini" : undefined,
-      { cause: error },
+      // The language the caller asked for in the request body. Without it an
+      // integration that sent {"language":"en"} was refused in Indonesian.
+      { cause: error, lang: language },
     );
   }
 
