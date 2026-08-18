@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,10 +37,24 @@ export function ApiKeysTab() {
   // threw "keys.map is not a function". With no error boundary around this tab,
   // that TypeError took the whole admin page to the 500 screen over what was
   // really "please sign in again".
+
+  // Bumped on every load. A response whose token no longer matches belongs to a
+  // request this component has already replaced — two clicks on "Coba Lagi", and
+  // the slower one lands last — and applying it would let a stale answer
+  // overwrite a fresher one.
+  //
+  // No unmount cleanup on purpose: React 18 discards a setState on an unmounted
+  // component silently rather than leaking, so invalidating here would buy
+  // nothing and only trip the exhaustive-deps rule about reading a ref in a
+  // cleanup function.
+  const loadTokenRef = useRef(0);
+
   const load = useCallback(() => {
-    fetch("/api/admin/api-keys")
+    const token = ++loadTokenRef.current;
+    return fetch("/api/admin/api-keys")
       .then((r) => (r.ok ? r.json() : null))
       .then((d: ApiKey[] | null) => {
+        if (token !== loadTokenRef.current) return;
         if (Array.isArray(d)) {
           setKeys(d);
           setFailed(false);
@@ -48,7 +62,7 @@ export function ApiKeysTab() {
           setFailed(true);
         }
       })
-      .catch(() => setFailed(true));
+      .catch(() => { if (token === loadTokenRef.current) setFailed(true); });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -73,7 +87,9 @@ export function ApiKeysTab() {
       const data = await res.json() as { key: string; name: string };
       setNewKeyValue(data.key);
       setNewKeyName("");
-      load();
+      // Awaited, so the button stops spinning once the list actually reflects
+      // the new key rather than while the refresh is still in flight.
+      await load();
     } catch {
       toast({ variant: "destructive", title: "Gagal membuat API key.", description: "Periksa koneksi Anda lalu coba lagi." });
     } finally {
