@@ -64,7 +64,18 @@ ${GROUNDING_RULES}
 8. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.
 9. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.`;
 
-export async function POST(req: NextRequest) {
+/** What the wrapper needs in order to hand a charged question back. */
+type ChargedQuestion = { companyId: string; limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } };
+
+/**
+ * Answers a chat request, or returns the response explaining why it cannot.
+ *
+ * Wrapped by POST below rather than exported directly, so an unexpected throw
+ * anywhere in here still gives the question back. Calls onCharged the moment the
+ * quota is spent; everything before that point is free to throw without owing
+ * anyone a refund.
+ */
+async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => void): Promise<Response> {
   // requireUser, not requireAdmin: answering questions is what employees are
   // here for. The 403 keeps its old wording — the chat UI branches on the error
   // *code* (SEAT_FROZEN) and never on this string, but there is no reason to
@@ -222,6 +233,10 @@ export async function POST(req: NextRequest) {
       { status: 429 }
     );
   }
+  // From here on the question is paid for, so POST owes a refund for anything
+  // that throws. The two explicit refunds further down cover the failures this
+  // function understands; the wrapper covers the ones it does not.
+  onCharged({ companyId, limits });
 
   let queryEmbedding: number[];
   try {
@@ -741,4 +756,39 @@ Return format: ["question 1", "question 2", "question 3"]`,
   return new Response(readable, {
     headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
+}
+
+/**
+ * The route itself: handleChat, plus the refund it cannot make for itself.
+ *
+ * Between the quota charge and the first token there are eight awaits against
+ * the database — the retrieval transaction, the session lookup and insert, the
+ * history read, the user-message insert — and none of them was inside a
+ * try/catch. An unavailable database there charged the reader for a question,
+ * refunded nothing, and escaped as Next's own non-JSON 500, which the chat page
+ * can only render as "Maaf, terjadi kesalahan".
+ *
+ * A holder object rather than a bare let, because TypeScript narrows a variable
+ * assigned only inside a callback back to null at the catch and would then
+ * reject the refund below.
+ *
+ * The streaming half is deliberately not covered here: it runs in a detached
+ * async function that has already returned this response, so nothing it throws
+ * can reach this catch. Its own failure path refunds where it needs to.
+ */
+export async function POST(req: NextRequest): Promise<Response> {
+  const state: { charged: ChargedQuestion | null } = { charged: null };
+  try {
+    return await handleChat(req, (c) => { state.charged = c; });
+  } catch (error) {
+    console.error("[chat] Unhandled failure before streaming:", error);
+    if (state.charged) {
+      await refundQuestionQuota(state.charged.companyId, state.charged.limits, "chat");
+    }
+    // Shaped like this route's other refusals — a code in `error`, which
+    // readApiError understands. The chat page has no branch for 500, so it falls
+    // through to its generic "Maaf, terjadi kesalahan. Silakan coba lagi.", which
+    // is the honest thing to say about a database that is not answering.
+    return new Response(JSON.stringify({ error: "INTERNAL_ERROR" }), { status: 500 });
+  }
 }
