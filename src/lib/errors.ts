@@ -1,17 +1,20 @@
 // The shared error vocabulary: one base class, one wire format, one place that
 // turns a code into something a person can read.
 //
-// This file exists because the app currently answers a failed request in three
-// different shapes, and two of them contradict each other. `{ error: "Email
-// sudah terdaftar." }` puts a human sentence in `error`; `{ error:
-// "SEAT_FROZEN", message: "..." }` puts a machine code there and moves the
-// sentence to `message`. A client cannot tell which it is holding without
-// knowing which route it called, so the honest ones hard-code a branch per code
-// and the careless ones render `SEAT_FROZEN` into a toast for an employee to
-// read. The third shape is the absence of one: fifteen routes have no
-// try/catch at all, so an unexpected throw becomes Next's own 500 with a body
-// that is not JSON, and `res.json()` on the client throws a SyntaxError whose
-// message ("Unexpected token '<'") is what the user finally sees.
+// This file exists because the app currently answers a failed request in four
+// different shapes, and three of them disagree about what `error` even means:
+//
+//   { error: "Email sudah terdaftar." }                       — a human sentence
+//   { error: "SEAT_FROZEN",  message: "..." }                 — a SCREAMING code
+//   { error: "already_paid", message: "..." }                 — a lower_snake code
+//
+// A client cannot tell which it is holding without knowing which route it
+// called, so the honest ones hard-code a branch per code and the careless ones
+// render `SEAT_FROZEN` into a toast for an employee to read. The fourth shape is
+// the absence of one: fifteen routes have no try/catch at all, so an unexpected
+// throw becomes Next's own 500 with a body that is not JSON, and `res.json()` on
+// the client throws a SyntaxError whose message ("Unexpected token '<'") is what
+// the user finally sees.
 //
 // Nothing here imports from next/server, deliberately: the client needs the
 // codes and `readApiError` as much as the routes need the classes, and a module
@@ -367,14 +370,22 @@ export interface ApiErrorInfo {
  * True for something that looks like a machine code rather than a sentence.
  *
  * The heuristic is what lets the migration run route-by-route instead of in one
- * commit: it tells the two legacy shapes apart, because `error` holds a code in
- * one and a human sentence in the other. Every code in use is
- * SCREAMING_SNAKE_CASE and every legacy sentence has a lowercase letter or a
- * space ("Unauthorized", "Not found", "Email sudah terdaftar."), so the two sets
- * cannot collide.
+ * commit: it tells the legacy shapes apart, because `error` holds a code in some
+ * and a human sentence in others.
  *
- * Delete this, and the two legacy branches in `readApiError`, once every route
- * sends an envelope — `grep -rn 'error: "' src/app/api` returning nothing is the
+ * Only consulted when there is no sibling `message` to settle it — see
+ * `readApiError`. That ordering is what fixed the case this originally got
+ * wrong: /api/payment/create answers `{ error: "already_paid", message: "…" }`
+ * with lowercase codes, and a rule based on capitalisation alone read
+ * `already_paid` as the sentence to show a customer while discarding the real
+ * one sitting beside it. Shape decides first; casing is only the tie-breaker.
+ *
+ * Every remaining code that arrives without a message is SCREAMING_SNAKE_CASE,
+ * and every bare sentence has a lowercase letter or a space ("Unauthorized",
+ * "Not found", "Email sudah terdaftar."), so those two sets cannot collide.
+ *
+ * Delete this, and the legacy branches in `readApiError`, once every route sends
+ * an envelope — `grep -rn 'error: "' src/app/api` returning nothing is the
  * signal that day has come.
  */
 function looksLikeCode(value: string): boolean {
@@ -406,7 +417,7 @@ function codeForStatus(status: number): ErrorCode {
  * with "Unexpected token '<'" in the user's toast. Reaching for this instead of
  * `res.json()` removes that failure mode from every call site at once.
  *
- * Handles all four shapes currently reachable, so clients and routes can migrate
+ * Handles all five shapes currently reachable, so clients and routes can migrate
  * independently and in either order.
  */
 export async function readApiError(res: Response, lang: Lang = "id"): Promise<ApiErrorInfo> {
@@ -442,17 +453,28 @@ export async function readApiError(res: Response, lang: Lang = "id"): Promise<Ap
   }
 
   if (typeof shape.error === "string") {
-    // Legacy B: { error: "SEAT_FROZEN", message: "..." } — a code, with the
-    // sentence alongside it or, when absent, looked up from the code.
-    if (looksLikeCode(shape.error)) {
-      return {
-        code: shape.error,
-        message: typeof shape.message === "string" && shape.message.trim()
-          ? shape.message
-          : getUserMessage(shape.error, lang),
-        status: res.status,
-      };
+    const sibling = typeof shape.message === "string" && shape.message.trim() ? shape.message : null;
+
+    // Legacy B: a code with its sentence beside it —
+    //   { error: "SEAT_FROZEN",   message: "Akun Anda tidak aktif." }   (chat, v1/query)
+    //   { error: "already_paid",  message: "Pesanan ini sudah lunas." } (payment/create)
+    //
+    // The sibling `message` is what decides, not the casing of `error`. A route
+    // that bothered to send a separate human sentence has already told us that
+    // `error` is the machine half, whatever it looks like — and the two
+    // conventions in this codebase disagree about that: the answering channels
+    // use SCREAMING_SNAKE and the payment routes use lower_snake. Judging by
+    // capitalisation put nine payment failures in the wrong branch and showed a
+    // customer "already_paid" while throwing away "Pesanan ini sudah lunas."
+    if (sibling !== null) {
+      return { code: shape.error, message: sibling, status: res.status };
     }
+
+    // A code with no sentence: look one up. Here casing is all there is to go on.
+    if (looksLikeCode(shape.error)) {
+      return { code: shape.error, message: getUserMessage(shape.error, lang), status: res.status };
+    }
+
     // Legacy A: { error: "Email sudah terdaftar." } — the sentence itself, and
     // it is a good one. Routes wrote these for people to read, so prefer them
     // over the generic message for the status.
