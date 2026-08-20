@@ -13,7 +13,7 @@
 // Run: npm run inbox:test
 
 import { simpleParser } from "mailparser";
-import { toMessage } from "./imap.mjs";
+import { toMessage, senderName } from "./imap.mjs";
 import { ruleSkip } from "./triage.mjs";
 
 const CONFIG = { ownDomain: "intellibaseai.com", skipDomains: ["contoh-spam.id"] };
@@ -104,6 +104,35 @@ console.log("\nKUNCI DEDUPLIKASI:");
 
   const lain = await message({ headers: ["Message-ID:", "Subject: Pertanyaan lain"] });
   laporkan(tanpaId.key !== lain.key, "email berbeda dapat kunci berbeda");
+}
+
+// How the draft opens. "Halo," costs nothing; "Halo renfael6," tells the one
+// prospect who wrote in that a bot answered them.
+console.log("\nNAMA SAPAAN:");
+{
+  const kasus = [
+    // [nama tampilan, alamat, harapan]
+    ["Budi Santoso", "budi@rs.co.id", "Budi"],
+    ["budi", "budi@rs.co.id", "Budi"],
+    ["Suparman", "suparman@rs.co.id", "Suparman"],
+    ["Dr. Sari", "sari@rs.co.id", "Sari"],   // gelar dilewati, bukan dijadikan sapaan
+    // handle: huruf kapital di tengah
+    ["SuperCreede", "renfael6@gmail.com", null],
+    // handle: ada angka
+    ["budi123", "renfael6@gmail.com", null],
+    // organisasi, bukan orang
+    ["PT Sehat Sentosa", "kontak@sehat.co.id", null],
+    ["IntelliBase Support", "x@y.co.id", null],
+    // tanpa nama tampilan → jatuh ke bagian sebelum @
+    ["", "budi.santoso@rs.co.id", "Budi"],
+    ["", "renfael6@gmail.com", null],
+    ["", "info@rs.co.id", null],
+    ["", "hr@rs.co.id", null],
+  ];
+  for (const [display, address, harapan] of kasus) {
+    const hasil = senderName({ name: display, address });
+    laporkan(hasil === harapan, `"${display}" <${address}>`, ` → ${JSON.stringify(hasil)}`);
+  }
 }
 
 console.log(gagal === 0 ? "\n✓ semua kasus lulus" : `\n✗ ${gagal} kasus gagal`);
