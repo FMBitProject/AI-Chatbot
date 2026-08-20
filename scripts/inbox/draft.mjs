@@ -17,7 +17,7 @@ import { join } from "path";
 import { readEnv, ROOT } from "./env.mjs";
 import { resolveModel } from "../content/provider.mjs";
 import { lintText, splitProblems, formatProblems } from "../content/lint.mjs";
-import { connect, fetchRecent, findDraftsMailbox, buildDraft, appendDraft, inboxAddress } from "./imap.mjs";
+import { connect, fetchRecent, findDraftsMailbox, buildDraft, appendDraft, inboxAddress, answeredKeys, bareSubject } from "./imap.mjs";
 import { ruleSkip, classify, skipDomains, DRAFTABLE } from "./triage.mjs";
 import { buildReplyPrompt, signature } from "./reply-facts.mjs";
 import { loadState, isHandled, markHandled, unmarkHandled } from "./state.mjs";
@@ -81,6 +81,24 @@ function writeOut(name, contents) {
 /** Filename-safe slug of a subject, so out/ stays browsable. */
 function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "tanpa-subjek";
+}
+
+// Filled in once the connection is open, below. Declared here because
+// alreadyAnswered() closes over it: a const inside the try block is scoped to
+// that block, and the function would reach for a name that does not exist.
+let answered = { byMessageId: new Set(), byRecipientSubject: new Set() };
+
+/**
+ * Whether a reply to this email already exists in Drafts or Sent.
+ *
+ * Message-ID first, because it is exact. The recipient+subject fallback exists
+ * for senders that omit a Message-ID entirely, where the exact check has nothing
+ * to match on and every run would otherwise write another draft.
+ */
+function alreadyAnswered(msg) {
+  if (msg.messageId && answered.byMessageId.has(msg.messageId)) return true;
+  const key = `${msg.from.address?.toLowerCase()}|${bareSubject(msg.subject)}`;
+  return answered.byRecipientSubject.has(key);
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -155,6 +173,12 @@ try {
     }
   }
 
+  // Read before anything is drafted, and read from the mailbox rather than from
+  // state.json alone — see answeredKeys. This is what makes the bot safe to run
+  // somewhere with no persistent disk, and what stops it drafting a reply under
+  // one you already sent by hand.
+  answered = await answeredKeys(client, { days: DAYS });
+
   const messages = await fetchRecent(client, { days: DAYS });
   console.log(`${messages.length} email dalam ${DAYS} hari terakhir di ${fromAddress}\n`);
 
@@ -167,7 +191,7 @@ try {
       console.log(`\n(berhenti di --limit ${LIMIT} email yang diproses model)`);
       break;
     }
-    if (!FORCE && isHandled(state, msg.key)) continue;
+    if (!FORCE && (isHandled(state, msg.key) || alreadyAnswered(msg))) continue;
     tally.dilihat++;
 
     const who = `${msg.from.name || msg.from.address} <${msg.from.address}>`;

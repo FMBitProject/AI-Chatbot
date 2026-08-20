@@ -76,14 +76,74 @@ export async function connect() {
  * the draft into it, where nothing will ever look for it.
  */
 export async function findDraftsMailbox(client) {
+  const path = await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i);
+  if (path) return path;
   const list = await client.list();
-  const special = list.find((box) => box.specialUse === "\\Drafts");
-  if (special) return special.path;
-  const byName = list.find((box) => /^(INBOX[./])?drafts$/i.test(box.path));
-  if (byName) return byName.path;
   throw new Error(
     `Folder Drafts tidak ditemukan. Folder yang ada: ${list.map((b) => b.path).join(", ")}`,
   );
+}
+
+/** Same lookup, returning null instead of throwing — see findDraftsMailbox. */
+async function findMailbox(client, specialUse, namePattern) {
+  const list = await client.list();
+  return list.find((box) => box.specialUse === specialUse)?.path
+    ?? list.find((box) => namePattern.test(box.path))?.path
+    ?? null;
+}
+
+/**
+ * Strips every "Re:"/"Fwd:" prefix, so a subject can be compared across a thread.
+ */
+export function bareSubject(subject) {
+  return String(subject ?? "").replace(/^\s*((re|fwd|fw|bls|balasan)\s*:\s*)+/i, "").trim().toLowerCase();
+}
+
+/**
+ * Which incoming emails already have an answer — read from the mailbox itself.
+ *
+ * state.json cannot be the only answer to "did we already reply to this?" once
+ * the bot runs anywhere but this machine: a scheduled CI run gets a fresh
+ * container every time, the file is gone, and every run writes another draft
+ * for the same email. The mailbox, unlike a local file, is the one place both
+ * the bot and you already agree on.
+ *
+ * Reads Drafts *and* Sent, which buys something state.json never could: if you
+ * answered someone by hand, the bot now knows and stays out of the way. That
+ * used to produce a redundant draft under a reply you had already sent.
+ *
+ * Two keys, because not every email carries a Message-ID (see toMessage). The
+ * first is exact. The second — recipient plus subject with the Re: stripped —
+ * covers the rest, and is what our own draft would look like from the outside.
+ *
+ * Envelope-only fetch: no bodies are downloaded, so this stays cheap even on a
+ * mailbox with a busy Sent folder.
+ */
+export async function answeredKeys(client, { days }) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const byMessageId = new Set();
+  const byRecipientSubject = new Set();
+
+  const paths = [
+    await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i),
+    await findMailbox(client, "\\Sent", /^(INBOX[./])?sent(\s?(items|mail))?$/i),
+  ].filter(Boolean);
+
+  for (const path of paths) {
+    const lock = await client.getMailboxLock(path);
+    try {
+      for await (const msg of client.fetch({ since }, { uid: true, envelope: true })) {
+        const env = msg.envelope ?? {};
+        if (env.inReplyTo) byMessageId.add(env.inReplyTo);
+        const to = env.to?.[0]?.address?.toLowerCase();
+        const subject = bareSubject(env.subject);
+        if (to && subject) byRecipientSubject.add(`${to}|${subject}`);
+      }
+    } finally {
+      lock.release();
+    }
+  }
+  return { byMessageId, byRecipientSubject };
 }
 
 /** Strips the quoted history so only what this person actually wrote is left. */

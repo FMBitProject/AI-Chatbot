@@ -1,0 +1,70 @@
+name: Inbox draft bot
+
+# Writes draft replies into the Drafts folder of hello@intellibaseai.com every
+# two hours. It cannot send: scripts/inbox/ holds no SMTP credential and this
+# workflow passes none, so the worst a bad run can do is leave a draft you then
+# decline to send.
+#
+# Runs here rather than on a laptop because a draft is only useful if it is
+# already waiting when you open your mail — including after a weekend away.
+#
+# Required repo secrets (Settings > Secrets and variables > Actions):
+#   INBOX_IMAP_HOST              - imap.hostinger.com
+#   INBOX_IMAP_USER              - hello@intellibaseai.com
+#   INBOX_IMAP_PASS              - mailbox password (read + append only; cannot send)
+#   INBOX_SIGNATURE              - sign-off appended to every draft, \n for newlines
+#   GOOGLE_GENERATIVE_AI_API_KEY - the same key the content scripts use
+#
+# Deduplication does NOT rely on scripts/inbox/state.json here: a scheduled run
+# gets a fresh container every time and that file would never survive. The bot
+# reads the Drafts and Sent folders instead and skips anything already answered
+# — see answeredKeys() in scripts/inbox/imap.mjs. That is also why replying by
+# hand is enough to call the bot off.
+
+on:
+  schedule:
+    # Every two hours, on the hour, UTC. GitHub disables scheduled workflows in
+    # a repository with no activity for 60 days; re-enable from the Actions tab.
+    - cron: "0 */2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# One run at a time. Two overlapping runs would both read the mailbox before
+# either had written a draft, and each would then write its own.
+concurrency:
+  group: inbox-draft
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-progress
+
+      - name: Write drafts
+        # A one-day window, not the three-day default: running every two hours
+        # already gives any email a dozen chances to be picked up, and a wider
+        # window only means re-classifying the same "perlu-manusia" and
+        # "abaikan" mail every run. Those two leave nothing in the mailbox to
+        # recognise them by, so the window is what bounds that repeated work.
+        run: npm run inbox:draft -- --days 1 --limit 15
+        env:
+          INBOX_IMAP_HOST: ${{ secrets.INBOX_IMAP_HOST }}
+          INBOX_IMAP_USER: ${{ secrets.INBOX_IMAP_USER }}
+          INBOX_IMAP_PASS: ${{ secrets.INBOX_IMAP_PASS }}
+          INBOX_SIGNATURE: ${{ secrets.INBOX_SIGNATURE }}
+          GOOGLE_GENERATIVE_AI_API_KEY: ${{ secrets.GOOGLE_GENERATIVE_AI_API_KEY }}
