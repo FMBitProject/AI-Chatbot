@@ -23,11 +23,16 @@ INBOX_SIGNATURE="Salam,\nNama Anda\nIntelliBase — intellibaseai.com"
 pernah keluar tanpa tanda tangan atau, lebih buruk, dengan nama karangan. Kalau
 tidak diisi, dipakai tanda tangan generik "Tim IntelliBase".
 
+Tanda kutip ganda di atas bukan hiasan: pembaca `.env.local` di `env.mjs` melepas
+kutip dan menerjemahkan `\n` jadi baris baru **hanya** untuk nilai berkutip ganda.
+Tanpa kutip, `\n` akan ikut tercetak apa adanya di setiap draft.
+
 Opsional:
 
 | Env | Guna |
 |---|---|
 | `INBOX_IMAP_PORT` | Default 993 (TLS). |
+| `INBOX_FROM` | Alamat pengirim, kalau login IMAP Anda bukan alamat email. Default = `INBOX_IMAP_USER`. |
 | `INBOX_SKIP_DOMAINS` | Domain yang isinya **tidak boleh** dikirim ke LLM sama sekali, dipisah koma. |
 | `INBOX_PROVIDER` / `INBOX_MODEL` | Pisah dari `CONTENT_PROVIDER`. Isi `anthropic` untuk pindah ke Claude tanpa mengubah script konten. |
 
@@ -45,7 +50,9 @@ npm run inbox:test     # tes offline untuk aturan penyaring (tanpa jaringan)
 ```
 
 Opsi: `--days 7` (default 3, seberapa jauh ke belakang dicari), `--limit 20`
-(batas draft per run), `--force` (abaikan catatan "sudah pernah dibalas").
+(batas **email yang diproses model** per run — inilah yang membatasi biaya dan
+jatah rate limit, bukan jumlah draft jadi), `--force` (abaikan catatan "sudah
+pernah dibalas").
 
 Mulailah dengan `inbox:triage` beberapa hari. Kalau pemilahannya sudah benar,
 naik ke `inbox:dry`. Baru setelah drafnya enak dibaca, pakai `inbox:draft`.
@@ -80,10 +87,14 @@ Beberapa keputusan yang sengaja diambil:
   dalam email satu-lawan-satu adalah sesuatu yang bisa ditindaklanjuti penerima.
   Draft yang kena linter **tidak masuk Drafts** — mendarat di `out/` beserta
   alasannya.
-- **`state.json` ditulis sebelum draft di-append.** Kalau proses mati di antara
-  keduanya, akibatnya satu email tidak terdraft (ketahuan waktu Anda baca inbox).
-  Urutan sebaliknya menghasilkan draft dobel — ketahuan setelah salah satunya
-  terkirim.
+- **`state.json` ditulis sebelum draft di-append, lalu dibatalkan kalau append
+  gagal.** Ditulis lebih dulu supaya crash mendadak tidak menghasilkan draft
+  dobel; dibatalkan lagi kalau `append` sendiri yang gagal, supaya email itu
+  dicoba lagi di run berikutnya. Draft dobel cuma perlu satu klik hapus, draft
+  yang hilang diam-diam bisa berarti prospek yang tidak pernah dibalas.
+- **Folder Drafts dicari sekali di awal, sebelum email pertama disentuh.** Kalau
+  namanya tidak ketemu, seluruh run berhenti dengan satu pesan dan `state.json`
+  tidak tersentuh sama sekali.
 
 ## Privasi
 
@@ -113,3 +124,21 @@ Jalankan manual dulu. Kalau sudah stabil, cron di mesin Anda sendiri:
 
 **Jangan dipasang di Vercel cron.** Ini inbox pribadi: kredensial IMAP-nya tidak
 perlu ada di server produk, dan koneksi IMAP tidak cocok dengan fungsi serverless.
+
+## Catatan / TODO
+
+Temuan MINOR dari review 2026-08-20, sengaja **belum** dikerjakan — tidak ada yang
+berbahaya, tapi jangan sampai hilang:
+
+- `slug()` di `draft.mjs` bisa bertabrakan: dua email bersubjek sama saling
+  menimpa file di `out/`. Tambahkan potongan hash kunci pada nama file.
+- Flag salah ketik diabaikan diam-diam — `--dryrun` (tanpa tanda hubung) jalan
+  dalam mode menulis ke mailbox. Tolak argumen yang tidak dikenal.
+- `process.exit()` di akhir `draft.mjs` bisa memotong output yang belum
+  ter-flush kalau stdout dipipa (bukan diarahkan ke file seperti contoh cron).
+- Parameter `skipDomains` di `ruleSkip` menutupi fungsi ekspor `skipDomains`
+  di modul yang sama — bikin bingung waktu dibaca.
+- `KEEP_DAYS = 90` di `state.mjs` hanya aman selama `--days` < 90; `--days 120`
+  akan mendraft ulang email lama.
+- `From`/`To` pada draft kehilangan nama tampilan; yang muncul alamat telanjang,
+  bukan `IntelliBase AI <hello@…>`.

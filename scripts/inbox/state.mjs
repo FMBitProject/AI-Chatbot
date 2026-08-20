@@ -41,6 +41,17 @@ export function markHandled(state, messageId, outcome) {
   saveState(state);
 }
 
+/**
+ * Undoes a markHandled, for the one case that needs it: the draft was recorded
+ * and then failed to reach the mailbox. Without this the email is remembered as
+ * answered while nothing was ever written, and only --force would find it again.
+ */
+export function unmarkHandled(state, messageId) {
+  if (!messageId || !state.handled[messageId]) return;
+  delete state.handled[messageId];
+  saveState(state);
+}
+
 export function isHandled(state, messageId) {
   return Boolean(messageId && state.handled[messageId]);
 }
