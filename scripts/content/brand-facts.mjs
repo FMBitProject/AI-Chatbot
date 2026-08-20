@@ -56,6 +56,28 @@ const SLACK_PLANS_LINE =
   "Bukan paket Starter yang gratis, dan tidak pernah paket Personal — Personal hanya " +
   "dimiliki akun Individu, dan akun Individu tidak bisa memasang Slack sama sekali.";
 
+// --- import dari Google Drive: gated identically, so worded identically ------
+//
+// Gated by canUseAiAnswers() in the import route
+// (src/app/api/admin/google-drive/import/route.ts), the same function that
+// gates Slack — so it lands on exactly the same plans, and is worded here the
+// same way and for the same reason: handed over as a finished sentence, because
+// a model given the underlying fact will re-word it into "tersedia di paket
+// berbayar", which is false for Personal.
+//
+// The two limits below are the ones a prospect actually runs into. Native Google
+// Docs/Sheets/Slides are refused outright rather than exported (see
+// SUPPORTED_MIME_TYPES), and the picker is a one-off import, not a folder that
+// stays in sync — discovering either of those after buying is a bad surprise.
+const DRIVE_LINE =
+  "Dokumen bisa diambil langsung dari Google Drive lewat pemilih file Google, " +
+  "bukan hanya diunggah manual. Sama seperti Slack: hanya akun Perusahaan di paket " +
+  "Professional dan Enterprise, dan hanya admin yang bisa menjalankannya. Dua " +
+  "batasnya sebutkan apa adanya kalau ditanya: format yang didukung tetap PDF, " +
+  "DOCX, XLSX, PPTX — Google Docs, Sheets, dan Slides asli tidak bisa diimpor — " +
+  "dan ini impor sekali jalan, bukan folder yang terus tersinkronisasi.";
+
+
 // --- the facts, without a voice --------------------------------------------
 //
 // Split out from buildSystemPrompt() so a second channel can quote the same
@@ -112,6 +134,7 @@ yang sedang dibahas.
   dengan command \`/tanya <pertanyaan>\` atau menyebut bot di channel; jawaban
   muncul di thread yang sama lengkap dengan nama dokumen sumbernya. Tidak ada
   biaya tambahan di luar paket yang sudah dibeli.
+- ${DRIVE_LINE}
 - Cocok untuk beberapa industri: rumah sakit & klinik, manufaktur, jasa keuangan,
   pendidikan, retail & F&B.
 
