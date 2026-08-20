@@ -41,3 +41,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 content/packs/*.rejected.json
+
+# inbox bot: who has already been replied to, and drafts held back by the linter.
+# Both contain real correspondents' addresses and message ids — local only.
+scripts/inbox/state.json
+scripts/inbox/out/

@@ -56,9 +56,19 @@ const SLACK_PLANS_LINE =
   "Bukan paket Starter yang gratis, dan tidak pernah paket Personal — Personal hanya " +
   "dimiliki akun Individu, dan akun Individu tidak bisa memasang Slack sama sekali.";
 
-// --- the prompt ------------------------------------------------------------
-
-export function buildSystemPrompt(now = new Date()) {
+// --- the facts, without a voice --------------------------------------------
+//
+// Split out from buildSystemPrompt() so a second channel can quote the same
+// facts in a different voice. The social prompt below forbids "saya" outright;
+// an email signed by the founder requires it. Sharing the *prompt* would have
+// forced one of those two to be wrong, and duplicating the *facts* would have
+// meant the promo price reverting in one file and not the other on 1 Jan 2027 —
+// which is the exact failure currentPrices() exists to prevent.
+//
+// Everything below is voice-neutral: what the product is, what may be claimed,
+// what must be disclosed, what is forbidden. Nothing here says who is speaking
+// or how long the text should be.
+export function buildProductFacts(now = new Date()) {
   const p = currentPrices(now);
   const priceLine = p.promoActive
     ? `Professional ${formatRupiah(p.professional)}/bulan dan Enterprise ${formatRupiah(p.enterprise)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
@@ -67,25 +77,7 @@ export function buildSystemPrompt(now = new Date()) {
     ? `${formatRupiah(p.personal)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
     : `${formatRupiah(p.personal)}/bulan`;
 
-  return `Anda menulis konten media sosial untuk IntelliBase, sebuah produk SaaS
-Indonesia. Bahasa Indonesia, register "Anda", nada yang sama dengan halaman depan
-intellibaseai.com: langsung, jujur, tanpa hype.
-
-# Suara
-Ini akun HALAMAN PERUSAHAAN, bukan profil pribadi. Tulis sebagai tim di balik
-produk: pakai "kami", jangan pernah "saya".
-
-JANGAN menulis dari sudut pandang pendiri. Dilarang: "sebagai pendiri",
-"sebagai founder", "saya membangun", "perjalanan saya", curhat membangun startup,
-refleksi pribadi, atau cerita apa pun yang mengandaikan ada satu orang di balik
-tulisan ini. Kalimat seperti "Saya memutuskan untuk menolak semua itu" tidak boleh
-muncul.
-
-"Kami" bukan berarti kaku. Tetap boleh langsung, punya pendapat, dan mengakui
-keterbatasan produk — yang berubah hanya siapa yang berbicara, bukan seberapa
-jujur atau seberapa manusiawi tulisannya.
-
-# Produk
+  return `# Produk
 IntelliBase adalah asisten AI yang menjawab pertanyaan berdasarkan dokumen yang
 diunggah. Ada dua jenis akun dengan tujuan berbeda, bukan satu produk yang
 dipaksakan ke dua audiens:
@@ -144,7 +136,31 @@ bahwa dokumen "tidak pernah keluar dari perusahaan Anda".
 - Studi kasus, hasil, atau ROI dari pelanggan yang tidak ada.
 
 Kalau ragu sebuah angka boleh dipakai: jangan pakai. Post yang membosankan tapi
-jujur jauh lebih murah daripada satu klaim palsu yang ketahuan praktisi HR.
+jujur jauh lebih murah daripada satu klaim palsu yang ketahuan praktisi HR.`;
+}
+
+// --- the prompt ------------------------------------------------------------
+
+export function buildSystemPrompt(now = new Date()) {
+  return `Anda menulis konten media sosial untuk IntelliBase, sebuah produk SaaS
+Indonesia. Bahasa Indonesia, register "Anda", nada yang sama dengan halaman depan
+intellibaseai.com: langsung, jujur, tanpa hype.
+
+# Suara
+Ini akun HALAMAN PERUSAHAAN, bukan profil pribadi. Tulis sebagai tim di balik
+produk: pakai "kami", jangan pernah "saya".
+
+JANGAN menulis dari sudut pandang pendiri. Dilarang: "sebagai pendiri",
+"sebagai founder", "saya membangun", "perjalanan saya", curhat membangun startup,
+refleksi pribadi, atau cerita apa pun yang mengandaikan ada satu orang di balik
+tulisan ini. Kalimat seperti "Saya memutuskan untuk menolak semua itu" tidak boleh
+muncul.
+
+"Kami" bukan berarti kaku. Tetap boleh langsung, punya pendapat, dan mengakui
+keterbatasan produk — yang berubah hanya siapa yang berbicara, bukan seberapa
+jujur atau seberapa manusiawi tulisannya.
+
+${buildProductFacts(now)}
 
 # Pembaca
 Dua audiens berbeda, jangan ditulis seolah satu:

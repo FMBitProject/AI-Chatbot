@@ -17,7 +17,11 @@
     "content:channels": "node scripts/content/push-buffer.mjs --channels",
     "content:push": "node scripts/content/push-buffer.mjs",
     "content:models": "node scripts/content/generate.mjs --list-models",
-    "content:cards": "node scripts/content/render-cards.mjs"
+    "content:cards": "node scripts/content/render-cards.mjs",
+    "inbox:triage": "node scripts/inbox/draft.mjs --triage-only",
+    "inbox:dry": "node scripts/inbox/draft.mjs --dry-run",
+    "inbox:draft": "node scripts/inbox/draft.mjs",
+    "inbox:test": "node scripts/inbox/triage.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.29",
@@ -69,6 +73,9 @@
     "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "^16.2.11",
+    "imapflow": "^1.7.1",
+    "mailparser": "^3.9.15",
+    "nodemailer": "^9.0.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
