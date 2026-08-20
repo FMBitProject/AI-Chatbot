@@ -176,10 +176,24 @@ function checkPrices(text, now) {
  * Returns violations; empty array means clean. Each carries `negated: true`
  * when the match sits in a sentence that refuses the claim — callers treat
  * those as warnings to eyeball rather than reasons to reject the pack.
+ *
+ * `exclude` drops rules by id, and exists for exactly one rule: `founder-voice`
+ * bans first-person singular because a company page writing "saya" reads as if
+ * the account were one person. A reply sent from hello@ and signed by the
+ * founder is the opposite case — "saya" is the correct word there, and applying
+ * the rule would reject every well-written email. Nothing else is excludable in
+ * practice: the remaining rules guard claims, not voice, and a false claim is
+ * worse in a one-to-one email than in a post, because the reader can act on it.
+ *
+ * Deliberately opt-in per caller rather than a `channel` flag: a new caller has
+ * to name the rule it is switching off, in its own code, where the reason can be
+ * read next to it.
  */
-export function lintText(text, now = new Date()) {
+export function lintText(text, now = new Date(), { exclude = [] } = {}) {
   const violations = [];
+  const skipped = new Set(exclude);
   for (const rule of RULES) {
+    if (skipped.has(rule.id)) continue;
     const m = text.match(rule.pattern);
     if (!m) continue;
     const negated =
