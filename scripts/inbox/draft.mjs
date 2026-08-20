@@ -97,8 +97,25 @@ let answered = { byMessageId: new Set(), byRecipientSubject: new Set() };
  */
 function alreadyAnswered(msg) {
   if (msg.messageId && answered.byMessageId.has(msg.messageId)) return true;
-  const key = `${msg.from.address?.toLowerCase()}|${bareSubject(msg.subject)}`;
-  return answered.byRecipientSubject.has(key);
+  return answered.byRecipientSubject.has(answeredKeyFor(msg));
+}
+
+function answeredKeyFor(msg) {
+  return `${msg.from.address?.toLowerCase()}|${bareSubject(msg.subject)}`;
+}
+
+/**
+ * Records a draft we just wrote, so the rest of this run can see it.
+ *
+ * The mailbox is read once, before the loop; without this the snapshot goes
+ * stale the moment the first draft is appended. Two emails from the same person
+ * with the same subject in one run — someone resending because they got no
+ * reply — would each be checked against a mailbox that did not yet contain the
+ * other's draft, and both would get one.
+ */
+function rememberAnswered(msg) {
+  if (msg.messageId) answered.byMessageId.add(msg.messageId);
+  answered.byRecipientSubject.add(answeredKeyFor(msg));
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -177,7 +194,17 @@ try {
   // state.json alone — see answeredKeys. This is what makes the bot safe to run
   // somewhere with no persistent disk, and what stops it drafting a reply under
   // one you already sent by hand.
-  answered = await answeredKeys(client, { days: DAYS });
+  try {
+    answered = await answeredKeys(client, { days: DAYS });
+  } catch (err) {
+    // Fails closed on purpose. Carrying on with an empty set would mean
+    // treating every email as unanswered and appending a second draft to every
+    // thread — worse than doing nothing this cycle and trying again next.
+    console.error(`\nGagal membaca folder Drafts untuk memeriksa balasan yang sudah ada: ${err.message}`);
+    console.error(`Run dihentikan supaya tidak menulis draft dobel. Tidak ada yang diubah.`);
+    await client.logout().catch(() => {});
+    process.exit(2);
+  }
 
   const messages = await fetchRecent(client, { days: DAYS });
   console.log(`${messages.length} email dalam ${DAYS} hari terakhir di ${fromAddress}\n`);
@@ -191,7 +218,13 @@ try {
       console.log(`\n(berhenti di --limit ${LIMIT} email yang diproses model)`);
       break;
     }
-    if (!FORCE && (isHandled(state, msg.key) || alreadyAnswered(msg))) continue;
+    // --force reopens what state.json recorded, but not what the mailbox shows.
+    // Those are different claims: the file is our bookkeeping and can be wrong,
+    // while an existing draft is the thing itself. Ignoring it would append a
+    // second draft to the same thread, which is the one outcome this whole
+    // mechanism exists to prevent. To genuinely redo one, delete its draft.
+    if (alreadyAnswered(msg)) continue;
+    if (!FORCE && isHandled(state, msg.key)) continue;
     tally.dilihat++;
 
     const who = `${msg.from.name || msg.from.address} <${msg.from.address}>`;
@@ -316,6 +349,7 @@ ${msg.body}
         unmarkHandled(state, msg.key);
         throw err;
       }
+      rememberAnswered(msg);
       console.log(`  ✓ draft ditulis ke "${draftsPath}"\n`);
       tally.draft++;
     } catch (err) {

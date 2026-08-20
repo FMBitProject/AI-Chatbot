@@ -92,11 +92,25 @@ async function findMailbox(client, specialUse, namePattern) {
     ?? null;
 }
 
+// Everything a mail client might stack in front of a subject. Stripped so the
+// same thread compares equal no matter who forwarded it where.
+const STRIP_PREFIXES = /^\s*((re|fwd|fw|bls|balasan)\s*:\s*)+/i;
+
+// The narrower set that means "this message answers another one". Forwards are
+// deliberately absent: forwarding someone's email to a colleague is not a reply
+// to them, and it goes to a different address anyway.
+const REPLY_PREFIXES = /^\s*(re|bls|balasan)\s*:/i;
+
 /**
  * Strips every "Re:"/"Fwd:" prefix, so a subject can be compared across a thread.
  */
 export function bareSubject(subject) {
-  return String(subject ?? "").replace(/^\s*((re|fwd|fw|bls|balasan)\s*:\s*)+/i, "").trim().toLowerCase();
+  return String(subject ?? "").replace(STRIP_PREFIXES, "").trim().toLowerCase();
+}
+
+/** Whether this subject is itself an answer to something, not an opening message. */
+export function isReplySubject(subject) {
+  return REPLY_PREFIXES.test(String(subject ?? ""));
 }
 
 /**
@@ -124,17 +138,34 @@ export async function answeredKeys(client, { days }) {
   const byMessageId = new Set();
   const byRecipientSubject = new Set();
 
-  const paths = [
-    await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i),
-    await findMailbox(client, "\\Sent", /^(INBOX[./])?sent(\s?(items|mail))?$/i),
-  ].filter(Boolean);
+  const draftsPath = await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i);
+  const sentPath = await findMailbox(client, "\\Sent", /^(INBOX[./])?sent(\s?(items|mail))?$/i);
 
-  for (const path of paths) {
+  // Said out loud rather than filtered away in silence. Without Sent we still
+  // dedupe correctly against our own drafts; what is lost is "you already
+  // replied by hand, so stay out of the way" — a capability disappearing
+  // quietly is how you end up trusting something that stopped working.
+  if (!sentPath) {
+    console.warn("  ⚠ folder Sent tidak ditemukan — balasan yang Anda tulis sendiri tidak akan terdeteksi.");
+  }
+
+  const scan = async (path) => {
     const lock = await client.getMailboxLock(path);
     try {
       for await (const msg of client.fetch({ since }, { uid: true, envelope: true })) {
         const env = msg.envelope ?? {};
         if (env.inReplyTo) byMessageId.add(env.inReplyTo);
+
+        // Only messages that are themselves replies may contribute the fallback
+        // key, and this condition is the whole point of it.
+        //
+        // Without it the key was built from every recent sent message, including
+        // outbound cold outreach — so "Perkenalan IntelliBase" sent to a
+        // prospect produced exactly the key their reply "Re: Perkenalan
+        // IntelliBase" would later look up, and the reply was skipped as already
+        // answered. Silently, with no draft and no log line, for the one class
+        // of email worth the most.
+        if (!isReplySubject(env.subject)) continue;
         const to = env.to?.[0]?.address?.toLowerCase();
         const subject = bareSubject(env.subject);
         if (to && subject) byRecipientSubject.add(`${to}|${subject}`);
@@ -142,7 +173,22 @@ export async function answeredKeys(client, { days }) {
     } finally {
       lock.release();
     }
+  };
+
+  // Drafts is load-bearing: without it we cannot tell our own previous drafts
+  // apart and would append another every run, so a failure there is fatal.
+  if (draftsPath) await scan(draftsPath);
+
+  // Sent is a nicety. A mailbox that lists but refuses SELECT (\Noselect, or a
+  // permissions quirk) must not take the whole run down for it.
+  if (sentPath) {
+    try {
+      await scan(sentPath);
+    } catch (err) {
+      console.warn(`  ⚠ folder Sent "${sentPath}" tidak bisa dibaca (${err.message}) — lanjut tanpa itu.`);
+    }
   }
+
   return { byMessageId, byRecipientSubject };
 }
 
