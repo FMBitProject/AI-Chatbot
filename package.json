@@ -18,6 +18,7 @@
     "content:push": "node scripts/content/push-buffer.mjs",
     "content:models": "node scripts/content/generate.mjs --list-models",
     "content:cards": "node scripts/content/render-cards.mjs",
+    "inbox:check": "node scripts/inbox/check.mjs",
     "inbox:triage": "node scripts/inbox/draft.mjs --triage-only",
     "inbox:dry": "node scripts/inbox/draft.mjs --dry-run",
     "inbox:draft": "node scripts/inbox/draft.mjs",

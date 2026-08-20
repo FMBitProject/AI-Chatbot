@@ -43,6 +43,7 @@ sepenuhnya sama dengan `scripts/content/`.
 ## Pemakaian
 
 ```bash
+npm run inbox:check    # uji koneksi IMAP + deteksi folder Drafts, tanpa LLM & tanpa menulis
 npm run inbox:triage   # cuma memilah: cetak kategori tiap email, tidak menulis draft
 npm run inbox:dry      # tulis draft ke layar + scripts/inbox/out/, mailbox tidak disentuh
 npm run inbox:draft    # tulis draft ke folder Drafts
@@ -54,8 +55,17 @@ Opsi: `--days 7` (default 3, seberapa jauh ke belakang dicari), `--limit 20`
 jatah rate limit, bukan jumlah draft jadi), `--force` (abaikan catatan "sudah
 pernah dibalas").
 
-Mulailah dengan `inbox:triage` beberapa hari. Kalau pemilahannya sudah benar,
-naik ke `inbox:dry`. Baru setelah drafnya enak dibaca, pakai `inbox:draft`.
+Urutan yang disarankan, satu tangga per kali:
+
+1. `inbox:check` — koneksi hidup? folder Drafts ketemu?
+2. `inbox:triage` beberapa hari — pemilahannya masuk akal?
+3. `inbox:dry` — drafnya enak dibaca?
+4. `inbox:draft` — baru menulis ke mailbox.
+
+Untuk uji coba, kirim email ke `hello@intellibaseai.com` **dari alamat lain**
+(Gmail pribadi, misalnya). Email dari `@intellibaseai.com` sengaja dilewati oleh
+loop guard, jadi mengirim dari alamat itu sendiri hanya akan terlihat sebagai
+"lewati — email dari domain sendiri".
 
 ## Cara kerjanya
 
