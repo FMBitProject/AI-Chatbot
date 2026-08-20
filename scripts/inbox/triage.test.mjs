@@ -13,7 +13,7 @@
 // Run: npm run inbox:test
 
 import { simpleParser } from "mailparser";
-import { toMessage, senderName } from "./imap.mjs";
+import { toMessage, senderName, bareSubject, isReplySubject } from "./imap.mjs";
 import { ruleSkip } from "./triage.mjs";
 
 const CONFIG = { ownDomain: "intellibaseai.com", skipDomains: ["contoh-spam.id"] };
@@ -133,6 +133,43 @@ console.log("\nNAMA SAPAAN:");
     const hasil = senderName({ name: display, address });
     laporkan(hasil === harapan, `"${display}" <${address}>`, ` → ${JSON.stringify(hasil)}`);
   }
+}
+
+// The fallback dedupe key. It is built only from messages that are themselves
+// replies, and that condition is the entire safeguard: built from every sent
+// message instead, outbound cold outreach produced exactly the key the
+// prospect's reply would later look up, and their reply was skipped as already
+// answered — silently, for the most valuable email there is.
+console.log("\nKUNCI BALASAN (regresi outreach):");
+{
+  const kunci = (to, subject) => `${to.toLowerCase()}|${bareSubject(subject)}`;
+
+  // Yang BOLEH menyumbang kunci: pesan yang memang balasan.
+  for (const [nama, subjek] of [
+    ["balasan kita sendiri", "Re: Tanya harga"],
+    ["balasan versi Gmail Indonesia", "Bls: Tanya harga"],
+    ["balasan bertumpuk", "Re: Re: Tanya harga"],
+  ]) {
+    laporkan(isReplySubject(subjek), nama + " dihitung sebagai balasan", ` — "${subjek}"`);
+  }
+
+  // Yang TIDAK boleh: pesan pembuka.
+  for (const [nama, subjek] of [
+    ["cold outreach", "Perkenalan IntelliBase"],
+    ["forward ke kolega", "Fwd: Tanya harga"],
+    ["subjek biasa", "Undangan demo"],
+  ]) {
+    laporkan(!isReplySubject(subjek), nama + " TIDAK dihitung sebagai balasan", ` — "${subjek}"`);
+  }
+
+  // Kasus persis yang dulu bocor: outreach terkirim vs balasan prospek.
+  const outreach = kunci("budi@rs.co.id", "Perkenalan IntelliBase");
+  const balasanProspek = kunci("budi@rs.co.id", "Re: Perkenalan IntelliBase");
+  laporkan(
+    outreach === balasanProspek && !isReplySubject("Perkenalan IntelliBase"),
+    "outreach berkunci sama dengan balasan prospek, TAPI tidak menyumbang kunci",
+    ` — ${JSON.stringify(outreach)}`,
+  );
 }
 
 console.log(gagal === 0 ? "\n✓ semua kasus lulus" : `\n✗ ${gagal} kasus gagal`);

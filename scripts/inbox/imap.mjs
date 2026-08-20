@@ -76,14 +76,120 @@ export async function connect() {
  * the draft into it, where nothing will ever look for it.
  */
 export async function findDraftsMailbox(client) {
+  const path = await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i);
+  if (path) return path;
   const list = await client.list();
-  const special = list.find((box) => box.specialUse === "\\Drafts");
-  if (special) return special.path;
-  const byName = list.find((box) => /^(INBOX[./])?drafts$/i.test(box.path));
-  if (byName) return byName.path;
   throw new Error(
     `Folder Drafts tidak ditemukan. Folder yang ada: ${list.map((b) => b.path).join(", ")}`,
   );
+}
+
+/** Same lookup, returning null instead of throwing — see findDraftsMailbox. */
+async function findMailbox(client, specialUse, namePattern) {
+  const list = await client.list();
+  return list.find((box) => box.specialUse === specialUse)?.path
+    ?? list.find((box) => namePattern.test(box.path))?.path
+    ?? null;
+}
+
+// Everything a mail client might stack in front of a subject. Stripped so the
+// same thread compares equal no matter who forwarded it where.
+const STRIP_PREFIXES = /^\s*((re|fwd|fw|bls|balasan)\s*:\s*)+/i;
+
+// The narrower set that means "this message answers another one". Forwards are
+// deliberately absent: forwarding someone's email to a colleague is not a reply
+// to them, and it goes to a different address anyway.
+const REPLY_PREFIXES = /^\s*(re|bls|balasan)\s*:/i;
+
+/**
+ * Strips every "Re:"/"Fwd:" prefix, so a subject can be compared across a thread.
+ */
+export function bareSubject(subject) {
+  return String(subject ?? "").replace(STRIP_PREFIXES, "").trim().toLowerCase();
+}
+
+/** Whether this subject is itself an answer to something, not an opening message. */
+export function isReplySubject(subject) {
+  return REPLY_PREFIXES.test(String(subject ?? ""));
+}
+
+/**
+ * Which incoming emails already have an answer — read from the mailbox itself.
+ *
+ * state.json cannot be the only answer to "did we already reply to this?" once
+ * the bot runs anywhere but this machine: a scheduled CI run gets a fresh
+ * container every time, the file is gone, and every run writes another draft
+ * for the same email. The mailbox, unlike a local file, is the one place both
+ * the bot and you already agree on.
+ *
+ * Reads Drafts *and* Sent, which buys something state.json never could: if you
+ * answered someone by hand, the bot now knows and stays out of the way. That
+ * used to produce a redundant draft under a reply you had already sent.
+ *
+ * Two keys, because not every email carries a Message-ID (see toMessage). The
+ * first is exact. The second — recipient plus subject with the Re: stripped —
+ * covers the rest, and is what our own draft would look like from the outside.
+ *
+ * Envelope-only fetch: no bodies are downloaded, so this stays cheap even on a
+ * mailbox with a busy Sent folder.
+ */
+export async function answeredKeys(client, { days }) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const byMessageId = new Set();
+  const byRecipientSubject = new Set();
+
+  const draftsPath = await findMailbox(client, "\\Drafts", /^(INBOX[./])?drafts$/i);
+  const sentPath = await findMailbox(client, "\\Sent", /^(INBOX[./])?sent(\s?(items|mail))?$/i);
+
+  // Said out loud rather than filtered away in silence. Without Sent we still
+  // dedupe correctly against our own drafts; what is lost is "you already
+  // replied by hand, so stay out of the way" — a capability disappearing
+  // quietly is how you end up trusting something that stopped working.
+  if (!sentPath) {
+    console.warn("  ⚠ folder Sent tidak ditemukan — balasan yang Anda tulis sendiri tidak akan terdeteksi.");
+  }
+
+  const scan = async (path) => {
+    const lock = await client.getMailboxLock(path);
+    try {
+      for await (const msg of client.fetch({ since }, { uid: true, envelope: true })) {
+        const env = msg.envelope ?? {};
+        if (env.inReplyTo) byMessageId.add(env.inReplyTo);
+
+        // Only messages that are themselves replies may contribute the fallback
+        // key, and this condition is the whole point of it.
+        //
+        // Without it the key was built from every recent sent message, including
+        // outbound cold outreach — so "Perkenalan IntelliBase" sent to a
+        // prospect produced exactly the key their reply "Re: Perkenalan
+        // IntelliBase" would later look up, and the reply was skipped as already
+        // answered. Silently, with no draft and no log line, for the one class
+        // of email worth the most.
+        if (!isReplySubject(env.subject)) continue;
+        const to = env.to?.[0]?.address?.toLowerCase();
+        const subject = bareSubject(env.subject);
+        if (to && subject) byRecipientSubject.add(`${to}|${subject}`);
+      }
+    } finally {
+      lock.release();
+    }
+  };
+
+  // Drafts is load-bearing: without it we cannot tell our own previous drafts
+  // apart and would append another every run, so a failure there is fatal.
+  if (draftsPath) await scan(draftsPath);
+
+  // Sent is a nicety. A mailbox that lists but refuses SELECT (\Noselect, or a
+  // permissions quirk) must not take the whole run down for it.
+  if (sentPath) {
+    try {
+      await scan(sentPath);
+    } catch (err) {
+      console.warn(`  ⚠ folder Sent "${sentPath}" tidak bisa dibaca (${err.message}) — lanjut tanpa itu.`);
+    }
+  }
+
+  return { byMessageId, byRecipientSubject };
 }
 
 /** Strips the quoted history so only what this person actually wrote is left. */

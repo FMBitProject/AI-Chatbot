@@ -52,8 +52,9 @@ npm run inbox:test     # tes offline untuk aturan penyaring (tanpa jaringan)
 
 Opsi: `--days 7` (default 3, seberapa jauh ke belakang dicari), `--limit 20`
 (batas **email yang diproses model** per run — inilah yang membatasi biaya dan
-jatah rate limit, bukan jumlah draft jadi), `--force` (abaikan catatan "sudah
-pernah dibalas").
+jatah rate limit, bukan jumlah draft jadi), `--force` (abaikan catatan di
+`state.json`; **draft yang sudah ada di mailbox tetap dihormati** — untuk
+benar-benar menulis ulang, hapus dulu draftnya).
 
 Urutan yang disarankan, satu tangga per kali:
 
@@ -126,19 +127,65 @@ Yang membatasi paparan:
 
 ## Menjadwalkan
 
-Jalankan manual dulu. Kalau sudah stabil, cron di mesin Anda sendiri:
+Otomatis lewat GitHub Actions setiap 2 jam — `.github/workflows/inbox-draft.yml`.
+Isi lima secret ini di **Settings → Secrets and variables → Actions**:
 
-```
-0 8,16 * * *  cd /path/ke/ai-chatbot && npm run inbox:draft >> /tmp/inbox.log 2>&1
-```
+| Secret | Isi |
+|---|---|
+| `INBOX_IMAP_HOST` | `imap.hostinger.com` |
+| `INBOX_IMAP_USER` | `hello@intellibaseai.com` |
+| `INBOX_IMAP_PASS` | password mailbox — hanya bisa baca & menaruh draft, tidak bisa mengirim |
+| `INBOX_SIGNATURE` | tanda tangan; boleh multi-baris asli, boleh pakai `\n` |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | key yang sama dengan script konten |
 
-**Jangan dipasang di Vercel cron.** Ini inbox pribadi: kredensial IMAP-nya tidak
-perlu ada di server produk, dan koneksi IMAP tidak cocok dengan fungsi serverless.
+Setelah secret terisi, coba dulu lewat **Actions → Inbox draft bot → Run
+workflow** sebelum menunggu jadwalnya.
+
+**Kenapa bukan cron di laptop:** draft baru berguna kalau sudah menunggu waktu
+Anda membuka email — termasuk sepulang dari akhir pekan. Cron lokal hanya jalan
+saat mesinnya nyala.
+
+**Kenapa bukan Vercel cron:** ini inbox pribadi, kredensial IMAP-nya tidak perlu
+ada di server produk, dan koneksi IMAP tidak cocok dengan fungsi serverless.
+
+### Kenapa `state.json` tidak dipakai di sana
+
+Setiap run terjadwal dapat container baru, jadi file itu tidak pernah bertahan.
+Kalau ia satu-satunya penanda "sudah dibalas", bot akan menulis draft baru untuk
+email yang sama tiap 2 jam.
+
+Karena itu penandanya dibaca dari **mailbox**: folder Drafts dan Sent dipindai,
+dan email yang sudah punya balasan dilewati (`answeredKeys()` di `imap.mjs`).
+Efek sampingnya yang paling berguna — **kalau Anda sudah membalas sendiri, bot
+tahu dan tidak ikut mendraft.**
+
+Satu hal yang memang tidak tertutup: email berkategori `perlu-manusia` dan
+`abaikan` tidak meninggalkan jejak apa pun di mailbox, jadi keduanya ditriase
+ulang tiap run. Itu sebabnya workflow memakai `--days 1`, bukan default 3 —
+jendela sempit yang membatasi pengulangan itu, sementara jalan tiap 2 jam sudah
+memberi belasan kesempatan untuk setiap email.
 
 ## Catatan / TODO
 
 Temuan MINOR dari review 2026-08-20, sengaja **belum** dikerjakan — tidak ada yang
-berbahaya, tapi jangan sampai hilang:
+berbahaya, tapi jangan sampai hilang.
+
+Dari review dedupe mailbox:
+
+- `findMailbox()` memanggil `client.list()` tiap kali; satu run menembak 3–4
+  perintah LIST untuk data yang sama. Cache-kan hasilnya per koneksi.
+- Regex folder Sent tidak menangani nama terlokalisasi ("Terkirim", "Envoyés").
+  Sekarang minimal sudah ada peringatan kalau foldernya tidak ketemu.
+- `process.exit(tally.gagal > 0 ? 1 : 0)` membuat workflow merah untuk kegagalan
+  sementara (rate limit dua kali). Pertimbangkan exit 0 dengan ringkasan, supaya
+  notifikasi merah tetap berarti sesuatu.
+- `signature()` menerjemahkan `\n` tanpa jalan keluar, jadi tanda tangan yang
+  memang ingin memuat backslash-n harfiah mustahil ditulis.
+- `env.to?.[0]` hanya melihat penerima pertama saat membangun kunci dedupe.
+- `state.json` tetap dibaca lebih dulu di lokal, jadi email yang draftnya Anda
+  hapus manual tidak akan didraft ulang tanpa `--force`.
+
+Dari review sebelumnya:
 
 - `slug()` di `draft.mjs` bisa bertabrakan: dua email bersubjek sama saling
   menimpa file di `out/`. Tambahkan potongan hash kunci pada nama file.

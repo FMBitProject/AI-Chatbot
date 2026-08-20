@@ -17,7 +17,7 @@ import { join } from "path";
 import { readEnv, ROOT } from "./env.mjs";
 import { resolveModel } from "../content/provider.mjs";
 import { lintText, splitProblems, formatProblems } from "../content/lint.mjs";
-import { connect, fetchRecent, findDraftsMailbox, buildDraft, appendDraft, inboxAddress } from "./imap.mjs";
+import { connect, fetchRecent, findDraftsMailbox, buildDraft, appendDraft, inboxAddress, answeredKeys, bareSubject } from "./imap.mjs";
 import { ruleSkip, classify, skipDomains, DRAFTABLE } from "./triage.mjs";
 import { buildReplyPrompt, signature } from "./reply-facts.mjs";
 import { loadState, isHandled, markHandled, unmarkHandled } from "./state.mjs";
@@ -81,6 +81,41 @@ function writeOut(name, contents) {
 /** Filename-safe slug of a subject, so out/ stays browsable. */
 function slug(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50) || "tanpa-subjek";
+}
+
+// Filled in once the connection is open, below. Declared here because
+// alreadyAnswered() closes over it: a const inside the try block is scoped to
+// that block, and the function would reach for a name that does not exist.
+let answered = { byMessageId: new Set(), byRecipientSubject: new Set() };
+
+/**
+ * Whether a reply to this email already exists in Drafts or Sent.
+ *
+ * Message-ID first, because it is exact. The recipient+subject fallback exists
+ * for senders that omit a Message-ID entirely, where the exact check has nothing
+ * to match on and every run would otherwise write another draft.
+ */
+function alreadyAnswered(msg) {
+  if (msg.messageId && answered.byMessageId.has(msg.messageId)) return true;
+  return answered.byRecipientSubject.has(answeredKeyFor(msg));
+}
+
+function answeredKeyFor(msg) {
+  return `${msg.from.address?.toLowerCase()}|${bareSubject(msg.subject)}`;
+}
+
+/**
+ * Records a draft we just wrote, so the rest of this run can see it.
+ *
+ * The mailbox is read once, before the loop; without this the snapshot goes
+ * stale the moment the first draft is appended. Two emails from the same person
+ * with the same subject in one run — someone resending because they got no
+ * reply — would each be checked against a mailbox that did not yet contain the
+ * other's draft, and both would get one.
+ */
+function rememberAnswered(msg) {
+  if (msg.messageId) answered.byMessageId.add(msg.messageId);
+  answered.byRecipientSubject.add(answeredKeyFor(msg));
 }
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -155,6 +190,22 @@ try {
     }
   }
 
+  // Read before anything is drafted, and read from the mailbox rather than from
+  // state.json alone — see answeredKeys. This is what makes the bot safe to run
+  // somewhere with no persistent disk, and what stops it drafting a reply under
+  // one you already sent by hand.
+  try {
+    answered = await answeredKeys(client, { days: DAYS });
+  } catch (err) {
+    // Fails closed on purpose. Carrying on with an empty set would mean
+    // treating every email as unanswered and appending a second draft to every
+    // thread — worse than doing nothing this cycle and trying again next.
+    console.error(`\nGagal membaca folder Drafts untuk memeriksa balasan yang sudah ada: ${err.message}`);
+    console.error(`Run dihentikan supaya tidak menulis draft dobel. Tidak ada yang diubah.`);
+    await client.logout().catch(() => {});
+    process.exit(2);
+  }
+
   const messages = await fetchRecent(client, { days: DAYS });
   console.log(`${messages.length} email dalam ${DAYS} hari terakhir di ${fromAddress}\n`);
 
@@ -167,6 +218,12 @@ try {
       console.log(`\n(berhenti di --limit ${LIMIT} email yang diproses model)`);
       break;
     }
+    // --force reopens what state.json recorded, but not what the mailbox shows.
+    // Those are different claims: the file is our bookkeeping and can be wrong,
+    // while an existing draft is the thing itself. Ignoring it would append a
+    // second draft to the same thread, which is the one outcome this whole
+    // mechanism exists to prevent. To genuinely redo one, delete its draft.
+    if (alreadyAnswered(msg)) continue;
     if (!FORCE && isHandled(state, msg.key)) continue;
     tally.dilihat++;
 
@@ -292,6 +349,7 @@ ${msg.body}
         unmarkHandled(state, msg.key);
         throw err;
       }
+      rememberAnswered(msg);
       console.log(`  ✓ draft ditulis ke "${draftsPath}"\n`);
       tally.draft++;
     } catch (err) {

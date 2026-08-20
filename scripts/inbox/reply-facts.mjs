@@ -14,7 +14,14 @@ import { buildProductFacts } from "../content/brand-facts.mjs";
 // a suggestion a model can silently drop, and a reply that goes out unsigned or
 // signed with an invented name is worse than one with no signature rule at all.
 export function signature(readEnv) {
-  return readEnv("INBOX_SIGNATURE") ?? "— Tim IntelliBase\nhello@intellibaseai.com\nintellibaseai.com";
+  const configured = readEnv("INBOX_SIGNATURE");
+  // Normalised here rather than only in the .env.local reader, because the two
+  // paths in differ: env.mjs unescapes \n for a double-quoted file value, while
+  // a GitHub Actions secret arrives through process.env untouched. Without this
+  // the scheduled runs would sign every draft with a literal backslash-n. Real
+  // newlines pass through unchanged, so a multi-line secret also works.
+  if (configured) return configured.replace(/\\n/g, "\n");
+  return "— Tim IntelliBase\nhello@intellibaseai.com\nintellibaseai.com";
 }
 
 // Answers to what a sales inbox is actually asked, in the words we want used.
