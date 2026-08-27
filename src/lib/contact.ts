@@ -12,6 +12,30 @@
 export const SUPPORT_EMAIL =
   process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "hello@intellibaseai.com";
 
+// Office number, used temporarily until a dedicated business number is
+// purchased — see NEXT_PUBLIC_SUPPORT_WHATSAPP to swap it without a code
+// change once that happens.
+//
+// wa.me requires digits only: country code, no leading zero, no "+", no
+// spaces or dashes. The env var is free-typed by whoever sets it in Vercel,
+// so it's normalized here rather than trusted verbatim — a human-typed
+// "+62 813-7701-2424" would otherwise produce a silently broken link with no
+// error anywhere. A "0" straight after the country code is dropped too,
+// since the common mistake is pasting the local number (0813...) after the
+// 62 instead of replacing the leading zero with it.
+function normalizeWhatsAppNumber(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  return digits.startsWith("620") ? `62${digits.slice(3)}` : digits;
+}
+
+export const SUPPORT_WHATSAPP = normalizeWhatsAppNumber(
+  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.trim() || "6281377012424",
+);
+
+export function whatsappUrl(message: string) {
+  return `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`;
+}
+
 // Who is behind IntelliBase. A company asked to upload its internal SOPs to a
 // vendor it has never met wants to know there is a person on the other end, and
 // for a one-person product naming that person reads as more honest than the

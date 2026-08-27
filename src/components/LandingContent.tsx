@@ -10,7 +10,7 @@ import { getPlanPrice, isPromoActive } from "@/lib/pricing";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
-import { SUPPORT_EMAIL, FOUNDER, consultationMailto } from "@/lib/contact";
+import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check, User, Building2 } from "lucide-react";
@@ -747,6 +747,34 @@ export function LandingContent() {
         </div>
       </section>
 
+      {/* Who is behind this
+          Moved up to sit directly under the hero, before any other claim: the
+          visitor should know who they're trusting with their documents before
+          reading anything else the page argues. */}
+      {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
+        <section className="py-14 px-6 border-t border-hairline">
+          <div className="max-w-2xl mx-auto text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
+            <p className="font-semibold text-gray-900">{FOUNDER.name}</p>
+            <p className="text-sm text-gray-500">{FOUNDER.role[lang]}</p>
+            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-4">
+              <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
+                <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
+              </a>
+              <a
+                href={whatsappUrl(lang === "en" ? "Hi, I'd like to ask about IntelliBase AI." : "Halo, saya ingin bertanya soal IntelliBase AI.")}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium"
+              >
+                <MessageSquare className="h-4 w-4" />WhatsApp
+              </a>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Industries */}
       {/* Sits directly under the hero, so it qualifies the pitch ("…and yes,
           that includes your clinical pathways") before the visitor decides
@@ -1114,28 +1142,6 @@ export function LandingContent() {
           </div>
         </div>
       </section>
-
-      {/* Who is behind this */}
-      {/* Renders only once `FOUNDER` carries both a name and a sentence in the
-          language being shown — a half-filled entry would put a pair of empty
-          quotation marks above the name, which is worse than showing nothing at
-          all, since the whole point is answering "who am I handing my documents
-          to". Sits after the FAQ and before the final ask:
-          the objections are settled, and this is the last thing read before
-          the visitor decides. */}
-      {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
-        <section className="py-14 px-6 border-t border-hairline">
-          <div className="max-w-2xl mx-auto text-center">
-            <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
-            <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
-            <p className="font-semibold text-gray-900">{FOUNDER.name}</p>
-            <p className="text-sm text-gray-500">{FOUNDER.role[lang]}</p>
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium mt-4">
-              <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
-            </a>
-          </div>
-        </section>
-      )}
 
       {/* CTA */}
       <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
