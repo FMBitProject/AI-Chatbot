@@ -133,7 +133,7 @@ const CONTENT = {
     pricePlans: [
       { name: "Starter", price: "Gratis", desc: "5 karyawan · 10 dokumen · pencarian" },
       { name: "Professional", price: "Rp 200rb/bln", desc: "50 karyawan · 100 dokumen", promo: true },
-      { name: "Enterprise", price: "Rp 500rb/bln", desc: "100 karyawan · 500 dokumen", promo: true },
+      { name: "Enterprise", price: "Rp 500rb/bln", desc: "100 karyawan · 300 dokumen", promo: true },
       { name: "Custom", price: "Hubungi kami", desc: "Grup RS & multi-cabang" },
     ],
     priceBtn: "Lihat Detail Harga",
@@ -255,7 +255,7 @@ const CONTENT = {
     pricePlans: [
       { name: "Starter", price: "Free", desc: "5 employees · 10 documents · search" },
       { name: "Professional", price: "Rp 200k/mo", desc: "50 employees · 100 documents", promo: true },
-      { name: "Enterprise", price: "Rp 500k/mo", desc: "100 employees · 500 documents", promo: true },
+      { name: "Enterprise", price: "Rp 500k/mo", desc: "100 employees · 300 documents", promo: true },
       { name: "Custom", price: "Contact us", desc: "Hospital groups & multi-site" },
     ],
     priceBtn: "View Full Pricing",
