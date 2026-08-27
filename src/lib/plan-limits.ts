@@ -32,7 +32,7 @@ export const PLAN_LIMITS = {
   starter:      { maxDocuments: 10,  maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
   personal:     { maxDocuments: 50,  maxEmployees: 1,   maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 60,   maxQuestionsPerDayPerUser: -1 },
   professional: { maxDocuments: 100, maxEmployees: 50,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
-  enterprise:   { maxDocuments: 500, maxEmployees: 200, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
+  enterprise:   { maxDocuments: 500, maxEmployees: 100, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
   custom:       { maxDocuments: -1,  maxEmployees: -1,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,   maxQuestionsPerDayPerUser: -1 },
 } as const;
 
