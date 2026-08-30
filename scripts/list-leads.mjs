@@ -41,9 +41,20 @@ if (!DATABASE_URL) throw new Error("DATABASE_URL not set");
 const args = process.argv.slice(2);
 const csv = args.includes("--csv");
 
+// Refuses a flag with nothing after it, rather than reading undefined and
+// carrying on. Written the naive way, `--since` as the last argument produced
+// no value, skipped the validation below (which only runs when the value is
+// truthy) and printed the whole table — an unfiltered list presented as a
+// filtered one, which is the sort of wrong answer nobody double-checks.
 function flagValue(name) {
   const i = args.indexOf(name);
-  return i === -1 ? undefined : args[i + 1];
+  if (i === -1) return undefined;
+  const value = args[i + 1];
+  if (value === undefined || value.startsWith("--")) {
+    console.error(`${name} needs a value, e.g. ${name === "--since" ? "--since 2026-08-01" : "--audience company"}`);
+    process.exit(1);
+  }
+  return value;
 }
 
 const since = flagValue("--since");

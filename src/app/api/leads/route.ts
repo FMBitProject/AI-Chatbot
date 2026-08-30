@@ -68,17 +68,31 @@ export async function POST(req: NextRequest) {
     // onConflictDoNothing swallowed a duplicate, and a repeat submit is the same
     // person clicking twice, not a second lead to chase.
     //
-    // alertOps is used as-is rather than a mail call of its own because it
-    // already cannot throw, is bounded by a send timeout, and dedupes — all
-    // three of which matter on a public endpoint. The dedupe key is the address,
-    // so the quiet window can only ever suppress a duplicate of the same lead,
-    // never a different person. Awaited, not fire-and-forget: a serverless
-    // function is free to freeze the moment this handler returns.
+    // alertOps rather than a mail call of its own: it already cannot throw and
+    // is bounded by a send timeout, both of which matter on a route a visitor
+    // reaches without signing in.
+    //
+    // Its deduplication, however, protects nothing here, and an earlier comment
+    // in this spot claimed otherwise. The key is the submitted address, so the
+    // quiet window collapses repeats of one lead and does exactly nothing about
+    // a thousand different ones — and unlike every other caller of alertOps,
+    // the key on this path is chosen by whoever is filling in the form. The
+    // per-IP throttle above is the first bound and the easy one to route
+    // around; `budget` is the one that holds regardless of how many addresses
+    // arrive from how many places.
+    //
+    // 20/hour is set well above a real week's leads and well below anything
+    // that would matter as a mail bill. Over it, alertOps logs and does not
+    // send, so nothing is lost that `npm run leads` cannot recover.
+    //
+    // Awaited, not fire-and-forget: a serverless function is free to freeze the
+    // moment this handler returns.
     if (inserted.length > 0) {
       await alertOps({
         dedupeKey: `lead:${email.toLowerCase()}`,
         subject: `Lead baru dari landing page (${audience === "company" ? "Perusahaan" : "Individu"})`,
         details: { email: email.toLowerCase(), audience, locale },
+        budget: { name: "leads", max: 20 },
       });
     }
 

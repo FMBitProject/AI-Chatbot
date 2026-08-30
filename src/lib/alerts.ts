@@ -21,9 +21,9 @@ const FAILURE_BACKOFF_MS = 5 * 60 * 1000;
 // bound than @/lib/mail's default.
 const SEND_TIMEOUT_MS = 5_000;
 
-// Keys are order ids and fixed strings, so this stays small in normal operation.
-// The bound is for the pathological case where a flood of distinct orders all
-// fail at once.
+// Keys were order ids and fixed strings when this was written, so it stayed
+// small on its own. It is no longer only that: /api/leads is public and keys its
+// alerts by the submitted address, which means a stranger chooses them.
 const MAX_KEYS = 500;
 
 /** Alert key -> epoch ms until which it stays quiet. */
@@ -34,6 +34,52 @@ function sweep(now: number) {
   for (const [key, until] of quietUntil) {
     if (until <= now) quietUntil.delete(key);
   }
+  // Expiry alone was never a bound. Entries live for the quiet window — six
+  // hours by default — so a burst of distinct keys inside one window leaves
+  // nothing to expire, the loop above deletes nothing, and the map grows for as
+  // long as the burst lasts. Evicting the oldest is what makes MAX_KEYS an
+  // actual ceiling; Map iterates in insertion order, so this drops the entries
+  // whose quiet window is closest to running out anyway. The cost of dropping
+  // one early is a duplicate alert, which is the right way to be wrong.
+  if (quietUntil.size <= MAX_KEYS) return;
+  for (const key of quietUntil.keys()) {
+    if (quietUntil.size <= MAX_KEYS) break;
+    quietUntil.delete(key);
+  }
+}
+
+// A ceiling on how many alerts may actually be *sent* in an hour, across every
+// key. Deduplication does not bound anything on its own: it collapses repeats
+// of one key, so a thousand distinct keys are a thousand mails no matter how
+// well it works. That was safe while every caller was a payment path reached by
+// a Midtrans webhook or a signed-in admin, and stopped being safe the moment a
+// public form could name the key.
+//
+// Opt-in per call rather than global, so the payment alerts this file was built
+// for keep behaving exactly as they did — an alert about money must not be
+// suppressed because a spam run used up a shared budget earlier in the hour.
+const BUDGET_WINDOW_MS = 60 * 60 * 1000;
+
+/** Budget name -> { count, resetAt }. */
+const budgets = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Spends one unit of a named hourly budget.
+ *
+ * Returns false when the budget for this window is gone, which the caller reads
+ * as "log it, do not mail it" — the console.error in alertOps has already run by
+ * then, so a suppressed alert is still recorded where the platform can see it.
+ */
+function spendBudget(name: string, max: number): boolean {
+  const now = Date.now();
+  const b = budgets.get(name);
+  if (!b || b.resetAt <= now) {
+    budgets.set(name, { count: 1, resetAt: now + BUDGET_WINDOW_MS });
+    return true;
+  }
+  if (b.count >= max) return false;
+  b.count++;
+  return true;
 }
 
 /**
@@ -93,6 +139,18 @@ export async function alertOps(opts: {
   subject: string;
   details: Record<string, string>;
   windowMs?: number;
+  /**
+   * Cap sends under a shared named budget, `max` per hour.
+   *
+   * For callers whose dedupe key is not fully under our control — today that is
+   * the public lead form, whose key is whatever address a visitor typed. Omit it
+   * and nothing is capped, which is what every payment caller wants: an alert
+   * about money should not lose to a budget somebody else spent.
+   *
+   * A refused send is still logged by the console.error above, so exceeding the
+   * budget costs the email, never the record.
+   */
+  budget?: { name: string; max: number };
 }): Promise<void> {
   const summary = Object.entries(opts.details)
     .map(([k, v]) => `${k}=${String(v)}`)
@@ -104,6 +162,14 @@ export async function alertOps(opts: {
   const key = `alert:${opts.dedupeKey}`;
   const claimedUntil = claimQuietSlot(key, opts.windowMs ?? DEFAULT_WINDOW_MS);
   if (claimedUntil === null) return;
+
+  // After the quiet slot, not before: a call that was going to be deduped
+  // anyway must not spend budget, or a page being refreshed would exhaust the
+  // hour without a single mail being sent.
+  if (opts.budget && !spendBudget(opts.budget.name, opts.budget.max)) {
+    console.error(`[alert] Budget "${opts.budget.name}" spent for this hour; not mailing: ${opts.subject}`);
+    return;
+  }
 
   const rows = Object.entries(opts.details)
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0"><b>${escapeHtml(k)}</b></td><td style="padding:4px 0">${escapeHtml(v)}</td></tr>`)
