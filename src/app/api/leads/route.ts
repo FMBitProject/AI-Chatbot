@@ -4,6 +4,7 @@ import { landingLeads } from "@/lib/db/schema";
 import { randomUUID } from "crypto";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isOneOf, optionalEmail, readJsonObject } from "@/lib/validate";
+import { alertOps } from "@/lib/alerts";
 
 // Public endpoint for a landing-page visitor not ready to sign up — throttle
 // per IP so it can't be used to spam the leads table or as an email oracle.
@@ -52,9 +53,35 @@ export async function POST(req: NextRequest) {
     // twice or coming back a week later, and there is nothing to tell them —
     // we already have the address. Answering 200 either way also keeps this
     // from being an oracle for whether an address is already on the list.
-    await db.insert(landingLeads)
+    const inserted = await db.insert(landingLeads)
       .values({ id: randomUUID(), email: email.toLowerCase(), audience, locale })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: landingLeads.id });
+
+    // Tell a human. Until this, a lead was written to a table nothing in the
+    // application ever read — the form worked perfectly and every address it
+    // collected went into a hole. Somebody who leaves their email is asking to
+    // be contacted, and a follow-up a fortnight late is a follow-up nobody
+    // wanted.
+    //
+    // Only on a real insert: `returning()` comes back empty when
+    // onConflictDoNothing swallowed a duplicate, and a repeat submit is the same
+    // person clicking twice, not a second lead to chase.
+    //
+    // alertOps is used as-is rather than a mail call of its own because it
+    // already cannot throw, is bounded by a send timeout, and dedupes — all
+    // three of which matter on a public endpoint. The dedupe key is the address,
+    // so the quiet window can only ever suppress a duplicate of the same lead,
+    // never a different person. Awaited, not fire-and-forget: a serverless
+    // function is free to freeze the moment this handler returns.
+    if (inserted.length > 0) {
+      await alertOps({
+        dedupeKey: `lead:${email.toLowerCase()}`,
+        subject: `Lead baru dari landing page (${audience === "company" ? "Perusahaan" : "Individu"})`,
+        details: { email: email.toLowerCase(), audience, locale },
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[leads]", error);
