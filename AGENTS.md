@@ -35,6 +35,8 @@ npm run content:lint:test  # regression check for the lint rules themselves
 npm run content:cards      # render social image cards
 npm run content:channels   # push drafts to Buffer (LinkedIn only; Buffer can't upload media for YT/IG)
 
+npm run leads             # list landing-page leads (--csv, --since, --audience)
+
 npm run inbox:check        # poll hello@ inbox via IMAP
 npm run inbox:triage       # classify only, no draft
 npm run inbox:dry          # draft without saving

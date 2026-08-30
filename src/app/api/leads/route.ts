@@ -4,6 +4,7 @@ import { landingLeads } from "@/lib/db/schema";
 import { randomUUID } from "crypto";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isOneOf, optionalEmail, readJsonObject } from "@/lib/validate";
+import { alertOps } from "@/lib/alerts";
 
 // Public endpoint for a landing-page visitor not ready to sign up — throttle
 // per IP so it can't be used to spam the leads table or as an email oracle.
@@ -52,9 +53,49 @@ export async function POST(req: NextRequest) {
     // twice or coming back a week later, and there is nothing to tell them —
     // we already have the address. Answering 200 either way also keeps this
     // from being an oracle for whether an address is already on the list.
-    await db.insert(landingLeads)
+    const inserted = await db.insert(landingLeads)
       .values({ id: randomUUID(), email: email.toLowerCase(), audience, locale })
-      .onConflictDoNothing();
+      .onConflictDoNothing()
+      .returning({ id: landingLeads.id });
+
+    // Tell a human. Until this, a lead was written to a table nothing in the
+    // application ever read — the form worked perfectly and every address it
+    // collected went into a hole. Somebody who leaves their email is asking to
+    // be contacted, and a follow-up a fortnight late is a follow-up nobody
+    // wanted.
+    //
+    // Only on a real insert: `returning()` comes back empty when
+    // onConflictDoNothing swallowed a duplicate, and a repeat submit is the same
+    // person clicking twice, not a second lead to chase.
+    //
+    // alertOps rather than a mail call of its own: it already cannot throw and
+    // is bounded by a send timeout, both of which matter on a route a visitor
+    // reaches without signing in.
+    //
+    // Its deduplication, however, protects nothing here, and an earlier comment
+    // in this spot claimed otherwise. The key is the submitted address, so the
+    // quiet window collapses repeats of one lead and does exactly nothing about
+    // a thousand different ones — and unlike every other caller of alertOps,
+    // the key on this path is chosen by whoever is filling in the form. The
+    // per-IP throttle above is the first bound and the easy one to route
+    // around; `budget` is the one that holds regardless of how many addresses
+    // arrive from how many places.
+    //
+    // 20/hour is set well above a real week's leads and well below anything
+    // that would matter as a mail bill. Over it, alertOps logs and does not
+    // send, so nothing is lost that `npm run leads` cannot recover.
+    //
+    // Awaited, not fire-and-forget: a serverless function is free to freeze the
+    // moment this handler returns.
+    if (inserted.length > 0) {
+      await alertOps({
+        dedupeKey: `lead:${email.toLowerCase()}`,
+        subject: `Lead baru dari landing page (${audience === "company" ? "Perusahaan" : "Individu"})`,
+        details: { email: email.toLowerCase(), audience, locale },
+        budget: { name: "leads", max: 20 },
+      });
+    }
+
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[leads]", error);
