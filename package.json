@@ -44,7 +44,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toast": "^1.2.15",
-    "@slack/web-api": "^7.16.0",
+    "@slack/web-api": "^8.0.0",
     "@vercel/analytics": "^2.0.1",
     "ai": "^6.0.193",
     "better-auth": "^1.6.11",
