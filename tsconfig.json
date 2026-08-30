@@ -6,6 +6,12 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    // scripts/pricing.test.mts imports src/lib/*.ts with the extension spelled
+    // out, because Node's --experimental-strip-types resolver requires it.
+    // Safe here: the flag is only permitted alongside noEmit, which this
+    // project already sets, and it changes resolution rules for tsc only —
+    // Next does its own transpilation and never reads it.
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",
