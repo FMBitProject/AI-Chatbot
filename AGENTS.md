@@ -36,6 +36,7 @@ npm run content:cards      # render social image cards
 npm run content:channels   # push drafts to Buffer (LinkedIn only; Buffer can't upload media for YT/IG)
 
 npm run leads             # list landing-page leads (--csv, --since, --audience)
+npm run test:pricing      # regression test for pricing/plan-limits (pure, no DB)
 
 npm run inbox:check        # poll hello@ inbox via IMAP
 npm run inbox:triage       # classify only, no draft
@@ -44,10 +45,22 @@ npm run inbox:draft        # draft replies as Gmail drafts (never sends — no S
 npm run inbox:test         # regression check for the triage rules
 ```
 
-There is no test framework (no Jest/Vitest) — `*.test.mjs` files under
-`scripts/` are plain Node scripts with hand-rolled assertions, run directly
-with `node`, not through a runner. To run one test file in isolation:
-`node scripts/inbox/triage.test.mjs`.
+There is no test framework (no Jest/Vitest) — test files under `scripts/` are
+plain Node scripts with hand-rolled assertions, run directly with `node`, not
+through a runner. To run one in isolation: `node scripts/inbox/triage.test.mjs`.
+
+`scripts/pricing.test.mts` is the exception worth knowing about: it imports
+`src/lib/pricing.ts` and `src/lib/plan-limits.ts` — the real modules, not
+copies — and runs them through Node 22's `--experimental-strip-types`. That
+works only because those two files have **no imports at all**, so there is no
+`@/` alias to resolve and no database to stand up. Any lib file that reaches
+for `@/lib/db` cannot be tested this way; `subscription.ts` and `payment.ts`
+are deliberately not covered for that reason.
+
+Dates in that file are built with `new Date(y, m, d)` (local time) rather than
+ISO strings on purpose — `computeRenewedExpiry` uses local-time accessors, so
+UTC literals would make the suite pass in CI and fail on a developer's machine
+west of UTC.
 
 `db:migrate` and `db:push` run against `DATABASE_URL` in `.env.local`, which
 points at the real production Neon database — there is no separate

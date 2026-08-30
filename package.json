@@ -23,7 +23,8 @@
     "inbox:dry": "node scripts/inbox/draft.mjs --dry-run",
     "inbox:draft": "node scripts/inbox/draft.mjs",
     "inbox:test": "node scripts/inbox/triage.test.mjs",
-    "leads": "node scripts/list-leads.mjs"
+    "leads": "node scripts/list-leads.mjs",
+    "test:pricing": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pricing.test.mts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.29",
