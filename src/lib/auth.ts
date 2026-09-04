@@ -121,9 +121,33 @@ export const auth = betterAuth({
     },
   },
   session: {
+    // A signed copy of the session lives in a second cookie so getSession()
+    // does not pay a database round trip on every request. The cost of that
+    // optimisation is that the copy is *trusted*: while it is valid,
+    // better-auth returns it and never reads the session table (see the
+    // early return in its api/routes/session.mjs). Deleting a session row —
+    // which is what revocation is — therefore changes nothing until the copy
+    // expires.
+    //
+    // This was seven days, which is how long a revoked session stayed usable.
+    // The admin password reset in @/app/api/admin/users/[id]/reset-password
+    // deletes every session the employee has and mails them "you have been
+    // signed out on every device"; that sentence was false for a week. It is
+    // the one button reached for when an account is believed to be
+    // compromised, so it is exactly the case where a week of grace goes to
+    // whoever took the account.
+    //
+    // Five minutes is better-auth's own default and the bound on how long a
+    // revocation can go unnoticed. It costs one session read per user per
+    // five minutes, which is the price of revocation meaning anything.
+    //
+    // Note this only ever governed *session* revocation. Role, company and
+    // account deletion are read fresh from the users row by @/lib/auth-guard
+    // on every request, so a demotion or an offboarding has always taken
+    // effect immediately, cache or no cache.
     cookieCache: {
       enabled: true,
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 5,
     },
   },
   // Enabled by default in production only, so local dev stays unthrottled.
