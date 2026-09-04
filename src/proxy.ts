@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientIp } from "@/lib/rate-limit";
 
 // Simple in-memory rate limiter (resets on cold start — use Redis for production)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -82,6 +83,12 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
     const res = NextResponse.redirect(url);
     res.cookies.set(BYPASS_COOKIE, secret, {
       httpOnly: true,
+      // The cookie carries MAINTENANCE_BYPASS_SECRET verbatim, so without this
+      // it also travelled over plain HTTP. The Slack install nonce in
+      // @/app/api/slack/install already sets this; the omission here was an
+      // inconsistency rather than a decision. Off in development so the
+      // bypass still works on http://localhost.
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24, // 1 day
@@ -138,7 +145,11 @@ export function proxy(req: NextRequest) {
     pathname.startsWith("/api/folders") ||
     pathname.startsWith("/api/user/me")
   ) {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] ?? "unknown";
+    // Shared with @/lib/rate-limit rather than parsed again here: this had its
+    // own copy that read the first forwarded hop, so the two limiters keyed on
+    // different things and only one of them was spoof-resistant. One function,
+    // one answer to "who is calling".
+    const ip = getClientIp(req);
     if (isRateLimited(ip)) {
       return new NextResponse(JSON.stringify({ error: "Too many requests. Please slow down." }), {
         status: 429,
