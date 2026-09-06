@@ -403,12 +403,35 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       title: question.slice(0, 60),
     }));
   } else {
-    // Verify the session belongs to this user's company before writing messages into it
+    // Verify the session belongs to this *user* — not merely to their company.
+    //
+    // The company check alone is what RLS already gives us, so on its own it
+    // authorises nothing extra: two employees of one workspace both satisfy
+    // it. That mattered because a caller supplying a colleague's session id
+    // got three things out of it — `priorTurns` below replays that session's
+    // history into the prompt (so the model can be asked to recite it), the
+    // new messages are written into the colleague's session, and the
+    // per-user daily quota counts messages by `chatSessions.userId`, so
+    // questions parked in someone else's session were never charged to the
+    // asker.
+    //
+    // Session ids are UUIDv4 and not guessable, which is why this was a
+    // narrow hole rather than an open one. It is still the wrong check:
+    // /api/chat/sessions/[id]/messages has always scoped by userId, and two
+    // routes reading the same rows under different rules is a difference
+    // that only ever gets noticed the expensive way.
+    //
+    // 404 rather than 403 on failure, deliberately — a session that is not
+    // yours should be indistinguishable from one that does not exist.
     const existingSessionId = activeSessionId;
     const [existingSession] = await withTenant(companyId, (tx) => tx
       .select({ id: chatSessions.id })
       .from(chatSessions)
-      .where(and(eq(chatSessions.id, existingSessionId), eq(chatSessions.companyId, companyId)))
+      .where(and(
+        eq(chatSessions.id, existingSessionId),
+        eq(chatSessions.userId, dbUser.id),
+        eq(chatSessions.companyId, companyId),
+      ))
       .limit(1));
     if (!existingSession) {
       return new Response(JSON.stringify({ error: "Session not found" }), { status: 404 });

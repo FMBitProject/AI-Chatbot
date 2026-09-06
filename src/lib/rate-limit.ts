@@ -58,9 +58,39 @@ export function recordFailure(key: string, rule: Rule): void {
   }
 }
 
-/** Client IP for rate-limit keys; on Vercel x-forwarded-for is platform-set. */
+/**
+ * Client IP for rate-limit keys.
+ *
+ * The whole mechanism rests on this value not being chosen by the caller: a
+ * key an attacker can vary is a limit an attacker can reset. This used to
+ * read the *first* entry of `x-forwarded-for` on the assumption that Vercel
+ * overwrites that header — which is an assumption about someone else's proxy
+ * that nothing here can check, and if it is wrong the entry is attacker-typed
+ * text and every limit in the app falls to one extra header.
+ *
+ * So it is no longer assumed. `x-vercel-forwarded-for` is set by the platform
+ * and cannot be spoofed by the client, and is preferred where present.
+ * Failing that, the *last* entry of the forwarded chain is the one appended
+ * by the nearest proxy — anything earlier may have been sent by the client.
+ * That reading is correct whether the platform overwrites the header (one
+ * entry, first and last are the same) or appends to it (last is the real
+ * peer), which is exactly why it does not need the assumption.
+ *
+ * Note what this does not fix: `buckets` is a Map in this process's memory,
+ * so on a serverless platform each instance counts on its own and an
+ * advertised "5 per 15 minutes" is really that times however many instances
+ * are warm. Closing that needs shared storage (Vercel KV, Upstash) and is a
+ * deliberate trade, not an oversight.
+ */
 export function getClientIp(req: Request): string {
+  const platform = req.headers.get("x-vercel-forwarded-for");
+  if (platform) return platform.split(",")[0].trim();
+
   const fwd = req.headers.get("x-forwarded-for");
-  if (fwd) return fwd.split(",")[0].trim();
+  if (fwd) {
+    const hops = fwd.split(",");
+    return hops[hops.length - 1].trim();
+  }
+
   return req.headers.get("x-real-ip") ?? "unknown";
 }
