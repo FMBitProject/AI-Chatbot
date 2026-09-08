@@ -24,7 +24,12 @@
     "inbox:draft": "node scripts/inbox/draft.mjs",
     "inbox:test": "node scripts/inbox/triage.test.mjs",
     "leads": "node scripts/list-leads.mjs",
-    "test:pricing": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pricing.test.mts"
+    "test:pricing": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pricing.test.mts",
+    "test:security": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/security.test.mts",
+    "test:secret-box": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/secret-box.test.mts",
+    "test:rag": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/rag.test.mts",
+    "test:errors": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/errors.test.mts",
+    "test": "npm run test:pricing && npm run test:security && npm run test:secret-box && npm run test:rag && npm run test:errors && npm run inbox:test && npm run content:lint:test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.29",
