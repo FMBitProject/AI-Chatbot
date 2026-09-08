@@ -261,7 +261,22 @@ export const documents = pgTable("documents", {
   indexingStartedAt: timestamp("indexing_started_at"),
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Written to match activeDocumentIds() in retrieval.ts exactly:
+  // `where company_id = ? order by created_at asc, id asc limit N`. All three
+  // columns in that order, so the planner can satisfy the filter, the sort and
+  // the limit from the index alone instead of sorting the company's documents
+  // on every question — and this runs on every question, for every plan except
+  // custom, because that is the query deciding which documents the plan's
+  // document limit leaves searchable.
+  //
+  // The leading column also narrows claimNextDocument() in indexing.ts, whose
+  // full ordering (indexing_started_at, created_at, id) is not covered here.
+  // Left that way on purpose: after `company_id = ?` the candidate set is at
+  // most a few hundred rows even on Enterprise, so sorting them is cheap, and a
+  // second index would be maintained on every status write the indexer makes.
+  index("documents_company_created_idx").on(t.companyId, t.createdAt, t.id),
+]);
 
 export const documentChunks = pgTable("document_chunks", {
   id: text("id").primaryKey(),
@@ -272,6 +287,16 @@ export const documentChunks = pgTable("document_chunks", {
   chunkIndex: integer("chunk_index").notNull().default(0),
 }, (t) => [
   index("document_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
+  // The HNSW index above orders by distance across every tenant's vectors at
+  // once; this one gives the planner the other half of the choice. For a small
+  // company, fetching its own chunks by company_id and computing exact
+  // distances over them can beat walking a graph built from everyone's data —
+  // and it is a choice the planner can only make if the option exists.
+  //
+  // It does not replace the ef_search / iterative_scan tuning in retrieval.ts,
+  // which is what keeps recall correct when the HNSW path *is* chosen. The two
+  // cover different plans for the same query.
+  index("document_chunks_company_idx").on(t.companyId),
   // Structural guarantee that one document cannot end up with two copies of the
   // same chunk. Indexing rewrites a document's chunks as delete-then-insert
   // inside one transaction, which is safe against a crash but *not* against a
@@ -292,7 +317,21 @@ export const chatSessions = pgTable("chat_sessions", {
   companyId: text("company_id").references(() => companies.id).notNull(),
   title: text("title").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // Postgres does NOT index a foreign key for you — that is MySQL. Both columns
+  // below are `references(...)`, and both were unindexed until now, so every
+  // read of this table was a sequential scan.
+  //
+  // (userId, companyId) rather than two single-column indexes: the session list
+  // filters on exactly that pair, and a composite also serves a lookup on its
+  // leading column alone. That second property is what makes this one index
+  // enough for the per-user quota join in /api/chat too, which joins on
+  // chat_sessions.user_id and never mentions companyId.
+  index("chat_sessions_user_company_idx").on(t.userId, t.companyId),
+  // companyId is not the leading column above, so it needs its own entry. The
+  // audit log reads this table by company across every user in it.
+  index("chat_sessions_company_idx").on(t.companyId),
+]);
 
 export const transactions = pgTable("transactions", {
   id: text("id").primaryKey(),
@@ -348,7 +387,29 @@ export const chatMessages = pgTable("chat_messages", {
   citationsJson: text("citations_json"),
   feedback: text("feedback").$type<"up" | "down">(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  // The index that matters most in this file, because of where it is read.
+  //
+  // /api/chat enforces the per-user daily cap by COUNTing this table joined to
+  // chat_sessions — once per question asked, by every employee, on Professional
+  // and Enterprise alike (the two plans where maxQuestionsPerDayPerUser is not
+  // -1, i.e. exactly the plans a large team is on). Unindexed, that count is a
+  // sequential scan of every message the company has ever sent, and it grows
+  // with usage: roughly a million rows a year at a hundred active employees.
+  // The cost lands on the person waiting for an answer.
+  //
+  // Column order follows how the planner uses it: session_id resolves the join,
+  // role and created_at then narrow it to today's questions without touching
+  // the heap. The same leading column also serves the plain
+  // `where session_id = ?` that loads one conversation's history.
+  //
+  // Deliberately NOT a counter column, which is how the *company* quota is
+  // enforced (see consumeQuestionQuota) and would be O(1) rather than O(log n).
+  // That is the better end state and this index does not block it — but it
+  // needs a new column, a migration and a reset rule for the day boundary,
+  // whereas this is additive, reversible, and fixes the scan today.
+  index("chat_messages_session_role_created_idx").on(t.sessionId, t.role, t.createdAt),
+]);
 
 // One row per company that has installed the Slack app to their workspace via
 // OAuth. Deliberately NOT RLS-protected, like transactions and api_keys: this
