@@ -12,7 +12,9 @@ import { RenewalBanner } from "@/components/admin/RenewalBanner";
 import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
 import { SlackTab } from "@/components/admin/SlackTab";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, BarChart2, Sparkles, ClipboardList, CreditCard, Link2, Menu } from "lucide-react";
+import { FileText, Users, BarChart2, Sparkles, ClipboardList, CreditCard, Link2, Menu, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { AdminSidebar, type AdminNavItem } from "@/components/admin/AdminSidebar";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
@@ -496,7 +498,6 @@ export default function AdminPage() {
         isIndividual={isIndividual}
         plan={plan}
         lang={lang}
-        openChatLabel={T.openChat}
         logoutLabel={T.logout}
         onLogout={handleLogout}
       />
@@ -526,6 +527,15 @@ export default function AdminPage() {
               <p className="truncate text-xs text-gray-500">{activeLabel}</p>
             )}
           </div>
+          {/* The only control up here, and the only one on the page that leaves
+              the dashboard entirely. `shrink-0` because the heading beside it
+              is the part that should truncate on a narrow screen, not this. */}
+          <Link href="/chat" className="ml-auto shrink-0">
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <MessageSquare className="h-4 w-4" />
+              <span className="hidden sm:inline">{T.openChat}</span>
+            </Button>
+          </Link>
         </header>
 
         <main className="flex-1 overflow-x-hidden px-4 py-6">

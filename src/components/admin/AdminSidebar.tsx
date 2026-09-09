@@ -1,11 +1,10 @@
 "use client";
-import Link from "next/link";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LogoFull, LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, LogOut, MessageSquare, X, type LucideIcon } from "lucide-react";
+import { ChevronLeft, LogOut, X, type LucideIcon } from "lucide-react";
 import type { Plan } from "@/lib/plan-limits";
 import type { Lang } from "@/lib/i18n";
 
@@ -41,7 +40,6 @@ type AdminSidebarProps = {
   isIndividual: boolean;
   plan: Plan;
   lang: Lang;
-  openChatLabel: string;
   logoutLabel: string;
   onLogout: () => void;
 };
@@ -57,7 +55,6 @@ export function AdminSidebar({
   isIndividual,
   plan,
   lang,
-  openChatLabel,
   logoutLabel,
   onLogout,
 }: AdminSidebarProps) {
@@ -202,20 +199,10 @@ export function AdminSidebar({
             <LanguageSwitcher className="ml-auto" />
           </div>
 
-          <Link href="/chat" onClick={onCloseMobile} className="block">
-            <Button
-              variant="ghost"
-              size="sm"
-              title={collapsed ? openChatLabel : undefined}
-              className={cn(
-                "w-full justify-start gap-2 text-gray-300 hover:bg-white/10 hover:text-white",
-                collapsed && "md:justify-center md:px-0"
-              )}
-            >
-              <MessageSquare className="h-4 w-4 shrink-0" />
-              <span className={cn(collapsed && "md:hidden")}>{openChatLabel}</span>
-            </Button>
-          </Link>
+          {/* "Buka Chat" used to sit here. It moved to the top bar in the main
+              column: it is the one control that leaves the dashboard for
+              another surface, and buried under the nav it read as a seventh
+              section rather than a way out. */}
           <Button
             variant="ghost"
             size="sm"
