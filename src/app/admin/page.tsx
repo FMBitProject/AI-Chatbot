@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome, type DriveImportOutcome } from "@/components/admin/DocumentsTab";
 import type { DrivePickedFile } from "@/components/admin/GoogleDrivePicker";
 import { UsersTab, type Employee } from "@/components/admin/UsersTab";
@@ -11,17 +11,14 @@ import { OnboardingBanner } from "@/components/admin/OnboardingBanner";
 import { RenewalBanner } from "@/components/admin/RenewalBanner";
 import { SubscriptionTab } from "@/components/admin/SubscriptionTab";
 import { SlackTab } from "@/components/admin/SlackTab";
-import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/toaster";
-import { FileText, Users, LogOut, MessageSquare, BarChart2, Sparkles, ClipboardList, CreditCard, MoreVertical, Link2 } from "lucide-react";
-import { LogoFull } from "@/components/Logo";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { FileText, Users, BarChart2, Sparkles, ClipboardList, CreditCard, Link2, Menu } from "lucide-react";
+import { AdminSidebar, type AdminNavItem } from "@/components/admin/AdminSidebar";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
 import type { Plan } from "@/lib/plan-limits";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 // Tabs an individual account does not get. Both their triggers and their panels
 // are conditional further down, so a controlled <Tabs> pointing at one of them
@@ -46,7 +43,13 @@ export default function AdminPage() {
   const [access, setAccess] = useState<"checking" | "granted" | "denied">("checking");
   const { lang } = useLang();
   const T = adminT[lang];
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // Two independent pieces of sidebar state, because they answer different
+  // questions: `sidebarOpen` is the mobile drawer (closed by default, the
+  // sidebar is off-canvas there), `sidebarCollapsed` is the desktop icon-rail
+  // toggle. Collapsing on desktop must not close the drawer on mobile, and
+  // opening the drawer must not un-collapse the desktop rail.
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Controlled rather than `defaultValue`, so the onboarding banner can move the
   // dashboard to the tab a checklist step is about. Radix only exposes that
   // through `value`/`onValueChange`; reaching into the DOM for the trigger is
@@ -454,179 +457,145 @@ export default function AdminPage() {
     window.location.href = "/login";
   }
 
+  // The nav the sidebar renders, built here rather than inside it: which items
+  // exist is a permissions question this page already answers, and the sidebar
+  // should not have to learn the account-type rules a second time. Employees,
+  // analytics and Slack come out for an individual account for the same
+  // reasons their panels do — see the notes on the panels below.
+  const navItems: AdminNavItem[] = [
+    { value: "documents", label: isIndividual ? T.tabsIndividual.documents : T.tabs.documents, icon: FileText },
+    ...(!isIndividual ? [{ value: "users", label: T.tabs.users, icon: Users }] : []),
+    ...(!isIndividual ? [{ value: "analytics", label: T.tabs.analytics, icon: BarChart2 }] : []),
+    { value: "persona", label: isIndividual ? T.tabsIndividual.persona : T.tabs.persona, icon: Sparkles },
+    { value: "audit", label: isIndividual ? T.tabsIndividual.audit : T.tabs.audit, icon: ClipboardList },
+    { value: "subscription", label: lang === "en" ? "Subscription" : "Langganan", icon: CreditCard },
+    ...(!isIndividual ? [{ value: "slack", label: "Slack", icon: Link2 }] : []),
+  ];
+
+  const activeLabel = navItems.find((i) => i.value === visibleTab)?.label ?? "";
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <Tabs
+      // The whole shell lives inside <Tabs>, not just the panels: the sidebar
+      // *is* the TabsList, and Radix needs the list and the content under one
+      // root to wire up roving focus and aria-controls between them.
+      orientation="vertical"
+      value={visibleTab}
+      onValueChange={(v) => { setActiveTab(v); setSidebarOpen(false); }}
+      className="flex min-h-screen bg-gray-50"
+    >
       <Toaster />
-      <header className="bg-white border-b px-4 py-3 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <LogoFull size="sm" className="shrink-0" />
-          {/* "Admin" is a role among colleagues; on a one-person workspace there
-              is nobody to be the admin of, and the word only raises the question
-              of who else is in here. */}
-          <span className="hidden sm:inline text-xs font-medium bg-teal-100 text-teal-700 rounded-full px-2 py-0.5 shrink-0">
-            {isIndividual ? (lang === "en" ? "Personal" : "Pribadi") : "Admin"}
-          </span>
-          {/* The workspace name is the person's own name on an individual
-              account, and it is already in the header on the right. */}
-          {companyName && !isIndividual && <span className="hidden md:inline text-sm text-gray-400 shrink-0">·</span>}
-          {companyName && !isIndividual && <span className="hidden md:inline text-sm font-medium text-gray-600 truncate">{companyName}</span>}
-          {/* Every paid plan needs a case here: the fallback is "Free", so a
-              plan this list has not heard of shows a paying customer — the
-              negotiated Custom ones most of all — as being on the free tier. */}
-          <span className={`hidden sm:inline text-xs font-semibold px-2 py-0.5 rounded-full border shrink-0 ${
-            plan === "custom" ? "bg-gray-900 text-white border-gray-900" :
-            plan === "enterprise" ? "bg-teal-100 text-teal-700 border-teal-200" :
-            plan === "professional" ? "bg-teal-100 text-teal-700 border-teal-200" :
-            plan === "personal" ? "bg-teal-100 text-teal-700 border-teal-200" :
-            "bg-gray-100 text-gray-500 border-gray-200"
-          }`}>
-            {plan === "custom" ? "★ Custom" : plan === "enterprise" ? "⚡ Enterprise" : plan === "professional" ? "✦ Pro" : plan === "personal" ? "◆ Personal" : "Free"}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <LanguageSwitcher className="hidden sm:flex" />
-          <span className="hidden md:inline text-sm text-gray-500 truncate max-w-[100px]">{user?.name ?? "Admin"}</span>
-          <Link href="/chat">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">{T.openChat}</span>
-            </Button>
-          </Link>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-1.5 hidden sm:inline-flex">
-            <LogOut className="h-4 w-4" />
-            {T.logout}
-          </Button>
-          {/* Mobile menu */}
-          <div className="relative sm:hidden">
-            <Button variant="ghost" size="sm" onClick={() => setMobileMenuOpen((o) => !o)}>
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-            {mobileMenuOpen && (
-              <div className="absolute right-0 top-9 z-50 bg-white border rounded-xl shadow-lg p-3 w-48 space-y-2">
-                <p className="text-xs font-medium text-gray-500 px-2">{user?.name ?? "Admin"}</p>
-                <LanguageSwitcher />
-                <Button variant="ghost" size="sm" onClick={() => { handleLogout(); setMobileMenuOpen(false); }} className="w-full justify-start gap-2 text-red-500 hover:text-red-600">
-                  <LogOut className="h-4 w-4" />
-                  {T.logout}
-                </Button>
+      <AdminSidebar
+        items={navItems}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((c) => !c)}
+        mobileOpen={sidebarOpen}
+        onCloseMobile={() => setSidebarOpen(false)}
+        workspaceName={companyName}
+        userName={user?.name ?? "Admin"}
+        isIndividual={isIndividual}
+        plan={plan}
+        lang={lang}
+        openChatLabel={T.openChat}
+        logoutLabel={T.logout}
+        onLogout={handleLogout}
+      />
+
+      {/* min-w-0 is load-bearing: without it this flex child refuses to shrink
+          below its content's intrinsic width, and the documents table pushes
+          the whole page into a horizontal scroll instead of scrolling itself. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* A slim bar rather than the old full header. Everything that used to
+            live here — plan badge, workspace, language, chat, logout — moved
+            into the sidebar footer, so what is left is the drawer trigger and
+            the name of where you are. */}
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b bg-white px-4">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label={lang === "en" ? "Open menu" : "Buka menu"}
+            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 md:hidden"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-gray-900">
+              {isIndividual ? T.titleIndividual : T.title}
+            </h1>
+            {activeLabel && (
+              <p className="truncate text-xs text-gray-500">{activeLabel}</p>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-x-hidden px-4 py-6">
+          <div className="mx-auto max-w-5xl">
+            {access !== "granted" ? (
+              // Nothing below this point may mount before access is settled: the
+              // banners and panels each fetch their own admin endpoint on mount,
+              // so rendering them for a visitor on their way out to /chat is a
+              // burst of 403s and a flash of a dashboard that was never theirs.
+              // The sidebar above is exempt — it fetches nothing, and leaving the
+              // chrome up beats a blank screen while the check is in flight.
+              <div className="py-16 text-center text-sm text-gray-400">
+                {access === "checking" ? T.loading : null}
               </div>
+            ) : (
+              <>
+                <RenewalBanner lang={lang} />
+                <OnboardingBanner
+                  hasDocuments={documents.length > 0}
+                  hasEmployees={employees.length > 1}
+                  isIndividual={isIndividual}
+                  lang={lang}
+                  onOpenTab={setActiveTab}
+                />
+                <TabsContent value="documents">
+                  <DocumentsTab
+                    documents={documents}
+                    onUpload={handleUpload}
+                    onIndex={handleIndex}
+                    onReindex={handleReindex}
+                    onDelete={handleDelete}
+                    onSetFolder={handleSetFolder}
+                    onImportFromDrive={!isIndividual && DRIVE_IMPORT_PLANS.includes(plan) ? handleGoogleDriveImport : undefined}
+                    showFolders={isIndividual}
+                    lang={lang}
+                  />
+                </TabsContent>
+                {/* The panels come out with their nav items. A TabsContent left
+                    mounted without one is unreachable by clicking but still
+                    rendered by Radix when its value is active — and each of
+                    these fetches an admin endpoint on mount. */}
+                {!isIndividual && (
+                  <TabsContent value="users">
+                    <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />
+                  </TabsContent>
+                )}
+                {!isIndividual && (
+                  <TabsContent value="analytics">
+                    <AnalyticsTab lang={lang} />
+                  </TabsContent>
+                )}
+                <TabsContent value="persona">
+                  <PersonaTab lang={lang} isIndividual={isIndividual} />
+                </TabsContent>
+                <TabsContent value="audit">
+                  <AuditTab isIndividual={isIndividual} lang={lang} />
+                </TabsContent>
+                <TabsContent value="subscription">
+                  <SubscriptionTab isIndividual={isIndividual} lang={lang} />
+                </TabsContent>
+                {!isIndividual && (
+                  <TabsContent value="slack">
+                    <SlackTab plan={plan} lang={lang} />
+                  </TabsContent>
+                )}
+              </>
             )}
           </div>
-        </div>
-      </header>
-      <main className="max-w-5xl mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-4 text-gray-900">{isIndividual ? T.titleIndividual : T.title}</h1>
-        {access !== "granted" ? (
-          // Nothing below this point may mount before access is settled: the
-          // banners and tabs each fetch their own admin endpoint on mount, so
-          // rendering them for a visitor on their way out to /chat is a burst of
-          // 403s and a flash of a dashboard that was never theirs.
-          <div className="text-center py-16 text-gray-400 text-sm">
-            {access === "checking" ? T.loading : null}
-          </div>
-        ) : (
-        <>
-        <RenewalBanner lang={lang} />
-        <OnboardingBanner
-          hasDocuments={documents.length > 0}
-          hasEmployees={employees.length > 1}
-          isIndividual={isIndividual}
-          lang={lang}
-          onOpenTab={setActiveTab}
-        />
-        <Tabs value={visibleTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 w-full overflow-x-auto flex-nowrap justify-start">
-            <TabsTrigger value="documents" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              {isIndividual ? T.tabsIndividual.documents : T.tabs.documents}
-            </TabsTrigger>
-            {/* Employees and analytics are dropped for an individual account,
-                and for different reasons. Employees has nothing behind it — the
-                API refuses to create one (requireCompanyAdmin). Analytics works
-                perfectly well; it just answers "which of your employees asks the
-                most" for a workspace with one member, and the two numbers still
-                worth knowing (questions used, documents held) are on the
-                Langganan tab already. */}
-            {!isIndividual && (
-              <TabsTrigger value="users" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                {T.tabs.users}
-              </TabsTrigger>
-            )}
-            {!isIndividual && (
-              <TabsTrigger value="analytics" className="flex items-center gap-2">
-                <BarChart2 className="h-4 w-4" />
-                {T.tabs.analytics}
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="persona" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              {isIndividual ? T.tabsIndividual.persona : T.tabs.persona}
-            </TabsTrigger>
-            <TabsTrigger value="audit" className="flex items-center gap-2">
-              <ClipboardList className="h-4 w-4" />
-              {isIndividual ? T.tabsIndividual.audit : T.tabs.audit}
-            </TabsTrigger>
-            <TabsTrigger value="subscription" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              {lang === "en" ? "Subscription" : "Langganan"}
-            </TabsTrigger>
-            {/* Company-only for the same reason as Employees: it authenticates
-                Slack members against this workspace's employees, and an
-                individual account has none. requireCompanyAdmin refuses the
-                install route the same way it refuses POST /api/admin/users. */}
-            {!isIndividual && (
-              <TabsTrigger value="slack" className="flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                Slack
-              </TabsTrigger>
-            )}
-          </TabsList>
-          <TabsContent value="documents">
-            <DocumentsTab
-              documents={documents}
-              onUpload={handleUpload}
-              onIndex={handleIndex}
-              onReindex={handleReindex}
-              onDelete={handleDelete}
-              onSetFolder={handleSetFolder}
-              onImportFromDrive={!isIndividual && DRIVE_IMPORT_PLANS.includes(plan) ? handleGoogleDriveImport : undefined}
-              showFolders={isIndividual}
-              lang={lang}
-            />
-          </TabsContent>
-          {/* The panels come out with their triggers. A TabsContent left mounted
-              without one is unreachable by clicking but still rendered by Radix
-              when its value is active — and each of these fetches an admin
-              endpoint on mount. */}
-          {!isIndividual && (
-            <TabsContent value="users">
-              <UsersTab employees={employees} companyName={companyName} onAddEmployee={handleAddEmployee} lang={lang} />
-            </TabsContent>
-          )}
-          {!isIndividual && (
-            <TabsContent value="analytics">
-              <AnalyticsTab lang={lang} />
-            </TabsContent>
-          )}
-          <TabsContent value="persona">
-            <PersonaTab lang={lang} isIndividual={isIndividual} />
-          </TabsContent>
-          <TabsContent value="audit">
-            <AuditTab isIndividual={isIndividual} lang={lang} />
-          </TabsContent>
-          <TabsContent value="subscription">
-            <SubscriptionTab isIndividual={isIndividual} lang={lang} />
-          </TabsContent>
-          {!isIndividual && (
-            <TabsContent value="slack">
-              <SlackTab plan={plan} lang={lang} />
-            </TabsContent>
-          )}
-        </Tabs>
-        </>
-        )}
-      </main>
-    </div>
+        </main>
+      </div>
+    </Tabs>
   );
 }
