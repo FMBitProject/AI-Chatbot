@@ -16,6 +16,7 @@ import { FileText, Users, BarChart2, Sparkles, ClipboardList, CreditCard, Link2,
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { AdminSidebar, type AdminNavItem } from "@/components/admin/AdminSidebar";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { admin as adminT } from "@/lib/i18n";
 import type { Plan } from "@/lib/plan-limits";
@@ -527,15 +528,18 @@ export default function AdminPage() {
               <p className="truncate text-xs text-gray-500">{activeLabel}</p>
             )}
           </div>
-          {/* The only control up here, and the only one on the page that leaves
-              the dashboard entirely. `shrink-0` because the heading beside it
-              is the part that should truncate on a narrow screen, not this. */}
-          <Link href="/chat" className="ml-auto shrink-0">
-            <Button variant="outline" size="sm" className="gap-1.5">
-              <MessageSquare className="h-4 w-4" />
-              <span className="hidden sm:inline">{T.openChat}</span>
-            </Button>
-          </Link>
+          {/* The page-wide controls, grouped so they right-align as one unit.
+              `shrink-0` because the heading beside them is the part that should
+              truncate on a narrow screen, not these. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <LanguageSwitcher />
+            <Link href="/chat">
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">{T.openChat}</span>
+              </Button>
+            </Link>
+          </div>
         </header>
 
         <main className="flex-1 overflow-x-hidden px-4 py-6">

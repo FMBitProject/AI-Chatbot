@@ -1,7 +1,6 @@
 "use client";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { LogoFull, LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, LogOut, X, type LucideIcon } from "lucide-react";
@@ -192,11 +191,15 @@ export function AdminSidebar({
             </div>
           </div>
 
-          <div className={cn("mb-2 flex items-center gap-2", collapsed && "md:hidden")}>
+          {/* The ID/EN switcher stood beside this badge. It moved up to the top
+              bar with "Buka Chat": both are page-wide controls rather than
+              anything to do with the account this footer describes, and the
+              switcher in particular was unreachable while the sidebar was
+              collapsed — the whole row is `md:hidden` then. */}
+          <div className={cn("mb-2", collapsed && "md:hidden")}>
             <span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", badge.className)}>
               {badge.label}
             </span>
-            <LanguageSwitcher className="ml-auto" />
           </div>
 
           {/* "Buka Chat" used to sit here. It moved to the top bar in the main
