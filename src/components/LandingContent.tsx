@@ -14,6 +14,7 @@ import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/c
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check, User, Building2 } from "lucide-react";
+import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -40,6 +41,8 @@ import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
 // perusahaan" in the chat box, which is exactly the impression to avoid.
 import personalUploadShot from "../../public/screenshots/personal-upload.png";
 import personalAskShot from "../../public/screenshots/personal-ask.png";
+// Only the hero marquee uses this one; it has no step of its own.
+import personalPersonaShot from "../../public/screenshots/personal-persona.png";
 
 const STEP_SHOTS = {
   upload: uploadDocumentsShot,
@@ -48,6 +51,26 @@ const STEP_SHOTS = {
   uploadPersonal: personalUploadShot,
   askPersonal: personalAskShot,
 };
+
+// The hero marquee runs on the same product screenshots, not stock photography.
+// Two reasons, and the first one is not aesthetic: `img-src` in next.config.ts
+// is 'self' plus the payment/analytics/Drive hosts, so an Unsplash URL here
+// renders as a broken box in production and nowhere else. The second is that a
+// band of generic office photos under "your employees can know every company
+// policy" is exactly the stock-image filler this page spent PR #38 removing.
+//
+// `.src` rather than the imported object because these are laid out with
+// `fill` — the intrinsic dimensions are unused — while the import itself still
+// means a deleted or renamed screenshot breaks the build.
+
+const HERO_MARQUEE_SHOTS = [
+  askAndAnswerShot,
+  uploadDocumentsShot,
+  personalAskShot,
+  inviteEmployeesShot,
+  personalUploadShot,
+  personalPersonaShot,
+].map((shot) => shot.src);
 
 // Each step names its own screenshot instead of being paired to one by array
 // position. Position pairing has no way to complain: reorder the steps and every
@@ -693,59 +716,47 @@ export function LandingContent() {
       </div>
 
       {/* Hero
-          Two columns instead of a centred column, and this is the change that
-          buys back the first screen. Centred, the headline had to be text-5xl
-          to hold the middle of an empty page, the paragraph needed max-w-2xl to
-          stop it running the full width, and py-24 above and below meant one
-          sentence occupied everything a visitor saw. Beside an image the same
-          words hold their own at a smaller size, and the product appears before
-          any scrolling — which is the one thing the old hero never showed. */}
-      <section className="px-6 pt-10 pb-12 md:pt-14 md:pb-16">
-        <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-10 md:gap-14 items-center">
-          <div>
-            {/* Small, letterspaced, and no pill: a filled badge is a loud way to
-                say something quiet. */}
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-5">{T.badge}</p>
-            {/* 600, not 700, and tracking pulled in. With one family doing both
-                headings and body, weight is the only thing separating them —
-                and the old page proved that a 700 headline at this size reads
-                as shouting. Semibold with tight tracking keeps the authority
-                and drops the volume. */}
-            <h1 className="text-4xl md:text-5xl font-semibold tracking-[-0.02em] leading-[1.12] text-gray-900 mb-5">
-              {T.hero1}{" "}
-              <span className="text-teal-700">{T.hero2}</span> {T.hero3}
-            </h1>
-            <p className="text-base md:text-lg text-gray-600 leading-relaxed mb-8 max-w-lg">{T.heroDesc}</p>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <Link href={`/register${audienceQuery}`}>
-                <Button size="lg" className="bg-teal-700 hover:bg-teal-800 gap-2 h-12 px-7">{T.cta1} <ArrowRight className="h-4 w-4" /></Button>
-              </Link>
-              {/* A quiet second path, deliberately not a button: the button above
-                  asks a stranger to hand over internal documents before anyone
-                  has spoken to them, and that is the wrong first step for most
-                  of the companies being pitched. Kept as a text link so it stays
-                  an exit for the unconvinced rather than a competing CTA. */}
-              <a href={consultationMailto(lang)} className="text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300">
-                {T.consult}
-              </a>
-            </div>
-            <p className="text-xs text-gray-500 mt-5">{T.ctaNote}</p>
-          </div>
-          {/* The answer screen, not a stock photo: the single most useful thing
-              to show someone deciding whether this is real is the product doing
-              the thing. Priority because it is the largest element above the
-              fold and the page's LCP. */}
-          <div className="relative">
-            <Image
-              src={askAndAnswerShot}
-              alt=""
-              priority
-              sizes="(min-width: 768px) 50vw, 100vw"
-              className="w-full h-auto rounded-2xl border border-hairline shadow-sm bg-raised"
-            />
-          </div>
-        </div>
-      </section>
+          A centred headline over a scrolling band of product screenshots. The
+          two-column hero this replaced showed one screenshot; the marquee shows
+          six, which is the cheapest way to answer "is there actually a product
+          behind this" before a visitor scrolls. Copy is unchanged — same badge,
+          same three-part headline, same paragraph, same two CTAs.
+
+          Not `h-screen` as the component ships: a nav bar and the audience
+          tabs sit above it here, so a full viewport height would push the CTA
+          below the fold on a laptop. The bottom padding keeps the centred text
+          clear of the marquee band, which is positioned against the section's
+          own bottom edge. */}
+      <AnimatedMarqueeHero
+        className="h-auto min-h-[42rem] pt-10 pb-60 md:min-h-[46rem] md:pb-80"
+        tagline={T.badge}
+        title={
+          <>
+            {T.hero1} <span className="text-teal-700">{T.hero2}</span> {T.hero3}
+          </>
+        }
+        description={T.heroDesc}
+        ctaText={T.cta1}
+        ctaHref={`/register${audienceQuery}`}
+        images={HERO_MARQUEE_SHOTS}
+        cardAspectClassName="aspect-[16/10]"
+        footer={
+          <>
+            {/* A quiet second path, deliberately not a button: the button above
+                asks a stranger to hand over internal documents before anyone
+                has spoken to them, and that is the wrong first step for most
+                of the companies being pitched. Kept as a text link so it stays
+                an exit for the unconvinced rather than a competing CTA. */}
+            <a
+              href={consultationMailto(lang)}
+              className="mt-5 text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300"
+            >
+              {T.consult}
+            </a>
+            <p className="mt-3 text-xs text-gray-500">{T.ctaNote}</p>
+          </>
+        }
+      />
 
       {/* Who is behind this
           Moved up to sit directly under the hero, before any other claim: the
