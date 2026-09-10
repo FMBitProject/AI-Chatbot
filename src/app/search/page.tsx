@@ -128,10 +128,10 @@ export default function SearchPage() {
           <div className="space-y-4">
             <p className="text-sm text-stone-500">{results.length} hasil ditemukan untuk <strong>&ldquo;{query}&rdquo;</strong></p>
             {results.map((r) => (
-              <div key={r.id} className="bg-white rounded-xl border p-5 hover:border-blue-300 transition-colors">
+              <div key={r.id} className="bg-white rounded-xl border p-5 hover:border-teal-300 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-blue-500 shrink-0" />
-                  <span className="text-xs font-semibold text-blue-600 truncate">{r.documentName}</span>
+                  <FileText className="h-4 w-4 text-teal-700 shrink-0" />
+                  <span className="text-xs font-semibold text-teal-700 truncate">{r.documentName}</span>
                   <span className="ml-auto text-xs text-stone-300 shrink-0">{Math.round(r.score * 100)}% relevan</span>
                 </div>
                 <p className="text-sm text-stone-700 leading-relaxed">
@@ -139,7 +139,7 @@ export default function SearchPage() {
                   {r.text.length > 300 && "..."}
                 </p>
                 <Link href={`/chat?q=${encodeURIComponent(r.text.slice(0, 100))}`}>
-                  <Button variant="ghost" size="sm" className="mt-3 text-blue-600 text-xs p-0 h-auto hover:text-blue-800">
+                  <Button variant="ghost" size="sm" className="mt-3 text-teal-700 text-xs p-0 h-auto hover:text-teal-800">
                     Tanya AI tentang ini →
                   </Button>
                 </Link>
