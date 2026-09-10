@@ -57,7 +57,7 @@ export default function TwoFactorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+    <div className="min-h-[100dvh] bg-stone-50 flex flex-col items-center justify-center p-6">
       <div className="bg-white rounded-2xl border p-10 max-w-sm w-full shadow-sm space-y-6">
         <div className="flex justify-center">
           <LogoFull size="md" />
@@ -66,11 +66,11 @@ export default function TwoFactorPage() {
         <div className="text-center">
           <div className="flex justify-center mb-3">
             <div className="h-14 w-14 rounded-full bg-teal-50 flex items-center justify-center">
-              <ShieldCheck className="h-7 w-7 text-teal-600" />
+              <ShieldCheck className="h-7 w-7 text-teal-700" />
             </div>
           </div>
-          <h1 className="text-xl font-bold text-gray-900">Verifikasi 2 Langkah</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-xl font-bold text-stone-900">Verifikasi 2 Langkah</h1>
+          <p className="text-sm text-stone-500 mt-1">
             Kode 6 digit telah dikirim ke email Anda.
             <br />Berlaku selama <strong>3 menit</strong>.
           </p>
@@ -78,8 +78,8 @@ export default function TwoFactorPage() {
 
         {sending ? (
           <div className="flex flex-col items-center gap-2 py-4">
-            <Loader2 className="h-6 w-6 animate-spin text-teal-600" />
-            <p className="text-sm text-gray-500">Mengirim kode ke email...</p>
+            <Loader2 className="h-6 w-6 animate-spin text-teal-700" />
+            <p className="text-sm text-stone-500">Mengirim kode ke email...</p>
           </div>
         ) : (
           <form onSubmit={handleVerify} className="space-y-4">
@@ -97,7 +97,7 @@ export default function TwoFactorPage() {
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             <Button
               type="submit"
-              className="w-full bg-teal-600 hover:bg-teal-700 h-11"
+              className="w-full bg-teal-700 hover:bg-teal-800 h-11"
               disabled={verifying || code.length !== 6}
             >
               {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verifikasi & Masuk"}
@@ -106,11 +106,11 @@ export default function TwoFactorPage() {
         )}
 
         <div className="text-center">
-          <p className="text-sm text-gray-500 mb-2">Tidak menerima kode?</p>
+          <p className="text-sm text-stone-500 mb-2">Tidak menerima kode?</p>
           <Button
             variant="ghost"
             size="sm"
-            className="text-teal-600 hover:text-teal-700 gap-2"
+            className="text-teal-700 hover:text-teal-800 gap-2"
             onClick={sendOtp}
             disabled={sending || resendCooldown > 0}
           >

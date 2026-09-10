@@ -14,7 +14,7 @@ export const sopRumahSakit: BlogPost = {
   relatedLabel: "Selengkapnya untuk rumah sakit & klinik",
   body: `Dibanding hampir semua jenis organisasi lain, rumah sakit punya dokumentasi
 internal yang paling lengkap. SPO, clinical pathway, panduan praktik klinis,
-panduan asuhan keperawatan, formularium, kebijakan PPI, alur klaim — semuanya
+panduan asuhan keperawatan, formularium, kebijakan PPI, alur klaim: semuanya
 tertulis, disahkan, dan disimpan rapi karena akreditasi memang menuntutnya.
 
 Dokumen itu juga termasuk yang paling jarang dibuka saat benar-benar dibutuhkan.
@@ -37,7 +37,7 @@ setebal apa pun kalah dari kedua pilihan itu kalau membukanya butuh lima menit.
 ## 2. Revisi terbaru kalah cepat dari fotokopi lama
 
 Dokumen rumah sakit berlapis dan sering direvisi. Satu prosedur bisa disebut di
-SPO unit, diulang di panduan asuhan, dan dirujuk lagi di dokumen akreditasi —
+SPO unit, diulang di panduan asuhan, dan dirujuk lagi di dokumen akreditasi,
 masing-masing dengan tanggal revisi sendiri.
 
 Sementara itu, versi yang paling mudah dijangkau staf sering kali adalah fotokopi
@@ -49,7 +49,7 @@ salah punya konsekuensi yang tidak bisa disamakan dengan salah format cuti.
 
 ## 3. Orangnya berganti terus
 
-Perawat orientasi, dokter internsip, residen yang rotasi, staf yang pindah unit —
+Perawat orientasi, dokter internsip, residen yang rotasi, staf yang pindah unit:
 setiap beberapa bulan ada gelombang orang baru yang mengajukan pertanyaan yang
 persis sama dengan gelombang sebelumnya.
 
@@ -60,7 +60,7 @@ sudah tertulis, dan pengetahuan itu tidak pernah benar-benar berpindah.
 ## 4. Dokumen ditulis untuk surveior, dibaca oleh staf jaga
 
 Ini akar dari ketiganya. Sebagian besar dokumen rumah sakit disusun agar lolos
-telaah — strukturnya lengkap, bahasanya formal, penomorannya rapi.
+telaah. Strukturnya lengkap, bahasanya formal, penomorannya rapi.
 
 Tapi yang membacanya jam tiga pagi bukan surveior. Ia perawat yang punya satu
 pertanyaan sangat spesifik dan waktu sangat sedikit. Ia tidak butuh seluruh
@@ -96,7 +96,7 @@ termasuk yang kami buat.
 
 Pertama, dokumen yang diunggah ke IntelliBase dikirim ke layanan AI pihak ketiga
 untuk diindeks dan dijawab. Karena itu yang layak diunggah adalah dokumen
-kebijakan dan prosedur — SPO, clinical pathway, panduan, formularium — bukan
+kebijakan dan prosedur (SPO, clinical pathway, panduan, formularium), bukan
 rekam medis atau data pasien. Rinciannya ada di [Kebijakan Privasi](/privacy).
 
 Kedua, pemisahan data antar institusi ditegakkan di level basis data lewat Row
@@ -105,6 +105,6 @@ bisa kami dukung; klaim yang lebih besar dari itu tidak akan Anda temukan di
 halaman kami.
 
 IntelliBase dibangun oleh seorang dokter yang kemudian belajar menulis perangkat
-lunak sendiri — yang setidaknya berarti masalah di atas dikenali dari dalam,
+lunak sendiri, yang setidaknya berarti masalah di atas dikenali dari dalam,
 bukan dibaca dari laporan riset pasar.`,
 };

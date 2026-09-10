@@ -61,16 +61,16 @@ function ResetPasswordForm() {
         <div className="mx-auto w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center">
           <AlertTriangle className="h-6 w-6 text-amber-600" />
         </div>
-        <h1 className="text-xl font-bold text-gray-900">
+        <h1 className="text-xl font-bold text-stone-900">
           {lang === "en" ? "This link is no longer valid" : "Link ini sudah tidak berlaku"}
         </h1>
-        <p className="text-sm text-gray-500 leading-relaxed">
+        <p className="text-sm text-stone-500 leading-relaxed">
           {lang === "en"
             ? "Reset links expire after an hour and can only be used once. Request a new one to continue."
             : "Link pengaturan ulang berlaku 1 jam dan hanya bisa dipakai sekali. Minta link baru untuk melanjutkan."}
         </p>
         <Link href="/forgot-password">
-          <Button className="bg-teal-600 hover:bg-teal-700">
+          <Button className="bg-teal-700 hover:bg-teal-800">
             {lang === "en" ? "Request a new link" : "Minta Link Baru"}
           </Button>
         </Link>
@@ -80,10 +80,10 @@ function ResetPasswordForm() {
 
   return (
     <>
-      <h1 className="text-xl font-bold text-gray-900 mb-1">
+      <h1 className="text-xl font-bold text-stone-900 mb-1">
         {lang === "en" ? "Create a new password" : "Buat kata sandi baru"}
       </h1>
-      <p className="text-sm text-gray-500 mb-6">
+      <p className="text-sm text-stone-500 mb-6">
         {lang === "en" ? "Choose a strong password." : "Pilih kata sandi yang kuat."}
       </p>
 
@@ -104,14 +104,14 @@ function ResetPasswordForm() {
             </p>
           )}
         </div>
-        <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11"
+        <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 h-11"
           disabled={loading || !passwordOk || mismatch || !form.confirm}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {lang === "en" ? "Save new password" : "Simpan Kata Sandi"}
         </Button>
       </form>
 
-      <Link href="/login" className="mt-6 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+      <Link href="/login" className="mt-6 inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700">
         <ArrowLeft className="h-4 w-4" />
         {lang === "en" ? "Back to sign in" : "Kembali ke halaman masuk"}
       </Link>
@@ -121,7 +121,7 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
       <Toaster />
       <header className="flex items-center justify-between px-6 py-4">
         <Link href="/"><LogoFull size="sm" /></Link>
@@ -129,7 +129,7 @@ export default function ResetPasswordPage() {
       </header>
       <main className="flex-1 flex items-center justify-center px-6 pb-20">
         <div className="w-full max-w-sm">
-          <Suspense fallback={<div className="text-center text-sm text-gray-400">…</div>}>
+          <Suspense fallback={<div className="text-center text-sm text-stone-400">…</div>}>
             <ResetPasswordForm />
           </Suspense>
         </div>

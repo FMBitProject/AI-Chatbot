@@ -97,11 +97,11 @@ export default function RegisterPage() {
 
   return (
     <>
-    <div className="min-h-screen flex">
+    <div className="min-h-[100dvh] flex">
       <Toaster />
 
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col w-[45%] bg-gradient-to-br from-[#061C24] via-[#0A2E2E] to-[#061C24] p-12 justify-between">
+      <div className="hidden lg:flex flex-col w-[45%] bg-[#0A2E2E] p-12 justify-between">
         <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-6">
           <div>
@@ -115,7 +115,7 @@ export default function RegisterPage() {
           <div className="space-y-3">
             {BENEFITS.map((b) => (
               <div key={b} className="flex items-center gap-3">
-                <CheckCircle2 className="h-5 w-5 text-green-300 shrink-0" />
+                <CheckCircle2 className="h-5 w-5 text-teal-300 shrink-0" />
                 <span className="text-white text-sm">{b}</span>
               </div>
             ))}
@@ -129,7 +129,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex flex-col p-8 bg-gray-50">
+      <div className="flex-1 flex flex-col p-8 bg-stone-50">
         {/* Top bar */}
         <div className="flex justify-end mb-auto">
           <LanguageSwitcher />
@@ -146,20 +146,20 @@ export default function RegisterPage() {
               <div className="text-center space-y-4 py-8">
                 <div className="flex justify-center">
                   <div className="bg-blue-100 rounded-full p-4">
-                    <Mail className="h-10 w-10 text-teal-600" />
+                    <Mail className="h-10 w-10 text-teal-700" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900">{T.checkEmail}</h2>
-                <p className="text-gray-600 text-sm">{T.checkEmailDesc}</p>
-                <p className="font-semibold text-gray-900">{registeredEmail}</p>
-                <p className="text-gray-500 text-sm leading-relaxed">{T.checkEmailNote}</p>
+                <h2 className="text-2xl font-bold text-stone-900">{T.checkEmail}</h2>
+                <p className="text-stone-600 text-sm">{T.checkEmailDesc}</p>
+                <p className="font-semibold text-stone-900">{registeredEmail}</p>
+                <p className="text-stone-500 text-sm leading-relaxed">{T.checkEmailNote}</p>
               </div>
             ) : (<>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-stone-900">
                 {isIndividual ? T.registerTitleIndividual : T.registerTitle}
               </h2>
-              <p className="text-gray-500 text-sm mt-1">
+              <p className="text-stone-500 text-sm mt-1">
                 {isIndividual ? T.registerSubtitleIndividual : T.registerSubtitle}
               </p>
             </div>
@@ -182,9 +182,9 @@ export default function RegisterPage() {
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-              <p className="text-xs text-gray-500 leading-relaxed">
+              <p className="text-xs text-stone-500 leading-relaxed">
                 {isIndividual ? T.accountIndividualHint : T.accountCompanyHint}{" "}
-                <span className="text-gray-400">{T.accountPermanentNote}</span>
+                <span className="text-stone-400">{T.accountPermanentNote}</span>
               </p>
             </div>
 
@@ -218,32 +218,32 @@ export default function RegisterPage() {
                   id="agree"
                   checked={agreed}
                   onChange={(e) => setAgreed(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 accent-teal-600 cursor-pointer shrink-0"
+                  className="mt-0.5 h-4 w-4 rounded border-stone-300 accent-teal-700 cursor-pointer shrink-0"
                 />
-                <label htmlFor="agree" className="text-xs text-gray-500 leading-relaxed cursor-pointer">
+                <label htmlFor="agree" className="text-xs text-stone-500 leading-relaxed cursor-pointer">
                   {lang === "en" ? (
                     <>I agree to the{" "}
-                      <Link href="/terms" className="text-teal-600 hover:underline" target="_blank">Terms & Conditions</Link>
+                      <Link href="/terms" className="text-teal-700 hover:underline" target="_blank">Terms & Conditions</Link>
                       {" "}and{" "}
-                      <Link href="/privacy" className="text-teal-600 hover:underline" target="_blank">Privacy Policy</Link>
+                      <Link href="/privacy" className="text-teal-700 hover:underline" target="_blank">Privacy Policy</Link>
                     </>
                   ) : (
                     <>Saya menyetujui{" "}
-                      <Link href="/terms" className="text-teal-600 hover:underline" target="_blank">Syarat & Ketentuan</Link>
+                      <Link href="/terms" className="text-teal-700 hover:underline" target="_blank">Syarat & Ketentuan</Link>
                       {" "}dan{" "}
-                      <Link href="/privacy" className="text-teal-600 hover:underline" target="_blank">Kebijakan Privasi</Link>
+                      <Link href="/privacy" className="text-teal-700 hover:underline" target="_blank">Kebijakan Privasi</Link>
                     </>
                   )}
                 </label>
               </div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading || !agreed || !isPasswordValid(form.password)}>
+              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 h-11" disabled={loading || !agreed || !isPasswordValid(form.password)}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.registerBtn}
               </Button>
             </form>
-            <p className="text-sm text-center text-gray-500">
+            <p className="text-sm text-center text-stone-500">
               {T.hasAccount}{" "}
-              <Link href="/login" className="text-teal-600 hover:underline font-medium">{T.loginHere}</Link>
+              <Link href="/login" className="text-teal-700 hover:underline font-medium">{T.loginHere}</Link>
             </p>
             </>)}
           </div>

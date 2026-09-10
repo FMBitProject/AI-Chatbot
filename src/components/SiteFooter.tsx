@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LogoHomeLink } from "@/components/Logo";
-import { version } from "../../package.json";
 
 const LINKS = [
   { href: "/blog",    labelId: "Blog",   labelEn: "Blog" },
@@ -21,10 +20,15 @@ export function SiteFooter({ lang = "id" }: { lang?: "id" | "en" }) {
             register, the hospital page) — never inside /chat or /admin, where
             "home" would mean the dashboard rather than the landing page. */}
         <LogoHomeLink size="sm" lang={lang} />
-        <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved. &nbsp;·&nbsp; v{version}</p>
-        <div className="flex flex-wrap gap-5 text-sm text-gray-400">
+        {/* No build version here. A visitor reading a pricing page has no use
+            for "v1.0.0", and a version string in a marketing footer is a
+            devtool fixture wearing marketing clothes. It also put this footer
+            and the landing page's own out of sync for no reason. The number is
+            still in package.json for anyone who needs it. */}
+        <p className="text-stone-500 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
+        <div className="flex flex-wrap gap-5 text-sm text-stone-500">
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="hover:text-gray-600 transition-colors">
+            <Link key={l.href} href={l.href} className="hover:text-stone-900 transition-colors">
               {lang === "en" ? l.labelEn : l.labelId}
             </Link>
           ))}

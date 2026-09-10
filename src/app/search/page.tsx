@@ -72,7 +72,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-[100dvh] bg-stone-50">
       <header className="bg-white border-b px-6 py-3 flex items-center justify-between">
         <LogoFull size="sm" />
         <div className="flex items-center gap-3">
@@ -89,12 +89,12 @@ export default function SearchPage() {
 
       <main className="max-w-3xl mx-auto px-6 py-12">
         <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Cari Dokumen Internal</h1>
-          <p className="text-gray-500 text-sm">Telusuri seluruh dokumen perusahaan Anda secara instan</p>
+          <h1 className="text-2xl font-bold text-stone-900 mb-2">Cari Dokumen Internal</h1>
+          <p className="text-stone-500 text-sm">Telusuri seluruh dokumen perusahaan Anda secara instan</p>
         </div>
 
         <form onSubmit={handleSubmit} className="relative mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-stone-400" />
           <Input
             value={query}
             onChange={handleChange}
@@ -102,12 +102,12 @@ export default function SearchPage() {
             className="pl-12 h-12 text-base rounded-xl shadow-sm"
             autoFocus
           />
-          {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />}
+          {loading && <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-stone-400" />}
         </form>
 
         {!searched && (
-          <div className="text-center text-gray-400 mt-16">
-            <Search className="h-12 w-12 mx-auto mb-3 text-gray-200" />
+          <div className="text-center text-stone-400 mt-16">
+            <Search className="h-12 w-12 mx-auto mb-3 text-stone-200" />
             <p className="text-sm">Mulai ketik untuk mencari di seluruh dokumen perusahaan</p>
           </div>
         )}
@@ -119,22 +119,22 @@ export default function SearchPage() {
         )}
 
         {searched && !loading && !notice && results.length === 0 && (
-          <div className="text-center text-gray-400 mt-16">
+          <div className="text-center text-stone-400 mt-16">
             <p className="text-sm">Tidak ditemukan hasil untuk <strong>&ldquo;{query}&rdquo;</strong></p>
           </div>
         )}
 
         {results.length > 0 && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-500">{results.length} hasil ditemukan untuk <strong>&ldquo;{query}&rdquo;</strong></p>
+            <p className="text-sm text-stone-500">{results.length} hasil ditemukan untuk <strong>&ldquo;{query}&rdquo;</strong></p>
             {results.map((r) => (
               <div key={r.id} className="bg-white rounded-xl border p-5 hover:border-blue-300 transition-colors">
                 <div className="flex items-center gap-2 mb-2">
                   <FileText className="h-4 w-4 text-blue-500 shrink-0" />
                   <span className="text-xs font-semibold text-blue-600 truncate">{r.documentName}</span>
-                  <span className="ml-auto text-xs text-gray-300 shrink-0">{Math.round(r.score * 100)}% relevan</span>
+                  <span className="ml-auto text-xs text-stone-300 shrink-0">{Math.round(r.score * 100)}% relevan</span>
                 </div>
-                <p className="text-sm text-gray-700 leading-relaxed">
+                <p className="text-sm text-stone-700 leading-relaxed">
                   {highlight(r.text.slice(0, 300), query)}
                   {r.text.length > 300 && "..."}
                 </p>

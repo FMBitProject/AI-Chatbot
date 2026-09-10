@@ -9,14 +9,14 @@ export const sopTidakKetemu: BlogPost = {
   title: "Kenapa Karyawan Anda Tidak Pernah Menemukan SOP yang Mereka Cari",
   metaTitle: "Kenapa Karyawan Tidak Menemukan SOP yang Mereka Cari",
   description:
-    "SOP sudah ditulis, disetujui, dan diunggah ke share drive — tapi staf tetap bertanya ke rekan sebelah. Penyebabnya bukan kedisiplinan, dan folder baru tidak menyelesaikannya.",
+    "SOP sudah ditulis, disetujui, dan diunggah ke share drive, tapi staf tetap bertanya ke rekan sebelah. Penyebabnya bukan kedisiplinan, dan folder baru tidak menyelesaikannya.",
   excerpt:
-    "Dokumennya ada. Masalahnya bukan penulisan, melainkan pengambilan — dan itu masalah yang sama sekali berbeda.",
+    "Dokumennya ada. Masalahnya bukan penulisan, melainkan pengambilan, dan itu masalah yang sama sekali berbeda.",
   publishedAt: "2026-08-08",
   readingMinutes: 7,
   body: `Ada satu pemandangan yang berulang di hampir semua perusahaan berkaryawan
-20–200: bagian mutu atau HR menghabiskan berminggu-minggu menyusun SOP, dokumen
-itu disetujui, diunggah ke share drive — lalu enam bulan kemudian seorang staf
+20-200: bagian mutu atau HR menghabiskan berminggu-minggu menyusun SOP, dokumen
+itu disetujui, diunggah ke share drive. Lalu enam bulan kemudian seorang staf
 tetap berdiri di meja rekannya dan bertanya, "eh, ini prosedurnya gimana ya?"
 
 Reaksi yang paling umum adalah menyalahkan kedisiplinan. Sosialisasi diulang,
@@ -32,7 +32,7 @@ ada, isinya benar, dan disetujui orang yang berwenang.
 
 Yang belum selesai adalah masalah kedua: bagaimana seseorang yang punya
 pertanyaan spesifik, pada jam kerja yang sibuk, sampai ke paragraf yang menjawab
-pertanyaan itu — bukan ke dokumennya, tapi ke paragrafnya.
+pertanyaan itu: bukan ke dokumennya, tapi ke paragrafnya.
 
 Jarak antara "dokumen itu ada di suatu tempat" dan "kalimat yang dibutuhkan sudah
 ada di depan mata" jauh lebih besar dari yang terlihat. Dan setiap langkah di
@@ -70,7 +70,7 @@ ruangan.
 
 Ketika seseorang akhirnya menemukan *sebuah* dokumen, tidak ada cara cepat untuk
 tahu apakah itu yang terbaru. Sebagian orang lalu memilih tidak memakainya sama
-sekali — dan bertanya ke orang, yang setidaknya bisa bilang "oh itu sudah
+sekali, dan bertanya ke orang, yang setidaknya bisa bilang "oh itu sudah
 diganti".
 
 ### 4. Sebagian besar prosedur tidak pernah ditulis
@@ -80,7 +80,7 @@ tempat bertanya semua orang. Pengetahuan mereka nyata dan dipakai setiap hari,
 tapi tidak ada di dokumen mana pun.
 
 Selama orang itu masih ada, sistemnya "jalan". Masalahnya baru terlihat saat ia
-cuti panjang, pindah divisi, atau resign — dan ternyata tidak ada yang tahu apa
+cuti panjang, pindah divisi, atau resign, dan ternyata tidak ada yang tahu apa
 yang selama ini ia ketahui.
 
 ## Kenapa merapikan folder tidak menyelesaikan masalah
@@ -105,7 +105,7 @@ untuk mengetahui seberapa besar masalah Anda sebenarnya:
 
 1. **Catat pertanyaan yang masuk, bukan dokumen yang ada.** Selama satu minggu,
    minta HR dan supervisor mencatat setiap pertanyaan prosedur yang mereka
-   terima. Daftar ini jauh lebih berharga daripada daftar dokumen Anda — ini
+   terima. Daftar ini jauh lebih berharga daripada daftar dokumen Anda: ini
    adalah kebutuhan sebenarnya.
 2. **Coba cari jawabannya sendiri.** Ambil sepuluh pertanyaan teratas, lalu cari
    jawabannya di sistem yang ada sekarang sambil menghitung waktu. Kalau Anda
@@ -123,12 +123,12 @@ data tentang berapa lama waktu yang dibutuhkan untuk menjawabnya hari ini.
 ## Di mana perangkat lunak masuk
 
 Kalau daftar pertanyaan tadi panjang dan sebagian besar jawabannya ternyata
-*sudah ada* di dokumen Anda, masalahnya memang pengambilan — dan itu bisa
+*sudah ada* di dokumen Anda, masalahnya memang pengambilan, dan itu bisa
 dibantu alat.
 
 Inilah yang IntelliBase kerjakan: dokumen internal Anda diindeks, staf bertanya
 dengan bahasa biasa, dan setiap jawaban menyertakan sitasi ke dokumen sumbernya
-sehingga bisa diperiksa. Format PDF, DOCX, XLSX, dan PPTX didukung — file yang
+sehingga bisa diperiksa. Format PDF, DOCX, XLSX, dan PPTX didukung, file yang
 kemungkinan besar sudah ada di komputer Anda sekarang.
 
 Satu hal yang perlu Anda tahu sejak awal: dokumen yang diunggah dikirim ke
@@ -138,6 +138,6 @@ karena kebanyakan vendor tidak menyebutkannya sama sekali. Rinciannya kami tulis
 di [Kebijakan Privasi](/privacy).
 
 Tapi kalau daftar tadi ternyata penuh pertanyaan yang belum ada dokumennya,
-tidak ada alat yang bisa menolong. Yang Anda butuhkan adalah menulis dulu — dan
+tidak ada alat yang bisa menolong. Yang Anda butuhkan adalah menulis dulu, dan
 itu pekerjaan manusia.`,
 };
