@@ -11,7 +11,7 @@ import { join } from "node:path";
 // wide in a chat list, where a dashboard shrinks to unreadable. It has room for
 // one sentence, so it carries the promise and the domain, and nothing else.
 export const alt =
-  "IntelliBase AI — karyawan bertanya, AI menjawab dari dokumen resmi perusahaan";
+  "IntelliBase AI: karyawan bertanya, AI menjawab dari dokumen resmi perusahaan";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -82,7 +82,7 @@ export default async function OpengraphImage() {
               lineHeight: 1.4,
             }}
           >
-            SOP, regulasi HR, panduan IT, clinical pathway — dijawab dalam detik.
+            SOP, regulasi HR, panduan IT, clinical pathway, dijawab dalam detik.
           </div>
         </div>
 

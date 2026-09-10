@@ -26,10 +26,10 @@ export function CookieConsent() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-gray-200 shadow-lg">
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-stone-200 shadow-lg">
       <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-4">
         <Cookie className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-gray-600 flex-1">
+        <p className="text-sm text-stone-600 flex-1">
           Kami menggunakan cookie untuk autentikasi dan menyimpan preferensi Anda.{" "}
           <Link href="/privacy" className="text-blue-600 hover:underline">Pelajari lebih lanjut</Link>.
         </p>

@@ -17,23 +17,23 @@ export function WhatsAppButton() {
   return (
     <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end gap-3">
       {open && (
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 w-72 animate-in slide-in-from-bottom-2 duration-200">
+        <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-4 w-72 animate-in slide-in-from-bottom-2 duration-200">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <div className="h-9 w-9 rounded-full bg-teal-600 flex items-center justify-center">
                 <Mail className="h-5 w-5 text-white" />
               </div>
               <div>
-                <p className="font-semibold text-gray-900 text-sm">IntelliBase Support</p>
-                <p className="text-xs text-gray-400">{SUPPORT_EMAIL}</p>
+                <p className="font-semibold text-stone-900 text-sm">IntelliBase Support</p>
+                <p className="text-xs text-stone-400">{SUPPORT_EMAIL}</p>
               </div>
             </div>
-            <button onClick={() => setOpen(false)} className="text-gray-400 hover:text-gray-600">
+            <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-600">
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="bg-gray-50 rounded-xl p-3 mb-3">
-            <p className="text-sm text-gray-700 leading-relaxed">
+          <div className="bg-stone-50 rounded-xl p-3 mb-3">
+            <p className="text-sm text-stone-700 leading-relaxed">
               {lang === "en"
                 ? "👋 Hi! Need help with IntelliBase? Send us an email and we'll get back to you shortly."
                 : "👋 Halo! Butuh bantuan dengan IntelliBase? Kirim email ke kami dan kami akan segera membalas."}

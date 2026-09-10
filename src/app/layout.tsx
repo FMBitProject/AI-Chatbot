@@ -36,11 +36,11 @@ export const metadata: Metadata = {
   // what production already uses for auth callbacks, so the canonical domain
   // is stated in one place; the literal is the fallback for local builds.
   metadataBase: new URL(siteOrigin()),
-  title: { default: "IntelliBase AI", template: "%s — IntelliBase AI" },
+  title: { default: "IntelliBase AI", template: "%s · IntelliBase AI" },
   description: "Platform RAG untuk akses SOP, regulasi, dan panduan perusahaan secara instan melalui AI chat. Multi-tenant, aman, dan mudah digunakan.",
   keywords: ["knowledge base", "AI chat", "internal dokumen", "SOP", "RAG", "perusahaan", "HR"],
   openGraph: {
-    title: "IntelliBase AI — Knowledge Base Internal Perusahaan",
+    title: "IntelliBase AI: Knowledge Base Internal Perusahaan",
     description: "Karyawan bisa tanya apa saja tentang kebijakan perusahaan dan dapat jawaban instan dari AI.",
     type: "website",
     locale: "id_ID",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
   // half. The image itself comes from `twitter-image.tsx`.
   twitter: {
     card: "summary_large_image",
-    title: "IntelliBase AI — Knowledge Base Internal Perusahaan",
+    title: "IntelliBase AI: Knowledge Base Internal Perusahaan",
     description: "Karyawan bisa tanya apa saja tentang kebijakan perusahaan dan dapat jawaban instan dari AI.",
   },
   // Google Search Console ownership proof for the https://www.intellibaseai.com

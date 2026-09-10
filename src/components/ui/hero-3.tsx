@@ -2,7 +2,7 @@
 
 import React from "react";
 import Image from "next/image";
-import { motion, type Variants } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 // Props interface for the component
@@ -51,27 +51,46 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
   // Duplicate images for a seamless loop
   const duplicatedImages = [...images, ...images];
 
+  // A visitor who has asked their OS for reduced motion is often asking
+  // because motion makes them ill, and this hero has the two kinds that do it:
+  // an entrance that slides, and a band that never stops moving. Honouring the
+  // preference is not "less animation", it is no animation. The words, the
+  // button and every screenshot stay exactly where they are, so nothing is
+  // lost by turning it off. `useReducedMotion` re-renders when the setting
+  // changes, so the page follows it without a reload.
+  const reduceMotion = useReducedMotion();
+  const marqueeAnimation = reduceMotion
+    ? undefined
+    : {
+        x: ["-100%", "0%"],
+        transition: { ease: "linear" as const, duration: 40, repeat: Infinity },
+      };
+
   return (
     <section
       className={cn(
-        "relative w-full h-screen overflow-hidden bg-background flex flex-col items-center justify-center text-center px-4",
+        // min-h-[100dvh], never h-screen: on iOS Safari the address bar is
+        // counted in vh, so a full-height hero jumps by that bar height the
+        // first time the visitor scrolls. Callers that size the section
+        // themselves (the landing page does) override this.
+        "relative w-full min-h-[100dvh] overflow-hidden bg-background flex flex-col items-center justify-center text-center px-4",
         className
       )}
     >
       <div className="z-10 flex flex-col items-center">
         {/* Tagline */}
         <motion.div
-          initial="hidden"
+          initial={reduceMotion ? false : "hidden"}
           animate="show"
           variants={FADE_IN_ANIMATION_VARIANTS}
-          className="mb-4 inline-block rounded-full border border-hairline bg-raised/60 px-4 py-1.5 text-sm font-medium text-gray-600 backdrop-blur-sm"
+          className="mb-4 inline-block rounded-full border border-hairline bg-raised/60 px-4 py-1.5 text-sm font-medium text-stone-600 backdrop-blur-sm"
         >
           {tagline}
         </motion.div>
 
         {/* Main Title */}
         <motion.h1
-          initial="hidden"
+          initial={reduceMotion ? false : "hidden"}
           animate="show"
           variants={{
             hidden: {},
@@ -81,7 +100,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
               },
             },
           }}
-          className="text-4xl md:text-6xl font-semibold tracking-[-0.02em] leading-[1.12] text-gray-900"
+          className="text-4xl md:text-6xl font-semibold tracking-[-0.02em] leading-[1.12] text-stone-900"
         >
           {typeof title === "string" ? (
             title.split(" ").map((word, i) => (
@@ -100,18 +119,18 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
 
         {/* Description */}
         <motion.p
-          initial="hidden"
+          initial={reduceMotion ? false : "hidden"}
           animate="show"
           variants={FADE_IN_ANIMATION_VARIANTS}
           transition={{ delay: 0.5 }}
-          className="mt-6 max-w-2xl text-base md:text-lg text-gray-600 leading-relaxed"
+          className="mt-6 max-w-2xl text-base md:text-lg text-stone-600 leading-relaxed"
         >
           {description}
         </motion.p>
 
         {/* Call to Action */}
         <motion.div
-          initial="hidden"
+          initial={reduceMotion ? false : "hidden"}
           animate="show"
           variants={FADE_IN_ANIMATION_VARIANTS}
           transition={{ delay: 0.6 }}
@@ -121,8 +140,8 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
               drop-in hero can never bring with it. */}
           <motion.a
             href={ctaHref}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+            whileTap={reduceMotion ? undefined : { scale: 0.95 }}
             className="mt-8 inline-flex items-center gap-2 rounded-full bg-teal-700 px-8 py-3 font-semibold text-white shadow-lg transition-colors hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
           >
             {ctaText}
@@ -143,14 +162,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
       <div className="pointer-events-none absolute bottom-0 left-0 w-full h-56 md:h-72 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)]">
         <motion.div
           className="flex"
-          animate={{
-            x: ["-100%", "0%"],
-            transition: {
-              ease: "linear",
-              duration: 40,
-              repeat: Infinity,
-            },
-          }}
+          animate={marqueeAnimation}
         >
           {duplicatedImages.map((src, index) => (
             // The gap lives on the card (pr-4), not on the flex row (gap-4).
