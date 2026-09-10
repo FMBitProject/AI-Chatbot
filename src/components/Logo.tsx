@@ -67,7 +67,7 @@ export function LogoHomeLink({
   return (
     <Link
       href={href}
-      aria-label={lang === "en" ? "IntelliBase AI — back to home" : "IntelliBase AI — kembali ke beranda"}
+      aria-label={lang === "en" ? "IntelliBase AI, back to home" : "IntelliBase AI, kembali ke beranda"}
       className={cn(
         "rounded-md transition-opacity hover:opacity-80",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2",

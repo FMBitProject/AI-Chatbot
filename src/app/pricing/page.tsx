@@ -191,7 +191,7 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Navbar */}
       <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
@@ -204,7 +204,7 @@ export default function PricingPage() {
             <LanguageSwitcher />
             {mounted && session?.user ? (
               <Link href="/chat">
-                <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">
+                <Button size="sm" className="bg-teal-700 hover:bg-teal-800 text-xs sm:text-sm px-3 sm:px-4">
                   {lang === "en" ? "Go to Dashboard" : "Buka Dashboard"}
                 </Button>
               </Link>
@@ -214,7 +214,7 @@ export default function PricingPage() {
                   <Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.signin}</Button>
                 </Link>
                 <Link href="/register">
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.startFree}</Button>
+                  <Button size="sm" className="bg-teal-700 hover:bg-teal-800 text-xs sm:text-sm px-3 sm:px-4">{T.startFree}</Button>
                 </Link>
               </>
             )}
@@ -224,7 +224,7 @@ export default function PricingPage() {
 
       {/* Promo Banner */}
       {promoActive && (
-        <div className="bg-gradient-to-r from-orange-500 to-pink-500 text-white text-center py-2.5 px-4 text-sm font-medium">
+        <div className="bg-teal-800 text-white text-center py-2.5 px-4 text-sm font-medium">
           {T.promoBanner} &nbsp;·&nbsp; <span className="underline">{T.promoEnds}</span>
         </div>
       )}
@@ -234,10 +234,10 @@ export default function PricingPage() {
         <span className="inline-block bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full mb-4">
           {T.badge}
         </span>
-        <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">
+        <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-stone-900 mb-4">
           {isIndividual ? T.titleIndividual : T.title}
         </h1>
-        <p className="text-gray-500 text-lg max-w-xl mx-auto">
+        <p className="text-stone-500 text-lg max-w-xl mx-auto">
           {isIndividual ? T.subtitleIndividual : T.subtitle}
         </p>
       </section>
@@ -256,7 +256,7 @@ export default function PricingPage() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-        <p className="text-xs text-gray-400 text-center max-w-md">
+        <p className="text-xs text-stone-400 text-center max-w-md">
           {isIndividual ? T.audienceIndividualHint : T.audienceCompanyHint}
         </p>
       </div>
@@ -292,7 +292,7 @@ export default function PricingPage() {
             <div key={plan.name} className={cn("rounded-2xl border-2 p-6 flex flex-col relative",
               isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
                 : key === "enterprise" ? "border-teal-700"
-                : isCustom ? "border-gray-900"
+                : isCustom ? "border-stone-300"
                 : "border-hairline"
             )}>
               {isPopular && (
@@ -303,21 +303,21 @@ export default function PricingPage() {
                 // straddling the card border. w-max sizes it to its own text,
                 // and nowrap keeps it there whatever the label says.
                 <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-max">
-                  <span className="bg-teal-600 text-white text-xs font-bold px-4 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+                  <span className="bg-teal-700 text-white text-xs font-semibold px-4 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
                     <Zap className="h-3 w-3 shrink-0" />{T.popular}
                   </span>
                 </div>
               )}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
+                  <h3 className="text-lg font-bold text-stone-900">{plan.name}</h3>
                   {hasPromo && (
-                    <span className="text-xs font-bold bg-orange-100 text-orange-600 border border-orange-200 rounded-full px-2 py-0.5">
+                    <span className="text-xs font-semibold bg-teal-700/10 text-teal-800 border border-teal-200 rounded-full px-2 py-0.5">
                       {T.discountBadge}
                     </span>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm mb-3">{plan.desc}</p>
+                <p className="text-stone-500 text-sm mb-3">{plan.desc}</p>
                 {/* The amount and its unit stack instead of sitting side by
                     side. Beside each other they competed for a ~210px line, and
                     both lost: "Rp 200.000" split after "Rp", and on the Custom
@@ -328,10 +328,10 @@ export default function PricingPage() {
                     {/* "—" rather than an empty span if a key ever lacks a
                         price: a blank where a number belongs looks like a
                         loading bug, and reads as free. */}
-                    <span className="text-sm text-gray-400 line-through">{ORIGINAL_PRICES[key] ?? "—"}</span>
+                    <span className="text-sm text-stone-400 line-through">{ORIGINAL_PRICES[key] ?? "-"}</span>
                     <div className="flex flex-col mt-0.5">
-                      <span className="text-3xl font-bold text-orange-500 whitespace-nowrap">{PROMO_PRICES[key] ?? "—"}</span>
-                      <span className="text-gray-400 text-sm">/ {T.perMonth}</span>
+                      <span className="text-3xl font-bold text-teal-800 whitespace-nowrap">{PROMO_PRICES[key] ?? "-"}</span>
+                      <span className="text-stone-400 text-sm">/ {T.perMonth}</span>
                     </div>
                   </div>
                 ) : isCustom ? (
@@ -341,13 +341,13 @@ export default function PricingPage() {
                   // Kebutuhan" wrapped and dragged the feature list out of line
                   // with the other three cards.
                   <div className="flex flex-col">
-                    <span className="text-2xl font-bold text-gray-900 leading-snug">{T.customPrice}</span>
-                    <span className="text-gray-400 text-sm">{T.customPriceNote}</span>
+                    <span className="text-2xl font-bold text-stone-900 leading-snug">{T.customPrice}</span>
+                    <span className="text-stone-400 text-sm">{T.customPriceNote}</span>
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    <span className="text-3xl font-bold text-gray-900 whitespace-nowrap">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "—"}</span>
-                    <span className="text-gray-400 text-sm">/ {isFree ? T.forever : T.perMonth}</span>
+                    <span className="text-3xl font-bold text-stone-900 whitespace-nowrap">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "-"}</span>
+                    <span className="text-stone-400 text-sm">/ {isFree ? T.forever : T.perMonth}</span>
                   </div>
                 )}
               </div>
@@ -362,9 +362,9 @@ export default function PricingPage() {
                     // the two lines instead of marking the item it belongs to.
                     <li key={fi} className="flex items-start gap-2.5 text-sm">
                       {hasCheck
-                        ? <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                        : <XCircle className="h-4 w-4 text-gray-200 shrink-0 mt-0.5" />}
-                      <span className={cn("leading-snug", isGray ? "text-gray-300" : "text-gray-700")}>{f}</span>
+                        ? <CheckCircle2 className="h-4 w-4 text-teal-700 shrink-0 mt-0.5" />
+                        : <XCircle className="h-4 w-4 text-stone-400 shrink-0 mt-0.5" />}
+                      <span className={cn("leading-snug", isGray ? "text-stone-500 line-through decoration-stone-300" : "text-stone-700")}>{f}</span>
                     </li>
                   );
                 })}
@@ -383,13 +383,13 @@ export default function PricingPage() {
                 // Deliberately not a checkout: this tier is agreed in a
                 // conversation, so the only action on the card is starting one.
                 <a href={consultationMailto(lang)}>
-                  <Button className="w-full gap-2 bg-gray-900 hover:bg-gray-800">
+                  <Button className="w-full gap-2 bg-teal-900 hover:bg-teal-800 active:scale-[0.98]">
                     {T.contactUs} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </a>
               ) : mounted && session?.user ? (
                 <Button
-                  className={cn("w-full gap-2", isPopular ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}
+                  className={cn("w-full gap-2", isPopular ? "bg-teal-700 hover:bg-teal-800" : "bg-teal-700 hover:bg-teal-800")}
                   // Not `key === "professional" ? … : "enterprise"` — that is
                   // the same "everything else is Enterprise" fallback this page
                   // was just rid of, one edit away from selling the wrong plan.
@@ -403,7 +403,7 @@ export default function PricingPage() {
                 </Button>
               ) : (
                 <Link href={`/register?plan=${key}`}>
-                  <Button className={cn("w-full gap-2", isPopular ? "bg-teal-600 hover:bg-teal-700" : "bg-teal-700 hover:bg-teal-800")}>
+                  <Button className={cn("w-full gap-2", isPopular ? "bg-teal-700 hover:bg-teal-800" : "bg-teal-700 hover:bg-teal-800")}>
                     {isPopular ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -416,26 +416,29 @@ export default function PricingPage() {
 
       {/* Fair use footnote */}
       <div className="max-w-6xl mx-auto px-6 pb-6 flex items-start gap-1.5">
-        {T.fairUseNote && <Info className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />}
-        {T.fairUseNote && <p className="text-xs text-gray-400">{T.fairUseNote}</p>}
+        {T.fairUseNote && <Info className="h-3.5 w-3.5 text-stone-400 shrink-0 mt-0.5" />}
+        {T.fairUseNote && <p className="text-xs text-stone-400">{T.fairUseNote}</p>}
       </div>
 
       {/* Feature grid */}
       <section className="bg-sunken py-14 px-6">
         <div className="max-w-5xl mx-auto text-center mb-10">
-          <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 mb-2">{T.allFeatures}</h2>
-          <p className="text-gray-500">{T.allFeaturesDesc}</p>
+          <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-stone-900 mb-2">{T.allFeatures}</h2>
+          <p className="text-stone-500">{T.allFeaturesDesc}</p>
         </div>
-        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 md:grid-cols-3 gap-6">
+        {/* Seven items in a three-column grid of cards left two empty
+            cells hanging off the end, and every cell was white type on a white
+            card: a grid whose cell count does not match its content, decorated
+            with borders that group nothing. Rules instead of boxes, and the
+            last row simply ends where the content does. */}
+        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-9">
           {T.featureGrid.map((f, i) => {
             const Icon = FEATURE_ICONS[i];
             return (
-              <div key={i} className="bg-raised rounded-xl p-6 border border-hairline">
-                <div className="p-2 bg-teal-50 rounded-lg w-fit mb-3">
-                  <Icon className="h-5 w-5 text-teal-600" />
-                </div>
-                <h3 className="font-semibold text-gray-900 mb-1">{f.title}</h3>
-                <p className="text-gray-500 text-sm">{f.desc}</p>
+              <div key={i} className="border-t border-hairline pt-5">
+                <Icon className="h-5 w-5 text-teal-700 mb-3" />
+                <h3 className="font-semibold text-stone-900 mb-1">{f.title}</h3>
+                <p className="text-stone-500 text-sm leading-relaxed">{f.desc}</p>
               </div>
             );
           })}
@@ -444,23 +447,23 @@ export default function PricingPage() {
 
       {/* FAQ */}
       <section className="max-w-3xl mx-auto px-6 py-16">
-        <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 text-center mb-8">{T.faqTitle}</h2>
+        <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-stone-900 text-center mb-8">{T.faqTitle}</h2>
         <div className="space-y-6">
           {T.faqs.map((faq) => (
             <div key={faq.q} className="border-b pb-6">
-              <h3 className="font-semibold text-gray-900 mb-2">{faq.q}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{faq.a}</p>
+              <h3 className="font-semibold text-stone-900 mb-2">{faq.q}</h3>
+              <p className="text-stone-500 text-sm leading-relaxed">{faq.a}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
+      <section className="bg-teal-900 py-16 px-6 text-center">
         <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-3">{T.ctaTitle}</h2>
         <p className="text-teal-100 mb-8">{T.ctaDesc}</p>
         <Link href="/register">
-          <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold">
+          <Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold">
             {T.ctaBtn} <ArrowRight className="h-5 w-5" />
           </Button>
         </Link>

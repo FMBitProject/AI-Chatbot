@@ -69,11 +69,11 @@ export default function LoginPage() {
 
   return (
     <>
-    <div className="min-h-screen flex">
+    <div className="min-h-[100dvh] flex">
       <Toaster />
 
       {/* Left panel */}
-      <div className="hidden lg:flex flex-col w-[55%] bg-gradient-to-br from-[#061C24] via-[#0A2E2E] to-[#061C24] p-12 justify-between">
+      <div className="hidden lg:flex flex-col w-[55%] bg-[#0A2E2E] p-12 justify-between">
         <Link href="/"><LogoFull size="md" variant="white" /></Link>
         <div className="space-y-8">
           <div>
@@ -98,7 +98,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel */}
-      <div className="flex-1 flex flex-col p-8 bg-gray-50">
+      <div className="flex-1 flex flex-col p-8 bg-stone-50">
         {/* Top bar */}
         <div className="flex justify-end mb-auto">
           <LanguageSwitcher />
@@ -111,8 +111,8 @@ export default function LoginPage() {
               <LogoFull size="md" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">{T.welcome}</h2>
-              <p className="text-gray-500 text-sm mt-1">{T.subtitle}</p>
+              <h2 className="text-2xl font-bold text-stone-900">{T.welcome}</h2>
+              <p className="text-stone-500 text-sm mt-1">{T.subtitle}</p>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -125,7 +125,7 @@ export default function LoginPage() {
                 <Input id="password" type="password" placeholder={T.passwordPlaceholder}
                   value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
               </div>
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading}>
+              <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 h-11" disabled={loading}>
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {T.login}
               </Button>
@@ -144,7 +144,7 @@ export default function LoginPage() {
               </div>
             )}
             <div className="text-center space-y-3">
-              <Link href="/forgot-password" className="text-sm text-gray-500 hover:text-teal-600 block">
+              <Link href="/forgot-password" className="text-sm text-stone-500 hover:text-teal-700 block">
                 {T.forgotPassword}
               </Link>
               {/* Both paths, on their own line rather than inline after the
@@ -154,19 +154,19 @@ export default function LoginPage() {
                   stays single — there is nothing to split, because the
                   credentials decide which account this is and the server already
                   knows which one it found. */}
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-stone-500">
                 <p>{T.noAccount}</p>
                 <p className="mt-1 flex items-center justify-center gap-2">
-                  <Link href="/register?type=individual" className="text-teal-600 hover:underline font-medium">
+                  <Link href="/register?type=individual" className="text-teal-700 hover:underline font-medium">
                     {T.registerIndividual}
                   </Link>
-                  <span aria-hidden="true" className="text-gray-300">·</span>
-                  <Link href="/register" className="text-teal-600 hover:underline font-medium">
+                  <span aria-hidden="true" className="text-stone-300">·</span>
+                  <Link href="/register" className="text-teal-700 hover:underline font-medium">
                     {T.registerCompany}
                   </Link>
                 </p>
               </div>
-              <Link href="/pricing" className="text-xs text-gray-400 hover:text-gray-600 block">{T.viewPricing}</Link>
+              <Link href="/pricing" className="text-xs text-stone-400 hover:text-stone-600 block">{T.viewPricing}</Link>
             </div>
           </div>
         </div>

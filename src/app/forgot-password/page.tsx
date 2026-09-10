@@ -30,7 +30,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-[100dvh] bg-stone-50 flex flex-col">
       <header className="flex items-center justify-between px-6 py-4">
         <Link href="/"><LogoFull size="sm" /></Link>
         <LanguageSwitcher />
@@ -41,32 +41,32 @@ export default function ForgotPasswordPage() {
           {sent ? (
             <div className="text-center space-y-4">
               <div className="mx-auto w-12 h-12 rounded-full bg-teal-50 flex items-center justify-center">
-                <MailCheck className="h-6 w-6 text-teal-600" />
+                <MailCheck className="h-6 w-6 text-teal-700" />
               </div>
-              <h1 className="text-xl font-bold text-gray-900">
+              <h1 className="text-xl font-bold text-stone-900">
                 {lang === "en" ? "Check your email" : "Cek email Anda"}
               </h1>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-stone-500 leading-relaxed">
                 {lang === "en"
                   ? `If an account exists for ${email}, we've sent a link to reset the password. The link is valid for one hour.`
                   : `Jika ada akun terdaftar dengan ${email}, kami sudah mengirim link untuk mengatur ulang kata sandi. Link berlaku 1 jam.`}
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-stone-400">
                 {lang === "en"
                   ? "Not there? Check your spam folder."
                   : "Tidak ada? Coba cek folder spam."}
               </p>
-              <Link href="/login" className="inline-flex items-center gap-1 text-sm text-teal-600 hover:underline">
+              <Link href="/login" className="inline-flex items-center gap-1 text-sm text-teal-700 hover:underline">
                 <ArrowLeft className="h-4 w-4" />
                 {lang === "en" ? "Back to sign in" : "Kembali ke halaman masuk"}
               </Link>
             </div>
           ) : (
             <>
-              <h1 className="text-xl font-bold text-gray-900 mb-1">
+              <h1 className="text-xl font-bold text-stone-900 mb-1">
                 {lang === "en" ? "Forgot your password?" : "Lupa kata sandi?"}
               </h1>
-              <p className="text-sm text-gray-500 mb-6">
+              <p className="text-sm text-stone-500 mb-6">
                 {lang === "en"
                   ? "Enter your email and we'll send you a link to create a new one."
                   : "Masukkan email Anda, kami kirimkan link untuk membuat kata sandi baru."}
@@ -79,13 +79,13 @@ export default function ForgotPasswordPage() {
                     placeholder="nama@perusahaan.com"
                     value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
-                <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 h-11" disabled={loading || !email}>
+                <Button type="submit" className="w-full bg-teal-700 hover:bg-teal-800 h-11" disabled={loading || !email}>
                   {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                   {lang === "en" ? "Send reset link" : "Kirim Link"}
                 </Button>
               </form>
 
-              <Link href="/login" className="mt-6 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+              <Link href="/login" className="mt-6 inline-flex items-center gap-1 text-sm text-stone-500 hover:text-stone-700">
                 <ArrowLeft className="h-4 w-4" />
                 {lang === "en" ? "Back to sign in" : "Kembali ke halaman masuk"}
               </Link>

@@ -54,22 +54,22 @@ export default async function BlogPostPage({ params }: Params) {
       <article className="max-w-3xl mx-auto px-6 pt-10 pb-16">
         <Link
           href="/blog"
-          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors mb-8"
+          className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-800 transition-colors mb-8"
         >
           <ArrowLeft className="h-4 w-4" />
           Semua tulisan
         </Link>
 
         <header className="mb-10">
-          <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
+          <div className="flex items-center gap-2 text-xs text-stone-400 mb-3">
             <time dateTime={post.publishedAt}>{formatPostDate(post)}</time>
             <span aria-hidden="true">·</span>
             <span>{post.readingMinutes} menit baca</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 leading-tight mb-4">
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-stone-900 leading-tight mb-4">
             {post.title}
           </h1>
-          <p className="text-lg text-gray-500 leading-relaxed">{post.excerpt}</p>
+          <p className="text-lg text-stone-500 leading-relaxed">{post.excerpt}</p>
         </header>
 
         <ArticleBody>{post.body}</ArticleBody>
@@ -92,10 +92,10 @@ export default async function BlogPostPage({ params }: Params) {
           offered: the product, and one more thing to read. */}
       <section className="bg-sunken border-t border-hairline py-14 px-6">
         <div className="max-w-3xl mx-auto">
-          <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 mb-3">
+          <h2 className="text-xl md:text-2xl font-semibold tracking-[-0.01em] text-stone-900 mb-3">
             Coba dengan dokumen Anda sendiri
           </h2>
-          <p className="text-gray-500 leading-relaxed mb-6 max-w-xl">
+          <p className="text-stone-500 leading-relaxed mb-6 max-w-xl">
             Unggah beberapa SOP, lalu tanyakan hal yang biasanya ditanyakan staf.
             Paket gratisnya tidak meminta kartu kredit.
           </p>
@@ -112,10 +112,10 @@ export default async function BlogPostPage({ params }: Params) {
 
           {previous && (
             <div className="mt-10 pt-8 border-t border-hairline">
-              <p className="text-xs uppercase tracking-wide text-gray-400 mb-2">Tulisan sebelumnya</p>
+              <p className="text-xs uppercase tracking-wide text-stone-400 mb-2">Tulisan sebelumnya</p>
               <Link
                 href={`/blog/${previous.slug}`}
-                className="group inline-flex items-start gap-1.5 font-medium text-gray-900 hover:text-teal-700 transition-colors"
+                className="group inline-flex items-start gap-1.5 font-medium text-stone-900 hover:text-teal-700 transition-colors"
               >
                 {previous.title}
                 <ArrowRight className="h-4 w-4 mt-1 shrink-0 transition-transform group-hover:translate-x-0.5" />

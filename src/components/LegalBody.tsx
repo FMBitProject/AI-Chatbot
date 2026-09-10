@@ -37,19 +37,19 @@ function emphasise(body: string) {
   // no state machine, and unmatched `**` simply stays literal text rather than
   // swallowing the rest of the clause.
   return body.split(/\*\*(.+?)\*\*/g).map((part, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-semibold text-gray-900">{part}</strong> : part
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-stone-900">{part}</strong> : part
   );
 }
 
 export function LegalBody({ sections }: { sections: readonly LegalSection[] }) {
   return (
-    <div className="space-y-8 text-sm leading-relaxed text-gray-700">
+    <div className="space-y-8 text-sm leading-relaxed text-stone-700">
       {sections.map((s) => (
         <div
           key={s.title}
           className={s.highlight ? "rounded-lg border border-teal-200 bg-teal-50/60 p-5" : undefined}
         >
-          <h2 className="font-semibold text-gray-900 text-base mb-2">{s.title}</h2>
+          <h2 className="font-semibold text-stone-900 text-base mb-2">{s.title}</h2>
           <p>{emphasise(s.body)}</p>
         </div>
       ))}

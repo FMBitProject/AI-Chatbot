@@ -15,7 +15,7 @@ export const apaItuRag: BlogPost = {
 menjelaskannya, dan bagi calon pembeli istilah itu berubah menjadi kata sakti
 yang tidak bisa dinilai.
 
-Artikel ini menjelaskannya dalam bahasa biasa — termasuk bagian yang biasanya
+Artikel ini menjelaskannya dalam bahasa biasa, termasuk bagian yang biasanya
 tidak disebutkan dalam presentasi penjualan.
 
 ## Masalah yang RAG selesaikan
@@ -28,8 +28,8 @@ Kalau Anda bertanya soal kebijakan internal ke chatbot umum, ia tetap akan
 menjawab. Jawabannya terdengar meyakinkan dan bisa saja seluruhnya salah, karena
 model tersebut menyusun jawaban dari pola bahasa, bukan dari dokumen Anda.
 
-RAG — *Retrieval-Augmented Generation*, "pembangkitan yang diperkuat pengambilan"
-— adalah cara mengatasi itu. Idenya sederhana: **cari dulu bagian dokumen yang
+RAG (*Retrieval-Augmented Generation*, "pembangkitan yang diperkuat
+pengambilan") adalah cara mengatasi itu. Idenya sederhana: **cari dulu bagian dokumen yang
 relevan, baru minta model menjawab hanya berdasarkan bagian itu.**
 
 ## Cara kerjanya, langkah demi langkah
@@ -38,7 +38,7 @@ relevan, baru minta model menjawab hanya berdasarkan bagian itu.**
 
 Satu SOP 40 halaman terlalu besar untuk diproses sekaligus, dan sebagian besar
 isinya tidak relevan dengan pertanyaan mana pun. Jadi dokumen dipecah menjadi
-potongan-potongan — biasanya sepanjang beberapa paragraf.
+potongan-potongan, biasanya sepanjang beberapa paragraf.
 
 Di mana potongan itu dipotong ternyata sangat menentukan. Potongan yang terputus
 di tengah kalimat atau memisahkan judul dari isinya menghasilkan jawaban yang
@@ -49,7 +49,7 @@ kehilangan konteks.
 Tiap potongan diproses menjadi deretan angka yang disebut *embedding*, yang
 mewakili maknanya. Ini bagian yang paling sulit dibayangkan, tapi konsekuensinya
 mudah: potongan yang membahas hal serupa akan punya deretan angka yang
-berdekatan — meskipun kata-katanya sama sekali berbeda.
+berdekatan, meskipun kata-katanya sama sekali berbeda.
 
 Karena itulah pertanyaan "berapa lama cuti melahirkan?" bisa menemukan paragraf
 yang tidak pernah menyebut kata "cuti melahirkan", melainkan "istirahat sebelum
@@ -70,7 +70,7 @@ Barulah model bahasa dipanggil. Ia menerima pertanyaan staf **beserta**
 potongan-potongan tadi, dengan instruksi menjawab hanya berdasarkan bahan itu.
 
 Di sinilah sitasi lahir. Karena sistem tahu persis potongan mana yang dipakai, ia
-bisa menunjukkan dokumen asalnya. Pembaca tidak perlu percaya begitu saja — ia
+bisa menunjukkan dokumen asalnya. Pembaca tidak perlu percaya begitu saja. Ia
 bisa membuka sumbernya.
 
 ## Kenapa bukan sekadar menempel dokumen ke ChatGPT
@@ -116,7 +116,7 @@ satu lagi untuk menyusun jawaban. Pada IntelliBase, dokumen diindeks lewat Googl
 Gemini dan jawaban disusun lewat Groq. Artinya isi dokumen Anda memang melewati
 layanan pihak ketiga.
 
-Hampir semua produk sejenis bekerja begitu — perbedaannya hanya pada apakah hal
+Hampir semua produk sejenis bekerja begitu. Perbedaannya hanya pada apakah hal
 itu disebutkan. Kami menyebutkannya, dan menuliskannya di
 [Kebijakan Privasi](/privacy), karena Anda berhak memutuskan sendiri dokumen mana
 yang boleh keluar.
@@ -133,7 +133,7 @@ diketahui sebelum memutuskan:
 - **Kalau dokumennya salah, jawabannya salah.** Sistem ini setia pada dokumen
   Anda, termasuk saat dokumen Anda keliru atau kedaluwarsa.
 - **Kalau jawabannya tidak ada di dokumen mana pun**, sistem yang baik akan
-  bilang tidak tahu — dan itu perilaku yang benar, meski terasa mengecewakan.
+  bilang tidak tahu, dan itu perilaku yang benar, meski terasa mengecewakan.
 - **Hasil pindaian tanpa teks tidak terbaca.** PDF yang isinya foto halaman perlu
   OCR lebih dulu.
 - **Tabel dan formulir kompleks sering kacau** saat dipotong, karena strukturnya

@@ -48,14 +48,14 @@ const CONTENT = {
       recoveredNote: "Sisanya tetap butuh bertanya ke orang, membaca, dan memutuskan.",
     },
     assumptions: {
-      title: "Cara kami menghitung — dan apa yang sengaja kami potong",
+      title: "Cara kami menghitung, dan apa yang sengaja kami potong",
       desc: "Angka di atas bukan \"waktu pencarian × 90%\". Kami memotongnya tiga kali supaya lebih dekat ke kenyataan:",
       items: [
         `Hanya ${ANSWERABLE_SHARE_LABEL} pertanyaan yang kami hitung bisa dijawab dari dokumen yang Anda unggah. Sisanya soal hal yang memang belum terdokumentasi.`,
         `Setiap pertanyaan ke AI tetap memakan sekitar ${MINUTES_WITH_AI} menit untuk membaca jawaban dan mengecek sumbernya. Yang dihitung hemat hanya selisihnya, bukan seluruh waktu pencarian.`,
         `Hanya ${REALIZED_SHARE_LABEL} dari waktu yang dihemat kami hitung jadi output nyata. Menit yang kembali satu-dua per pertanyaan tidak otomatis jadi jam kerja tambahan.`,
       ],
-      closing: "Kalau menurut Anda asumsi ini terlalu longgar atau terlalu ketat, turunkan saja slider di atas — semua angka di halaman ini ikut bergerak.",
+      closing: "Kalau menurut Anda asumsi ini terlalu longgar atau terlalu ketat, turunkan saja slider di atas. Semua angka di halaman ini ikut bergerak.",
     },
     compTitle: "Pilih Paket yang Tepat untuk Anda",
     compDesc: "Bandingkan ROI kedua paket berdasarkan data perusahaan Anda",
@@ -67,7 +67,7 @@ const CONTENT = {
         priceLabel: "Rp 200.000 / bulan",
         limit: "Hingga 50 karyawan · 100 dokumen",
         employeeLimit: 50,
-        color: "blue",
+        color: "teal",
         cta: "Mulai Professional",
         ctaHref: "/register?plan=professional",
         recommendedLabel: "Cocok untuk Tim Anda",
@@ -90,7 +90,7 @@ const CONTENT = {
         priceLabel: "Rp 500.000 / bulan",
         limit: "Hingga 100 karyawan · 300 dokumen",
         employeeLimit: 100,
-        color: "violet",
+        color: "teal-deep",
         cta: "Mulai Enterprise",
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Cocok untuk Tim Anda",
@@ -120,7 +120,7 @@ const CONTENT = {
       // "-" already means "not applicable" on the dead card, so this deliberately
       // reads as pending rather than as zero.
       pending: "disusun bersama",
-      pendingShort: "—",
+      pendingShort: "-",
     },
     cta: {
       title: "Siap Mulai Menghemat?",
@@ -159,14 +159,14 @@ const CONTENT = {
       recoveredNote: "The rest still needs asking someone, reading, and deciding.",
     },
     assumptions: {
-      title: "How we calculate it — and what we deliberately cut",
+      title: "How we calculate it, and what we deliberately cut",
       desc: "The figure above is not \"search time × 90%\". We discount it three times to keep it close to reality:",
       items: [
         `Only ${ANSWERABLE_SHARE_LABEL} of questions are counted as answerable from the documents you upload. The rest are about things nobody has written down yet.`,
-        `Every question to the AI still costs about ${MINUTES_WITH_AI} minutes to read the answer and check its source. Only the difference counts as saved — never the whole search.`,
+        `Every question to the AI still costs about ${MINUTES_WITH_AI} minutes to read the answer and check its source. Only the difference counts as saved, never the whole search.`,
         `Only ${REALIZED_SHARE_LABEL} of the time saved is counted as real output. Minutes returned one or two at a time do not automatically become extra working hours.`,
       ],
-      closing: "If you think these assumptions are too generous or too harsh, move the sliders above — every number on this page follows them.",
+      closing: "If you think these assumptions are too generous or too harsh, move the sliders above. Every number on this page follows them.",
     },
     compTitle: "Choose the Right Plan for You",
     compDesc: "Compare ROI for both plans based on your company data",
@@ -178,7 +178,7 @@ const CONTENT = {
         priceLabel: "Rp 200,000 / month",
         limit: "Up to 50 employees · 100 documents",
         employeeLimit: 50,
-        color: "blue",
+        color: "teal",
         cta: "Start Professional",
         ctaHref: "/register?plan=professional",
         recommendedLabel: "Right for Your Team",
@@ -196,7 +196,7 @@ const CONTENT = {
         priceLabel: "Rp 500,000 / month",
         limit: "Up to 100 employees · 300 documents",
         employeeLimit: 100,
-        color: "violet",
+        color: "teal-deep",
         cta: "Start Enterprise",
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Right for Your Team",
@@ -218,7 +218,7 @@ const CONTENT = {
       paybackUnit: "days",
       paybackSameDay: "< 1 day",
       pending: "agreed with you",
-      pendingShort: "—",
+      pendingShort: "-",
     },
     cta: {
       title: "Ready to Start Saving?",
@@ -261,10 +261,10 @@ function SliderInput({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div>
-          <label className="text-sm font-semibold text-gray-800">{label}</label>
-          {desc && <p className="text-xs text-gray-400 mt-0.5">{desc}</p>}
+          <label className="text-sm font-semibold text-stone-800">{label}</label>
+          {desc && <p className="text-xs text-stone-400 mt-0.5">{desc}</p>}
         </div>
-        <span className="text-lg font-bold text-teal-600 min-w-[90px] text-right">{format(value)}</span>
+        <span className="text-lg font-bold text-teal-700 min-w-[90px] text-right">{format(value)}</span>
       </div>
       <input
         type="range"
@@ -273,9 +273,9 @@ function SliderInput({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
+        className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-teal-700"
       />
-      <div className="flex justify-between text-xs text-gray-300">
+      <div className="flex justify-between text-xs text-stone-300">
         <span>{format(min)}</span>
         <span>{format(max)}</span>
       </div>
@@ -316,14 +316,14 @@ function PlanResultCard({
   // Rounding a two-hour payback up to "1 hari" overstates nothing, but printing
   // "1" next to a 38× multiple looks like a rounding artefact. Say what it is.
   const isSameDayPayback = paybackDays > 0 && paybackDays < 1;
-  const isBlue = plan.color === "blue";
+  const isBlue = plan.color === "teal";
   // Decided from the card's state, not inside one of the two icon branches:
   // the custom-mode tile is near-black, and colouring only the Shield for it
   // left the Zap a blue card renders teal on near-black.
   const iconClass = `h-4 w-4 ${
-    isDeadEnd ? "text-gray-400"
+    isDeadEnd ? "text-stone-400"
       : isCustomMode ? "text-white"
-      : isBlue ? "text-teal-600"
+      : isBlue ? "text-teal-700"
       : "text-teal-700"
   }`;
 
@@ -332,7 +332,7 @@ function PlanResultCard({
       isDeadEnd
         ? "border-hairline opacity-60"
         : isCustomMode
-        ? "border-gray-900 shadow-lg"
+        ? "border-teal-900 shadow-lg"
         : isBlue
         ? "border-teal-500 shadow-teal-100 shadow-lg"
         : "border-teal-400 shadow-teal-100 shadow-lg"
@@ -342,15 +342,15 @@ function PlanResultCard({
         {isCustomMode ? (
           // A star, not a warning triangle: nothing has gone wrong for this
           // visitor, they are simply the size that gets a tailored plan.
-          <span className="bg-gray-900 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+          <span className="bg-teal-900 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
             <Sparkles className="h-3 w-3" />{plan.overLimitLabel}
           </span>
         ) : isOverLimit ? (
-          <span className="bg-orange-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
+          <span className="bg-amber-600 text-white text-xs font-semibold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap">
             <AlertTriangle className="h-3 w-3" />{plan.overLimitLabel}
           </span>
         ) : isRecommended ? (
-          <span className={`text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${isBlue ? "bg-teal-600" : "bg-teal-700"}`}>
+          <span className={`text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 whitespace-nowrap ${isBlue ? "bg-teal-700" : "bg-teal-800"}`}>
             <CheckCircle2 className="h-3 w-3" />{plan.recommendedLabel}
           </span>
         ) : null}
@@ -358,24 +358,24 @@ function PlanResultCard({
 
       {/* Plan header */}
       <div className="flex items-center gap-2 mb-1 mt-2">
-        <div className={`p-1.5 rounded-lg ${isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-gray-900" : isBlue ? "bg-teal-50" : "bg-violet-50"}`}>
+        <div className={`p-1.5 rounded-lg ${isDeadEnd ? "bg-stone-100" : isCustomMode ? "bg-teal-900" : isBlue ? "bg-teal-50" : "bg-teal-50/60"}`}>
           {isBlue ? <Zap className={iconClass} /> : <Shield className={iconClass} />}
         </div>
-        <h3 className="font-bold text-gray-900">{isCustomMode ? plan.overLimitName || plan.name : plan.name}</h3>
+        <h3 className="font-bold text-stone-900">{isCustomMode ? plan.overLimitName || plan.name : plan.name}</h3>
       </div>
       {/* The listed price is withdrawn, not struck through: at this size it was
           never the price this visitor would pay. */}
-      <p className={`text-sm font-semibold mb-0.5 ${isDeadEnd ? "text-gray-400" : isCustomMode ? "text-gray-900" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+      <p className={`text-sm font-semibold mb-0.5 ${isDeadEnd ? "text-stone-400" : isCustomMode ? "text-stone-900" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
         {isCustomMode ? labels.pending : plan.priceLabel}
       </p>
-      <p className="text-xs text-gray-400 mb-4">{isCustomMode ? plan.overLimitDesc : plan.limit}</p>
+      <p className="text-xs text-stone-400 mb-4">{isCustomMode ? plan.overLimitDesc : plan.limit}</p>
 
       {/* Over-limit warning — only for the card that really is a dead end.
           The Custom card already carries its message under the plan name. */}
       {isDeadEnd && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 flex items-start gap-2">
-          <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-          <p className="text-xs text-orange-700">{plan.overLimitDesc}</p>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-800">{plan.overLimitDesc}</p>
         </div>
       )}
 
@@ -384,18 +384,18 @@ function PlanResultCard({
         {/* The saving stays a real number in Custom mode — it comes from the
             visitor's own inputs and owes nothing to which plan they buy. */}
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">{labels.savingsAI}</span>
-          <span className="font-semibold text-green-600">{formatRp(savingsWithAI)}</span>
+          <span className="text-stone-500">{labels.savingsAI}</span>
+          <span className="font-semibold text-teal-800">{formatRp(savingsWithAI)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-500">{labels.subscription}</span>
-          <span className="text-gray-500">
+          <span className="text-stone-500">{labels.subscription}</span>
+          <span className="text-stone-500">
             {isCustomMode ? labels.pending : `- ${formatRp(plan.price)}`}
           </span>
         </div>
         <div className="flex items-center justify-between border-t pt-3">
-          <span className="text-sm font-semibold text-gray-700">{labels.netSaving}</span>
-          <span className={`font-bold text-xl ${!isCustomMode && net > 0 ? "text-green-600" : "text-gray-400"}`}>
+          <span className="text-sm font-semibold text-stone-700">{labels.netSaving}</span>
+          <span className={`font-bold text-xl ${!isCustomMode && net > 0 ? "text-teal-800" : "text-stone-400"}`}>
             {isCustomMode ? labels.pendingShort : net > 0 ? formatRp(net) : "-"}
           </span>
         </div>
@@ -403,19 +403,19 @@ function PlanResultCard({
 
       {/* ROI badges */}
       <div className={`grid grid-cols-2 gap-3 mt-5 mb-5 p-4 rounded-xl ${
-        isDeadEnd ? "bg-gray-100" : isCustomMode ? "bg-sunken" : isBlue ? "bg-teal-50" : "bg-violet-50"
+        isDeadEnd ? "bg-stone-100" : isCustomMode ? "bg-sunken" : isBlue ? "bg-teal-50" : "bg-teal-50/60"
       }`}>
         <div className="text-center">
-          <p className="text-xs text-gray-400 mb-0.5">{labels.roi}</p>
-          <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+          <p className="text-xs text-stone-400 mb-0.5">{labels.roi}</p>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
             {!isOverLimit && roiMultiple > 0
               ? `${roiMultiple.toFixed(roiMultiple < 10 ? 1 : 0)}${labels.roiUnit}`
               : isCustomMode ? labels.pendingShort : "-"}
           </p>
         </div>
         <div className="text-center">
-          <p className="text-xs text-gray-400 mb-0.5">{labels.payback}</p>
-          <p className={`text-2xl font-bold ${isDeadEnd ? "text-gray-300" : isCustomMode ? "text-gray-400" : isBlue ? "text-teal-600" : "text-teal-700"}`}>
+          <p className="text-xs text-stone-400 mb-0.5">{labels.payback}</p>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
             {isOverLimit
               ? (isCustomMode ? labels.pendingShort : "-")
               : isSameDayPayback
@@ -431,11 +431,11 @@ function PlanResultCard({
         <Button
           className={`w-full gap-2 ${
             isDeadEnd
-              ? "bg-gray-300 hover:bg-gray-400 text-gray-600"
+              ? "bg-stone-300 hover:bg-stone-400 text-stone-600"
               : isCustomMode
-              ? "bg-gray-900 hover:bg-gray-800"
+              ? "bg-teal-900 hover:bg-teal-800"
               : isBlue
-              ? "bg-teal-600 hover:bg-teal-700"
+              ? "bg-teal-700 hover:bg-teal-800"
               : "bg-teal-700 hover:bg-teal-800"
           }`}
         >
@@ -506,7 +506,7 @@ export default function ROIPage() {
     : Math.max(0, results.savingsWithAI - recommendedPlan.price);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Navbar */}
       <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
@@ -516,14 +516,14 @@ export default function ROIPage() {
           <LogoHomeLink size="sm" lang={lang} className="shrink-0" />
           <div className="flex items-center gap-2">
             <LanguageSwitcher />
-            <Link href="/pricing" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">
+            <Link href="/pricing" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">
               {T.nav.price}
             </Link>
             <Link href="/login">
               <Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.nav.login}</Button>
             </Link>
             <Link href="/register">
-              <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button>
+              <Button size="sm" className="bg-teal-700 hover:bg-teal-800 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button>
             </Link>
           </div>
         </div>
@@ -536,8 +536,8 @@ export default function ROIPage() {
             <Calculator className="h-3.5 w-3.5" />
             {T.badge}
           </span>
-          <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-gray-900 mb-4">{T.title}</h1>
-          <p className="text-gray-500 text-lg leading-relaxed">{T.subtitle}</p>
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.02em] text-stone-900 mb-4">{T.title}</h1>
+          <p className="text-stone-500 text-lg leading-relaxed">{T.subtitle}</p>
         </div>
       </section>
 
@@ -546,9 +546,9 @@ export default function ROIPage() {
         <div className="bg-raised rounded-2xl border border-hairline p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-8">
             <div className="p-2 bg-teal-50 rounded-lg">
-              <Users className="h-5 w-5 text-teal-600" />
+              <Users className="h-5 w-5 text-teal-700" />
             </div>
-            <h2 className="font-bold text-gray-900">{T.inputsTitle}</h2>
+            <h2 className="font-bold text-stone-900">{T.inputsTitle}</h2>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-8">
             <SliderInput
@@ -601,31 +601,31 @@ export default function ROIPage() {
           red figure disappears. */}
       <section className="max-w-6xl mx-auto px-6 pb-6">
         <div className="grid md:grid-cols-2 gap-4">
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-6">
+          <div className="bg-sunken border border-hairline rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
-              <TrendingDown className="h-6 w-6 text-red-500 shrink-0" />
-              <p className="font-bold text-gray-900">{T.lossCard.title}</p>
+              <TrendingDown className="h-6 w-6 text-stone-500 shrink-0" />
+              <p className="font-bold text-stone-900">{T.lossCard.title}</p>
             </div>
-            <p className="text-xs text-gray-400 mb-0.5">{T.lossCard.costLost}</p>
-            <p className="text-4xl font-bold text-red-600">{formatRp(results.costLost)}</p>
-            <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-2">
+            <p className="text-xs text-stone-400 mb-0.5">{T.lossCard.costLost}</p>
+            <p className="text-4xl font-bold text-stone-900">{formatRp(results.costLost)}</p>
+            <p className="text-sm text-stone-500 flex items-center gap-1.5 mt-2">
               <Clock className="h-3.5 w-3.5" />
               {results.hoursPerMonth.toFixed(0)} {T.lossCard.hoursUnit} {T.lossCard.hoursLost.split("/")[1] ? `/ ${T.lossCard.hoursLost.split("/")[1]}` : ""}
             </p>
           </div>
-          <div className="bg-green-50 border border-green-100 rounded-2xl p-6">
+          <div className="bg-raised border border-teal-200 rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
-              <TrendingUp className="h-6 w-6 text-green-600 shrink-0" />
-              <p className="font-bold text-gray-900">{T.lossCard.recovered}</p>
+              <TrendingUp className="h-6 w-6 text-teal-700 shrink-0" />
+              <p className="font-bold text-stone-900">{T.lossCard.recovered}</p>
             </div>
             {/* The share is printed from the result rather than the constants:
                 it moves with the visitor's own search time, and a fixed "28%"
                 would be wrong the moment they touch a slider. */}
-            <p className="text-xs text-gray-400 mb-0.5">
+            <p className="text-xs text-stone-400 mb-0.5">
               {(results.recoveredShare * 100).toFixed(0)}% {lang === "id" ? "dari angka di sebelah" : "of the figure beside it"}
             </p>
-            <p className="text-4xl font-bold text-green-600">{formatRp(results.savingsWithAI)}</p>
-            <p className="text-sm text-gray-500 mt-2">{T.lossCard.recoveredNote}</p>
+            <p className="text-4xl font-bold text-teal-800">{formatRp(results.savingsWithAI)}</p>
+            <p className="text-sm text-stone-500 mt-2">{T.lossCard.recoveredNote}</p>
           </div>
         </div>
       </section>
@@ -636,21 +636,21 @@ export default function ROIPage() {
       <section className="max-w-6xl mx-auto px-6 pb-6">
         <div className="bg-sunken border border-hairline rounded-2xl p-6">
           <div className="flex items-center gap-2 mb-2">
-            <Scale className="h-5 w-5 text-gray-500 shrink-0" />
-            <h2 className="font-bold text-gray-900">{T.assumptions.title}</h2>
+            <Scale className="h-5 w-5 text-stone-500 shrink-0" />
+            <h2 className="font-bold text-stone-900">{T.assumptions.title}</h2>
           </div>
-          <p className="text-sm text-gray-500 mb-4">{T.assumptions.desc}</p>
+          <p className="text-sm text-stone-500 mb-4">{T.assumptions.desc}</p>
           <ul className="space-y-2.5">
             {T.assumptions.items.map((item, i) => (
-              <li key={i} className="flex items-start gap-2.5 text-sm text-gray-600">
-                <span className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-gray-200 text-gray-600 text-xs font-bold flex items-center justify-center">
+              <li key={i} className="flex items-start gap-2.5 text-sm text-stone-600">
+                <span className="shrink-0 mt-0.5 h-5 w-5 rounded-full bg-stone-200 text-stone-600 text-xs font-bold flex items-center justify-center">
                   {i + 1}
                 </span>
                 <span>{item}</span>
               </li>
             ))}
           </ul>
-          <p className="text-xs text-gray-400 mt-4">{T.assumptions.closing}</p>
+          <p className="text-xs text-stone-400 mt-4">{T.assumptions.closing}</p>
         </div>
       </section>
 
@@ -658,10 +658,10 @@ export default function ROIPage() {
       <section className="max-w-6xl mx-auto px-6 pb-16">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <TrendingUp className="h-5 w-5 text-green-600" />
-            <h2 className="text-xl font-bold text-gray-900">{T.compTitle}</h2>
+            <TrendingUp className="h-5 w-5 text-teal-700" />
+            <h2 className="text-xl font-bold text-stone-900">{T.compTitle}</h2>
           </div>
-          <p className="text-gray-500 text-sm">{T.compDesc}</p>
+          <p className="text-stone-500 text-sm">{T.compDesc}</p>
         </div>
         <div className="grid sm:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {plans.map((plan) => (
@@ -675,17 +675,17 @@ export default function ROIPage() {
             />
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-6 text-center">{ESTIMATE_NOTE[lang]}</p>
+        <p className="text-xs text-stone-400 mt-6 text-center">{ESTIMATE_NOTE[lang]}</p>
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-20 px-6 text-center">
+      <section className="bg-teal-900 py-20 px-6 text-center">
         <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-2">{T.cta.title}</h2>
         <p className="text-5xl font-black text-white mb-4">{formatRp(headlineSaving)}<span className="text-xl font-normal text-teal-200"> / {lang === "id" ? "bulan" : "month"}</span></p>
         <p className="text-teal-100 mb-8">{needsCustomPlan ? T.cta.descCustom : T.cta.desc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link href="/register">
-            <Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">
+            <Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">
               {T.cta.btn} <ArrowRight className="h-5 w-5" />
             </Button>
           </Link>

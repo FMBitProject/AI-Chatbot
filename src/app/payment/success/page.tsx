@@ -73,13 +73,13 @@ function SuccessContent() {
   }, [plan, orderId]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+    <div className="min-h-[100dvh] bg-stone-50 flex flex-col items-center justify-center p-6">
       <div className="bg-white rounded-2xl border p-10 max-w-md w-full text-center shadow-sm">
         <LogoFull size="md" className="justify-center mb-6" />
         {verifying ? (
           <div className="flex flex-col items-center gap-3 py-6">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-gray-500 text-sm">Memverifikasi pembayaran...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-teal-700" />
+            <p className="text-stone-500 text-sm">Memverifikasi pembayaran...</p>
           </div>
         ) : (
           <>
@@ -96,14 +96,14 @@ function SuccessContent() {
                 </div>
               )}
             </div>
-            <h1 className="text-xl font-bold text-gray-900 mb-2">
+            <h1 className="text-xl font-bold text-stone-900 mb-2">
               {upgraded
                 ? "Pembayaran Berhasil!"
                 : checkFailed === "unknown"
                 ? "Status Belum Dapat Dipastikan"
                 : "Pembayaran Diterima"}
             </h1>
-            <p className="text-gray-500 text-sm mb-1">
+            <p className="text-stone-500 text-sm mb-1">
               {upgraded
                 ? "Akun Anda telah diupgrade ke paket"
                 : checkFailed === "unknown"
@@ -112,17 +112,17 @@ function SuccessContent() {
                 ? "Pembayaran Anda tercatat. Kami belum bisa memastikan statusnya saat ini, tapi akun Anda akan diupgrade otomatis ke paket"
                 : "Pembayaran sedang diverifikasi. Akun Anda akan diupgrade ke paket"}
             </p>
-            <p className="text-blue-600 font-bold text-lg mb-6">✦ {planName}</p>
+            <p className="text-teal-800 font-semibold text-lg mb-6">{planName}</p>
             {!upgraded && (
-              <p className="text-xs text-gray-400 mb-4">
+              <p className="text-xs text-stone-400 mb-4">
                 {checkFailed === "unknown"
                   ? "Jika Anda sudah membayar, buka dashboard untuk memeriksa status pesanan Anda atau hubungi kami."
                   : "Jika belum terupgrade dalam beberapa menit, klik “Cek Status” di dashboard."}
               </p>
             )}
             <Link href="/admin">
-              <Button className="w-full bg-blue-600 hover:bg-blue-700">
-                Kembali ke Dashboard →
+              <Button className="w-full bg-teal-700 hover:bg-teal-800">
+                Kembali ke Dashboard
               </Button>
             </Link>
           </>

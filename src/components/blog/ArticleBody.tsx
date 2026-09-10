@@ -16,29 +16,29 @@ import Link from "next/link";
 // next.config.ts, which has no place for inline markup smuggled through prose.
 export function ArticleBody({ children }: { children: string }) {
   return (
-    <div className="text-gray-700">
+    <div className="text-stone-700">
       <ReactMarkdown
         components={{
           // scroll-mt so an anchored heading is not hidden behind the sticky
           // navbar, which is the same height on every marketing page.
           h2: ({ children }) => (
-            <h2 className="scroll-mt-20 text-xl md:text-2xl font-semibold tracking-[-0.01em] text-gray-900 mt-12 mb-4">
+            <h2 className="scroll-mt-20 text-xl md:text-2xl font-semibold tracking-[-0.01em] text-stone-900 mt-12 mb-4">
               {children}
             </h2>
           ),
           h3: ({ children }) => (
-            <h3 className="scroll-mt-20 text-base md:text-lg font-semibold text-gray-900 mt-8 mb-3">
+            <h3 className="scroll-mt-20 text-base md:text-lg font-semibold text-stone-900 mt-8 mb-3">
               {children}
             </h3>
           ),
           p: ({ children }) => <p className="mb-5 leading-[1.75]">{children}</p>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+          strong: ({ children }) => <strong className="font-semibold text-stone-900">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
-          ul: ({ children }) => <ul className="list-disc pl-5 mb-5 space-y-2.5 marker:text-teal-600">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-5 mb-5 space-y-2.5 marker:text-teal-600 marker:font-semibold">{children}</ol>,
+          ul: ({ children }) => <ul className="list-disc pl-5 mb-5 space-y-2.5 marker:text-teal-700">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-5 mb-5 space-y-2.5 marker:text-teal-700 marker:font-semibold">{children}</ol>,
           li: ({ children }) => <li className="leading-[1.7] pl-1">{children}</li>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-3 border-teal-500 bg-sunken rounded-r-lg pl-5 pr-4 py-3 my-6 text-gray-600">
+            <blockquote className="border-l-3 border-teal-500 bg-sunken rounded-r-lg pl-5 pr-4 py-3 my-6 text-stone-600">
               {children}
             </blockquote>
           ),
