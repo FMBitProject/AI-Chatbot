@@ -48,14 +48,14 @@ export const INDUSTRIES: Industry[] = [
     // actually comes from — the claim being made is "we know this floor", which
     // is true here and would not be true of the other four.
     featured: {
-      eyebrow: { id: "🏥 Fokus utama kami", en: "🏥 Where we go deepest" },
+      eyebrow: { id: "Fokus utama kami", en: "Where we go deepest" },
       headline: {
         id: "Dibangun oleh dokter, untuk rumah sakit & klinik",
         en: "Built by a doctor, for hospitals & clinics",
       },
       body: {
-        id: "Rumah sakit adalah industri yang kami dalami paling serius. Clinical pathway, SPO, PPK, formularium, dan dokumen akreditasi punya istilah dan siklus revisinya sendiri — dan pertanyaannya jarang muncul di jam kerja.",
-        en: "Hospitals are the industry we have gone deepest on. Clinical pathways, SOPs, practice guidelines, formularies, and accreditation documents each carry their own vocabulary and revision cycle — and the questions rarely arrive during office hours.",
+        id: "Rumah sakit adalah industri yang kami dalami paling serius. Clinical pathway, SPO, PPK, formularium, dan dokumen akreditasi punya istilah dan siklus revisinya sendiri, dan pertanyaannya jarang muncul di jam kerja.",
+        en: "Hospitals are the industry we have gone deepest on. Clinical pathways, SOPs, practice guidelines, formularies, and accreditation documents each carry their own vocabulary and revision cycle, and the questions rarely arrive during office hours.",
       },
       points: {
         id: [

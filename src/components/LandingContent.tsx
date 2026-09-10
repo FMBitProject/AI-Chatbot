@@ -13,7 +13,7 @@ import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowRight, Users, FileText, MessageSquare, Calculator, Play, Mail, Check, User, Building2 } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Play, Mail, Check, User, Building2 } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
@@ -111,14 +111,13 @@ function shotSizes(intrinsicWidth: number): string {
 
 const CONTENT = {
   id: {
-    badge: "🚀 Platform Knowledge Base AI untuk Perusahaan Indonesia",
+    badge: "Knowledge base AI untuk perusahaan Indonesia",
     hero1: "Karyawan Anda Bisa Tahu Semua",
     hero2: "Kebijakan Perusahaan",
     hero3: "dalam Detik",
-    heroDesc: "IntelliBase AI mengubah dokumen SOP, regulasi HR, panduan IT, clinical pathway rumah sakit, kebijakan keuangan, kontrak, manual produk, dan dokumen internal lainnya menjadi asisten AI yang bisa menjawab pertanyaan karyawan secara instan — kapanpun, dimanapun.",
-    cta1: "Mulai Gratis Sekarang",
+    heroDesc: "SOP, regulasi HR, panduan IT, dan dokumen internal lain jadi satu asisten AI yang menjawab pertanyaan karyawan dalam hitungan detik.",
+    cta1: "Mulai Gratis",
     cta2: "Lihat Paket Harga",
-    ctaNote: "Gratis selamanya untuk tim kecil · Tidak perlu kartu kredit",
     videoTitle: "Lihat IntelliBase AI Bekerja",
     videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
     videoPlay: "Putar video demo",
@@ -134,7 +133,7 @@ const CONTENT = {
     problemTitle: "Masalahnya Bukan Karyawan Anda",
     problemDesc: "Ini yang biasanya terjadi setiap hari sebelum ada satu tempat untuk bertanya.",
     problemPoints: [
-      "Karyawan baru menghabiskan berjam-jam mencari SOP yang benar — atau menebak-nebak lewat rekan kerja yang belum tentu tahu jawabannya.",
+      "Karyawan baru menghabiskan berjam-jam mencari SOP yang benar, atau menebak-nebak lewat rekan kerja yang belum tentu tahu jawabannya.",
       "Kebijakan tersebar di email, folder bersama, dan grup chat. Versi mana yang terbaru sering jadi tebakan.",
       "Admin HR dan IT dibanjiri pertanyaan berulang yang jawabannya sebenarnya sudah ada di dokumen resmi.",
     ],
@@ -154,7 +153,7 @@ const CONTENT = {
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
-      { name: "Starter", price: "Gratis", desc: "5 karyawan · 10 dokumen · pencarian" },
+      { name: "Starter", price: "Gratis", desc: "5 karyawan, 10 dokumen" },
       { name: "Professional", price: "Rp 200rb/bln", desc: "50 karyawan · 100 dokumen", promo: true },
       { name: "Enterprise", price: "Rp 500rb/bln", desc: "100 karyawan · 300 dokumen", promo: true },
       { name: "Custom", price: "Hubungi kami", desc: "Grup RS & multi-cabang" },
@@ -168,27 +167,27 @@ const CONTENT = {
     faq: [
       {
         q: "Dokumen internal kami disimpan di mana, dan siapa yang bisa membukanya?",
-        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap perusahaan punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi — jadi pertanyaan karyawan Anda tidak pernah bisa menyentuh dokumen perusahaan lain. Di dalam perusahaan Anda sendiri, admin yang menentukan dokumen mana bisa diakses departemen mana.",
+        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap perusahaan punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi. Jadi pertanyaan karyawan Anda tidak pernah bisa menyentuh dokumen perusahaan lain. Di dalam perusahaan Anda sendiri, admin yang menentukan dokumen mana bisa diakses departemen mana.",
       },
       {
         q: "Apakah dokumen kami dipakai untuk melatih AI?",
-        a: "IntelliBase tidak melatih model AI apa pun dengan dokumen Anda, dan tidak menjual atau membagikannya ke perusahaan lain. Yang perlu Anda tahu apa adanya: saat dokumen diunggah, isinya dikirim ke Google (Gemini API) untuk diubah menjadi indeks pencarian, dan saat pertanyaan dijawab, potongan teks yang relevan dikirim ke Groq. Groq menyatakan tidak memakai data API pelanggan untuk melatih modelnya. Akun Gemini kami saat ini masih di tier gratis, dan ketentuan Google untuk tier itu mengizinkan mereka memakai konten untuk meningkatkan layanannya. Kalau kebijakan dokumen perusahaan Anda tidak mengizinkan hal tersebut, hubungi kami sebelum mengunggah — pemrosesan bisa dipindahkan ke tier berbayar yang tidak memakai konten pelanggan. Rincian lengkapnya ada di Kebijakan Privasi.",
+        a: "IntelliBase tidak melatih model AI apa pun dengan dokumen Anda, dan tidak menjual atau membagikannya ke perusahaan lain. Yang perlu Anda tahu apa adanya: saat dokumen diunggah, isinya dikirim ke Google (Gemini API) untuk diubah menjadi indeks pencarian, dan saat pertanyaan dijawab, potongan teks yang relevan dikirim ke Groq. Groq menyatakan tidak memakai data API pelanggan untuk melatih modelnya. Akun Gemini kami saat ini masih di tier gratis, dan ketentuan Google untuk tier itu mengizinkan mereka memakai konten untuk meningkatkan layanannya. Kalau kebijakan dokumen perusahaan Anda tidak mengizinkan hal tersebut, hubungi kami sebelum mengunggah. Pemrosesan bisa dipindahkan ke tier berbayar yang tidak memakai konten pelanggan. Rincian lengkapnya ada di Kebijakan Privasi.",
       },
       {
         q: "Bagaimana kalau AI-nya mengarang jawaban?",
-        a: "Setiap jawaban datang dengan daftar dokumen sumbernya — nama dokumen beserta potongan teks yang dipakai — sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen perusahaan yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
+        a: "Setiap jawaban datang dengan daftar dokumen sumbernya (nama dokumen beserta potongan teks yang dipakai), sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen perusahaan yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
       },
       {
         q: "Kalau kami berhenti berlangganan, dokumen kami hilang?",
-        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan — tersimpan tetapi tidak ikut dicari — sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
+        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan (tersimpan tetapi tidak ikut dicari) sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
       },
       {
         q: "Siapa yang bisa melihat pertanyaan yang diajukan karyawan?",
-        a: "Admin perusahaan Anda bisa melihat pertanyaan-pertanyaan yang masuk lewat menu Analytics — memang dirancang begitu, supaya Anda tahu dokumen mana yang paling sering dicari dan mana yang ternyata belum ada. Kami sarankan menyampaikan hal ini ke karyawan sejak awal.",
+        a: "Admin perusahaan Anda bisa melihat pertanyaan-pertanyaan yang masuk lewat menu Analytics. Ini memang dirancang begitu, supaya Anda tahu dokumen mana yang paling sering dicari dan mana yang ternyata belum ada. Kami sarankan menyampaikan hal ini ke karyawan sejak awal.",
       },
       {
         q: "Format dokumen apa saja yang didukung, dan berapa lama setupnya?",
-        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah — tidak ada tagging manual — dan sebagian besar perusahaan sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
+        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah, tanpa tagging manual, dan sebagian besar perusahaan sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
       },
       {
         q: "Bisa dicoba dulu tanpa bayar?",
@@ -197,24 +196,23 @@ const CONTENT = {
     ],
     founderTitle: "Siapa di balik IntelliBase",
     faqMore: "Masih ada yang ingin ditanyakan?",
-    faqMoreCta: "Email kami langsung",
+    faqMoreCta: "Konsultasi gratis",
     privacyLink: "Baca Kebijakan Privasi",
     ctaTitle: "Mulai Transformasi Knowledge Base Anda Hari Ini",
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
-    ctaBtn1: "Mulai Gratis Sekarang",
-    ctaBtn2: "Konsultasi Gratis Dulu",
+    ctaBtn1: "Mulai Gratis",
+    ctaBtn2: "Konsultasi gratis",
     // The register button assumes a visitor ready to hand over documents. This
     // is the exit for everyone else — cheaper than signing up, and the only way
     // an unconvinced visitor leaves a trace instead of just leaving.
-    consult: "Belum yakin? Konsultasi gratis dulu",
+    consult: "Konsultasi gratis",
     consultNote: "Balasan lewat email · Tanpa biaya, tanpa komitmen",
     leadLabel: "Atau tinggalkan email, kami hubungi lebih dulu",
     leadPlaceholder: "email@perusahaan.com",
     leadBtn: "Kirim",
-    leadSuccess: "Terima kasih — kami akan menghubungi Anda.",
+    leadSuccess: "Terima kasih. Kami akan menghubungi Anda.",
     leadError: "Gagal mengirim. Coba lagi sebentar lagi.",
     roiTeaser: {
-      badge: "💡 Hitung Sendiri",
       title: "Berapa Kerugian Perusahaan Anda Setiap Bulan?",
       desc: "Geser slider untuk melihat estimasi biaya waktu yang terbuang karyawan Anda saat mencari dokumen internal.",
       label: "Jumlah Karyawan",
@@ -227,7 +225,7 @@ const CONTENT = {
       // page show the working.
       savingLabel: "Estimasi hemat setelah asumsi konservatif",
       cta: "Hitung Penghematan Lengkap",
-      ctaNote: "Gratis · Tidak perlu daftar · Lengkap dengan asumsi perhitungannya",
+      ctaNote: "Gratis, tanpa perlu daftar. Asumsi perhitungannya ditampilkan lengkap.",
     },
     // Labels for the audience switch. They live in the shared copy because the
     // control itself is shared — it has to be on screen in both modes for the
@@ -239,14 +237,13 @@ const CONTENT = {
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak", blog: "Blog" },
   },
   en: {
-    badge: "🚀 AI Knowledge Base Built for Indonesian Businesses",
+    badge: "An AI knowledge base built for Indonesian businesses",
     hero1: "Your Employees Can Know All",
     hero2: "Company Policies",
     hero3: "in Seconds",
-    heroDesc: "IntelliBase AI transforms your SOPs, HR regulations, IT guidelines, hospital clinical pathways, finance policies, contracts, product manuals, and any internal documents into an AI assistant that answers employee questions instantly — anytime, anywhere.",
-    cta1: "Start Free Now",
+    heroDesc: "Your SOPs, HR regulations, IT guides, and other internal documents become one AI assistant that answers employee questions in seconds.",
+    cta1: "Start Free",
     cta2: "View Pricing",
-    ctaNote: "Free forever for small teams · No credit card required",
     videoTitle: "See IntelliBase AI in Action",
     videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
     videoPlay: "Play demo video",
@@ -256,10 +253,10 @@ const CONTENT = {
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
     ] satisfies Stat[],
-    problemTitle: "It's Not Your Employees — It's the Search",
+    problemTitle: "It's Not Your Employees. It's the Search",
     problemDesc: "This is what usually happens every day before there's one place to ask.",
     problemPoints: [
-      "New hires spend hours hunting for the right SOP — or guess by asking a coworker who may not know either.",
+      "New hires spend hours hunting for the right SOP, or guess by asking a coworker who may not know either.",
       "Policies are scattered across email, shared folders, and group chats. Which version is current is often a guess.",
       "HR and IT admins get flooded with the same repeat questions that already have an answer sitting in an official document.",
     ],
@@ -276,7 +273,7 @@ const CONTENT = {
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
-      { name: "Starter", price: "Free", desc: "5 employees · 10 documents · search" },
+      { name: "Starter", price: "Free", desc: "5 employees, 10 documents" },
       { name: "Professional", price: "Rp 200k/mo", desc: "50 employees · 100 documents", promo: true },
       { name: "Enterprise", price: "Rp 500k/mo", desc: "100 employees · 300 documents", promo: true },
       { name: "Custom", price: "Contact us", desc: "Hospital groups & multi-site" },
@@ -287,27 +284,27 @@ const CONTENT = {
     faq: [
       {
         q: "Where are our internal documents stored, and who can open them?",
-        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each company gets its own data space, separated at the database level rather than merely filtered in the application — so your employees' questions can never reach another company's documents. Within your own company, your admin decides which departments can access which documents.",
+        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each company gets its own data space, separated at the database level rather than merely filtered in the application. Your employees' questions can never reach another company's documents. Within your own company, your admin decides which departments can access which documents.",
       },
       {
         q: "Are our documents used to train the AI?",
-        a: "IntelliBase does not train any AI model on your documents, and does not sell or share them with other companies. What you should know plainly: when a document is uploaded, its contents are sent to Google (Gemini API) to be turned into a search index, and when a question is answered, the relevant excerpts are sent to Groq. Groq states that it does not use customer API data to train its models. Our Gemini account is currently on the free tier, and Google's terms for that tier allow them to use content to improve their services. If your company's document policy does not permit that, contact us before uploading — processing can be moved to a paid tier that does not use customer content. The full detail is in our Privacy Policy.",
+        a: "IntelliBase does not train any AI model on your documents, and does not sell or share them with other companies. What you should know plainly: when a document is uploaded, its contents are sent to Google (Gemini API) to be turned into a search index, and when a question is answered, the relevant excerpts are sent to Groq. Groq states that it does not use customer API data to train its models. Our Gemini account is currently on the free tier, and Google's terms for that tier allow them to use content to improve their services. If your company's document policy does not permit that, contact us before uploading. Processing can be moved to a paid tier that does not use customer content. The full detail is in our Privacy Policy.",
       },
       {
         q: "What if the AI makes an answer up?",
-        a: "Every answer arrives with its source documents listed — the document name plus the excerpt it used — so any answer can be checked against the original. When no company document is relevant to the question, the AI says it could not find one rather than guessing from general internet knowledge.",
+        a: "Every answer arrives with its source documents listed (the document name plus the excerpt it used), so any answer can be checked against the original. When no company document is relevant to the question, the AI says it could not find one rather than guessing from general internet knowledge.",
       },
       {
         q: "If we stop subscribing, do we lose our documents?",
-        a: "Nothing is deleted. There is a 7-day grace period after expiry during which your previous plan's limits still apply in full. After that the Starter limits apply, and documents above that limit are frozen — still stored, but left out of search — until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
+        a: "Nothing is deleted. There is a 7-day grace period after expiry during which your previous plan's limits still apply in full. After that the Starter limits apply, and documents above that limit are frozen (still stored, but left out of search) until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
       },
       {
         q: "Who can see the questions employees ask?",
-        a: "Your company's admin can see the questions that come in, via the Analytics tab — that is by design, so you can see which documents are searched most and which ones turn out to be missing. We recommend telling your employees this up front.",
+        a: "Your company's admin can see the questions that come in, via the Analytics tab. That is by design, so you can see which documents are searched most and which ones turn out to be missing. We recommend telling your employees this up front.",
       },
       {
         q: "Which document formats are supported, and how long is setup?",
-        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload — no manual tagging — and most companies are asking their first questions within about 10 minutes of creating an account.",
+        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload, with no manual tagging, and most companies are asking their first questions within about 10 minutes of creating an account.",
       },
       {
         q: "Can we try it without paying?",
@@ -316,21 +313,20 @@ const CONTENT = {
     ],
     founderTitle: "Who is behind IntelliBase",
     faqMore: "Still have a question?",
-    faqMoreCta: "Email us directly",
+    faqMoreCta: "Free consultation",
     privacyLink: "Read the Privacy Policy",
     ctaTitle: "Start Transforming Your Knowledge Base Today",
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
-    ctaBtn1: "Start Free Now",
-    ctaBtn2: "Talk to Us First",
-    consult: "Not sure yet? Book a free consultation",
+    ctaBtn1: "Start Free",
+    ctaBtn2: "Free consultation",
+    consult: "Free consultation",
     consultNote: "We reply by email · Free, no commitment",
     leadLabel: "Or leave your email and we'll reach out first",
     leadPlaceholder: "email@company.com",
     leadBtn: "Send",
-    leadSuccess: "Thanks — we'll be in touch.",
+    leadSuccess: "Thanks. We'll be in touch.",
     leadError: "Something went wrong. Please try again shortly.",
     roiTeaser: {
-      badge: "💡 Calculate Yourself",
       title: "How Much Is Your Company Losing Every Month?",
       desc: "Drag the slider to see the estimated cost of time wasted when employees manually search for internal documents.",
       label: "Number of Employees",
@@ -338,7 +334,7 @@ const CONTENT = {
       lostLabel: "Value of search time / month",
       savingLabel: "Estimated savings after conservative assumptions",
       cta: "Calculate Full Savings",
-      ctaNote: "Free · No sign-up required · Assumptions shown in full",
+      ctaNote: "Free, no sign-up. The assumptions are shown in full.",
     },
     audienceIndividual: "Individual",
     audienceCompany: "Company",
@@ -366,12 +362,11 @@ const CONTENT = {
 // another.
 const INDIVIDUAL_CONTENT = {
   id: {
-    badge: "🚀 Knowledge Base AI untuk Pemakaian Pribadi",
+    badge: "Knowledge base AI untuk pemakaian pribadi",
     hero1: "Semua Dokumen Anda,",
     hero2: "Bisa Ditanya",
     hero3: "Kapan Saja",
-    heroDesc: "Catatan kuliah, jurnal, panduan kerja, kontrak, materi pelatihan, manual alat — kumpulkan di satu tempat, lalu tanyakan isinya seperti mengobrol. Setiap jawaban menyebut dokumen sumbernya, jadi selalu bisa dicek.",
-    ctaNote: "Gratis selamanya · Tanpa kartu kredit · Tanpa kelola karyawan",
+    heroDesc: "Catatan kuliah, jurnal, kontrak, dan manual alat berkumpul di satu tempat. Tanyakan isinya, jawabannya selalu menyebut dokumen sumber.",
     videoTitle: "Lihat IntelliBase AI Bekerja",
     videoDesc: "Demo singkat: dari upload dokumen sampai jawaban muncul lengkap dengan sumbernya.",
     // Nothing here is a claim we cannot back. The three hard numbers are plan
@@ -387,7 +382,7 @@ const INDIVIDUAL_CONTENT = {
     problemDesc: "Ini yang biasanya terjadi sebelum semua dokumen Anda ada di satu tempat yang bisa ditanya.",
     problemPoints: [
       "Catatan kuliah, kontrak, dan manual alat tersebar di banyak folder dan aplikasi berbeda.",
-      "Ctrl+F menemukan kata yang tepat, tapi tidak menemukan maknanya — jadi Anda tetap harus membaca ulang halaman demi halaman.",
+      "Ctrl+F menemukan kata yang tepat, tapi tidak menemukan maknanya, jadi Anda tetap harus membaca ulang halaman demi halaman.",
       "Detail kecil yang sebenarnya sudah pernah Anda baca, harus dicari ulang dari awal setiap kali lupa.",
     ],
     howTitle: "Cara Kerjanya",
@@ -397,20 +392,20 @@ const INDIVIDUAL_CONTENT = {
     // back to three would mean inventing a step or reusing the screenshot of a
     // dialog this account never opens.
     steps: [
-      { n: "1", shot: "uploadPersonal", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan — misalnya Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
-      { n: "2", shot: "askPersonal", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya — dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
+      { n: "1", shot: "uploadPersonal", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan: Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
+      { n: "2", shot: "askPersonal", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya, dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Harga untuk Pemakaian Pribadi",
     priceDesc: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
     pricePlans: [
-      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen · pencarian dokumen` },
-      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} dokumen · pertanyaan bulanan tanpa batas` },
+      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen, pencarian dokumen` },
+      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} dokumen, pertanyaan bulanan tanpa batas` },
     ],
     faqDesc: "Sebelum mengunggah dokumen pribadi, ini biasanya yang ingin dipastikan lebih dulu.",
     faq: [
       {
         q: "Dokumen saya disimpan di mana, dan siapa yang bisa membukanya?",
-        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap akun punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi. Di akun individu tidak ada admin lain dan tidak ada rekan tim — hanya akun Anda sendiri yang bisa membuka dokumen Anda.",
+        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap akun punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi. Di akun individu tidak ada admin lain dan tidak ada rekan tim. Hanya akun Anda sendiri yang bisa membuka dokumen Anda.",
       },
       {
         // Same disclosure as the company page, and it stays in full. The
@@ -421,19 +416,19 @@ const INDIVIDUAL_CONTENT = {
       },
       {
         q: "Bagaimana kalau AI-nya mengarang jawaban?",
-        a: "Setiap jawaban datang dengan daftar dokumen sumbernya — nama dokumen beserta potongan teks yang dipakai — sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen Anda yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
+        a: "Setiap jawaban datang dengan daftar dokumen sumbernya (nama dokumen beserta potongan teks yang dipakai), sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen Anda yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
       },
       {
         q: "Apa bedanya akun Individu dan akun Perusahaan?",
-        a: "Akun individu untuk satu orang: dokumen pribadi, folder yang Anda atur sendiri, tanpa manajemen karyawan sama sekali. Akun perusahaan punya admin dan karyawan, akses dokumen per departemen, serta analitik tim. Jenis akun dipilih sekali saat mendaftar dan tidak bisa diubah setelahnya — kalau nanti Anda butuh mengajak tim, daftarkan akun perusahaan baru.",
+        a: "Akun individu untuk satu orang: dokumen pribadi, folder yang Anda atur sendiri, tanpa manajemen karyawan sama sekali. Akun perusahaan punya admin dan karyawan, akses dokumen per departemen, serta analitik tim. Jenis akun dipilih sekali saat mendaftar dan tidak bisa diubah setelahnya. Kalau nanti Anda butuh mengajak tim, daftarkan akun perusahaan baru.",
       },
       {
         q: "Kalau saya berhenti berlangganan, dokumen saya hilang?",
-        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan — tersimpan tetapi tidak ikut dicari — sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
+        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan (tersimpan tetapi tidak ikut dicari) sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
       },
       {
         q: "Format dokumen apa saja yang didukung, dan berapa lama setupnya?",
-        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah — tidak ada tagging manual — dan sebagian besar orang sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
+        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah, tanpa tagging manual, dan sebagian besar orang sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
       },
       {
         q: "Bisa dicoba dulu tanpa bayar?",
@@ -445,12 +440,11 @@ const INDIVIDUAL_CONTENT = {
     audienceHint: "Untuk satu orang: dokumen pribadi dan folder sendiri, tanpa kelola karyawan.",
   },
   en: {
-    badge: "🚀 An AI Knowledge Base for Personal Use",
+    badge: "An AI knowledge base for personal use",
     hero1: "Every Document You Own,",
     hero2: "Ready to Answer",
     hero3: "Any Time",
-    heroDesc: "Lecture notes, papers, work guides, contracts, training material, equipment manuals — keep them in one place, then ask what is in them as if you were chatting. Every answer names the document it came from, so you can always check it.",
-    ctaNote: "Free forever · No credit card · No employees to manage",
+    heroDesc: "Lecture notes, papers, contracts, and manuals in one place. Ask what is inside them, and every answer names its source document.",
     videoTitle: "See IntelliBase AI in Action",
     videoDesc: "A short demo: from uploading a document to an answer that cites its source.",
     stats: [
@@ -463,26 +457,26 @@ const INDIVIDUAL_CONTENT = {
     problemDesc: "This is what usually happens before every document you own lives in one place you can just ask.",
     problemPoints: [
       "Lecture notes, contracts, and equipment manuals scattered across different folders and apps.",
-      "Ctrl+F finds the right word, but not the right meaning — so you still end up rereading page after page.",
+      "Ctrl+F finds the right word, but not the right meaning, so you still end up rereading page after page.",
       "A small detail you already read once has to be hunted down again from scratch every time you forget it.",
     ],
     howTitle: "How It Works",
     howDesc: "Two steps. Nothing to set up on anyone else's behalf.",
     steps: [
-      { n: "1", shot: "uploadPersonal", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy — Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
-      { n: "2", shot: "askPersonal", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used — and you can narrow a specific question to a single folder.", icon: MessageSquare },
+      { n: "1", shot: "uploadPersonal", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy: Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
+      { n: "2", shot: "askPersonal", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used, and you can narrow a specific question to a single folder.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Pricing for Personal Use",
     priceDesc: "Start free. Move to Personal when your documents and questions outgrow it.",
     pricePlans: [
-      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents · document search` },
-      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} documents · unlimited questions per month` },
+      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents, document search` },
+      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} documents, unlimited questions per month` },
     ],
     faqDesc: "Before uploading personal documents, this is usually what people want settled first.",
     faq: [
       {
         q: "Where are my documents stored, and who can open them?",
-        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each account gets its own data space, separated at the database level rather than merely filtered in the application. An individual account has no other admin and no colleagues — only your own account can open your documents.",
+        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each account gets its own data space, separated at the database level rather than merely filtered in the application. An individual account has no other admin and no colleagues. Only your own account can open your documents.",
       },
       {
         q: "Are my documents used to train AI?",
@@ -490,19 +484,19 @@ const INDIVIDUAL_CONTENT = {
       },
       {
         q: "What if the AI makes an answer up?",
-        a: "Every answer comes with the documents it drew on — the document name and the excerpt used — so any answer can be checked against the original. If none of your documents is relevant to the question, the AI says it could not find an answer rather than guessing from general internet knowledge.",
+        a: "Every answer comes with the documents it drew on (the document name and the excerpt used), so any answer can be checked against the original. If none of your documents is relevant to the question, the AI says it could not find an answer rather than guessing from general internet knowledge.",
       },
       {
         q: "What is the difference between an Individual and a Company account?",
-        a: "An individual account is for one person: personal documents, folders you arrange yourself, and no employee management at all. A company account has an admin and employees, department-level document access, and team analytics. The account type is chosen once at sign-up and cannot be changed afterwards — if you later need to bring in a team, register a new company account.",
+        a: "An individual account is for one person: personal documents, folders you arrange yourself, and no employee management at all. A company account has an admin and employees, department-level document access, and team analytics. The account type is chosen once at sign-up and cannot be changed afterwards. If you later need to bring in a team, register a new company account.",
       },
       {
         q: "If I stop subscribing, do I lose my documents?",
-        a: "Nothing is deleted. There is a 7-day grace period after your plan ends, during which your old plan's limits still apply in full. After that the Starter limits apply and documents above that limit are frozen — kept, but left out of search — until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
+        a: "Nothing is deleted. There is a 7-day grace period after your plan ends, during which your old plan's limits still apply in full. After that the Starter limits apply and documents above that limit are frozen (kept, but left out of search) until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
       },
       {
         q: "Which document formats are supported, and how long is setup?",
-        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload — no manual tagging — and most people are asking questions within about 10 minutes of creating an account.",
+        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload, with no manual tagging, and most people are asking questions within about 10 minutes of creating an account.",
       },
       {
         q: "Can I try it without paying?",
@@ -536,10 +530,10 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
     <section className="pt-10 pb-14 px-6">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-7">
-          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{title}</h2>
-          <p className="text-gray-500">{desc}</p>
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{title}</h2>
+          <p className="text-stone-500">{desc}</p>
         </div>
-        <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-gray-900">
+        <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-stone-900">
           {playing ? (
             <iframe
               src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
@@ -663,7 +657,7 @@ export function LandingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       {/* Navbar */}
       <nav className="border-b border-hairline bg-background/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
@@ -675,18 +669,18 @@ export function LandingContent() {
                 the only one a visitor may arrive at first. Naming it in the nav
                 is what makes the rest of the site reachable from an article,
                 and the article reachable from the rest of the site. */}
-            <Link href="/blog" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.blog}</Link>
+            <Link href="/blog" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.blog}</Link>
             {/* Dropped on the individual tab for the same reason the ROI teaser
                 is: the calculator models a month of a company's wasted search
                 time against its headcount. Hiding the section further down
                 while leaving a link to the identical argument up here would
                 only mean the visitor meets it somewhere less expected. */}
             {!isIndividual && (
-              <Link href="/roi" className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.roi}</Link>
+              <Link href="/roi" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.roi}</Link>
             )}
-            <Link href={`/pricing${audienceQuery}`} className="text-sm text-gray-500 hover:text-gray-800 font-medium hidden md:block">{T.nav.price}</Link>
-            <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex">{T.nav.login}</Button></Link>
-            <Link href={`/register${audienceQuery}`}><Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
+            <Link href={`/pricing${audienceQuery}`} className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.price}</Link>
+            <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex text-stone-600 hover:bg-stone-100 hover:text-stone-900">{T.nav.login}</Button></Link>
+            <Link href={`/register${audienceQuery}`}><Button size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
           </div>
         </div>
       </nav>
@@ -700,18 +694,18 @@ export function LandingContent() {
       <div className="px-6 pt-7">
         <div className="max-w-6xl mx-auto flex flex-col items-center gap-2">
           <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)}>
-            <TabsList>
-              <TabsTrigger value="individual" className="gap-1.5 px-4">
+            <TabsList className="bg-stone-100 text-stone-500">
+              <TabsTrigger value="individual" className="gap-1.5 px-4 data-[state=active]:text-stone-900">
                 <User className="h-4 w-4" />
                 {T.audienceIndividual}
               </TabsTrigger>
-              <TabsTrigger value="company" className="gap-1.5 px-4">
+              <TabsTrigger value="company" className="gap-1.5 px-4 data-[state=active]:text-stone-900">
                 <Building2 className="h-4 w-4" />
                 {T.audienceCompany}
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          <p className="text-xs text-gray-400 text-center max-w-md">{T.audienceHint}</p>
+          <p className="text-xs text-stone-400 text-center max-w-md">{T.audienceHint}</p>
         </div>
       </div>
 
@@ -741,20 +735,24 @@ export function LandingContent() {
         images={HERO_MARQUEE_SHOTS}
         cardAspectClassName="aspect-[16/10]"
         footer={
-          <>
-            {/* A quiet second path, deliberately not a button: the button above
-                asks a stranger to hand over internal documents before anyone
-                has spoken to them, and that is the wrong first step for most
-                of the companies being pitched. Kept as a text link so it stays
-                an exit for the unconvinced rather than a competing CTA. */}
-            <a
-              href={consultationMailto(lang)}
-              className="mt-5 text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300"
-            >
-              {T.consult}
-            </a>
-            <p className="mt-3 text-xs text-gray-500">{T.ctaNote}</p>
-          </>
+          // A quiet second path, deliberately not a button: the button above
+          // asks a stranger to hand over internal documents before anyone has
+          // spoken to them, and that is the wrong first step for most of the
+          // companies being pitched. Kept as a text link so it stays an exit
+          // for the unconvinced rather than a competing CTA.
+          //
+          // It is also the *only* thing under the CTA now. The hero used to
+          // carry a fifth and sixth text element (this link plus a "gratis,
+          // tanpa kartu kredit" note), which is the templated-hero stack an
+          // AI-built page always ships. The note itself is not lost: the
+          // pricing section and the closing CTA both still say it, in the
+          // place a visitor is actually deciding about price.
+          <a
+            href={consultationMailto(lang)}
+            className="mt-5 text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300"
+          >
+            {T.consult}
+          </a>
         }
       />
 
@@ -766,9 +764,9 @@ export function LandingContent() {
         <section className="py-14 px-6 border-t border-hairline">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
-            <p className="text-lg text-gray-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
-            <p className="font-semibold text-gray-900">{FOUNDER.name}</p>
-            <p className="text-sm text-gray-500">{FOUNDER.role[lang]}</p>
+            <p className="text-lg text-stone-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
+            <p className="font-semibold text-stone-900">{FOUNDER.name}</p>
+            <p className="text-sm text-stone-500">{FOUNDER.role[lang]}</p>
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-4">
               <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
                 <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
@@ -822,14 +820,14 @@ export function LandingContent() {
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-3">
                     {FEATURED_INDUSTRY.featured.eyebrow[lang]}
                   </p>
-                  <h2 className="text-2xl md:text-[1.75rem] font-semibold tracking-[-0.015em] text-gray-900 leading-[1.2] mb-4">
+                  <h2 className="text-2xl md:text-[1.75rem] font-semibold tracking-[-0.015em] text-stone-900 leading-[1.2] mb-4">
                     {FEATURED_INDUSTRY.featured.headline[lang]}
                   </h2>
-                  <p className="text-base text-gray-600 leading-relaxed mb-6">
+                  <p className="text-base text-stone-600 leading-relaxed mb-6">
                     {FEATURED_INDUSTRY.featured.body[lang]}
                   </p>
                   <Link href={FEATURED_INDUSTRY.href}>
-                    <Button className="bg-teal-700 hover:bg-teal-800 gap-2 h-11 px-6">
+                    <Button className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] gap-2 h-11 px-6">
                       {FEATURED_INDUSTRY.featured.cta[lang]} <ArrowRight className="h-4 w-4" />
                     </Button>
                   </Link>
@@ -840,7 +838,7 @@ export function LandingContent() {
                       <span className="rounded-full bg-teal-700/10 p-1 mt-0.5 shrink-0">
                         <Check className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
                       </span>
-                      <span className="text-[0.95rem] text-gray-700 leading-relaxed">{p}</span>
+                      <span className="text-[0.95rem] text-stone-700 leading-relaxed">{p}</span>
                     </li>
                   ))}
                 </ul>
@@ -852,34 +850,41 @@ export function LandingContent() {
               this row is the footnote to the featured vertical, and centring it
               gave it the same ceremony as a section of its own. */}
           <div className="mb-5">
-            <h2 className="text-xl font-semibold tracking-[-0.01em] text-gray-900 mb-1.5">{T.industriesTitle}</h2>
-            <p className="text-sm text-gray-500 max-w-2xl">{T.industriesDesc}</p>
+            <h2 className="text-xl font-semibold tracking-[-0.01em] text-stone-900 mb-1.5">{T.industriesTitle}</h2>
+            <p className="text-sm text-stone-500 max-w-2xl">{T.industriesDesc}</p>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Columns under one rule, not four boxes. A card is a promise of
+              elevation, and these four are plain text that mostly is not even
+              clickable, sitting one section below a row of pricing cards and
+              one above another. Dropping the borders leaves the featured band
+              above as the only card in this part of the page, which is what
+              makes it read as the featured one. */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-7 border-t border-hairline pt-6">
             {OTHER_INDUSTRIES.map((ind) => {
               const body = (
                 <>
-                  <p className="font-medium text-[0.95rem] text-gray-900 mb-1">
+                  <p className="font-medium text-[0.95rem] text-stone-900 mb-1">
                     {ind.name[lang]}
                     {ind.href && <ArrowRight className="h-3.5 w-3.5 inline-block ml-1 -mt-0.5 text-teal-700" />}
                   </p>
-                  <p className="text-[0.8rem] text-gray-500 leading-relaxed">{ind.docs[lang]}</p>
+                  <p className="text-[0.8rem] text-stone-500 leading-relaxed">{ind.docs[lang]}</p>
                 </>
               );
               // An industry with a page of its own is the only one that reads as
-              // clickable — it carries the arrow above and lifts on hover. The
-              // rest are flat, so nothing invites a click that goes nowhere.
+              // clickable: it carries the arrow above and its name underlines on
+              // hover. The rest are flat, so nothing invites a click that goes
+              // nowhere.
               return ind.href ? (
                 <Link
                   key={ind.key}
                   href={ind.href}
-                  className="rounded-xl border border-hairline bg-raised p-4 block hover:border-teal-300 hover:shadow-sm transition-all"
-                  aria-label={`${ind.name[lang]} — ${T.industriesMore}`}
+                  className="block hover:[&_p:first-child]:underline underline-offset-4"
+                  aria-label={`${ind.name[lang]}: ${T.industriesMore}`}
                 >
                   {body}
                 </Link>
               ) : (
-                <div key={ind.key} className="rounded-xl border border-hairline p-4">{body}</div>
+                <div key={ind.key}>{body}</div>
               );
             })}
           </div>
@@ -894,16 +899,24 @@ export function LandingContent() {
           be recognised in a few seconds, not to compete with the hero above
           or the proof below it. */}
       <section className="pb-10 px-6">
-        <div className="max-w-4xl mx-auto text-center mb-8">
-          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.problemTitle}</h2>
-          <p className="text-gray-500">{T.problemDesc}</p>
-        </div>
-        <div className="max-w-4xl mx-auto grid gap-4 sm:grid-cols-3">
-          {T.problemPoints.map((p) => (
-            <div key={p} className="rounded-xl border border-hairline bg-raised p-5">
-              <p className="text-sm text-gray-700 leading-relaxed">{p}</p>
-            </div>
-          ))}
+        <div className="max-w-5xl mx-auto grid gap-8 md:grid-cols-12 md:gap-14 md:items-start">
+          <div className="md:col-span-5">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.problemTitle}</h2>
+            <p className="text-stone-500 max-w-[46ch]">{T.problemDesc}</p>
+          </div>
+          {/* Hairlines, not three boxes. Three equal cards in a row is the
+              single most recognisable AI-built section, and the boxes were
+              doing no work here: nothing in them is clickable, nothing needs
+              to look raised off the paper, and the row read as a feature grid
+              when it is really one list of three complaints. A divided column
+              says "list" without spending a border on each item. */}
+          <ul className="md:col-span-7 divide-y divide-hairline border-t border-hairline">
+            {T.problemPoints.map((p) => (
+              <li key={p} className="py-4 text-[0.95rem] text-stone-700 leading-relaxed first:pt-5">
+                {p}
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -911,9 +924,17 @@ export function LandingContent() {
       <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
       {/* Stats */}
-      <section className="bg-teal-700 py-11 px-6">
+      {/* Was a saturated teal slab. The page's own surface is warm paper, and
+          a full-bleed brand-colour band in the middle of it is a theme flip:
+          the visitor scrolls out of one site and into another for eleven rems,
+          then back. Hairlines between the columns separate the figures just as
+          well, and they cost nothing in contrast, which matters because two of
+          these four numbers are estimates that have to stay readable while
+          reading as secondary. The one dark moment on this page is now the
+          closing CTA, and it is dark on purpose. */}
+      <section className="py-12 px-6 border-y border-hairline bg-sunken">
         <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-8 md:divide-x md:divide-hairline">
             {T.stats.map((s) => (
               // aria-describedby, not a bare "*": it points a screen reader at
               // the footnote instead of announcing a star with no explanation.
@@ -921,19 +942,19 @@ export function LandingContent() {
               // weight as the hard facts next to it, an estimate like "< 3 detik"
               // still read as a headline number. One size and weight down keeps
               // it legible but visibly secondary to what's actually measured.
-              <div key={s.l} className="text-center" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
-                <p className={s.estimate ? "text-2xl font-semibold text-white/90 mb-1" : "text-3xl font-bold text-white mb-1"}>{s.v}</p>
-                <p className="text-teal-100 text-sm">
+              <div key={s.l} className="text-center md:px-4" aria-describedby={s.estimate ? STATS_NOTE_ID : undefined}>
+                <p className={s.estimate ? "text-2xl font-semibold text-stone-500 mb-1" : "text-3xl font-semibold text-teal-800 mb-1"}>{s.v}</p>
+                <p className="text-stone-500 text-sm leading-snug">
                   {s.l}
                   {s.estimate && <sup aria-hidden="true"> *</sup>}
                 </p>
               </div>
             ))}
           </div>
-          {/* teal-100 rather than a dimmed teal-200: at text-xs on teal-700 the
-              dimmed version sits at ~3.4:1, so the one line on the page whose
-              whole job is to be read honestly was the hardest to read. */}
-          <p id={STATS_NOTE_ID} className="text-teal-100 text-xs text-center mt-8">{ESTIMATE_NOTE[lang]}</p>
+          {/* stone-500 rather than a lighter stone-400: the one line on the
+              page whose whole job is to be read honestly should not be the
+              hardest one to read. On the sunken surface this clears AA. */}
+          <p id={STATS_NOTE_ID} className="text-stone-500 text-xs text-center mt-9">{ESTIMATE_NOTE[lang]}</p>
         </div>
       </section>
 
@@ -945,8 +966,8 @@ export function LandingContent() {
       <section className="py-14 px-6 bg-sunken">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-9">
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.howTitle}</h2>
-            <p className="text-gray-500">{T.howDesc}</p>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.howTitle}</h2>
+            <p className="text-stone-500">{T.howDesc}</p>
           </div>
           <div className="space-y-16 md:space-y-24">
             {T.steps.map((s) => {
@@ -954,12 +975,14 @@ export function LandingContent() {
               return (
                 <div key={s.n}>
                   <div className="max-w-2xl mx-auto text-center mb-8">
-                    <div className="flex items-center justify-center gap-3 mb-4">
-                      <div className="h-8 w-8 rounded-full bg-teal-600 text-white text-sm font-bold flex items-center justify-center shrink-0">{s.n}</div>
-                      <div className="p-2 bg-teal-50 rounded-lg"><s.icon className="h-5 w-5 text-teal-600" /></div>
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">{s.t}</h3>
-                    <p className="text-gray-500 leading-relaxed">{s.d}</p>
+                    {/* The numbered teal circle that used to sit next to this
+                        icon is gone. "1 / 2 / 3" above "Upload Dokumen" tells
+                        the reader nothing the vertical order has not already
+                        told them, and the badge-plus-icon pair is a stock
+                        template rhythm. The step's own verb is the label. */}
+                    <div className="inline-flex p-2 bg-teal-50 rounded-lg mb-4"><s.icon className="h-5 w-5 text-teal-700" /></div>
+                    <h3 className="text-xl font-semibold text-stone-900 mb-2">{s.t}</h3>
+                    <p className="text-stone-500 leading-relaxed">{s.d}</p>
                   </div>
                   <Image
                     src={shot}
@@ -1000,47 +1023,55 @@ export function LandingContent() {
           a smaller version of that argument, it produces a number we have never
           modelled and would not stand behind. The claim is not "worth less for
           one person" — it is a claim we have not made. */}
+      {/* Light, on the same warm paper as the rest of the page. This was a
+          cool slate-900 slab: not just a second theme, but a second *palette*,
+          since every neutral elsewhere here is warm. The red/green result
+          tiles were a third and fourth accent on a page whose accent is teal,
+          and they carried an implied verdict the numbers already state. Cost
+          reads as plain ink, saving reads as the brand colour, and the figures
+          are the only large type in the block. */}
       {!isIndividual && (
-      <section className="py-14 px-6 bg-gray-900">
+      <section className="py-14 px-6 border-t border-hairline">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-7">
-            <span className="inline-flex items-center gap-1.5 bg-teal-900/60 text-teal-300 text-xs font-semibold px-3 py-1 rounded-full mb-5">
-              <Calculator className="h-3.5 w-3.5" />{T.roiTeaser.badge}
-            </span>
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-white mb-3">{T.roiTeaser.title}</h2>
-            <p className="text-gray-400 max-w-xl mx-auto">{T.roiTeaser.desc}</p>
+          <div className="mb-7 max-w-2xl">
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.roiTeaser.title}</h2>
+            <p className="text-stone-500">{T.roiTeaser.desc}</p>
           </div>
-          <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700">
+          <div className="bg-raised rounded-2xl p-7 md:p-8 border border-hairline shadow-sm">
             <div className="mb-8">
               <div className="flex items-center justify-between mb-3">
-                <label className="text-sm font-medium text-gray-300">{T.roiTeaser.label}</label>
-                <span className="text-2xl font-bold text-white">{teaserEmployees} <span className="text-base font-normal text-gray-400">{T.roiTeaser.unit}</span></span>
+                <label htmlFor="roi-teaser-employees" className="text-sm font-medium text-stone-600">{T.roiTeaser.label}</label>
+                <span className="text-2xl font-semibold text-stone-900">{teaserEmployees} <span className="text-base font-normal text-stone-500">{T.roiTeaser.unit}</span></span>
               </div>
+              {/* htmlFor/id rather than a floating <label>: the label was tied
+                  to nothing, so a screen reader announced this slider without
+                  saying what it counts. */}
               <input
+                id="roi-teaser-employees"
                 type="range" min={5} max={500} step={5}
                 value={teaserEmployees}
                 onChange={(e) => setTeaserEmployees(Number(e.target.value))}
-                className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-teal-500"
+                className="w-full h-2 bg-hairline rounded-lg appearance-none cursor-pointer accent-teal-700"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1"><span>5</span><span>500</span></div>
+              <div className="flex justify-between text-xs text-stone-400 mt-1"><span>5</span><span>500</span></div>
             </div>
-            <div className="grid sm:grid-cols-2 gap-4 mb-8">
-              <div className="bg-red-900/30 border border-red-800/50 rounded-xl p-5 text-center">
-                <p className="text-red-400 text-xs font-medium mb-2">{T.roiTeaser.lostLabel}</p>
-                <p className="text-3xl font-bold text-red-400">{formatRp(teaser.costLost)}</p>
+            <div className="grid sm:grid-cols-2 gap-6 sm:gap-10 mb-8 sm:divide-x sm:divide-hairline">
+              <div>
+                <p className="text-stone-500 text-xs font-medium mb-2">{T.roiTeaser.lostLabel}</p>
+                <p className="text-3xl font-semibold text-stone-900">{formatRp(teaser.costLost)}</p>
               </div>
-              <div className="bg-green-900/30 border border-green-800/50 rounded-xl p-5 text-center">
-                <p className="text-green-400 text-xs font-medium mb-2">{T.roiTeaser.savingLabel}</p>
-                <p className="text-3xl font-bold text-green-400">{formatRp(teaser.savingsWithAI)}</p>
+              <div className="sm:pl-10">
+                <p className="text-stone-500 text-xs font-medium mb-2">{T.roiTeaser.savingLabel}</p>
+                <p className="text-3xl font-semibold text-teal-800">{formatRp(teaser.savingsWithAI)}</p>
               </div>
             </div>
-            <div className="text-center">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
               <Link href="/roi">
-                <Button size="lg" className="bg-teal-600 hover:bg-teal-500 gap-2 h-12 px-10 font-semibold">
+                <Button size="lg" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] gap-2 h-12 px-8 font-semibold">
                   {T.roiTeaser.cta} <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
-              <p className="text-gray-500 text-xs mt-3">{T.roiTeaser.ctaNote}</p>
+              <p className="text-stone-500 text-xs max-w-xs">{T.roiTeaser.ctaNote}</p>
             </div>
           </div>
         </div>
@@ -1049,9 +1080,21 @@ export function LandingContent() {
 
       {/* Pricing teaser */}
       <section className="py-14 px-6">
-        <div className="max-w-5xl mx-auto text-center">
-          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.priceTitle}</h2>
-          <p className="text-gray-500 mb-8">{T.priceDesc}</p>
+        {/* Left-aligned, with the link to the full table sitting beside the
+            heading instead of centred under the cards. The page had six
+            sections in a row shaped "centred heading, centred sub-line, grid
+            underneath", which is the rhythm that makes a page read as
+            generated rather than composed. */}
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-xl">
+              <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.priceTitle}</h2>
+              <p className="text-stone-500">{T.priceDesc}</p>
+            </div>
+            <Link href={`/pricing${audienceQuery}`} className="shrink-0">
+              <Button variant="outline" className="gap-2 active:scale-[0.98] border-hairline bg-raised text-stone-800 hover:bg-stone-100 hover:text-stone-900">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button>
+            </Link>
+          </div>
           {/* Two cards for an individual, four for a company. Left at four
               columns the two would stretch to a quarter of the row each and sit
               in a line of empty space; the narrower grid keeps them the size of
@@ -1067,16 +1110,19 @@ export function LandingContent() {
                 ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
                 : p.price;
               return (
-                <div key={p.name} className={`rounded-xl border p-5 text-left ${promo ? "border-teal-200 bg-teal-50" : ""}`}>
-                  {promo && <span className="text-xs font-bold text-orange-500 bg-orange-100 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
-                  <p className="font-bold text-gray-900">{p.name}</p>
-                  <p className="text-teal-600 font-semibold text-sm">{priceText}</p>
-                  <p className="text-gray-400 text-xs mt-1">{p.desc}</p>
+                <div key={p.name} className={`rounded-xl border p-5 text-left ${promo ? "border-teal-200 bg-teal-50/60" : "border-hairline"}`}>
+                  {/* Teal, not orange. One accent per page: an orange pill was
+                      the only orange on the whole site, and a promo badge is
+                      not the thing worth introducing a second brand colour
+                      for. */}
+                  {promo && <span className="text-[0.7rem] font-semibold tracking-wide text-teal-800 bg-teal-700/10 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
+                  <p className="font-semibold text-stone-900">{p.name}</p>
+                  <p className="text-teal-800 font-semibold text-sm">{priceText}</p>
+                  <p className="text-stone-500 text-xs mt-1">{p.desc}</p>
                 </div>
               );
             })}
           </div>
-          <Link href={`/pricing${audienceQuery}`}><Button variant="outline" className="gap-2">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button></Link>
         </div>
       </section>
 
@@ -1089,8 +1135,8 @@ export function LandingContent() {
       <section className="py-14 px-6 bg-sunken border-t border-hairline">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-7">
-            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-gray-900 mb-3">{T.faqTitle}</h2>
-            <p className="text-gray-500">{T.faqDesc}</p>
+            <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.faqTitle}</h2>
+            <p className="text-stone-500">{T.faqDesc}</p>
           </div>
           {/* Radix unmounts a closed panel, so the answers are not in the DOM
               for a crawler to read. This mirrors them as structured data —
@@ -1127,27 +1173,28 @@ export function LandingContent() {
               // unmounts, so a plain index left "faq-5" open across a tab switch
               // — the panel stayed down, now showing a question nobody clicked.
               <AccordionItem key={`${audience}-${i}`} value={`faq-${audience}-${i}`} className="last:border-b-0">
-                <AccordionTrigger className="text-left text-base font-semibold text-gray-900 hover:no-underline py-5">
+                <AccordionTrigger className="text-left text-base font-semibold text-stone-900 hover:no-underline py-5">
                   {f.q}
                 </AccordionTrigger>
-                <AccordionContent className="text-gray-600 leading-relaxed pr-6">
+                <AccordionContent className="text-stone-600 leading-relaxed pr-6">
                   {f.a}
                 </AccordionContent>
               </AccordionItem>
             ))}
           </Accordion>
           <div className="text-center mt-8">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-stone-500">
               {T.faqMore}{" "}
               <a href={consultationMailto(lang)} className="text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
                 {T.faqMoreCta}
-              </a>{" "}
+              </a>
               {/* Plain text, deliberately not a second link: same reason as the
-                  final CTA — the address has to be readable when the mailto
-                  does nothing. */}
-              <span className="text-gray-400">— {SUPPORT_EMAIL}</span>
+                  final CTA, the address has to be readable when the mailto
+                  does nothing. On its own line rather than after a dash, which
+                  is one of the em-dashes this page no longer prints. */}
             </p>
-            <Link href="/privacy" className="inline-block text-xs text-gray-400 hover:text-gray-600 mt-3 underline underline-offset-4">
+            <p className="text-sm text-stone-500 mt-1">{SUPPORT_EMAIL}</p>
+            <Link href="/privacy" className="inline-block text-xs text-stone-400 hover:text-stone-600 mt-3 underline underline-offset-4">
               {T.privacyLink}
             </Link>
           </div>
@@ -1155,11 +1202,16 @@ export function LandingContent() {
       </section>
 
       {/* CTA */}
-      <section className="bg-gradient-to-r from-teal-700 to-[#061C24] py-16 px-6 text-center">
-        <h2 className="text-4xl font-bold text-white mb-4">{T.ctaTitle}</h2>
+      {/* The page's one dark moment, and now the only one: a flat deep teal
+          rather than a left-to-right gradient into near-black. The gradient
+          was decoration, and it made the two buttons sit on two different
+          backgrounds, which is how a white button ends up at a different
+          contrast ratio depending on the viewport width. */}
+      <section className="bg-teal-900 py-16 px-6 text-center">
+        <h2 className="text-3xl md:text-4xl font-semibold tracking-[-0.015em] text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href={`/register${audienceQuery}`}><Button size="lg" className="bg-white text-teal-600 hover:bg-teal-50 gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
+          <Link href={`/register${audienceQuery}`}><Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
           {/* Was a second "view pricing" button, sitting one section below the
               pricing teaser and a scroll below the pricing link in the nav. The
               page's last word is better spent on the visitor who has read
@@ -1177,8 +1229,11 @@ export function LandingContent() {
             with no mail handler registered does nothing at all when that link
             is clicked — no error, no window. Reading the address is the
             fallback for a click that silently goes nowhere. */}
-        <p className="text-teal-200/80 text-xs mt-5">
-          {T.consultNote} ·{" "}
+        {/* Two lines, not one string joined by a second middle dot: the note
+            already carries one, and a line reading "a · b · c" is the metadata
+            strip every generated page prints. */}
+        <p className="text-teal-100/90 text-xs mt-5">{T.consultNote}</p>
+        <p className="text-teal-100/90 text-xs mt-1">
           <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-4 hover:text-white">{SUPPORT_EMAIL}</a>
         </p>
 
@@ -1254,24 +1309,24 @@ export function LandingContent() {
       <footer className="border-t py-10 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
-          <p className="text-gray-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
+          <p className="text-stone-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>
           {/* The support address was reachable only through the floating
               button, which a visitor has to notice and open. A vendor asking
               for a company's internal documents should state a way to reach it
               in plain text on the page. */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-400">
-            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-gray-600">{T.footer.contact}: {SUPPORT_EMAIL}</a>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-stone-400">
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-stone-600">{T.footer.contact}: {SUPPORT_EMAIL}</a>
             {/* Repeated from SiteFooter rather than shared with it: this page
                 carries its own footer, which is why the blog link added to
                 SiteFooter reached every marketing page except the one that
                 matters most. See the note above <footer>. */}
-            <Link href="/blog" className="hover:text-gray-600">{T.footer.blog}</Link>
-            {!isIndividual && <Link href="/roi" className="hover:text-gray-600">{T.footer.roi}</Link>}
-            <Link href={`/pricing${audienceQuery}`} className="hover:text-gray-600">{T.footer.price}</Link>
-            <Link href="/login" className="hover:text-gray-600">{T.footer.login}</Link>
-            <Link href={`/register${audienceQuery}`} className="hover:text-gray-600">{T.footer.register}</Link>
-            <Link href="/terms" className="hover:text-gray-600">{T.footer.terms}</Link>
-            <Link href="/privacy" className="hover:text-gray-600">{T.footer.privacy}</Link>
+            <Link href="/blog" className="hover:text-stone-600">{T.footer.blog}</Link>
+            {!isIndividual && <Link href="/roi" className="hover:text-stone-600">{T.footer.roi}</Link>}
+            <Link href={`/pricing${audienceQuery}`} className="hover:text-stone-600">{T.footer.price}</Link>
+            <Link href="/login" className="hover:text-stone-600">{T.footer.login}</Link>
+            <Link href={`/register${audienceQuery}`} className="hover:text-stone-600">{T.footer.register}</Link>
+            <Link href="/terms" className="hover:text-stone-600">{T.footer.terms}</Link>
+            <Link href="/privacy" className="hover:text-stone-600">{T.footer.privacy}</Link>
           </div>
         </div>
       </footer>

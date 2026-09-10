@@ -29,7 +29,7 @@ export function LogoFull({ className, size = "md", variant = "default" }: LogoPr
       <LogoIcon size={size} variant={variant} />
       <div>
         <span className={cn("font-bold tracking-tight leading-none", textSizes[size],
-          variant === "white" ? "text-white" : "text-gray-900")}>
+          variant === "white" ? "text-white" : "text-stone-900")}>
           IntelliBase
         </span>
         <span className={cn("font-bold tracking-tight leading-none", textSizes[size],
