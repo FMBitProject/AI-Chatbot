@@ -117,10 +117,12 @@ const CONTENT = {
       paybackUnit: "hari",
       paybackSameDay: "< 1 hari",
       // Shown wherever a number depends on a price that does not exist yet.
-      // "-" already means "not applicable" on the dead card, so this deliberately
-      // reads as pending rather than as zero.
+      // "-" already means "not applicable" on the dead card (the plan simply
+      // does not fit), so this needs its own glyph rather than colliding with
+      // that one - an ellipsis reads as "still being worked out", which is
+      // the truth for a price nobody has quoted yet.
       pending: "disusun bersama",
-      pendingShort: "-",
+      pendingShort: "…",
     },
     cta: {
       title: "Siap Mulai Menghemat?",
@@ -218,7 +220,7 @@ const CONTENT = {
       paybackUnit: "days",
       paybackSameDay: "< 1 day",
       pending: "agreed with you",
-      pendingShort: "-",
+      pendingShort: "…",
     },
     cta: {
       title: "Ready to Start Saving?",
@@ -318,12 +320,13 @@ function PlanResultCard({
   const isSameDayPayback = paybackDays > 0 && paybackDays < 1;
   const isBlue = plan.color === "teal";
   // Decided from the card's state, not inside one of the two icon branches:
-  // the custom-mode tile is near-black, and colouring only the Shield for it
-  // left the Zap a blue card renders teal on near-black.
+  // the custom-mode tile is near-black, so the icon needs to turn white for
+  // it specifically. Professional and Enterprise share the same icon colour
+  // now (the Zap vs Shield shape is what tells the two apart) - only the
+  // dead-end and custom states get their own.
   const iconClass = `h-4 w-4 ${
     isDeadEnd ? "text-stone-400"
       : isCustomMode ? "text-white"
-      : isBlue ? "text-teal-700"
       : "text-teal-700"
   }`;
 
@@ -365,7 +368,7 @@ function PlanResultCard({
       </div>
       {/* The listed price is withdrawn, not struck through: at this size it was
           never the price this visitor would pay. */}
-      <p className={`text-sm font-semibold mb-0.5 ${isDeadEnd ? "text-stone-400" : isCustomMode ? "text-stone-900" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
+      <p className={`text-sm font-semibold mb-0.5 ${isDeadEnd ? "text-stone-400" : isCustomMode ? "text-stone-900" : "text-teal-700"}`}>
         {isCustomMode ? labels.pending : plan.priceLabel}
       </p>
       <p className="text-xs text-stone-400 mb-4">{isCustomMode ? plan.overLimitDesc : plan.limit}</p>
@@ -407,7 +410,7 @@ function PlanResultCard({
       }`}>
         <div className="text-center">
           <p className="text-xs text-stone-400 mb-0.5">{labels.roi}</p>
-          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : "text-teal-700"}`}>
             {!isOverLimit && roiMultiple > 0
               ? `${roiMultiple.toFixed(roiMultiple < 10 ? 1 : 0)}${labels.roiUnit}`
               : isCustomMode ? labels.pendingShort : "-"}
@@ -415,7 +418,7 @@ function PlanResultCard({
         </div>
         <div className="text-center">
           <p className="text-xs text-stone-400 mb-0.5">{labels.payback}</p>
-          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : isBlue ? "text-teal-700" : "text-teal-700"}`}>
+          <p className={`text-2xl font-bold ${isDeadEnd ? "text-stone-300" : isCustomMode ? "text-stone-400" : "text-teal-700"}`}>
             {isOverLimit
               ? (isCustomMode ? labels.pendingShort : "-")
               : isSameDayPayback

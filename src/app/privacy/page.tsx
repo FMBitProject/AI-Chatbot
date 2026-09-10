@@ -87,12 +87,12 @@ export default function PrivacyPage() {
   const T = CONTENT[lang];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-[100dvh] bg-background">
       <nav className="border-b px-6 py-3 flex items-center justify-between">
         <Link href="/"><LogoFull size="sm" /></Link>
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
-          <Link href="/login" className="text-sm text-blue-600 hover:underline">{T.login}</Link>
+          <Link href="/login" className="text-sm text-teal-700 hover:underline">{T.login}</Link>
         </div>
       </nav>
       <main className="max-w-3xl mx-auto px-6 py-16">

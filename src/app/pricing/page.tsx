@@ -389,7 +389,7 @@ export default function PricingPage() {
                 </a>
               ) : mounted && session?.user ? (
                 <Button
-                  className={cn("w-full gap-2", isPopular ? "bg-teal-700 hover:bg-teal-800" : "bg-teal-700 hover:bg-teal-800")}
+                  className={"w-full gap-2 bg-teal-700 hover:bg-teal-800"}
                   // Not `key === "professional" ? … : "enterprise"` — that is
                   // the same "everything else is Enterprise" fallback this page
                   // was just rid of, one edit away from selling the wrong plan.
@@ -403,7 +403,7 @@ export default function PricingPage() {
                 </Button>
               ) : (
                 <Link href={`/register?plan=${key}`}>
-                  <Button className={cn("w-full gap-2", isPopular ? "bg-teal-700 hover:bg-teal-800" : "bg-teal-700 hover:bg-teal-800")}>
+                  <Button className={"w-full gap-2 bg-teal-700 hover:bg-teal-800"}>
                     {isPopular ? T.trialFree : T.contactSales} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>

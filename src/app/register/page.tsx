@@ -145,7 +145,7 @@ export default function RegisterPage() {
             {registered ? (
               <div className="text-center space-y-4 py-8">
                 <div className="flex justify-center">
-                  <div className="bg-blue-100 rounded-full p-4">
+                  <div className="bg-teal-50 rounded-full p-4">
                     <Mail className="h-10 w-10 text-teal-700" />
                   </div>
                 </div>
