@@ -52,6 +52,14 @@ function ResetPasswordForm() {
         description: lang === "en" ? "Please sign in with your new password." : "Silakan masuk dengan kata sandi baru Anda.",
       });
       router.push("/login");
+    } catch {
+      toast({
+        variant: "destructive",
+        title: lang === "en" ? "Reset failed" : "Gagal mengatur ulang",
+        description: lang === "en"
+          ? "Check your connection and try again."
+          : "Periksa koneksi Anda dan coba lagi.",
+      });
     } finally { setLoading(false); }
   }
 

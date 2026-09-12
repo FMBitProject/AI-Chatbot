@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
       const answer = await answerForSlack({
         question: text,
         companyId,
-        department: dbUser.department,
+        access: dbUser,
         maxDocuments: limits.maxDocuments,
         keys: { groq: byok.groq, gemini: byok.gemini },
         label: "slack/command",

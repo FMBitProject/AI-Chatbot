@@ -1,26 +1,40 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Cookie } from "lucide-react";
 
 export function CookieConsent() {
-  const [visible, setVisible] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return !localStorage.getItem("cookie-consent");
-  });
+  const [visible, setVisible] = useState(false);
 
-  function accept() {
-    localStorage.setItem("cookie-consent", "accepted");
-    // Let <AnalyticsConsent /> start GA immediately, without a page reload.
-    window.dispatchEvent(new Event("cookie-consent-changed"));
+  useEffect(() => {
+    let hasConsent = false;
+    try {
+      hasConsent = !!localStorage.getItem("cookie-consent");
+    } catch {
+      // Storage can be disabled; the banner must still be dismissible.
+    }
+    // Read browser storage only after the matching server/client first render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVisible(!hasConsent);
+  }, []);
+
+  function saveConsent(value: "accepted" | "declined") {
+    try {
+      localStorage.setItem("cookie-consent", value);
+      window.dispatchEvent(new Event("cookie-consent-changed"));
+    } catch {
+      // Without persisted consent, analytics stays disabled.
+    }
     setVisible(false);
   }
 
+  function accept() {
+    saveConsent("accepted");
+  }
+
   function decline() {
-    localStorage.setItem("cookie-consent", "declined");
-    window.dispatchEvent(new Event("cookie-consent-changed"));
-    setVisible(false);
+    saveConsent("declined");
   }
 
   if (!visible) return null;

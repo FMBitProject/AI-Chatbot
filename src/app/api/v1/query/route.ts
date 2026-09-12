@@ -25,7 +25,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   const key = authorization?.replace("Bearer ", "").trim();
 
   const badKeyBucket = `v1-bad-key:${getClientIp(req)}`;
-  if (isRateLimited(badKeyBucket, BAD_KEY_LIMIT)) {
+  if (await isRateLimited(badKeyBucket, BAD_KEY_LIMIT)) {
     return NextResponse.json({ error: "Too many invalid API key attempts" }, { status: 429 });
   }
 
@@ -33,7 +33,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
 
   const [apiKey] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(key))).limit(1);
   if (!apiKey) {
-    recordFailure(badKeyBucket, BAD_KEY_LIMIT);
+    await recordFailure(badKeyBucket, BAD_KEY_LIMIT);
     return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
   }
 
@@ -117,6 +117,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
       companyId: apiKey.companyId,
       queryEmbedding,
+      access: { role: "admin" },
       maxDocuments: limits.maxDocuments,
     }, tx))).slice(0, 4);
 

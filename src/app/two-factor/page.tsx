@@ -19,13 +19,18 @@ export default function TwoFactorPage() {
   async function sendOtp() {
     setSending(true);
     setError("");
-    const { error } = await authClient.twoFactor.sendOtp();
-    setSending(false);
-    if (error) {
+    try {
+      const { error } = await authClient.twoFactor.sendOtp();
+      if (error) {
+        setError("Gagal mengirim kode. Silakan coba lagi.");
+        return;
+      }
+      setResendCooldown(60);
+    } catch {
       setError("Gagal mengirim kode. Silakan coba lagi.");
-      return;
+    } finally {
+      setSending(false);
     }
-    setResendCooldown(60);
   }
 
   useEffect(() => {
@@ -46,14 +51,19 @@ export default function TwoFactorPage() {
     if (code.length !== 6) { setError("Kode harus 6 digit."); return; }
     setVerifying(true);
     setError("");
-    const { data, error } = await authClient.twoFactor.verifyOtp({ code });
-    setVerifying(false);
-    if (error) {
-      setError("Kode salah atau sudah kedaluwarsa.");
-      return;
+    try {
+      const { data, error } = await authClient.twoFactor.verifyOtp({ code });
+      if (error) {
+        setError("Kode salah atau sudah kedaluwarsa.");
+        return;
+      }
+      const user = data?.user as { role?: string } | null;
+      router.push(user?.role === "admin" ? "/admin" : "/chat");
+    } catch {
+      setError("Gagal memverifikasi kode. Periksa koneksi Anda dan coba lagi.");
+    } finally {
+      setVerifying(false);
     }
-    const user = data?.user as { role?: string } | null;
-    router.push(user?.role === "admin" ? "/admin" : "/chat");
   }
 
   return (

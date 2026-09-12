@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
@@ -26,25 +26,40 @@ export default function SearchPage() {
   // limit), so the page explains why instead of showing a bare "no results".
   const [notice, setNotice] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    requestRef.current?.abort();
+  }, []);
 
   async function doSearch(q: string) {
-    if (!q.trim()) { setResults([]); setSearched(false); return; }
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setNotice(null);
+    setResults([]);
+    if (!q.trim()) { setLoading(false); setSearched(false); return; }
     setLoading(true);
     setSearched(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal: controller.signal });
       const data = await res.json() as SearchResult[] | { error?: string; message?: string };
+      if (controller.signal.aborted) return;
       if (!res.ok || !Array.isArray(data)) {
-        setResults([]);
-        setNotice(!Array.isArray(data) && data?.message ? data.message : null);
+        setNotice(!Array.isArray(data) && typeof data?.message === "string" && data.message
+          ? data.message
+          : "Pencarian gagal. Silakan coba lagi.");
         return;
       }
       setNotice(null);
       setResults(data);
     } catch {
+      if (controller.signal.aborted) return;
       setResults([]);
+      setNotice("Pencarian gagal. Periksa koneksi Anda dan coba lagi.");
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }
 
@@ -52,7 +67,12 @@ export default function SearchPage() {
     const val = e.target.value;
     setQuery(val);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(val), 600);
+    requestRef.current?.abort();
+    setResults([]);
+    setNotice(null);
+    setSearched(false);
+    setLoading(false);
+    if (val.trim()) debounceRef.current = setTimeout(() => doSearch(val), 600);
   }
 
   function handleSubmit(e: React.FormEvent) {

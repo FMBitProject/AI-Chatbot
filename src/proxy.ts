@@ -1,21 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClientIp } from "@/lib/rate-limit";
-
-// Simple in-memory rate limiter (resets on cold start — use Redis for production)
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 60; // requests per window
-const WINDOW_MS = 60 * 1000; // 1 minute
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + WINDOW_MS });
-    return false;
-  }
-  entry.count++;
-  return entry.count > RATE_LIMIT;
-}
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // --- Maintenance mode (manual kill-switch) ---------------------------------
 // Toggle by setting MAINTENANCE_MODE=true in the environment (Vercel env var,
@@ -116,7 +100,7 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
   return NextResponse.rewrite(new URL("/maintenance", req.url), { status: 503 });
 }
 
-export function proxy(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Maintenance kill-switch runs before everything else.
@@ -150,7 +134,13 @@ export function proxy(req: NextRequest) {
     // different things and only one of them was spoof-resistant. One function,
     // one answer to "who is calling".
     const ip = getClientIp(req);
-    if (isRateLimited(ip)) {
+    let limited;
+    try {
+      limited = await consumeRateLimit(`public-api:${ip}`, { max: 60, windowMs: 60_000 });
+    } catch {
+      return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
+    if (!limited.ok) {
       return new NextResponse(JSON.stringify({ error: "Too many requests. Please slow down." }), {
         status: 429,
         headers: { "Content-Type": "application/json", "Retry-After": "60" },

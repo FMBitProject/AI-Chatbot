@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const dbUser = guard.user;
   const companyId = dbUser.companyId;
 
-  const limit = consumeRateLimit(`payment-verify:${dbUser.id}`, VERIFY_LIMIT);
+  const limit = await consumeRateLimit(`payment-verify:${dbUser.id}`, VERIFY_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Terlalu banyak permintaan. Coba lagi sebentar lagi." },

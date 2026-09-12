@@ -15,16 +15,24 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setFailed(false);
     try {
-      await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
-    } finally {
+      const { error } = await authClient.requestPasswordReset({ email, redirectTo: "/reset-password" });
+      if (error) {
+        setFailed(true);
+        return;
+      }
       // The confirmation never says whether the address exists — otherwise this
       // page would tell a stranger which companies have accounts here.
       setSent(true);
+    } catch {
+      setFailed(true);
+    } finally {
       setLoading(false);
     }
   }
@@ -73,6 +81,11 @@ export default function ForgotPasswordPage() {
               </p>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                {failed && <p role="alert" className="text-sm text-red-600">
+                  {lang === "en"
+                    ? "Could not request a reset link. Please try again."
+                    : "Gagal meminta link pengaturan ulang. Silakan coba lagi."}
+                </p>}
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" required autoFocus

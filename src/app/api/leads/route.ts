@@ -11,7 +11,7 @@ import { alertOps } from "@/lib/alerts";
 const LEADS_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 
 export async function POST(req: NextRequest) {
-  const limit = consumeRateLimit(`leads:${getClientIp(req)}`, LEADS_LIMIT);
+  const limit = await consumeRateLimit(`leads:${getClientIp(req)}`, LEADS_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." },

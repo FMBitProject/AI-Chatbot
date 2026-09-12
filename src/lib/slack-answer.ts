@@ -1,3 +1,4 @@
+import type { DocumentAccess } from "@/lib/document-access";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
@@ -84,7 +85,7 @@ export interface SlackAnswerOptions {
   // Slack was previously the one channel that skipped this, which let an
   // employee pull another department's documents through the bot that the web
   // UI would never have shown them.
-  department: string | null;
+  access: DocumentAccess;
   maxDocuments: number;
   keys: { groq: string | null; gemini: string | null };
   label: string;
@@ -126,13 +127,13 @@ export function formatSlackAnswer(answer: SlackAnswer): string {
  * documents with no way to check the source was the one channel that didn't.
  */
 export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAnswer> {
-  const { question, companyId, department, maxDocuments, keys, label } = opts;
+  const { question, companyId, access, maxDocuments, keys, label } = opts;
 
   const queryEmbedding = await getEmbedding(question, keys.gemini);
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
     queryEmbedding,
-    department,
+    access,
     maxDocuments,
   }, tx))).slice(0, MAX_SLACK_CHUNKS);
 
