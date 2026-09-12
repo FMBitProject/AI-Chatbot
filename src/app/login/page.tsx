@@ -38,6 +38,8 @@ export default function LoginPage() {
             ? "Check your inbox, and your spam folder too."
             : "Cek kotak masuk Anda, termasuk folder spam.",
         });
+    } catch {
+      toast({ variant: "destructive", title: T.loginFailed, description: T.error });
     } finally { setResending(false); }
   }
 

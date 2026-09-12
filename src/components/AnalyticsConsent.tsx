@@ -19,11 +19,16 @@ export function AnalyticsConsent() {
   useEffect(() => {
     if (!gaId) return;
 
-    const check = () =>
-      setEnabled(
-        localStorage.getItem("cookie-consent") === "accepted" &&
-          !isAnalyticsOptedOut()
-      );
+    const check = () => {
+      try {
+        setEnabled(
+          localStorage.getItem("cookie-consent") === "accepted" &&
+            !isAnalyticsOptedOut()
+        );
+      } catch {
+        setEnabled(false);
+      }
+    };
     check();
 
     window.addEventListener("cookie-consent-changed", check);

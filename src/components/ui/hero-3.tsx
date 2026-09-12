@@ -1,9 +1,19 @@
 "use client";
 
-import React from "react";
+import React, { useSyncExternalStore } from "react";
 import Image from "next/image";
-import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { motion, type Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
+
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+function subscribeReducedMotion(onChange: () => void) {
+  const query = window.matchMedia(reducedMotionQuery);
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const getReducedMotion = () => window.matchMedia(reducedMotionQuery).matches;
+// Keep SSR and hydration static until the browser preference is available.
+const getServerReducedMotion = () => true;
 
 // Props interface for the component
 interface AnimatedMarqueeHeroProps {
@@ -51,14 +61,10 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
   // Duplicate images for a seamless loop
   const duplicatedImages = [...images, ...images];
 
-  // A visitor who has asked their OS for reduced motion is often asking
-  // because motion makes them ill, and this hero has the two kinds that do it:
-  // an entrance that slides, and a band that never stops moving. Honouring the
-  // preference is not "less animation", it is no animation. The words, the
-  // button and every screenshot stay exactly where they are, so nothing is
-  // lost by turning it off. `useReducedMotion` re-renders when the setting
-  // changes, so the page follows it without a reload.
-  const reduceMotion = useReducedMotion();
+  // Subscribe directly: the installed Motion hook snapshots the preference.
+  const reduceMotion = useSyncExternalStore(
+    subscribeReducedMotion, getReducedMotion, getServerReducedMotion
+  );
   const marqueeAnimation = reduceMotion
     ? undefined
     : {
@@ -161,6 +167,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
           cleared. */}
       <div className="pointer-events-none absolute bottom-0 left-0 w-full h-56 md:h-72 [mask-image:linear-gradient(to_bottom,transparent,black_20%,black_80%,transparent)]">
         <motion.div
+          key={reduceMotion ? "static" : "animated"}
           className="flex"
           animate={marqueeAnimation}
         >

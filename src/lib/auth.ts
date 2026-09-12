@@ -1,3 +1,7 @@
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import { isPasswordValid } from "@/lib/password";
+import { LIMITS } from "@/lib/validate";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { twoFactor } from "better-auth/plugins";
@@ -60,6 +64,9 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,
+    maxPasswordLength: LIMITS.password,
+    disableSignUp: true, // Accounts are provisioned atomically by our server routes.
+    revokeSessionsOnPasswordReset: true,
     requireEmailVerification: true,
     // Company admins have nobody above them to reset their password — an admin
     // who forgets it would be locked out of a paid account for good without
@@ -110,59 +117,52 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       companyId: {
+        input: false,
         type: "string",
         required: false,
       },
       role: {
+        input: false,
         type: "string",
         required: false,
         defaultValue: "employee",
       },
     },
   },
-  session: {
-    // A signed copy of the session lives in a second cookie so getSession()
-    // does not pay a database round trip on every request. The cost of that
-    // optimisation is that the copy is *trusted*: while it is valid,
-    // better-auth returns it and never reads the session table (see the
-    // early return in its api/routes/session.mjs). Deleting a session row —
-    // which is what revocation is — therefore changes nothing until the copy
-    // expires.
-    //
-    // This was seven days, which is how long a revoked session stayed usable.
-    // The admin password reset in @/app/api/admin/users/[id]/reset-password
-    // deletes every session the employee has and mails them "you have been
-    // signed out on every device"; that sentence was false for a week. It is
-    // the one button reached for when an account is believed to be
-    // compromised, so it is exactly the case where a week of grace goes to
-    // whoever took the account.
-    //
-    // Five minutes is better-auth's own default and the bound on how long a
-    // revocation can go unnoticed. It costs one session read per user per
-    // five minutes, which is the price of revocation meaning anything.
-    //
-    // Note this only ever governed *session* revocation. Role, company and
-    // account deletion are read fresh from the users row by @/lib/auth-guard
-    // on every request, so a demotion or an offboarding has always taken
-    // effect immediately, cache or no cache.
-    cookieCache: {
-      enabled: true,
-      maxAge: 60 * 5,
-    },
-  },
-  // Enabled by default in production only, so local dev stays unthrottled.
-  // Tight windows on the credential/OTP endpoints to slow brute-force.
-  rateLimit: {
-    window: 60,
-    max: 100,
-    customRules: {
-      "/sign-in/email": { window: 60, max: 5 },
-      "/sign-up/email": { window: 60, max: 5 },
-      // Password-reset mail costs us a send and lands in someone's inbox, so it
-      // is throttled harder than ordinary auth traffic.
-      "/request-password-reset": { window: 60, max: 3 },
-      "/two-factor/*": { window: 60, max: 5 },
-    },
+  // Always check the session table so password reset/revocation takes effect
+  // on the next request, including cookies minted by an older deployment.
+  session: { cookieCache: { enabled: false } },
+  // Built-in get/set storage does not provide an atomic global increment.
+  // The before hook uses the same PostgreSQL limiter as the custom routes.
+  rateLimit: { enabled: false },
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      const path = ctx.path.replace(/\/+$/, "");
+      if (ctx.request) {
+        const max = ["/request-password-reset", "/send-verification-email"].includes(path) ? 3
+          : path === "/sign-in/email" || path.startsWith("/two-factor/") ? 5
+          : 100;
+        let limit;
+        try {
+          limit = await consumeRateLimit(`auth:${path}:${getClientIp(ctx.request)}`, { max, windowMs: 60_000 });
+        } catch {
+          throw new APIError("SERVICE_UNAVAILABLE", { message: "Authentication temporarily unavailable" });
+        }
+        if (!limit.ok) {
+          ctx.setHeader("Retry-After", String(limit.retryAfter));
+          throw new APIError("TOO_MANY_REQUESTS", { message: "Too many attempts. Please try again later." });
+        }
+      }
+      const field = path === "/sign-up/email" ? "password"
+        : ["/reset-password", "/change-password", "/set-password"].includes(path) ? "newPassword"
+        : null;
+      if (field) {
+        const password = ctx.body?.[field];
+        if (typeof password !== "string" || password.length > LIMITS.password || !isPasswordValid(password)) {
+          throw new APIError("BAD_REQUEST", { message: "Password minimal 8 karakter dan harus memuat huruf besar, angka, dan karakter spesial." });
+        }
+      }
+    }),
   },
   plugins: [
     twoFactor({

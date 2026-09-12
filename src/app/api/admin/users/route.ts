@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-// `auth` is still imported for signUpEmail below — the guard covers the session
-// check only, not the rest of better-auth's API.
-import { auth } from "@/lib/auth";
+import { createCredentialAccount, isUniqueConflict } from "@/lib/credential-account";
 import { requireAdmin, requireCompanyAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
@@ -9,7 +7,7 @@ import { eq, count } from "drizzle-orm";
 import { isUnderLimit } from "@/lib/plan-limits";
 import { resolvePlanById } from "@/lib/subscription";
 import { isPasswordValid } from "@/lib/password";
-import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
+import { LIMITS, optionalEmail, optionalString, readJsonObject } from "@/lib/validate";
 
 export async function GET(req: NextRequest) {
   const guard = await requireAdmin(req);
@@ -61,7 +59,7 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
 
   const name = optionalString(body.name, LIMITS.name);
-  const email = optionalString(body.email, LIMITS.email)?.toLowerCase();
+  const email = optionalEmail(body.email)?.toLowerCase();
   const department = optionalString(body.department, LIMITS.name);
   const password = body.password;
 
@@ -85,39 +83,17 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).limit(1);
-  if (existing.length > 0) {
-    return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
-  }
-
   try {
-    await auth.api.signUpEmail({ body: { name, email, password } });
-  } catch {
-    // signUpEmail may throw if email sending fails — check if user was created anyway
+    const created = await createCredentialAccount({
+      name, email, password, companyId, role: "employee",
+      department, emailVerified: true,
+    });
+    return NextResponse.json(created);
+  } catch (error) {
+    if (isUniqueConflict(error)) {
+      return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
+    }
+    console.error("[admin/users] create failed:", error);
+    return NextResponse.json({ error: "Gagal membuat akun. Silakan coba lagi." }, { status: 503 });
   }
-
-  const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (!created) {
-    return NextResponse.json({ error: "Email tidak valid atau tidak dapat digunakan." }, { status: 400 });
-  }
-
-  // Only adopt an account that belongs to nobody yet. signUpEmail is allowed to
-  // throw (mail failure) and we look the address up again afterwards to see
-  // whether the account was created regardless — but "an account with this
-  // address exists" is not the same claim as "we just created it". Someone
-  // registering their own company at /register with the same address in the
-  // window between the check above and this read would be found here, and the
-  // update below would move them into this admin's company as an employee.
-  // Narrow, but the failure is an account takeover, so it is guarded rather
-  // than reasoned about.
-  if (created.companyId) {
-    return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
-  }
-
-  await db.update(users)
-    .set({ companyId, role: "employee", department: department || null, emailVerified: true })
-    .where(eq(users.id, created.id));
-
-  const [updated] = await db.select().from(users).where(eq(users.id, created.id)).limit(1);
-  return NextResponse.json(updated);
 }

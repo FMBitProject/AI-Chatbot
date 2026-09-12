@@ -29,7 +29,8 @@
     "test:secret-box": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/secret-box.test.mts",
     "test:rag": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/rag.test.mts",
     "test:errors": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/errors.test.mts",
-    "test": "npm run test:pricing && npm run test:security && npm run test:secret-box && npm run test:rag && npm run test:errors && npm run inbox:test && npm run content:lint:test"
+    "test": "npm run test:pricing && npm run test:security && npm run test:secret-box && npm run test:rag && npm run test:errors && npm run inbox:test && npm run content:lint:test && npm run test:security:integration",
+    "test:security:integration": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/security-test-hook.mjs scripts/security-integration.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.29",
@@ -75,6 +76,7 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

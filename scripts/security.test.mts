@@ -16,7 +16,7 @@ import {
 } from "../src/lib/midtrans.ts";
 import { hashApiKey, generateApiKey } from "../src/lib/api-key.ts";
 import { checkPassword, isPasswordValid } from "../src/lib/password.ts";
-import { consumeRateLimit, isRateLimited, recordFailure, getClientIp } from "../src/lib/rate-limit.ts";
+import { getClientIp } from "../src/lib/rate-limit.ts";
 import { optionalString, optionalEmail, isOneOf, readJsonObject, LIMITS } from "../src/lib/validate.ts";
 import { escapeHtml } from "../src/lib/email-template.ts";
 import { createHash } from "crypto";
@@ -191,31 +191,7 @@ sama(
   "50 nilai x-forwarded-for palsu tetap menghasilkan SATU kunci — batas tak bisa di-reset",
 );
 
-console.log("\nHITUNG PERCOBAAN — rate-limit");
-const ATURAN = { max: 3, windowMs: 60_000 };
-const kunci = `uji-${Date.now()}`;
-sama(consumeRateLimit(kunci, ATURAN).ok, true, "percobaan ke-1 lolos");
-sama(consumeRateLimit(kunci, ATURAN).ok, true, "percobaan ke-2 lolos");
-sama(consumeRateLimit(kunci, ATURAN).ok, true, "percobaan ke-3 lolos (tepat di batas)");
-const ditolak = consumeRateLimit(kunci, ATURAN);
-sama(ditolak.ok, false, "percobaan ke-4 ditolak — max=3 berarti 3, bukan 4");
-sama(ditolak.retryAfter > 0 && ditolak.retryAfter <= 60, true, "retryAfter diisi detik yang masuk akal");
-sama(consumeRateLimit(`lain-${Date.now()}`, ATURAN).ok, true, "kunci lain tidak ikut kena");
-
-const kunciJendela = `jendela-${Date.now()}`;
-const SEKEJAP = { max: 1, windowMs: 1 };
-consumeRateLimit(kunciJendela, SEKEJAP);
-await new Promise((r) => setTimeout(r, 5));
-sama(consumeRateLimit(kunciJendela, SEKEJAP).ok, true, "jendela kedaluwarsa → hitungan mulai dari nol lagi");
-
-const kunciGagal = `gagal-${Date.now()}`;
-sama(isRateLimited(kunciGagal, ATURAN), false, "kunci yang belum pernah gagal tidak terblokir");
-recordFailure(kunciGagal, ATURAN);
-recordFailure(kunciGagal, ATURAN);
-sama(isRateLimited(kunciGagal, ATURAN), false, "2 dari 3 kegagalan belum memblokir");
-recordFailure(kunciGagal, ATURAN);
-sama(isRateLimited(kunciGagal, ATURAN), true, "kegagalan ke-3 memblokir");
-sama(isRateLimited(`belum-ada-${Date.now()}`, ATURAN), false, "isRateLimited tidak ikut menghitung");
+// Shared rate-limit SQL is covered by security-integration.test.mts.
 
 // ─────────────────────────────────────────────────────────────────────────────
 console.log("\nVALIDASI INPUT — validate");

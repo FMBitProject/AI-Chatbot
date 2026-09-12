@@ -1,3 +1,4 @@
+import { documentAccessCondition } from "@/lib/document-access";
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
 import { resolveByok } from "@/lib/byok";
@@ -12,7 +13,7 @@ import {
 import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq, count, and, gte, isNull, or, inArray, asc, desc } from "drizzle-orm";
+import { eq, count, and, gte, inArray, asc, desc } from "drizzle-orm";
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
@@ -267,9 +268,8 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     // retriever will never return invites exactly the confident answer about a
     // withdrawn document that an expiry date exists to prevent.
     const catalogConditions = [eq(documents.companyId, companyId), notExpired()];
-    if (dbUser.department) {
-      catalogConditions.push(or(isNull(documents.department), eq(documents.department, dbUser.department))!);
-    }
+    const accessCondition = documentAccessCondition(dbUser);
+    if (accessCondition) catalogConditions.push(accessCondition);
     // The catalog has to be narrowed by the folder as well, for the same reason
     // it is narrowed by expiry: it is the list the model is told it can answer
     // from. Leave it whole while the retriever searches one folder and the model
@@ -290,7 +290,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     const rankedChunks = await retrieveChunks({
       companyId,
       queryEmbedding,
-      department: dbUser.department,
+      access: dbUser,
       folder,
       limit: 30,
       maxDocuments,

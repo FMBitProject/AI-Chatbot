@@ -1,3 +1,4 @@
+import { documentAccessCondition, type DocumentAccess } from "@/lib/document-access";
 import { and, asc, cosineDistance, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { documentChunks, documents } from "@/lib/db/schema";
 import type { TenantTx } from "@/lib/db/tenant";
@@ -109,7 +110,7 @@ export interface RetrievedChunk {
 export async function retrieveChunks(opts: {
   companyId: string;
   queryEmbedding: number[];
-  department?: string | null;
+  access: DocumentAccess;
   // Restrict the search to one folder, on top of everything else — never
   // instead of it. See the condition below: `department` decides what the asker
   // is allowed to see and `folder` decides how much of that they want to search,
@@ -123,7 +124,7 @@ export async function retrieveChunks(opts: {
   // subscription cannot keep querying documents it can no longer hold.
   maxDocuments?: number;
 }, tx: TenantTx): Promise<RetrievedChunk[]> {
-  const { companyId, queryEmbedding, department = null, folder = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
+  const { companyId, queryEmbedding, access, folder = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
 
   const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
   if (activeIds !== null && activeIds.length === 0) return [];
@@ -141,9 +142,8 @@ export async function retrieveChunks(opts: {
     conditions.push(inArray(documentChunks.documentId, activeIds));
   }
   // Employees only see documents with no department (shared) or their own.
-  if (department) {
-    conditions.push(or(isNull(documents.department), eq(documents.department, department))!);
-  }
+  const accessCondition = documentAccessCondition(access);
+  if (accessCondition) conditions.push(accessCondition);
   // Pushed as an additional AND, after the department rule and never in place of
   // it. That is the whole safety argument for reusing one column for two
   // purposes: an extra conjunct can only ever remove rows from a result the

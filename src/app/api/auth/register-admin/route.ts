@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
-import { accounts, companies, sessions, users } from "@/lib/db/schema";
+import { createCredentialAccount, isUniqueConflict } from "@/lib/credential-account";
 import { auth } from "@/lib/auth";
-import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { isPasswordValid } from "@/lib/password";
@@ -12,24 +10,8 @@ import { isOneOf, LIMITS, optionalEmail, optionalString, readJsonObject } from "
 // can't be used for mass signup spam.
 const REGISTER_LIMIT = { max: 5, windowMs: 15 * 60 * 1000 };
 
-// Undoes a signup that failed partway. better-auth may or may not have created
-// the user by the time it threw, so both halves are cleaned up defensively.
-async function rollback(companyId: string, email: string) {
-  try {
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (user) {
-      await db.delete(sessions).where(eq(sessions.userId, user.id));
-      await db.delete(accounts).where(eq(accounts.userId, user.id));
-      await db.delete(users).where(eq(users.id, user.id));
-    }
-    await db.delete(companies).where(eq(companies.id, companyId));
-  } catch (cleanupError) {
-    console.error("[register-admin] rollback failed:", cleanupError);
-  }
-}
-
 export async function POST(req: NextRequest) {
-  const limit = consumeRateLimit(`register-admin:${getClientIp(req)}`, REGISTER_LIMIT);
+  const limit = await consumeRateLimit(`register-admin:${getClientIp(req)}`, REGISTER_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Terlalu banyak percobaan pendaftaran. Coba lagi beberapa menit lagi." },
@@ -50,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const name = optionalString(body.name, LIMITS.name);
-    const email = optionalEmail(body.email);
+    const email = optionalEmail(body.email)?.toLowerCase();
     const password = typeof body.password === "string" ? body.password : "";
 
     // Absent means "company": this endpoint predates individual accounts, and an
@@ -90,57 +72,26 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (existing.length > 0) {
-      return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
-    }
-
-    // Organisations only. Two clinics genuinely cannot share a name here — the
-    // name is how their people recognise the workspace they are being added to —
-    // but two *people* can, and very often do. Running this check for an
-    // individual would turn a common name into "already registered", on a form
-    // with no field the person could change to get past it. The database agrees:
-    // the unique index added in 0016 is predicated on account_type = 'company'.
-    if (accountType === "company") {
-      const existingCompany = await db.select().from(companies).where(eq(companies.name, companyName)).limit(1);
-      if (existingCompany.length > 0) {
-        return NextResponse.json({ error: "Nama perusahaan sudah terdaftar." }, { status: 409 });
-      }
-    }
-
     const companyId = randomUUID();
-    await db.insert(companies).values({ id: companyId, name: companyName, accountType });
+    await createCredentialAccount({
+      name, email, password, companyId, role: "admin",
+      workspace: { name: companyName, accountType },
+    });
 
+    // Provisioning is committed before email delivery. A delivery failure must
+    // never delete an account; the login page offers verification resend.
+    let verificationEmailSent = true;
     try {
-      await auth.api.signUpEmail({
-        body: { name, email, password, callbackURL: "/admin" },
-      });
-    } catch (signUpError) {
-      // Signing up sends the verification mail, and login is blocked until it is
-      // clicked — so a mail failure here means the account can never be used.
-      // Roll the half-made signup back rather than leaving the company name and
-      // email taken, which would stop the person retrying once mail works again.
-      await rollback(companyId, email);
-      console.error("[register-admin] signup failed, rolled back:", signUpError);
-      return NextResponse.json({
-        error: "Pendaftaran gagal saat mengirim email verifikasi. Silakan coba lagi beberapa saat lagi.",
-      }, { status: 502 });
+      await auth.api.sendVerificationEmail({ body: { email, callbackURL: "/admin" } });
+    } catch (error) {
+      verificationEmailSent = false;
+      console.error("[register-admin] verification delivery failed:", error);
     }
-
-    const [created] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (created) {
-      // "admin" for an individual too. The role says who owns the workspace, not
-      // how many people are in it: uploading documents, setting the persona and
-      // paying for the plan all sit behind requireAdmin, and they are the whole
-      // of what an individual account does. What an admin may do to *other*
-      // people is gated separately, by requireCompanyAdmin.
-      await db.update(users)
-        .set({ companyId, role: "admin" })
-        .where(eq(users.id, created.id));
-    }
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, verificationEmailSent });
   } catch (error) {
+    if (isUniqueConflict(error)) {
+      return NextResponse.json({ error: "Email atau nama perusahaan sudah terdaftar." }, { status: 409 });
+    }
     console.error("[register-admin]", error);
     return NextResponse.json({ error: "Terjadi kesalahan internal." }, { status: 500 });
   }

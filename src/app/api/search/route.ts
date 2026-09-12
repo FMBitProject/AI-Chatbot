@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
   const results = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
     queryEmbedding,
-    department: dbUser.department,
+    access: dbUser,
     limit: 8,
     minScore: 0,
     maxDocuments: limits.maxDocuments,

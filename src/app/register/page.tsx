@@ -25,6 +25,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [registeredEmail, setRegisteredEmail] = useState("");
+  const [verificationEmailSent, setVerificationEmailSent] = useState(true);
   const [agreed, setAgreed] = useState(false);
   const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "" });
 
@@ -81,9 +82,10 @@ export default function RegisterPage() {
             : { ...form, accountType },
         ),
       });
-      const data = await res.json() as { error?: string };
+      const data = await res.json() as { error?: string; verificationEmailSent?: boolean };
       if (!res.ok) { toast({ variant: "destructive", title: T.registerFailed, description: data.error }); return; }
       setRegisteredEmail(form.email);
+      setVerificationEmailSent(data.verificationEmailSent !== false);
       setRegistered(true);
     } catch {
       toast({ variant: "destructive", title: "Error", description: T.error });
@@ -149,10 +151,13 @@ export default function RegisterPage() {
                     <Mail className="h-10 w-10 text-teal-700" />
                   </div>
                 </div>
-                <h2 className="text-2xl font-bold text-stone-900">{T.checkEmail}</h2>
-                <p className="text-stone-600 text-sm">{T.checkEmailDesc}</p>
+                <h2 className="text-2xl font-bold text-stone-900">{verificationEmailSent ? T.checkEmail : (lang === "en" ? "Account created" : "Akun berhasil dibuat")}</h2>
+                <p className="text-stone-600 text-sm">{verificationEmailSent ? T.checkEmailDesc : (lang === "en"
+                  ? "We could not send the verification email. Sign in to request another verification email."
+                  : "Email verifikasi belum berhasil dikirim. Masuk untuk meminta kirim ulang email verifikasi.")}</p>
                 <p className="font-semibold text-stone-900">{registeredEmail}</p>
-                <p className="text-stone-500 text-sm leading-relaxed">{T.checkEmailNote}</p>
+                {verificationEmailSent && <p className="text-stone-500 text-sm leading-relaxed">{T.checkEmailNote}</p>}
+                <Link href="/login" className="inline-block text-sm text-teal-700 underline">{lang === "en" ? "Sign in" : "Masuk"}</Link>
               </div>
             ) : (<>
             <div>

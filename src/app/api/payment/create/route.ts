@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   // now a plain string rather than a nullable one.
   const dbUser = guard.user;
 
-  const limit = consumeRateLimit(`payment-create:${dbUser.id}`, CREATE_LIMIT);
+  const limit = await consumeRateLimit(`payment-create:${dbUser.id}`, CREATE_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "rate_limited", message: "Terlalu banyak percobaan pembayaran. Coba lagi sebentar lagi." },

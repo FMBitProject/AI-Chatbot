@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const guard = await requireSession(req);
   if (!guard.ok) return guard.response;
 
-  const limit = consumeRateLimit(`change-password:${guard.userId}`, CHANGE_PASSWORD_LIMIT);
+  const limit = await consumeRateLimit(`change-password:${guard.userId}`, CHANGE_PASSWORD_LIMIT);
   if (!limit.ok) {
     return NextResponse.json(
       { error: "Terlalu banyak percobaan. Coba lagi beberapa menit lagi." },
