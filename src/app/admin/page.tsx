@@ -1,4 +1,6 @@
 "use client";
+import { fetchPages } from "@/lib/fetch-pages";
+import { readApiError } from "@/lib/errors";
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome, type DriveImportOutcome } from "@/components/admin/DocumentsTab";
@@ -111,9 +113,7 @@ export default function AdminPage() {
   const [plan, setPlan] = useState<Plan>("starter");
 
   async function loadDocuments() {
-    const res = await fetch("/api/admin/documents").catch(() => null);
-    if (!res?.ok) return;
-    const data = await res.json().catch(() => null) as Document[] | null;
+    const data = await fetchPages<Document>("/api/admin/documents").catch(() => null);
     if (Array.isArray(data)) setDocuments(data);
   }
 
@@ -197,13 +197,13 @@ export default function AdminPage() {
       }
 
       if (cancelled) return;
-      fetch("/api/admin/documents").then((r) => r.ok ? r.json() : null).then((data: Document[] | null) => {
+      fetchPages<Document>("/api/admin/documents").then((data) => {
         if (!cancelled && Array.isArray(data)) setDocuments(data);
       }).catch(() => {});
       // Skipped entirely for an individual account: there is no employee tab to
       // fill and the only row it could return is the person asking.
       if (resolvedAccountType === "company") {
-        fetch("/api/admin/users").then((r) => r.ok ? r.json() : null).then((data: Employee[] | null) => {
+        fetchPages<Employee>("/api/admin/users").then((data) => {
           if (!cancelled && Array.isArray(data)) setEmployees(data);
         }).catch(() => {});
       }
@@ -367,8 +367,7 @@ export default function AdminPage() {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? "Pengindeksan gagal dijalankan.");
+        throw new Error((await readApiError(res, lang)).message);
       }
 
       const result = await res.json() as { indexed: number; failed: number; remaining: number; stop: string };
@@ -413,8 +412,7 @@ export default function AdminPage() {
       body: JSON.stringify({ documentId }),
     });
     if (!res.ok) {
-      const body = await res.json().catch(() => null) as { error?: string } | null;
-      throw new Error(body?.error ?? T.reindexFailed);
+      throw new Error((await readApiError(res, lang)).message);
     }
     await loadDocuments();
   }
@@ -448,8 +446,7 @@ export default function AdminPage() {
       body: JSON.stringify(data),
     });
     if (!res.ok) {
-      const err = await res.json() as { error: string };
-      throw new Error(err.error);
+      throw new Error((await readApiError(res, lang)).message);
     }
     const created = await res.json() as Employee;
     setEmployees((prev) => [created, ...prev]);

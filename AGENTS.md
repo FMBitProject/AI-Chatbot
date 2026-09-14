@@ -96,7 +96,8 @@ enforces the check.
 (`MAINTENANCE_MODE` env var, with a `?mnt-bypass=` cookie escape hatch,
 carefully excluding the Midtrans webhook — see the comment block at the top
 of the file) and per-IP rate limiting, plus a redirect-if-no-cookie check for
-`/chat` and `/admin` page routes. It never runs on `/api/*` and never
+`/chat` and `/admin` page routes. It also runs on API routes for maintenance
+and rate-limits selected API prefixes; it never
 validates the session token or role. `auth-guard.ts` + Postgres RLS are the
 two real layers of defense.
 

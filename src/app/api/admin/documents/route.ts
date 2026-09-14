@@ -1,13 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
 import { documents } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { pagination, paginated } from "@/lib/pagination";
+import { withApiErrors } from "@/lib/api-error";
 
-export async function GET(req: NextRequest) {
+export const GET = withApiErrors("admin/documents", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
   const { companyId } = guard.user;
+  const page = pagination(req, [{ column: documents.createdAt, direction: "asc" }, { column: documents.id, direction: "asc" }]);
 
   // Named columns rather than select(): `raw_text` holds the full text of every
   // uploaded document, and this endpoint is polled every three seconds while an
@@ -16,6 +19,7 @@ export async function GET(req: NextRequest) {
   // badge and a date.
   const docs = await withTenant(companyId, (tx) =>
     tx.select({
+      _cursor: page.selection,
       id: documents.id,
       name: documents.name,
       status: documents.status,
@@ -24,6 +28,7 @@ export async function GET(req: NextRequest) {
       department: documents.department,
       expiresAt: documents.expiresAt,
       createdAt: documents.createdAt,
-    }).from(documents).where(eq(documents.companyId, companyId)));
-  return NextResponse.json(docs);
-}
+    }).from(documents).where(and(eq(documents.companyId, companyId), page.condition))
+      .orderBy(...page.order).limit(page.limit + 1));
+  return paginated(docs, page);
+});

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ interface AuditLog {
   createdAt: string;
   feedback?: string | null;
   sessionTitle: string;
+  sessionId: string;
   userName: string;
   userEmail: string;
 }
@@ -29,33 +30,47 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
   // Without this, a failed load renders the "no data yet" empty state, which
   // reads as "nobody has asked anything" — a wrong answer, not a missing one.
   const [failed, setFailed] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const requestRef = useRef<AbortController | null>(null);
+  const [loadedSearch, setLoadedSearch] = useState("");
 
   // No synchronous setState: `load` runs straight from an effect, where that
   // cascades an extra render. The flag clears when a retry actually succeeds.
-  const load = useCallback(() => {
+  const load = useCallback((cursor: string | null = null) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    const query = new URLSearchParams({ limit: "100", q: search.trim() });
+    if (cursor) query.set("cursor", cursor);
     // A failed request must leave `logs` an array — an error body reaching it
     // would throw on the .filter() below rather than showing an empty table.
-    fetch("/api/admin/audit")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d: AuditLog[] | null) => {
+    fetch(`/api/admin/audit?${query}`, { signal: controller.signal })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Audit request failed");
+        return { data: await r.json(), next: r.headers.get("X-Next-Cursor") };
+      })
+      .then(({ data: d, next }: { data: AuditLog[]; next: string | null }) => {
+        if (controller.signal.aborted) return;
         if (Array.isArray(d)) {
-          setLogs(d);
+          setLogs((previous) => cursor === null ? d : [...new Map([...previous, ...d].map(log => [log.id, log])).values()]);
+          setNextCursor(next);
+          setLoadedSearch(search.trim());
           setFailed(false);
         } else {
           setFailed(true);
         }
       })
-      .catch(() => setFailed(true));
-  }, []);
+      .catch(() => { if (!controller.signal.aborted) setFailed(true); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+  }, [search]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = setTimeout(() => load(), 250);
+    return () => { clearTimeout(timer); requestRef.current?.abort(); };
+  }, [load]);
 
-  const filtered = logs.filter((l) =>
-    l.role === "user" &&
-    (search === "" ||
-      l.content.toLowerCase().includes(search.toLowerCase()) ||
-      l.userName.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = loadedSearch === search.trim() ? logs : [];
 
   return (
     <div className="space-y-4">
@@ -69,22 +84,22 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
           className="pl-9"
           placeholder={isIndividual ? T.searchAuditIndividual : T.searchAudit}
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { requestRef.current?.abort(); setLoading(true); setSearch(e.target.value); }}
         />
       </div>
       <div className="space-y-2">
         {failed && (
           <div className="text-center py-8">
             <p className="text-sm text-gray-500 mb-3">{T.loadFailed}</p>
-            <Button variant="outline" size="sm" onClick={load}>{T.retry}</Button>
+            <Button variant="outline" size="sm" disabled={loading} onClick={() => { setLoading(true); load(); }}>{T.retry}</Button>
           </div>
         )}
         {!failed && filtered.length === 0 && (
           <p className="text-center text-gray-400 text-sm py-8">{T.noAudit}</p>
         )}
         {filtered.map((log) => {
-          const nextLog = logs[logs.indexOf(log) - 1];
-          const aiResponse = nextLog?.role === "assistant" ? nextLog : null;
+          // Each record stands on its own; legacy rows have no reliable reply-to ID.
+          const aiResponse = log.role === "assistant" ? log : null;
           return (
             <div key={log.id} className="border rounded-xl p-4 hover:bg-gray-50 transition-colors">
               <div className="flex items-start justify-between gap-2 mb-2">
@@ -107,17 +122,17 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
                 </div>
               </div>
               <p className="text-sm text-gray-700 mb-1">
-                <span className="font-medium text-teal-600">Q: </span>{log.content}
+                <span className="font-medium text-teal-600">{log.role === "user" ? "Q: " : "A: "}</span>{log.content}
               </p>
-              {aiResponse && (
-                <p className="text-xs text-gray-500 line-clamp-2">
-                  <span className="font-medium">A: </span>{aiResponse.content.slice(0, 150)}...
-                </p>
-              )}
-              <Badge variant="secondary" className="mt-2 text-xs">{log.sessionTitle}</Badge>
+              <Badge variant="secondary" className="mt-2 text-xs">{log.sessionTitle} · {log.sessionId}</Badge>
             </div>
           );
         })}
+        {nextCursor !== null && loadedSearch === search.trim() && (
+          <Button variant="outline" disabled={loading} onClick={() => { setLoading(true); load(nextCursor); }}>
+            {lang === "en" ? "Load more" : "Muat lebih banyak"}
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { PgDialect, getTableConfig } from "drizzle-orm/pg-core";
-import { SQL } from "drizzle-orm";
+import { SQL, sql } from "drizzle-orm";
 import * as schema from "../src/lib/db/schema.ts";
 
 export const pg = new PGlite();
@@ -10,7 +10,8 @@ const dialect = new PgDialect();
 const quote = (value) => `"${value.replaceAll('"', '""')}"`;
 // Build relevant tables from the real schema, including defaults and FKs.
 for (const table of [schema.companies, schema.users, schema.accounts, schema.sessions,
-  schema.verifications, schema.twoFactors, schema.documents]) {
+  schema.verifications, schema.twoFactors, schema.documents, schema.apiKeys,
+  schema.chatSessions, schema.chatMessages]) {
   const config = getTableConfig(table);
   const columns = config.columns.map((col) => {
     let definition = `${quote(col.name)} ${col.getSQLType()}`;
@@ -33,6 +34,12 @@ for (const table of [schema.companies, schema.users, schema.accounts, schema.ses
 await pg.exec("CREATE UNIQUE INDEX company_name ON companies(name) WHERE account_type = 'company'");
 
 export const db = drizzle(pg, { schema });
+export async function withTenant(companyId, fn) {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.company_id', ${companyId}, true)`);
+    return fn(tx);
+  });
+}
 // Match neon-http's atomic batch contract while executing the real INSERTs.
 db.batch = (queries) => pg.transaction(async (tx) => {
   const results = [];

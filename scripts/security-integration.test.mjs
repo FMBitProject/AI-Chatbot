@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { pg, db, mail } from "./security-test-db.mjs";
-import { createCredentialAccount } from "../src/lib/credential-account.ts";
+import { createCredentialAccount, SeatLimitError } from "../src/lib/credential-account.ts";
 import { consumeRateLimit, isRateLimited, recordFailure } from "../src/lib/rate-limit.ts";
 import { documentAccessCondition } from "../src/lib/document-access.ts";
 import { auth } from "../src/lib/auth.ts";
@@ -27,6 +27,34 @@ try {
   })));
   assert.equal(outcomes.filter(r => r.status === "fulfilled").length, 1);
   const owner = outcomes.find(r => r.status === "fulfilled").value;
+  // Starter has five seats including the owner. Fill three before racing for the last.
+  const occupants = [];
+  for (let i = 0; i < 3; i++) occupants.push(await createCredentialAccount({
+    name: `Occupant ${i}`, email: `occupant-${i}@example.com`, password,
+    companyId: owner.companyId, role: "employee",
+  }));
+  const seats = await Promise.allSettled(["seat-a", "seat-b"].map(name => createCredentialAccount({
+    name, email: `${name}@example.com`, password, companyId: owner.companyId,
+    role: "employee",
+  })));
+  assert.equal(seats.filter(r => r.status === "fulfilled").length, 1);
+  assert.ok(seats.find(r => r.status === "rejected").reason instanceof SeatLimitError);
+  const seat = seats.find(r => r.status === "fulfilled").value;
+  assert.equal((await pg.query("select count(*)::int as n from users where company_id=$1", [owner.companyId])).rows[0].n, 5);
+  // Even an obsolete caller-supplied limit must not override the locked plan.
+  await assert.rejects(createCredentialAccount({
+    name: "Stale limit", email: "stale@example.com", password,
+    companyId: owner.companyId, role: "employee", maxEmployees: 100,
+  }), SeatLimitError);
+  // A paid label with an expired grace period must use Starter's seat limit.
+  await pg.query("update companies set plan='professional', plan_expires_at=now()-interval '30 days' where id=$1", [owner.companyId]);
+  await assert.rejects(createCredentialAccount({
+    name: "Expired plan", email: "expired-seat@example.com", password,
+    companyId: owner.companyId, role: "employee",
+  }), SeatLimitError);
+  await pg.query("update companies set plan='starter', plan_expires_at=null where id=$1", [owner.companyId]);
+  await pg.query("delete from users where id=$1", [seat.id]);
+  for (const occupant of occupants) await pg.query("delete from users where id=$1", [occupant.id]);
   assert.equal((await pg.query("select * from companies")).rows.length, 1);
   const credentials = (await pg.query("select * from accounts")).rows;
   assert.equal(credentials.length, 1);
