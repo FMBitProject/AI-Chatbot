@@ -93,7 +93,9 @@ function handleMaintenance(req: NextRequest): NextResponse | null {
   // 4. API clients get a 503 JSON; everyone else gets the maintenance page.
   if (pathname.startsWith("/api")) {
     return NextResponse.json(
-      { error: "Service temporarily unavailable for maintenance." },
+      pathname === "/api/v1/query" && req.headers.get("X-IntelliBase-Error-Format") === "structured"
+        ? { error: { code: "SERVICE_UNAVAILABLE", message: "Service temporarily unavailable for maintenance." } }
+        : { error: "Service temporarily unavailable for maintenance." },
       { status: 503, headers: { "Retry-After": "3600" } },
     );
   }

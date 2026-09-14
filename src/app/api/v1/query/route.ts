@@ -7,35 +7,50 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, refundQuestionQuota, resolvePlanById } from "@/lib/subscription";
 import { hashApiKey } from "@/lib/api-key";
-import { isRateLimited, recordFailure, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateWithFallback, isRateLimitFailure } from "@/lib/models";
 import { resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withApiErrors } from "@/lib/api-error";
-import { AiUnavailableError, AppError } from "@/lib/errors";
+import { AiUnavailableError, AppError, type ErrorCode } from "@/lib/errors";
 
-// Only failed key lookups count toward this, so valid integrations are never
-// throttled here (they are governed by the plan quotas below instead).
+// Failed authentication attempts are limited by IP; valid callers have a
+// separate workspace burst limit as well as plan question quotas.
 const BAD_KEY_LIMIT = { max: 10, windowMs: 60 * 1000 };
+const QUERY_LIMIT = { max: 20, windowMs: 60 * 1000 };
+
+function failure(req: Request, status: number, code: ErrorCode, message: string, details?: unknown, retryAfter?: number) {
+  const structured = req.headers.get("X-IntelliBase-Error-Format") === "structured";
+  const legacyError = ["UNAUTHORIZED", "VALIDATION_ERROR", "RATE_LIMITED"].includes(code) ? message : code;
+  const legacy = code === "QUOTA_EXCEEDED"
+    ? { error: code, ...(details as { limit: number; period: string }) }
+    : { error: legacyError, ...(legacyError === code ? { message } : {}) };
+  return NextResponse.json(structured ? { error: { code, message, ...(details === undefined ? {} : { details }) } } : legacy, {
+    status,
+    headers: retryAfter === undefined ? undefined : { "Retry-After": String(retryAfter) },
+  });
+}
 
 export const POST = withApiErrors("v1/query", async (req: Request) => {
   const authorization = req.headers.get("authorization");
   const key = authorization?.replace("Bearer ", "").trim();
 
   const badKeyBucket = `v1-bad-key:${getClientIp(req)}`;
-  if (await isRateLimited(badKeyBucket, BAD_KEY_LIMIT)) {
-    return NextResponse.json({ error: "Too many invalid API key attempts" }, { status: 429 });
+  const badKeyStatus = await checkRateLimit(badKeyBucket, BAD_KEY_LIMIT);
+  if (badKeyStatus.limited) {
+    return failure(req, 429, "RATE_LIMITED", "Too many invalid API key attempts", undefined, badKeyStatus.retryAfter);
   }
-
-  if (!key) return NextResponse.json({ error: "Missing API key" }, { status: 401 });
-
-  const [apiKey] = await db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(key))).limit(1);
+  const [apiKey] = key ? await db.select().from(apiKeys).where(eq(apiKeys.keyHash, hashApiKey(key))).limit(1) : [];
   if (!apiKey) {
-    await recordFailure(badKeyBucket, BAD_KEY_LIMIT);
-    return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    const attempt = await consumeRateLimit(badKeyBucket, BAD_KEY_LIMIT);
+    if (!attempt.ok) return failure(req, 429, "RATE_LIMITED", "Too many invalid API key attempts", undefined, attempt.retryAfter);
+    return failure(req, 401, "UNAUTHORIZED", key ? "Invalid API key" : "Missing API key");
   }
+
+  const burst = await consumeRateLimit(`v1-query:${apiKey.companyId}`, QUERY_LIMIT);
+  if (!burst.ok) return failure(req, 429, "RATE_LIMITED", "Too many requests", undefined, burst.retryAfter);
 
   await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, apiKey.id));
 
@@ -46,14 +61,11 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // embedded and then generated on, while the quota below counts it as one
   // question however many tokens it actually cost.
   const body = await readJsonObject(req);
-  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  if (!body) return failure(req, 400, "VALIDATION_ERROR", "Invalid JSON body");
 
   const question = optionalString(body.question, LIMITS.question);
   if (!question) {
-    return NextResponse.json(
-      { error: `question is required and must be a string of at most ${LIMITS.question} characters` },
-      { status: 400 },
-    );
+    return failure(req, 400, "VALIDATION_ERROR", `question is required and must be a string of at most ${LIMITS.question} characters`, { field: "question" });
   }
   const language = body.language === "en" ? "en" : "id";
 
@@ -67,13 +79,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // endpoint instead of opening the app. Checked before the quota for the same
   // reason as there — a refusal must not spend the question it refuses.
   if (!canUseAiAnswers(subscription.plan)) {
-    return NextResponse.json(
-      {
-        error: "AI_REQUIRES_PAID_PLAN",
-        message: "Jawaban AI tersedia mulai paket berbayar. Paket gratis dapat memakai pencarian dokumen.",
-      },
-      { status: 403 },
-    );
+    return failure(req, 403, "AI_REQUIRES_PAID_PLAN", "Jawaban AI tersedia mulai paket berbayar. Paket gratis dapat memakai pencarian dokumen.");
   }
 
   // Before the quota is consumed, for the reason spelled out in /api/chat: an
@@ -82,15 +88,17 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   const byok = resolveByok(company);
   if (!byok.ok) {
     console.error(`[v1/query] BYOK key unreadable for company ${apiKey.companyId}: ${byok.message}`);
-    return NextResponse.json({ error: "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
+    return failure(req, 503, "BYOK_KEY_UNREADABLE", byok.message);
   }
 
   const quotaFailure = await consumeQuestionQuota(apiKey.companyId, limits);
   if (quotaFailure) {
-    return NextResponse.json(
-      { error: "QUOTA_EXCEEDED", limit: quotaFailure.limit, period: quotaFailure.period },
-      { status: 429 }
-    );
+    const now = new Date();
+    const reset = quotaFailure.period === "daily"
+      ? Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)
+      : Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
+    return failure(req, 429, "QUOTA_EXCEEDED", "Question quota exceeded", quotaFailure,
+      Math.max(1, Math.ceil((reset - now.getTime()) / 1000)));
   }
 
   // The three steps that can fail after the question has been paid for, and the

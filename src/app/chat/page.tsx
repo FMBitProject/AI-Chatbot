@@ -1,4 +1,5 @@
 "use client";
+import { fetchPages } from "@/lib/fetch-pages";
 import { useState, useRef, useEffect } from "react";
 import { ChatSidebar, type ChatSession } from "@/components/chat/ChatSidebar";
 import { ChatMessages, type Message, type Citation } from "@/components/chat/ChatMessages";
@@ -57,6 +58,8 @@ export default function ChatPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const historyAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => { historyAbortRef.current?.abort(); }, []);
   const responseLangRef = useRef<ResponseLang>(getStoredResponseLang());
   // Temporary client id -> the server id that replaced it when the stream ended.
   //
@@ -122,19 +125,19 @@ export default function ChatPage() {
 
   async function loadSessions() {
     try {
-      const res = await fetch("/api/chat/sessions");
-      if (!res.ok) return;
-      const data = await res.json() as { id: string; title: string; createdAt: string }[];
+      const data = await fetchPages<{ id: string; title: string; createdAt: string }>("/api/chat/sessions");
       setDbSessions(data.map((s) => ({ id: s.id, title: s.title, createdAt: s.createdAt })));
     } catch {}
   }
 
   async function loadMessages(sessionId: string) {
+    historyAbortRef.current?.abort();
+    const controller = new AbortController();
+    historyAbortRef.current = controller;
     setIsHistoryLoading(true);
     try {
-      const res = await fetch(`/api/chat/sessions/${sessionId}/messages`);
-      if (!res.ok) { setIsHistoryLoading(false); return; }
-      const data = await res.json() as { id: string; role: string; content: string; citationsJson?: string; feedback?: string }[];
+      const data = await fetchPages<{ id: string; role: string; content: string; citationsJson?: string; feedback?: string }>(`/api/chat/sessions/${sessionId}/messages`, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (data.length === 0) {
         setActiveSessionId(null);
         setMessages([]);
@@ -148,13 +151,15 @@ export default function ChatPage() {
         citations: m.citationsJson ? JSON.parse(m.citationsJson) as Citation[] : undefined,
         feedback: m.feedback as "up" | "down" | undefined,
       })));
-    } catch {}
-    finally { setIsHistoryLoading(false); }
+    } catch {
+      if (!controller.signal.aborted) toast({ variant: "destructive", title: "Gagal memuat riwayat. Pilih sesi untuk mencoba lagi." });
+    }
+    finally { if (!controller.signal.aborted) setIsHistoryLoading(false); }
   }
 
   async function handleSubmit(e: React.SyntheticEvent) {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isHistoryLoading) return;
 
     const userMsg: Message = { id: Date.now().toString(), role: "user", content: input };
     setInput("");
@@ -426,6 +431,8 @@ export default function ChatPage() {
   }
 
   function handleNewChat() {
+    historyAbortRef.current?.abort();
+    setIsHistoryLoading(false);
     abortRef.current?.abort();
     setActiveSessionId(null);
     setMessages([]);

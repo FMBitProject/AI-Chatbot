@@ -4,7 +4,7 @@ import { registerHooks } from "node:module";
 const fixture = new URL("./security-test-db.mjs", import.meta.url).href;
 registerHooks({
   resolve(spec, context, next) {
-    if (spec === "@/lib/db" || spec === "@/lib/mail") {
+    if (spec === "@/lib/db" || spec === "@/lib/mail" || spec === "@/lib/db/tenant") {
       return { url: fixture, shortCircuit: true };
     }
     return next(spec, context);

@@ -9,8 +9,13 @@ export async function consumeRateLimit(key: string, rule: Rule): Promise<{ ok: b
 }
 
 export async function isRateLimited(key: string, rule: Rule): Promise<boolean> {
+  return (await checkRateLimit(key, rule)).limited;
+}
+
+export async function checkRateLimit(key: string, rule: Rule): Promise<{ limited: boolean; retryAfter: number }> {
   const { sharedBucket } = await import("./rate-limit-store");
-  return (await sharedBucket(key, rule, false)).count >= rule.max;
+  const bucket = await sharedBucket(key, rule, false);
+  return { limited: bucket.count >= rule.max, retryAfter: bucket.retryAfter };
 }
 
 export async function recordFailure(key: string, rule: Rule): Promise<void> {

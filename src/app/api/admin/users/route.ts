@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createCredentialAccount, isUniqueConflict } from "@/lib/credential-account";
+import { createCredentialAccount, isUniqueConflict, SeatLimitError } from "@/lib/credential-account";
 import { requireAdmin, requireCompanyAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import { eq, count } from "drizzle-orm";
-import { isUnderLimit } from "@/lib/plan-limits";
-import { resolvePlanById } from "@/lib/subscription";
+import { eq, and } from "drizzle-orm";
+import { pagination, paginated } from "@/lib/pagination";
+import { withApiErrors } from "@/lib/api-error";
 import { isPasswordValid } from "@/lib/password";
 import { LIMITS, optionalEmail, optionalString, readJsonObject } from "@/lib/validate";
 
-export async function GET(req: NextRequest) {
+export const GET = withApiErrors("admin/users/list", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
   const { companyId } = guard.user;
+  const page = pagination(req, [{ column: users.createdAt, direction: "asc" }, { column: users.id, direction: "asc" }]);
 
   // Named columns rather than select(). The row carries fields the employee list
   // has no use for, and one of them is a credential: `two_factor_secret`. It is
@@ -21,6 +22,7 @@ export async function GET(req: NextRequest) {
   // column, this endpoint starts shipping every employee's TOTP seed to the
   // admin's browser, and nothing about the code would change to say so.
   const employees = await db.select({
+    _cursor: page.selection,
     id: users.id,
     name: users.name,
     email: users.email,
@@ -29,11 +31,12 @@ export async function GET(req: NextRequest) {
     department: users.department,
     twoFactorEnabled: users.twoFactorEnabled,
     createdAt: users.createdAt,
-  }).from(users).where(eq(users.companyId, companyId));
-  return NextResponse.json(employees);
-}
+  }).from(users).where(and(eq(users.companyId, companyId), page.condition))
+    .orderBy(...page.order).limit(page.limit + 1);
+  return paginated(employees, page);
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withApiErrors("admin/users/create", async (req: NextRequest) => {
   // Company admins only. An individual workspace has exactly one member and its
   // plan sells exactly one seat, so a second account created here would be a
   // person the plan was never priced for — and the dashboard, which hides this
@@ -45,15 +48,6 @@ export async function POST(req: NextRequest) {
   const guard = await requireCompanyAdmin(req);
   if (!guard.ok) return guard.response;
   const { companyId } = guard.user;
-
-  // Enforce the limits of the plan that is in force right now (see resolvePlan).
-  const { subscription, limits } = await resolvePlanById(companyId);
-  const [{ count: empCount }] = await db.select({ count: count() }).from(users).where(eq(users.companyId, companyId));
-  if (!isUnderLimit(empCount, limits.maxEmployees)) {
-    return NextResponse.json({
-      error: `Batas karyawan paket ${subscription.plan} sudah tercapai (${limits.maxEmployees} karyawan). Upgrade paket untuk menambah lebih banyak.`,
-    }, { status: 403 });
-  }
 
   const body = await readJsonObject(req);
   if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
@@ -90,10 +84,13 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(created);
   } catch (error) {
+    if (error instanceof SeatLimitError) {
+      return NextResponse.json({ error: "Batas karyawan sudah tercapai." }, { status: 403 });
+    }
     if (isUniqueConflict(error)) {
       return NextResponse.json({ error: "Email sudah terdaftar." }, { status: 409 });
     }
     console.error("[admin/users] create failed:", error);
     return NextResponse.json({ error: "Gagal membuat akun. Silakan coba lagi." }, { status: 503 });
   }
-}
+});

@@ -107,10 +107,10 @@ export async function handleApiError(
  * Generic over the trailing arguments so it fits both plain routes and dynamic
  * ones, which Next calls with a context object carrying `params`.
  */
-export function withApiErrors<A extends unknown[]>(
+export function withApiErrors<R extends Request, A extends unknown[]>(
   label: string,
-  handler: (req: Request, ...rest: A) => Promise<Response>,
-): (req: Request, ...rest: A) => Promise<Response> {
+  handler: (req: R, ...rest: A) => Promise<Response>,
+): (req: R, ...rest: A) => Promise<Response> {
   return async (req, ...rest) => {
     try {
       return await handler(req, ...rest);

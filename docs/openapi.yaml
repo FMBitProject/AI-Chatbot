@@ -1,0 +1,170 @@
+openapi: 3.1.0
+info:
+  title: IntelliBase Public API
+  version: 1.0.0
+  description: Grounded answers from the workspace associated with a bearer API key.
+paths:
+  /api/v1/query:
+    post:
+      operationId: queryWorkspace
+      summary: Ask a question about workspace documents
+      description: |
+        Requires a paid plan. API keys have administrator document access within
+        their workspace. All keys in a workspace share a 20-request/60-second
+        fixed-window burst limit, in addition to plan question quotas.
+        Authenticated attempts count toward the burst limit, including invalid
+        bodies. Failed embedding, retrieval, or generation refunds question quota.
+        This operation has no idempotency key: retrying a completed request can
+        consume another question. API responses may add fields; clients should
+        ignore unknown fields. Breaking future changes use a new URL version.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: X-IntelliBase-Error-Format
+          required: false
+          description: Opt into consistent structured errors; absent preserves legacy v1 error shapes.
+          schema:
+            type: string
+            enum: [structured]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: Trimmed before validation; whitespace-only questions are rejected.
+                language:
+                  type: string
+                  enum: [id, en]
+                  default: id
+                  description: Only en selects English; other supplied values fall back to id for v1 compatibility.
+            example:
+              question: What is our leave policy?
+              language: en
+      responses:
+        '200':
+          description: Answer generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [answer, sources, model]
+                properties:
+                  answer:
+                    type: string
+                  model:
+                    type: string
+                    description: Actual answering model; may change through fallback.
+                  sources:
+                    type: array
+                    maxItems: 4
+                    items:
+                      type: object
+                      required: [id, excerpt]
+                      properties:
+                        id:
+                          type: string
+                          description: Document chunk identifier
+                        excerpt:
+                          type: string
+                          maxLength: 200
+        '400':
+          description: VALIDATION_ERROR — malformed JSON or invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: UNAUTHORIZED — missing, malformed, or invalid bearer key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: AI_REQUIRES_PAID_PLAN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: RATE_LIMITED or QUOTA_EXCEEDED; wait at least Retry-After seconds
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+              description: Seconds until the burst window or UTC quota period resets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                legacy:
+                  value:
+                    error: QUOTA_EXCEEDED
+                    limit: 300
+                    period: daily
+                structured:
+                  value:
+                    error:
+                      code: QUOTA_EXCEEDED
+                      message: Question quota exceeded
+                      details:
+                        limit: 300
+                        period: daily
+        '500':
+          description: INTERNAL_ERROR — unexpected server or retrieval failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: BYOK_KEY_UNREADABLE, AI_ERROR, AI_RATE_LIMIT, or maintenance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      oneOf:
+        - $ref: '#/components/schemas/StructuredError'
+        - $ref: '#/components/schemas/LegacyError'
+    LegacyError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        limit:
+          type: integer
+        period:
+          type: string
+          enum: [daily, monthly]
+    StructuredError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              description: Optional error-specific information, such as quota limit and period

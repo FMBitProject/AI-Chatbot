@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { resolvePlanById } from "@/lib/subscription";
 import { runIndexingPass, requeueDocument } from "@/lib/indexing";
+import { readJsonObject, optionalString, LIMITS } from "@/lib/validate";
+import { withApiErrors } from "@/lib/api-error";
 
 // One pass may spend up to INDEX_RUN_BUDGET_MS working, and the document it is
 // on when the budget expires still has to finish. 300s leaves room for both.
@@ -9,11 +11,6 @@ export const maxDuration = 300;
 
 // Never served from a cache: the whole point of a call here is to change state.
 export const dynamic = "force-dynamic";
-
-interface Body {
-  // Put one failed document back in the queue before draining it.
-  documentId?: string;
-}
 
 /**
  * Drains this company's indexing queue for as long as one invocation may run,
@@ -28,10 +25,17 @@ interface Body {
  * Safe to call concurrently with itself and with the cron; documents are claimed
  * one at a time with FOR UPDATE SKIP LOCKED (see @/lib/indexing).
  */
-export async function POST(req: NextRequest) {
+export const POST = withApiErrors("admin/indexing", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
   const { companyId } = guard.user;
+
+  const body = await readJsonObject(req);
+  if (!body) return NextResponse.json({ error: "Invalid JSON object" }, { status: 400 });
+  const documentId = optionalString(body.documentId, LIMITS.name);
+  if ("documentId" in body && !documentId) {
+    return NextResponse.json({ error: "Invalid documentId" }, { status: 400 });
+  }
 
   // resolvePlanById rather than a plain select: it applies a pending expiry
   // downgrade, and it hands back the row carrying the company's own Gemini and
@@ -41,10 +45,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await req.json().catch(() => ({})) as Body;
-
-  if (body.documentId) {
-    const requeued = await requeueDocument(companyId, body.documentId);
+  if (documentId) {
+    const requeued = await requeueDocument(companyId, documentId);
     if (!requeued) {
       // Either it is not this company's document, or it is not in a state that
       // can be retried — a parse failure keeps no text, so there is nothing to
@@ -57,4 +59,4 @@ export async function POST(req: NextRequest) {
 
   const result = await runIndexingPass(company);
   return NextResponse.json(result);
-}
+});

@@ -29,7 +29,7 @@ import { companies, users } from "@/lib/db/schema";
  * auth-adjacent thing: if the better-auth session *cookie* is absent it
  * redirects /chat and /admin to /login. That is a redirect for page routes based
  * on a cookie being present — it never validates the token, never reads the
- * role, and never runs on /api/* at all. So for every route under /api this file
+ * role. It also covers API maintenance and selected API rate limits. This file
  * is the first real line of defence, with Postgres RLS (see @/lib/db/tenant) as
  * the second.
  *
