@@ -87,7 +87,7 @@ export interface SlackAnswerOptions {
   // UI would never have shown them.
   access: DocumentAccess;
   maxDocuments: number;
-  keys: { groq: string | null; gemini: string | null };
+  keys: import("./models").ProviderKeys;
   label: string;
 }
 

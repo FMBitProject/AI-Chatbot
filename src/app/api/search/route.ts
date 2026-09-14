@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   // unreadable stored key as a Google outage sends the admin to the wrong place.
   // No quota is consumed on this route, so unlike chat that is the only thing at
   // stake here.
-  const byok = resolveByok(company);
+  const byok = await resolveByok(company);
   if (!byok.ok) {
     console.error(`[search] BYOK key unreadable for company ${companyId}: ${byok.message}`);
     return NextResponse.json({ error: "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });

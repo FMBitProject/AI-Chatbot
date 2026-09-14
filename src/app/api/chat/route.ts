@@ -217,7 +217,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // And as its own error rather than inside the embedding try below, because
   // that try answers with `provider: "gemini"` — which sent the admin to check
   // Google's status page for a problem that is entirely ours.
-  const byok = resolveByok(company);
+  const byok = await resolveByok(company);
   if (!byok.ok) {
     console.error(`[chat] BYOK key unreadable for company ${companyId}: ${byok.message}`);
     return new Response(
@@ -615,7 +615,7 @@ If no relevant information is found:
 
   // Both providers' keys, resolved once. The chain below can end on a different
   // provider than it started on, so a single Groq client is no longer enough.
-  const providerKeys = { groq: byok.groq, gemini: byok.gemini };
+  const providerKeys = byok;
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();

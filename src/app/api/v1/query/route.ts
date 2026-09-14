@@ -85,7 +85,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // Before the quota is consumed, for the reason spelled out in /api/chat: an
   // unreadable key is a standing failure, not a passing one, so charging a
   // question for it would drain the caller's whole allowance into 500s.
-  const byok = resolveByok(company);
+  const byok = await resolveByok(company);
   if (!byok.ok) {
     console.error(`[v1/query] BYOK key unreadable for company ${apiKey.companyId}: ${byok.message}`);
     return failure(req, 503, "BYOK_KEY_UNREADABLE", byok.message);
@@ -138,7 +138,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     stage = "generation";
     answer = await generateWithFallback({
       label: "v1/query",
-      keys: { groq: byok.groq, gemini: byok.gemini },
+      keys: byok,
       // The grounding rule here used to be one sentence: "Answer ONLY based on
       // the provided document context… If not found, say so clearly." Not wrong,
       // just not enough — a model obeys it, reports the gap, and keeps writing.
