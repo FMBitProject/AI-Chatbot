@@ -42,17 +42,15 @@ export type ChainLink = {
  * traffic evenly would trade answer quality for quota that is not actually
  * scarce most of the time.
  *
- * Why three links, and why the third is a different provider:
+ * Why two links from different providers:
  *
- * Groq meters each model separately — measured from its own response headers on
- * this account, llama-3.3-70b-versatile allows 12,000 tokens per minute and
- * openai/gpt-oss-20b 8,000, each with its own counter. So the first two links
- * are worth 20,000 TPM rather than 12,000. But they are one account and one
- * provider: when Groq itself is down, both fail together, and a second Groq
- * model protects against nothing.
+ * openai/gpt-oss-20b is the primary Groq model. The former primary,
+ * llama-3.3-70b-versatile, returned 404 model_not_found with a valid key
+ * (2026-09-14). Since fallback only handles rate limits, leaving it first
+ * prevented every request from reaching the working model.
  *
  * gemini-3.5-flash is a genuinely independent free-tier allowance AND the only
- * link that survives a Groq outage. Chosen over the alternatives after running
+ * fallback when Groq's rate limit is exhausted. Chosen after running
  * the grounding traps below against all of them; gemini-2.5-flash, the obvious
  * pick, is closed to new API keys and errors out.
  *
@@ -72,7 +70,6 @@ export type ChainLink = {
  * tighter than the traffic needs.
  */
 export const INTERACTIVE_CHAIN: readonly ChainLink[] = [
-  { id: "llama-3.3-70b-versatile", provider: "groq" },
   { id: "openai/gpt-oss-20b", provider: "groq" },
   { id: "gemini-3.5-flash", provider: "google" },
 ];
@@ -81,7 +78,7 @@ export const INTERACTIVE_CHAIN: readonly ChainLink[] = [
  * The chain for work a machine started and nobody is waiting on: currently the
  * auto-generated document summary in the indexer.
  *
- * Deliberately Groq-only, i.e. the interactive chain minus its third link, and
+ * Deliberately Groq-only, i.e. the interactive chain without Google, and
  * the omission is the whole point. A bulk import runs this hundreds of times in
  * a row; if it could climb to the Gemini rung it would drain a daily free-tier
  * allowance in minutes. The cost of that lands on someone else entirely — an
@@ -138,8 +135,8 @@ function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
  * connected its own keys did so precisely to keep its documents out of that
  * account — the Terms promise them "all questions are processed through your
  * own provider accounts" — so a BYOK company without a Gemini key of its own
- * loses this rung rather than being quietly routed onto ours. Two Groq links is
- * a smaller loss than a broken promise.
+ * loses this rung rather than being quietly routed onto ours. Keeping only
+ * Groq is a smaller loss than a broken promise.
  *
  * A company with no keys at all is not BYOK and keeps the full chain on the
  * platform accounts, which is what its own Terms describe.
