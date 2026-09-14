@@ -16,6 +16,8 @@ import { companies, companyAiProviders } from "@/lib/db/schema";
 import { getEffectiveSubscription } from "@/lib/pricing";
 import { and, eq } from "drizzle-orm";
 
+export const maxDuration = 45;
+
 export const POST = withApiErrors("admin/ai-providers/test", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
@@ -23,7 +25,10 @@ export const POST = withApiErrors("admin/ai-providers/test", async (req: NextReq
   if (!company || getEffectiveSubscription(company.plan, company.planExpiresAt).plan === "starter") throw new ForbiddenError();
   const body = await readJsonObject(req);
   if (!body) throw new ValidationError("Invalid JSON");
-  const { providers: [input] } = parseSettingsInput({ primary: null, fallback: null, providers: [body] });
+  const { purpose = "both", ...providerInput } = body;
+  if (purpose !== "embedding" && purpose !== "generation" && purpose !== "both") throw new ValidationError("Invalid test purpose");
+  const { providers: [input] } = parseSettingsInput({ primary: null, fallback: null, providers: [providerInput] });
+  if (input.provider !== "google" && purpose === "embedding") throw new ValidationError("Only Gemini provides embeddings");
   if (input.apiKey === null) throw new ValidationError("API key diperlukan.");
   const limit = await consumeRateLimit(`byok-test:${company.id}`, { max: 6, windowMs: 60_000 });
   if (!limit.ok) return NextResponse.json({ error: { code: "RATE_LIMITED", message: "Tunggu satu menit sebelum tes berikutnya." } },
@@ -36,21 +41,24 @@ export const POST = withApiErrors("admin/ai-providers/test", async (req: NextReq
     [input.provider === "google" ? "gemini" : input.provider]: key };
   try {
     // No customer documents, no platform credentials, no fallback during a test.
-    const result = await generateText({ model: modelFor({ provider: input.provider, id: input.model }, keys),
-      prompt: "Reply with OK.", maxOutputTokens: 64, maxRetries: 0, abortSignal: AbortSignal.timeout(15_000) });
-    if (!result.text.trim()) throw new Error("Empty test answer");
-    if (input.provider === "google") await getEmbedding("Connection test", key);
+    if (purpose !== "embedding") {
+      const result = await generateText({ model: modelFor({ provider: input.provider, id: input.model }, keys),
+        prompt: "Reply with OK.", maxOutputTokens: 256, maxRetries: 0, abortSignal: AbortSignal.timeout(15_000) });
+      if (!result.text.trim()) throw new Error("Empty test answer");
+    }
+    if (input.provider === "google" && purpose !== "generation") await getEmbedding("Connection test", key);
   } catch {
     // SDK errors can contain request bodies/credentials. Never echo or log them.
     return NextResponse.json({ error: { code: "UPSTREAM_ERROR", message: "Tes gagal. Periksa key, akses model, saldo, dan batas pemakaian provider." } }, { status: 502 });
   }
   const testedAt = new Date();
-  if (!input.apiKey && stored && stored.model === input.model && !settings.legacy) {
+  if (!input.apiKey && stored && stored.model === input.model && !settings.legacy &&
+      (input.provider !== "google" || purpose === "both")) {
     // A concurrent key/model replacement must not inherit this test result.
     await withTenant(company.id, tx => tx.update(companyAiProviders).set({ lastTestedAt: testedAt }).where(and(
       eq(companyAiProviders.companyId, company.id), eq(companyAiProviders.provider, input.provider),
       eq(companyAiProviders.encryptedKey, stored.encryptedKey), eq(companyAiProviders.model, input.model),
     )));
   }
-  return NextResponse.json({ ok: true, testedAt: testedAt.toISOString() });
+  return NextResponse.json({ ok: true, purpose, testedAt: testedAt.toISOString() });
 });

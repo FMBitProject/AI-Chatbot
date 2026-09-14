@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AI_PROVIDERS, PROVIDER_CATALOG, type AiProvider, type AiSettingsView } from "@/lib/ai-providers";
+import { AI_PROVIDERS, PROVIDER_CATALOG, isAiSettingsView, type AiProvider, type AiSettingsView } from "@/lib/ai-providers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,41 +14,70 @@ export function AiProvidersCard({ canEdit, lang }: { canEdit: boolean; lang: "id
   const [fallback, setFallback] = useState<AiProvider | "">("");
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
+  const requestVersion = useRef(0);
+  const loadController = useRef<AbortController | null>(null);
+  const revision = useRef("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [testResults, setTestResults] = useState<Partial<Record<AiProvider, string>>>({});
-  const accept = useCallback((data: AiSettingsView) => {
+  const accept = useCallback((data: unknown) => {
+    if (!isAiSettingsView(data)) throw new Error("INVALID_SETTINGS_RESPONSE");
+    revision.current = data.revision;
     setSettings(data); setPrimary(data.primary ?? ""); setFallback(data.fallback ?? "");
     setDrafts(Object.fromEntries(data.providers.map(p => [p.provider, { model: p.model, apiKey: "", remove: false }])));
     setTestResults({});
   }, []);
   const load = useCallback(async () => {
+    const version = ++requestVersion.current;
+    loadController.current?.abort();
+    const controller = new AbortController();
+    loadController.current = controller;
     try {
       setError("");
-      const res = await fetch("/api/admin/ai-providers", { cache: "no-store" });
+      const res = await fetch("/api/admin/ai-providers", { cache: "no-store", signal: controller.signal });
       if (!res.ok) throw new Error("Load failed");
-      accept(await res.json());
-    } catch { setError(en ? "Could not load AI settings. Please retry." : "Pengaturan AI gagal dimuat. Silakan coba lagi."); }
-  }, [accept, en]);
+      const data: unknown = await res.json();
+      if (version === requestVersion.current) accept(data);
+    } catch {
+      if (version === requestVersion.current && !controller.signal.aborted) setError("LOAD_SETTINGS_FAILED");
+    }
+  }, [accept]);
+  const cancelRequests = useCallback(() => {
+    ++requestVersion.current;
+    loadController.current?.abort();
+  }, []);
   useEffect(() => {
     // Yield the initial fetch so React finishes mounting before its result can
     // update state; this is also consistent with the admin audit panel.
     const timer = setTimeout(() => { void load(); }, 0);
-    return () => clearTimeout(timer);
-  }, [load]);
+    return () => {
+      clearTimeout(timer);
+      cancelRequests();
+    };
+  }, [load, cancelRequests]);
   async function send(path: string, method: string, body?: unknown) {
-    const res = await fetch(path, { method, headers: { "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const version = requestVersion.current;
+    const res = await fetch(path, { method, headers: { "Content-Type": "application/json",
+      ...(["PUT", "DELETE"].includes(method) ? { "If-Match": `"${revision.current}"` } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}) });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
       throw new Error(data?.error?.message ?? (en ? "Request failed." : "Permintaan gagal."));
     }
-    return res.status === 204 ? null : res.json();
+    const data: unknown = res.status === 204 ? null : await res.json();
+    if (version !== requestVersion.current) throw new Error("STALE_SETTINGS_RESPONSE");
+    return data;
   }
   async function run(action: () => Promise<void>) {
     if (lock.current) return;
+    // A GET started before a mutation must never overwrite its result.
+    loadController.current?.abort();
+    const version = ++requestVersion.current;
     lock.current = true; setBusy(true); setError(""); setNotice("");
     try { await action(); }
-    catch (err) { setError(err instanceof Error ? err.message : (en ? "Request failed." : "Permintaan gagal.")); }
+    catch (err) {
+      if (version === requestVersion.current) setError(err instanceof Error ? err.message : (en ? "Request failed." : "Permintaan gagal."));
+    }
     finally { lock.current = false; setBusy(false); }
   }
   function update(provider: AiProvider, patch: Partial<Draft>) {
@@ -72,8 +101,10 @@ export function AiProvidersCard({ canEdit, lang }: { canEdit: boolean; lang: "id
   }
   async function test(provider: AiProvider) {
     await run(async () => {
+      setTestResults(prev => ({ ...prev, [provider]: undefined }));
       const draft = drafts[provider]!;
       await send("/api/admin/ai-providers/test", "POST", { provider, model: draft.model,
+        purpose: provider === "google" ? (primary === "google" || fallback === "google" ? "both" : "embedding") : "generation",
         ...(draft.apiKey.trim() ? { apiKey: draft.apiKey.trim() } : {}) });
       setTestResults(prev => ({ ...prev, [provider]: en ? "Connection successful" : "Koneksi berhasil" }));
       setNotice(en ? "Test passed. Save to apply any changes." : "Tes berhasil. Simpan untuk menerapkan perubahan.");
@@ -87,7 +118,9 @@ export function AiProvidersCard({ canEdit, lang }: { canEdit: boolean; lang: "id
         : "Pilih provider yang menjawab pertanyaan. Batas chat paket tetap berlaku; biaya pemakaian provider mengikuti akun API Anda."}</p>
     </CardHeader>
     <CardContent className="space-y-5">
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{["LOAD_SETTINGS_FAILED", "INVALID_SETTINGS_RESPONSE"].includes(error)
+        ? (en ? "Could not load AI settings. Please retry." : "Pengaturan AI gagal dimuat. Silakan coba lagi.") : error}</p>}
+      {error && settings && <Button variant="outline" disabled={busy} onClick={() => void load()}>{en ? "Reload saved settings" : "Muat ulang pengaturan tersimpan"}</Button>}
       {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
       {!settings ? <Button variant="outline" onClick={() => void load()}>{error ? (en ? "Retry" : "Coba lagi") : (en ? "Loading…" : "Memuat…")}</Button> : <>
         {settings.legacy && settings.primary && <p className="text-sm text-amber-700">{en
@@ -122,6 +155,7 @@ export function AiProvidersCard({ canEdit, lang }: { canEdit: boolean; lang: "id
             {canEdit && <>
               <label className="block space-y-1 text-sm">{en ? "Answer model" : "Model jawaban"}
                 <select className={selectClass} value={draft.model} onChange={e => update(row.provider, { model: e.target.value })}>
+                  {!catalog.models.includes(draft.model) && <option value={draft.model}>{draft.model}</option>}
                   {catalog.models.map(model => <option key={model} value={model}>{model}</option>)}
                 </select>
               </label>
@@ -140,7 +174,7 @@ export function AiProvidersCard({ canEdit, lang }: { canEdit: boolean; lang: "id
               await send(`/api/admin/ai-providers?provider=${row.provider}`, "DELETE"); await load();
             })}>{en ? "Remove key" : "Hapus key"}</Button>}
             {testResults[row.provider] && <p className="text-xs text-green-700" role="status">{testResults[row.provider]}</p>}
-            {!testResults[row.provider] && row.lastTestedAt && <p className="text-xs text-gray-500">{en ? "Last successful test: " : "Tes terakhir berhasil: "}{new Date(row.lastTestedAt).toLocaleString(en ? "en-US" : "id-ID")}</p>}
+            {!testResults[row.provider] && !draft.apiKey && !draft.remove && draft.model === row.model && row.lastTestedAt && <p className="text-xs text-gray-500">{en ? "Last successful test: " : "Tes terakhir berhasil: "}{new Date(row.lastTestedAt).toLocaleString(en ? "en-US" : "id-ID")}</p>}
           </fieldset>;
         })}
         <p className="text-xs text-gray-500">{en ? "Keys are encrypted and never shown again. Connection tests make small requests that may incur provider charges. Embedding stays on gemini-embedding-001."

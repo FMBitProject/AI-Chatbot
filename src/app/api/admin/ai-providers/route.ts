@@ -14,8 +14,13 @@ import { eq } from "drizzle-orm";
 export const GET = withApiErrors("admin/ai-providers", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
-  return NextResponse.json(settingsView(await loadAiSettings(guard.user.companyId)), { headers: { "Cache-Control": "no-store" } });
+  const view = settingsView(await loadAiSettings(guard.user.companyId));
+  return NextResponse.json(view, { headers: { "Cache-Control": "no-store", ETag: `"${view.revision}"` } });
 });
+
+function expectedRevision(req: NextRequest): string {
+  return req.headers.get("If-Match")?.match(/^"([a-f0-9]{64})"$/)?.[1] ?? "";
+}
 
 export const PUT = withApiErrors("admin/ai-providers", async (req: NextRequest) => {
   const guard = await requireAdmin(req);
@@ -33,7 +38,7 @@ export const PUT = withApiErrors("admin/ai-providers", async (req: NextRequest) 
       throw new ForbiddenError("BYOK requires a paid plan", { userMessage: "BYOK tersedia pada paket berbayar." });
     }
   }
-  return NextResponse.json(settingsView(await saveAiSettings(guard.user.companyId, input)));
+  return NextResponse.json(settingsView(await saveAiSettings(guard.user.companyId, input, expectedRevision(req))));
 });
 
 export const DELETE = withApiErrors("admin/ai-providers", async (req: NextRequest) => {
@@ -41,6 +46,6 @@ export const DELETE = withApiErrors("admin/ai-providers", async (req: NextReques
   if (!guard.ok) return guard.response;
   const provider = req.nextUrl.searchParams.get("provider");
   if (!isAiProvider(provider)) throw new ValidationError("Invalid provider");
-  await removeAiProvider(guard.user.companyId, provider);
+  await removeAiProvider(guard.user.companyId, provider, expectedRevision(req));
   return new NextResponse(null, { status: 204 });
 });

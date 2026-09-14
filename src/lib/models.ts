@@ -131,29 +131,14 @@ function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
 /**
  * Whether a link can be attempted at all — own key or platform key present.
  *
- * Asymmetric between the two providers, and deliberately so.
- *
- * Groq may always fall back to the platform account: Groq states it does not
- * train on customer API data, so a company's traffic landing there is a billing
- * detail, not a disclosure one. That is also the behaviour every BYOK customer
- * has had since BYOK shipped.
- *
- * Google may not. Our platform Gemini account is on the free tier, whose terms
- * let Google use submitted content to improve their models. A company that
- * connected its own keys did so precisely to keep its documents out of that
- * account — the Terms promise them "all questions are processed through your
- * own provider accounts" — so a BYOK company without a Gemini key of its own
- * loses this rung rather than being quietly routed onto ours. Keeping only
- * Groq is a smaller loss than a broken promise.
- *
- * A company with no keys at all is not BYOK and keeps the full chain on the
- * platform accounts, which is what its own Terms describe.
+ * BYOK always uses company keys, including on fallback. Only explicit platform
+ * mode resolves environment credentials. The embedding key is resolved
+ * separately and never adds Google to the company's answer chain by itself.
  */
 function isConfigured(link: ChainLink, keys: ProviderKeys): boolean {
   if (keys.ownOnly || keys.groq || keys.gemini || keys.openai || keys.anthropic) return !!keyFor(link.provider, keys);
   if (link.provider === "google") {
-    const usesByok = !!(keys.groq || keys.gemini);
-    return usesByok ? !!keys.gemini : !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
   return link.provider === "groq" && !!process.env.GROQ_API_KEY;
 }

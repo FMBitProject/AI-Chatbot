@@ -20,9 +20,30 @@ export interface AiProviderStatus {
   lastTestedAt: string | null;
 }
 export interface AiSettingsView {
+  revision: string;
   mode: "platform" | "byok";
   primary: AiProvider | null;
   fallback: AiProvider | null;
   legacy: boolean;
   providers: AiProviderStatus[];
+}
+
+export function isAiSettingsView(value: unknown): value is AiSettingsView {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Partial<AiSettingsView>;
+  if (typeof data.revision !== "string" || !/^[a-f0-9]{64}$/.test(data.revision) ||
+      (data.mode !== "platform" && data.mode !== "byok") || typeof data.legacy !== "boolean" ||
+      (data.primary !== null && !isAiProvider(data.primary)) ||
+      (data.fallback !== null && !isAiProvider(data.fallback)) ||
+      data.mode !== (data.primary ? "byok" : "platform") ||
+      (!data.primary && data.fallback) || (data.primary && data.primary === data.fallback) ||
+      !Array.isArray(data.providers) || data.providers.length !== AI_PROVIDERS.length) return false;
+  const seen = new Set<AiProvider>();
+  return data.providers.every(row => {
+    if (!row || !isAiProvider(row.provider) || seen.has(row.provider) || typeof row.model !== "string" || !row.model ||
+        typeof row.hasKey !== "boolean" || (row.lastTestedAt !== null &&
+        (typeof row.lastTestedAt !== "string" || !Number.isFinite(Date.parse(row.lastTestedAt))))) return false;
+    seen.add(row.provider);
+    return true;
+  });
 }
