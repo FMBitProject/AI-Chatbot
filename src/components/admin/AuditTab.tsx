@@ -31,6 +31,9 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
   // reads as "nobody has asked anything" — a wrong answer, not a missing one.
   const [failed, setFailed] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  // Null also represents the first page, so the same value can be passed back
+  // to load() whether the initial request or a continuation failed.
+  const [failedCursor, setFailedCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const requestRef = useRef<AbortController | null>(null);
   const [loadedSearch, setLoadedSearch] = useState("");
@@ -57,11 +60,18 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
           setNextCursor(next);
           setLoadedSearch(search.trim());
           setFailed(false);
+          setFailedCursor(null);
         } else {
           setFailed(true);
+          setFailedCursor(cursor);
         }
       })
-      .catch(() => { if (!controller.signal.aborted) setFailed(true); })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setFailed(true);
+          setFailedCursor(cursor);
+        }
+      })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
   }, [search]);
 
@@ -84,17 +94,26 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
           className="pl-9"
           placeholder={isIndividual ? T.searchAuditIndividual : T.searchAudit}
           value={search}
-          onChange={(e) => { requestRef.current?.abort(); setLoading(true); setSearch(e.target.value); }}
+          onChange={(e) => {
+            requestRef.current?.abort();
+            setLoading(true);
+            setFailed(false);
+            setFailedCursor(null);
+            setSearch(e.target.value);
+          }}
         />
       </div>
       <div className="space-y-2">
         {failed && (
           <div className="text-center py-8">
             <p className="text-sm text-gray-500 mb-3">{T.loadFailed}</p>
-            <Button variant="outline" size="sm" disabled={loading} onClick={() => { setLoading(true); load(); }}>{T.retry}</Button>
+            <Button variant="outline" size="sm" disabled={loading} onClick={() => { setLoading(true); load(failedCursor); }}>{T.retry}</Button>
           </div>
         )}
-        {!failed && filtered.length === 0 && (
+        {loading && filtered.length === 0 && (
+          <p className="text-center text-gray-400 text-sm py-8" role="status">{T.loading}</p>
+        )}
+        {!loading && !failed && filtered.length === 0 && (
           <p className="text-center text-gray-400 text-sm py-8">{T.noAudit}</p>
         )}
         {filtered.map((log) => {
@@ -128,7 +147,7 @@ export function AuditTab({ isIndividual = false, lang = "id" }: { isIndividual?:
             </div>
           );
         })}
-        {nextCursor !== null && loadedSearch === search.trim() && (
+        {!failed && nextCursor !== null && loadedSearch === search.trim() && (
           <Button variant="outline" disabled={loading} onClick={() => { setLoading(true); load(nextCursor); }}>
             {lang === "en" ? "Load more" : "Muat lebih banyak"}
           </Button>

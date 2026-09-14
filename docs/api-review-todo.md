@@ -1,9 +1,8 @@
-# Deferred MINOR findings
+# Resolved MINOR findings
 
-- Audit retry still starts at the first page after a "Load more" failure.
-  Follow-up: retain the failed cursor and retry that page.
-- Audit still shows its empty-state message during the initial request.
-  Follow-up: gate the empty state on loading and add a loading indicator.
+- Audit retry retains the failed cursor, so a failed "Load more" request resumes
+  from the same page instead of replacing the list with the first page.
+- Audit gates its empty state on loading and shows a localized loading status
+  during the initial request.
 
-These two behaviors were deliberately left unchanged while fixing the
-CRITICAL and MEDIUM review findings.
+Both findings were fixed after the CRITICAL and MEDIUM review work landed.
