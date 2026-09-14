@@ -2,6 +2,12 @@ import { AI_PROVIDERS, PROVIDER_CATALOG, isAiProvider, isProviderModel, type AiP
 import { encryptSecret } from "./secret-box";
 import { ValidationError } from "./errors";
 import { LIMITS } from "./validate";
+import { createHash } from "node:crypto";
+
+function invalidSettings(message: string): ValidationError {
+  // These fixed messages contain no keys and tell the admin what to correct.
+  return new ValidationError(message, { userMessage: message });
+}
 
 export interface StoredProvider {
   provider: AiProvider;
@@ -21,6 +27,7 @@ export function providerSecretContext(companyId: string, provider: AiProvider): 
 }
 export function settingsView(settings: StoredAiSettings): AiSettingsView {
   return {
+    revision: settingsRevision(settings),
     mode: settings.primary ? "byok" : "platform", primary: settings.primary,
     fallback: settings.fallback, legacy: settings.legacy,
     providers: AI_PROVIDERS.map(provider => {
@@ -29,6 +36,14 @@ export function settingsView(settings: StoredAiSettings): AiSettingsView {
         lastTestedAt: row?.lastTestedAt?.toISOString() ?? null };
     }),
   };
+}
+export function settingsRevision(settings: StoredAiSettings): string {
+  // Test timestamps do not change routing. No plaintext key is exposed.
+  return createHash("sha256").update(JSON.stringify({ primary: settings.primary,
+    fallback: settings.fallback, legacy: settings.legacy,
+    providers: [...settings.providers].sort((a, b) => a.provider.localeCompare(b.provider))
+      .map(p => [p.provider, p.model, p.encryptedKey]),
+  })).digest("hex");
 }
 export type SettingsInput = {
   primary: AiProvider | null;
@@ -40,25 +55,25 @@ export function parseSettingsInput(body: Record<string, unknown>): SettingsInput
       (body.primary !== null && !isAiProvider(body.primary)) ||
       (body.fallback !== null && !isAiProvider(body.fallback)) ||
       !Array.isArray(body.providers) || body.providers.length > AI_PROVIDERS.length) {
-    throw new ValidationError("Konfigurasi provider tidak valid.");
+    throw invalidSettings("Konfigurasi provider tidak valid.");
   }
   if ((!body.primary && body.fallback) || (body.primary && body.primary === body.fallback)) {
-    throw new ValidationError("Provider cadangan harus berbeda dari provider utama.");
+    throw invalidSettings("Provider cadangan harus berbeda dari provider utama.");
   }
   const seen = new Set<string>();
   const providers = body.providers.map((value: unknown) => {
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new ValidationError("Provider tidak valid.");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw invalidSettings("Provider tidak valid.");
     const row = value as Record<string, unknown>;
     if (Object.keys(row).some(k => !["provider", "model", "apiKey"].includes(k)) ||
         !isAiProvider(row.provider) || !isProviderModel(row.provider, row.model) || seen.has(row.provider)) {
-      throw new ValidationError("Provider atau model tidak didukung.");
+      throw invalidSettings("Provider atau model tidak didukung.");
     }
     seen.add(row.provider);
     let apiKey: string | null | undefined;
     if (row.apiKey === null) apiKey = null;
     else if (row.apiKey !== undefined) {
       if (typeof row.apiKey !== "string" || row.apiKey.length > LIMITS.apiKey ||
-          !row.apiKey.trim() || /\s/.test(row.apiKey.trim())) throw new ValidationError("Format API key tidak valid.");
+          !row.apiKey.trim() || /\s/.test(row.apiKey.trim())) throw invalidSettings("Format API key tidak valid.");
       apiKey = row.apiKey.trim();
     }
     return { provider: row.provider, model: row.model, ...(apiKey !== undefined ? { apiKey } : {}) };
@@ -79,9 +94,9 @@ export function mergeSettings(companyId: string, current: StoredAiSettings, inpu
   }
   if (input.primary) {
     if (!providers.has(input.primary) || (input.fallback && !providers.has(input.fallback))) {
-      throw new ValidationError("Pasang API key untuk provider utama dan cadangan yang dipilih.");
+      throw invalidSettings("Pasang API key untuk provider utama dan cadangan yang dipilih.");
     }
-    if (!providers.has("google")) throw new ValidationError("Pasang key Google Gemini untuk embedding dokumen saat memakai BYOK.");
+    if (!providers.has("google")) throw invalidSettings("Pasang key Google Gemini untuk embedding dokumen saat memakai BYOK.");
   }
   return { primary: input.primary, fallback: input.fallback, legacy: false, providers: [...providers.values()] };
 }
