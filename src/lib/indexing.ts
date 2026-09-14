@@ -320,7 +320,7 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   // instead of through the environment.
   let ownGeminiKey: string | null;
   try {
-    ownGeminiKey = geminiKey(company);
+    ownGeminiKey = await geminiKey(company);
   } catch (error) {
     throw new IndexError(error instanceof Error ? error.message : String(error));
   }
@@ -395,11 +395,11 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
   let summary: string | null = null;
   try {
-    const byok = resolveByok(company);
+    const byok = await resolveByok(company);
     if (!byok.ok) throw new Error(byok.message);
     const { text } = await generateWithFallback({
       label: "indexing",
-      keys: { groq: byok.groq, gemini: byok.gemini },
+      keys: byok,
       // BATCH_CHAIN, not the interactive one: this runs once per document and
       // hundreds of times during a bulk import. Letting it climb to the Gemini
       // rung would spend a shared daily free-tier allowance on summaries nobody

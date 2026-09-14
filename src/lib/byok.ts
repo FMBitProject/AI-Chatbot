@@ -1,6 +1,8 @@
 import { groq, createGroq } from "@ai-sdk/groq";
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import type { Company } from "@/lib/subscription";
+import { providerSecretContext, type StoredAiSettings } from "./ai-settings";
+import type { ProviderKeys } from "./models";
 
 /**
  * Bring-your-own-key: the customer's own Groq / Gemini credentials.
@@ -66,8 +68,14 @@ export function providerKey(company: Company | undefined, field: ByokField): str
 }
 
 /** Shorthand for the embedding path, which only ever wants the Gemini key. */
-export function geminiKey(company: Company | undefined): string | null {
-  return providerKey(company, "geminiApiKey");
+export async function geminiKey(company: Company | undefined): Promise<string | null> {
+  if (!company) return null;
+  const { loadAiSettings } = await import("./ai-settings-store");
+  const settings = await loadAiSettings(company.id);
+  if (!settings.primary) return null;
+  const google = settings.providers.find(p => p.provider === "google");
+  if (!google && !settings.legacy) throw new Error("Key Gemini untuk embedding belum terpasang.");
+  return google ? decryptSecret(google.encryptedKey, providerSecretContext(company.id, "google")) : null;
 }
 
 /**
@@ -87,7 +95,7 @@ export function groqClientForKey(key: string | null) {
 }
 
 export type ByokResolution =
-  | { ok: true; gemini: string | null; groq: string | null }
+  | ({ ok: true } & ProviderKeys)
   | { ok: false; message: string };
 
 /**
@@ -107,10 +115,34 @@ export type ByokResolution =
  * as `AI_ERROR provider: gemini`, sending them to check Google's status page for
  * a problem that is entirely ours.
  */
-export function resolveByok(company: Company | undefined): ByokResolution {
+export function resolveStoredByok(companyId: string, settings: StoredAiSettings): ProviderKeys {
+  const keys: ProviderKeys = { groq: null, gemini: null };
+  if (!settings.primary) return keys;
+  keys.ownOnly = true;
+  keys.chain = [];
+  for (const provider of [settings.primary, settings.fallback, "google"] as const) {
+    if (!provider) continue;
+    const row = settings.providers.find(p => p.provider === provider);
+    if (!row) {
+      if (provider === "google" && settings.legacy && provider !== settings.primary && provider !== settings.fallback) continue;
+      throw new Error("API key provider yang dipilih belum terpasang.");
+    }
+    keys[provider === "google" ? "gemini" : provider] = decryptSecret(row.encryptedKey, providerSecretContext(companyId, provider));
+  }
+  for (const provider of [settings.primary, settings.fallback]) {
+    if (provider) {
+      const row = settings.providers.find(p => p.provider === provider)!;
+      keys.chain.push({ provider, id: row.model });
+    }
+  }
+  return keys;
+}
+export async function resolveByok(company: Company | undefined): Promise<ByokResolution> {
   try {
-    return { ok: true, gemini: providerKey(company, "geminiApiKey"), groq: providerKey(company, "groqApiKey") };
-  } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    if (!company) return { ok: true, groq: null, gemini: null };
+    const { loadAiSettings } = await import("./ai-settings-store");
+    return { ok: true, ...resolveStoredByok(company.id, await loadAiSettings(company.id)) };
+  } catch {
+    return { ok: false, message: "Konfigurasi BYOK tidak dapat dibaca. Periksa key dan pengaturan provider di halaman admin." };
   }
 }

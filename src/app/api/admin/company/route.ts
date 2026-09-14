@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { companies } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { companies, companyAiSettings } from "@/lib/db/schema";
+import { eq, sql } from "drizzle-orm";
+import { withTenant } from "@/lib/db/tenant";
+import { loadAiSettings } from "@/lib/ai-settings-store";
 import { resolvePlan } from "@/lib/subscription";
 import { LIMITS, readJsonObject } from "@/lib/validate";
 import { encryptProviderKey, type ByokField } from "@/lib/byok";
@@ -24,6 +26,7 @@ export async function GET(req: NextRequest) {
   // `plan` is the plan in force right now, so the dashboard gates on exactly
   // what the server enforces; `purchasedPlan` is only for messaging.
   const { subscription } = await resolvePlan(companyRow);
+  const ai = await loadAiSettings(companyRow.id);
 
   // Named fields, not `{ groqApiKey, geminiApiKey, ...rest }`.
   //
@@ -48,8 +51,8 @@ export async function GET(req: NextRequest) {
     subscriptionStatus: subscription.status,
     // Booleans, never the keys: the UI only ever needs to know whether one is
     // set, and the plaintext key has no business leaving the server.
-    hasGroqKey: !!companyRow.groqApiKey,
-    hasGeminiKey: !!companyRow.geminiApiKey,
+    hasGroqKey: ai.providers.some(p => p.provider === "groq"),
+    hasGeminiKey: ai.providers.some(p => p.provider === "google"),
   });
 }
 
@@ -162,7 +165,14 @@ export async function PATCH(req: NextRequest) {
     );
   }
 
-  await db.update(companies).set(update).where(eq(companies.id, companyRow.id));
+  const saved = await withTenant(companyRow.id, async tx => {
+    await tx.execute(sql`select id from companies where id = ${companyRow.id} for update`);
+    const [settings] = await tx.select().from(companyAiSettings).where(eq(companyAiSettings.companyId, companyRow.id));
+    if (settings) return false;
+    await tx.update(companies).set(update).where(eq(companies.id, companyRow.id));
+    return true;
+  });
+  if (!saved) return NextResponse.json({ error: "Gunakan pengaturan provider AI terbaru untuk mengubah key." }, { status: 409 });
 
   const [updated] = await db.select().from(companies).where(eq(companies.id, companyRow.id)).limit(1);
   return NextResponse.json({ hasGroqKey: !!updated.groqApiKey, hasGeminiKey: !!updated.geminiApiKey });

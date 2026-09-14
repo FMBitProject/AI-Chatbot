@@ -1,4 +1,5 @@
-import { pgTable, text, timestamp, boolean, integer, vector, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, vector, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+import type { AiProvider } from "../ai-providers";
 import { sql } from "drizzle-orm";
 
 // Despite the name, a row here is a *workspace*: the tenant every document,
@@ -84,6 +85,22 @@ export const companies = pgTable("companies", {
     .on(t.name)
     .where(sql`${t.accountType} = 'company'`),
 ]);
+
+// Additive tables: deploy their migration before code; legacy columns remain
+// readable until each workspace explicitly saves its new configuration.
+export const companyAiSettings = pgTable("company_ai_settings", {
+  companyId: text("company_id").primaryKey().references(() => companies.id, { onDelete: "cascade" }),
+  primaryProvider: text("primary_provider").$type<AiProvider>(),
+  fallbackProvider: text("fallback_provider").$type<AiProvider>(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const companyAiProviders = pgTable("company_ai_providers", {
+  companyId: text("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  provider: text("provider").$type<AiProvider>().notNull(),
+  encryptedKey: text("encrypted_key").notNull(),
+  model: text("model").notNull(),
+  lastTestedAt: timestamp("last_tested_at"),
+}, (t) => [primaryKey({ columns: [t.companyId, t.provider] })]);
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),

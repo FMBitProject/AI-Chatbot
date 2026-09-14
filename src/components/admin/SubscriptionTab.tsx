@@ -3,9 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Loader2, QrCode, RefreshCw, Key, CheckCircle2, Eye, EyeOff, Trash2, ExternalLink } from "lucide-react";
+import { ArrowRight, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { Input } from "@/components/ui/input";
+import { AiProvidersCard } from "./AiProvidersCard";
 import Link from "next/link";
 
 interface SubData {
@@ -28,16 +28,6 @@ const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warni
   expired: { label: "Kedaluwarsa", variant: "secondary" },
 };
 
-interface ByokState {
-  hasGroqKey: boolean;
-  hasGeminiKey: boolean;
-  groqInput: string;
-  geminiInput: string;
-  showGroq: boolean;
-  showGemini: boolean;
-  saving: boolean;
-}
-
 // `isIndividual` removes the seat count from the limits row. Nothing else on
 // this tab is team-specific: documents, questions, invoices and BYOK all mean
 // the same thing for one person as for fifty.
@@ -54,11 +44,6 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
   // would then remove both. Created on first use rather than passed to useRef,
   // which would allocate a Set on every render just to throw it away.
   const inFlightRef = useRef<Set<string> | null>(null);
-  const [byok, setByok] = useState<ByokState>({
-    hasGroqKey: false, hasGeminiKey: false,
-    groqInput: "", geminiInput: "",
-    showGroq: false, showGemini: false, saving: false,
-  });
 
   // `data === null` cannot tell "still loading" from "the request failed", and
   // the render below reports the second as a permanent "Memuat..." — a lie the
@@ -98,50 +83,9 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
       })
       .catch(() => { if (token === loadTokenRef.current) setFailed(true); });
 
-    // BYOK is a secondary read: the tab is still useful without it, so a failure
-    // here leaves the two flags false rather than failing the whole panel. The
-    // `r.ok` guard still matters — without it an error body's missing fields
-    // coerce to false anyway, but silently, and "no key stored" is exactly what
-    // an admin would act on by pasting theirs in again.
-    fetch("/api/admin/company")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d: { hasGroqKey?: boolean; hasGeminiKey?: boolean } | null) => {
-        if (token !== loadTokenRef.current) return;
-        if (d) setByok((p) => ({ ...p, hasGroqKey: !!d.hasGroqKey, hasGeminiKey: !!d.hasGeminiKey }));
-      })
-      .catch(() => {
-        console.warn("[SubscriptionTab] Could not read BYOK key status");
-      });
   }, []);
 
   useEffect(() => { load(); }, [load]);
-
-  async function saveByokKey(provider: "groq" | "gemini", value: string | null) {
-    setByok((p) => ({ ...p, saving: true }));
-    try {
-      const res = await fetch("/api/admin/company", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(provider === "groq" ? { groqApiKey: value } : { geminiApiKey: value }),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: string };
-        toast({ variant: "destructive", title: "Gagal", description: err.error });
-        return;
-      }
-      const updated = await res.json() as { hasGroqKey: boolean; hasGeminiKey: boolean };
-      setByok((p) => ({
-        ...p,
-        hasGroqKey: updated.hasGroqKey, hasGeminiKey: updated.hasGeminiKey,
-        groqInput: provider === "groq" ? "" : p.groqInput,
-        geminiInput: provider === "gemini" ? "" : p.geminiInput,
-      }));
-      const label = provider === "groq" ? "Groq" : "Gemini";
-      toast({ title: value ? `${label} API Key disimpan.` : `${label} API Key dihapus.` });
-    } finally {
-      setByok((p) => ({ ...p, saving: false }));
-    }
-  }
 
   async function handleResume(snapToken: string, plan: string, orderId: string) {
     setResuming(snapToken);
@@ -265,12 +209,6 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
     data.plan === "personal" || data.plan === "professional" ||
     data.plan === "enterprise" || data.plan === "custom";
 
-  // The cheapest plan that unlocks BYOK *on this tab's account type*, which is
-  // not the same answer for both. An individual cannot buy Professional at all —
-  // /api/payment/create refuses it in both directions — so pointing them at it
-  // would be selling a plan the checkout will not sell them.
-  const upgradeTarget = isIndividual ? "Personal" : "Professional";
-  const hasAnyKey = byok.hasGroqKey || byok.hasGeminiKey;
 
   // One line that always says where the subscription stands, including the two
   // states the plan badge alone cannot show: grace period and lapsed.
@@ -345,128 +283,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
         </CardContent>
       </Card>
 
-      {/* BYOK — configurable on Professional+; visible + removable whenever a key exists */}
-      {(canEditKeys || hasAnyKey) && (
-        <Card className="border-violet-200">
-          <CardHeader className="pb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 bg-violet-100 rounded-lg"><Key className="h-4 w-4 text-violet-600" /></div>
-              <div>
-                <CardTitle className="text-base">
-                  {lang === "en" ? "Dedicated AI Capacity" : "Kapasitas AI Dedicated"}
-                </CardTitle>
-                {/* Says which traffic the key covers, not just that it exists.
-                    Companies switch BYOK on for data governance as often as for
-                    capacity, and "unlimited capacity" answered neither question
-                    — least of all the one that matters most, whether uploaded
-                    documents go through their account or ours.
-                    It no longer says "unlimited" either: since Enterprise gained
-                    real quota numbers, an own key buys isolated provider
-                    capacity but does not lift the plan's question limit, and a
-                    customer who read otherwise would find that out by hitting
-                    the cap.
-                    Mentions both keys because a Groq key on its own now costs
-                    the company the Gemini step of the answer chain: rather than
-                    send a BYOK customer's document excerpts to our shared
-                    free-tier Google account, that step is skipped for them. It
-                    is the right default, but only if the admin is told, or
-                    "busy" errors during a Groq rate limit look like our fault. */}
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {canEditKeys
-                    ? (lang === "en"
-                      ? "Connect your own Groq & Gemini API keys for isolated capacity that no other tenant shares. Your keys cover everything: indexing the documents you upload, and every question asked from the web app, Slack and the API. Connect both — with a Groq key alone, questions can no longer fall back to Gemini when Groq is busy, because we will not route your documents through our shared account."
-                      : "Hubungkan API key Groq & Gemini Anda sendiri untuk kapasitas terisolasi yang tidak dibagi dengan tenant lain. Key Anda dipakai untuk semuanya: proses indexing dokumen yang Anda upload, dan setiap pertanyaan dari aplikasi web, Slack, maupun API. Hubungkan keduanya — bila hanya key Groq yang dipasang, pertanyaan tidak lagi bisa dialihkan ke Gemini saat Groq sibuk, karena dokumen Anda tidak akan kami lewatkan ke akun bersama kami.")
-                    : (lang === "en"
-                      ? `Your stored keys are still used for document indexing and for answering questions. Adding or replacing a key requires ${upgradeTarget} or above — removing one is always yours to do.`
-                      : `Key Anda yang tersimpan masih dipakai untuk indexing dokumen dan menjawab pertanyaan. Menambah atau mengganti key hanya di paket ${upgradeTarget} ke atas — menghapus selalu bisa Anda lakukan.`)}
-                </p>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {(["groq", "gemini"] as const)
-              // Without edit rights there is nothing to show for a provider
-              // whose key was never set.
-              .filter((provider) => canEditKeys || (provider === "groq" ? byok.hasGroqKey : byok.hasGeminiKey))
-              .map((provider) => {
-              const isGroq = provider === "groq";
-              const hasKey = isGroq ? byok.hasGroqKey : byok.hasGeminiKey;
-              const input = isGroq ? byok.groqInput : byok.geminiInput;
-              const show = isGroq ? byok.showGroq : byok.showGemini;
-              const href = isGroq ? "https://console.groq.com/keys" : "https://aistudio.google.com/apikey";
-              const placeholder = isGroq ? "gsk_..." : "AIza...";
-              const label = isGroq ? "Groq" : "Gemini";
-              return (
-                <div key={provider} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-800">{label} API Key</span>
-                      {hasKey && (
-                        <span className="flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-100 px-2 py-0.5 rounded-full">
-                          <CheckCircle2 className="h-3 w-3" />{lang === "en" ? "Active" : "Aktif"}
-                        </span>
-                      )}
-                    </div>
-                    {canEditKeys && (
-                      <a href={href} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
-                        {lang === "en" ? "Get key" : "Dapatkan key"} <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {canEditKeys ? (
-                      <>
-                        <div className="relative flex-1">
-                          <Input
-                            type={show ? "text" : "password"}
-                            placeholder={hasKey ? (lang === "en" ? "Enter new key to replace…" : "Masukkan key baru untuk mengganti…") : placeholder}
-                            value={input}
-                            onChange={(e) => setByok((p) => ({ ...p, [`${provider}Input`]: e.target.value }))}
-                            className="pr-10 text-sm font-mono"
-                          />
-                          <button type="button"
-                            onClick={() => setByok((p) => ({ ...p, [isGroq ? "showGroq" : "showGemini"]: !show }))}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                        {/* Trimmed here as well as on the server, so the
-                            disabled state agrees with what will be saved: a box
-                            holding only spaces is not a key. */}
-                        <Button size="sm" disabled={!input.trim() || byok.saving} onClick={() => saveByokKey(provider, input.trim())}
-                          className="bg-violet-600 hover:bg-violet-700 shrink-0">
-                          {byok.saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (lang === "en" ? "Save" : "Simpan")}
-                        </Button>
-                      </>
-                    ) : (
-                      <p className="flex-1 self-center text-xs text-gray-500">
-                        {lang === "en"
-                          ? "Stored and in use. Remove it to fall back to the platform's shared capacity."
-                          : "Tersimpan dan sedang dipakai. Hapus untuk kembali memakai kapasitas bersama platform."}
-                      </p>
-                    )}
-                    {hasKey && (
-                      <Button size="sm" variant="outline" disabled={byok.saving} onClick={() => saveByokKey(provider, null)}
-                        className="text-red-500 border-red-200 hover:bg-red-50 shrink-0">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            <p className="text-xs text-gray-400 pt-1">
-              {canEditKeys
-                ? (lang === "en"
-                  ? "Keys are encrypted before they are stored and are never shown again. If not set, platform shared capacity is used."
-                  : "Key dienkripsi sebelum disimpan dan tidak pernah ditampilkan kembali. Jika tidak diisi, kapasitas platform yang digunakan.")
-                : (lang === "en"
-                  ? `Upgrade to ${upgradeTarget} to add or replace keys again.`
-                  : `Upgrade ke ${upgradeTarget} untuk menambah atau mengganti key lagi.`)}
-            </p>
-          </CardContent>
-        </Card>
-      )}
+      <AiProvidersCard canEdit={canEditKeys} lang={lang} />
 
       <div>
         <h3 className="font-semibold text-gray-900 mb-3 text-sm">{lang === "en" ? "Billing History" : "Riwayat Pembayaran"}</h3>

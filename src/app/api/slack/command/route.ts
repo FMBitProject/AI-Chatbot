@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
       // Before the quota, for the reason spelled out in resolveByok: a key we
       // cannot decrypt is a standing failure, so charging a question for it
       // would drain the whole daily allowance into errors.
-      const byok = resolveByok(company);
+      const byok = await resolveByok(company);
       if (!byok.ok) {
         console.error(`[slack/command] BYOK key unreadable for company ${companyId}: ${byok.message}`);
         await reply(responseUrl, `❌ ${byok.message}`);
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
         companyId,
         access: dbUser,
         maxDocuments: limits.maxDocuments,
-        keys: { groq: byok.groq, gemini: byok.gemini },
+        keys: byok,
         label: "slack/command",
       });
 

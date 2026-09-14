@@ -1,5 +1,8 @@
 import { generateText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import type { AiProvider } from "./ai-providers";
 import { groqClientForKey } from "@/lib/byok";
 import { isRateLimitError } from "@/lib/embeddings";
 
@@ -25,7 +28,7 @@ import { isRateLimitError } from "@/lib/embeddings";
  * every document, not a config change.
  */
 
-export type ModelProvider = "groq" | "google";
+export type ModelProvider = AiProvider;
 
 export type ChainLink = {
   /** Provider-native model id, as it must be passed to the SDK. */
@@ -99,7 +102,12 @@ export const BATCH_CHAIN: readonly ChainLink[] = INTERACTIVE_CHAIN.filter(
 );
 
 /** Plaintext provider keys, as resolved by `resolveByok`. */
-export type ProviderKeys = { groq: string | null; gemini: string | null };
+export type ProviderKeys = {
+  groq: string | null; gemini: string | null;
+  openai?: string | null; anthropic?: string | null;
+  ownOnly?: boolean;
+  chain?: ChainLink[];
+};
 
 /**
  * Generation-side Google client.
@@ -117,7 +125,7 @@ function googleClientForKey(key: string | null) {
 }
 
 function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
-  return provider === "groq" ? keys.groq : keys.gemini;
+  return (provider === "google" ? keys.gemini : keys[provider]) ?? null;
 }
 
 /**
@@ -142,11 +150,12 @@ function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
  * platform accounts, which is what its own Terms describe.
  */
 function isConfigured(link: ChainLink, keys: ProviderKeys): boolean {
+  if (keys.ownOnly || keys.groq || keys.gemini || keys.openai || keys.anthropic) return !!keyFor(link.provider, keys);
   if (link.provider === "google") {
     const usesByok = !!(keys.groq || keys.gemini);
     return usesByok ? !!keys.gemini : !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   }
-  return !!(keys.groq || process.env.GROQ_API_KEY);
+  return link.provider === "groq" && !!process.env.GROQ_API_KEY;
 }
 
 /**
@@ -159,15 +168,19 @@ function isConfigured(link: ChainLink, keys: ProviderKeys): boolean {
  * the error the customer sees the true one.
  */
 export function usableChain(chain: readonly ChainLink[], keys: ProviderKeys): readonly ChainLink[] {
-  return chain.filter((link) => isConfigured(link, keys));
+  return (keys.chain ?? chain).filter((link) => isConfigured(link, keys));
 }
 
 /** The SDK model handle for one link, on the right account. */
 export function modelFor(link: ChainLink, keys: ProviderKeys): LanguageModel {
   const key = keyFor(link.provider, keys);
-  return link.provider === "groq"
-    ? groqClientForKey(key)(link.id)
-    : googleClientForKey(key)(link.id);
+  if (!isConfigured(link, keys)) throw new Error("Selected AI provider has no configured key.");
+  switch (link.provider) {
+    case "groq": return groqClientForKey(key)(link.id);
+    case "google": return googleClientForKey(key)(link.id);
+    case "openai": return createOpenAI({ apiKey: key! }).chat(link.id);
+    case "anthropic": return createAnthropic({ apiKey: key! })(link.id);
+  }
 }
 
 /**
