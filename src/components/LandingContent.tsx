@@ -7,13 +7,11 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, isPromoActive } from "@/lib/pricing";
-import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
-import { FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "@/lib/industries";
+import { OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowRight, Users, FileText, MessageSquare, Play, Mail, Check, User, Building2 } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Play, Mail } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
@@ -32,24 +30,17 @@ const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
 import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
 import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
-// The individual flow gets its own pair rather than reusing the company shots.
-// Two steps that read identically in prose look nothing alike on screen: the
-// company dashboard shows departments and an employee list, and putting that
-// under copy about personal folders tells a visitor the tier is a team product
-// with the team hidden. These were taken from a real individual account after
-// the wording fix in PR #100 — the earlier attempt still said "kebijakan
-// perusahaan" in the chat box, which is exactly the impression to avoid.
+// Taken from a real individual account. They no longer back a step of their
+// own (the homepage dropped its Individu tab when it was repositioned around
+// hospitals), but they still show more of the real product in the hero marquee.
 import personalUploadShot from "../../public/screenshots/personal-upload.png";
 import personalAskShot from "../../public/screenshots/personal-ask.png";
-// Only the hero marquee uses this one; it has no step of its own.
 import personalPersonaShot from "../../public/screenshots/personal-persona.png";
 
 const STEP_SHOTS = {
   upload: uploadDocumentsShot,
   invite: inviteEmployeesShot,
   ask: askAndAnswerShot,
-  uploadPersonal: personalUploadShot,
-  askPersonal: personalAskShot,
 };
 
 // The hero marquee runs on the same product screenshots, not stock photography.
@@ -111,11 +102,20 @@ function shotSizes(intrinsicWidth: number): string {
 
 const CONTENT = {
   id: {
-    badge: "Knowledge base AI untuk perusahaan Indonesia",
-    hero1: "Karyawan Anda Bisa Tahu Semua",
-    hero2: "Kebijakan Perusahaan",
-    hero3: "dalam Detik",
-    heroDesc: "SOP, regulasi HR, panduan IT, dan dokumen internal lain jadi satu asisten AI yang menjawab pertanyaan karyawan dalam hitungan detik.",
+    // Headline, chosen from three drafts. The two that lost:
+    //   "SPO, PPK, dan Clinical Pathway RS Anda, Dijawab AI dalam 3 Detik"
+    //     The response time has never been measured (the stats band below
+    //     stars it as an estimate), and a headline cannot carry a footnote.
+    //   "Jam 3 Pagi, Staf Jaga Tetap Tahu SPO yang Berlaku"
+    //     A strong hook, but it names a moment instead of the visitor's own
+    //     documents, and the paragraph underneath already opens on that 3 a.m.
+    // The winner names the three documents a hospital quality team owns, and
+    // "kapan saja" carries the 24-hour point without a number we cannot back.
+    badge: "Dibangun oleh dokter, untuk rumah sakit & klinik",
+    hero1: "SPO, PPK, dan Clinical Pathway Rumah Sakit Anda,",
+    hero2: "Bisa Ditanya",
+    hero3: "Kapan Saja",
+    heroDesc: "Pertanyaan prosedur jam 3 pagi, revisi SPO yang kalah cepat dari fotokopi lama di dinding ruangan, perawat orientasi yang menanyakan hal yang sama berulang kali. Asisten AI menjawab dari dokumen resmi rumah sakit Anda sendiri, lengkap dengan dokumen sumbernya.",
     cta1: "Mulai Gratis",
     cta2: "Lihat Paket Harga",
     videoTitle: "Lihat IntelliBase AI Bekerja",
@@ -130,25 +130,27 @@ const CONTENT = {
       { v: "100%", l: "Isolasi data antar perusahaan" },
       { v: "10 menit", l: "Waktu setup hingga siap pakai" },
     ] satisfies Stat[],
-    problemTitle: "Masalahnya Bukan Karyawan Anda",
-    problemDesc: "Ini yang biasanya terjadi setiap hari sebelum ada satu tempat untuk bertanya.",
+    problemTitle: "Masalahnya Bukan Staf Anda",
+    problemDesc: "Ini yang biasanya terjadi di rumah sakit setiap hari, sebelum ada satu tempat untuk bertanya.",
     problemPoints: [
-      "Karyawan baru menghabiskan berjam-jam mencari SOP yang benar, atau menebak-nebak lewat rekan kerja yang belum tentu tahu jawabannya.",
-      "Kebijakan tersebar di email, folder bersama, dan grup chat. Versi mana yang terbaru sering jadi tebakan.",
-      "Admin HR dan IT dibanjiri pertanyaan berulang yang jawabannya sebenarnya sudah ada di dokumen resmi.",
+      "Perawat dan dokter jaga shift malam harus menunggu pagi atau menelepon senior untuk memastikan SPO yang berlaku, karena bagian mutu tidak bisa dihubungi jam segitu.",
+      "Komite mutu sudah menerbitkan revisi SPO dan PPK, tapi yang dibaca di ruangan masih fotokopi lama. Menjelang survei akreditasi, tidak ada yang yakin versi mana yang terbaru.",
+      "Perawat orientasi dan staf rotasi menanyakan hal yang sama ke orang yang sama: alur pelaporan insiden, restriksi formularium, prosedur rujukan.",
     ],
-    // "Cocok untuk", not "dipakai oleh": we have no customers in these
-    // industries to point at yet, and the row only claims the product fits
-    // their documents — which is what the doc types under each name show.
-    industriesTitle: "Juga cocok untuk industri lain",
-    industriesDesc: "Setiap industri punya istilah dokumennya sendiri. AI menjawab dari dokumen resmi Anda, apapun namanya.",
-    industriesMore: "Selengkapnya",
+    problemMore: "Lihat jenis dokumen dan contoh pertanyaan di rumah sakit",
+    // "Cocok untuk", not "dipakai oleh": there are no customers in these
+    // industries to point at yet. The industry names come from OTHER_INDUSTRIES.
+    industryRowLead: "Bukan rumah sakit? IntelliBase juga cocok untuk",
+    industryRowMore: "Lihat industri lain",
     howTitle: "Cara Kerja IntelliBase",
-    howDesc: "Setup dalam 10 menit, langsung bisa digunakan seluruh tim",
+    howDesc: "Setup dalam 10 menit, langsung bisa dipakai seluruh unit",
+    // Examples stay on policy and procedure (incident reporting, formulary
+    // restrictions), never dosing or diagnosis: the product is document search,
+    // not clinical decision support, and /solusi/rumah-sakit says so explicitly.
     steps: [
-      { n: "1", shot: "upload", t: "Upload Dokumen", d: "Admin upload SOP, regulasi HR, panduan IT, atau clinical pathway dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
-      { n: "2", shot: "invite", t: "Undang Karyawan", d: "Tambahkan akun karyawan dari dashboard. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
-      { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Karyawan ketik pertanyaan di chat. AI menjawab berdasarkan dokumen resmi perusahaan, lengkap dengan daftar dokumen sumber yang bisa dibuka untuk mengecek.", icon: MessageSquare },
+      { n: "1", shot: "upload", t: "Upload Dokumen", d: "Bagian mutu mengunggah SPO, PPK, clinical pathway, formularium, dan dokumen akreditasi dalam format PDF, DOCX, Excel, atau PowerPoint. AI langsung mengindeks.", icon: FileText },
+      { n: "2", shot: "invite", t: "Undang Staf", d: "Tambahkan akun perawat, dokter jaga, dan staf unit dari dashboard, lalu atur dokumen mana yang bisa dibuka tiap unit. Mereka bisa langsung login dan mulai bertanya.", icon: Users },
+      { n: "3", shot: "ask", t: "Tanya & Dapat Jawaban", d: "Perawat jaga mengetik, misalnya, “Bagaimana alur pelaporan insiden keselamatan pasien?” AI menjawab dari dokumen resmi rumah sakit, lengkap dengan daftar dokumen sumber yang bisa dibuka untuk mengecek.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
@@ -227,21 +229,18 @@ const CONTENT = {
       cta: "Hitung Penghematan Lengkap",
       ctaNote: "Gratis, tanpa perlu daftar. Asumsi perhitungannya ditampilkan lengkap.",
     },
-    // Labels for the audience switch. They live in the shared copy because the
-    // control itself is shared — it has to be on screen in both modes for the
-    // visitor to get back. Only the hint underneath changes.
-    audienceIndividual: "Individu",
-    audienceCompany: "Perusahaan",
-    audienceHint: "Untuk tim: kelola karyawan, akses dokumen per departemen, dan analitik tim.",
     nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI", blog: "Blog" },
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak", blog: "Blog" },
   },
   en: {
-    badge: "An AI knowledge base built for Indonesian businesses",
-    hero1: "Your Employees Can Know All",
-    hero2: "Company Policies",
-    hero3: "in Seconds",
-    heroDesc: "Your SOPs, HR regulations, IT guides, and other internal documents become one AI assistant that answers employee questions in seconds.",
+    // English versions of the two rejected drafts, rejected for the same reasons:
+    //   "Your Hospital's SOPs and Clinical Pathways, Answered by AI in 3 Seconds"
+    //   "At 3 a.m., the Night Shift Still Knows Which SOP Applies"
+    badge: "Built by a doctor, for hospitals & clinics",
+    hero1: "Your Hospital's SOPs, Practice Guidelines, and Clinical Pathways,",
+    hero2: "Answered",
+    hero3: "at Any Hour",
+    heroDesc: "A procedure question at 3 a.m., an SOP revision that loses to the old photocopy on the ward wall, orientation nurses asking the same thing again and again. The AI answers from your hospital's own official documents and names the source every time.",
     cta1: "Start Free",
     cta2: "View Pricing",
     videoTitle: "See IntelliBase AI in Action",
@@ -253,22 +252,22 @@ const CONTENT = {
       { v: "100%", l: "Data isolation between companies" },
       { v: "10 min", l: "Setup time until ready" },
     ] satisfies Stat[],
-    problemTitle: "It's Not Your Employees. It's the Search",
-    problemDesc: "This is what usually happens every day before there's one place to ask.",
+    problemTitle: "It's Not Your Staff. It's the Search",
+    problemDesc: "This is what usually happens in a hospital every day, before there is one place to ask.",
     problemPoints: [
-      "New hires spend hours hunting for the right SOP, or guess by asking a coworker who may not know either.",
-      "Policies are scattered across email, shared folders, and group chats. Which version is current is often a guess.",
-      "HR and IT admins get flooded with the same repeat questions that already have an answer sitting in an official document.",
+      "Night-shift nurses and on-call doctors wait for morning, or phone a senior, to confirm which SOP applies, because the quality department cannot be reached at that hour.",
+      "The quality committee has issued a revised SOP or guideline, but the ward still reads the old photocopy. With an accreditation survey coming, nobody is sure which version is current.",
+      "Orientation nurses and rotating staff ask the same people the same things: incident reporting, formulary restrictions, referral procedures.",
     ],
-    industriesTitle: "Also fits other industries",
-    industriesDesc: "Every industry has its own document vocabulary. The AI answers from your official documents, whatever you call them.",
-    industriesMore: "Learn more",
+    problemMore: "See hospital document types and example questions",
+    industryRowLead: "Not a hospital? IntelliBase also fits",
+    industryRowMore: "See other industries",
     howTitle: "How IntelliBase Works",
-    howDesc: "Setup in 10 minutes, ready for the whole team immediately",
+    howDesc: "Setup in 10 minutes, ready for every unit immediately",
     steps: [
-      { n: "1", shot: "upload", t: "Upload Documents", d: "Admin uploads SOPs, HR regulations, IT guidelines, or clinical pathways in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
-      { n: "2", shot: "invite", t: "Invite Employees", d: "Add employee accounts from the dashboard. They can log in and start asking questions right away.", icon: Users },
-      { n: "3", shot: "ask", t: "Ask & Get Answers", d: "Employees type questions in chat. The AI answers from official company documents, listing the source documents they can open to check.", icon: MessageSquare },
+      { n: "1", shot: "upload", t: "Upload Documents", d: "The quality team uploads SOPs, practice guidelines, clinical pathways, the formulary, and accreditation documents in PDF, DOCX, Excel, or PowerPoint format. AI indexes immediately.", icon: FileText },
+      { n: "2", shot: "invite", t: "Invite Staff", d: "Add accounts for nurses, on-call doctors, and unit staff from the dashboard, and choose which documents each unit can open. They can log in and start asking right away.", icon: Users },
+      { n: "3", shot: "ask", t: "Ask & Get Answers", d: "A duty nurse types, say, “How do I report a patient safety incident?” The AI answers from the hospital's official documents, listing the source documents they can open to check.", icon: MessageSquare },
     ] satisfies Step[],
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
@@ -336,178 +335,17 @@ const CONTENT = {
       cta: "Calculate Full Savings",
       ctaNote: "Free, no sign-up. The assumptions are shown in full.",
     },
-    audienceIndividual: "Individual",
-    audienceCompany: "Company",
-    audienceHint: "For a team: manage employees, department-level document access, and team analytics.",
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator", blog: "Blog" },
     footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact", blog: "Blog" },
   },
 };
 
-// What the page says when the visitor is one person rather than a company.
-//
-// Overrides, not a second page. Only the keys that would otherwise be wrong are
-// here, and the renderer spreads them over CONTENT — so the company page keeps
-// rendering byte-for-byte what it rendered before, and anything shared (the
-// navbar, the demo, the founder block, the footer) has exactly one copy.
-//
-// Two sections are dropped rather than rewritten, in the renderer below: the
-// industries band, whose whole premise is an organisation's document set, and
-// the ROI teaser, which prices a month of one company's wasted search time
-// against its headcount. A slider reading "1 orang" is not a smaller version of
-// that argument, it is a different argument we have not made.
-//
-// Quota figures come from PLAN_LIMITS for the reason every other number in the
-// copy does: a limit changed in one file must not leave a promise standing in
-// another.
-const INDIVIDUAL_CONTENT = {
-  id: {
-    badge: "Knowledge base AI untuk pemakaian pribadi",
-    hero1: "Semua Dokumen Anda,",
-    hero2: "Bisa Ditanya",
-    hero3: "Kapan Saja",
-    heroDesc: "Catatan kuliah, jurnal, kontrak, dan manual alat berkumpul di satu tempat. Tanyakan isinya, jawabannya selalu menyebut dokumen sumber.",
-    videoTitle: "Lihat IntelliBase AI Bekerja",
-    videoDesc: "Demo singkat: dari upload dokumen sampai jawaban muncul lengkap dengan sumbernya.",
-    // Nothing here is a claim we cannot back. The three hard numbers are plan
-    // limits and file formats — facts about the product, not results attributed
-    // to it — and the only estimate carries the marker that footnotes it.
-    stats: [
-      { v: "4 format", l: "PDF, DOCX, Excel, PowerPoint" },
-      { v: `${PLAN_LIMITS.personal.maxDocuments} dokumen`, l: "Kapasitas paket Personal" },
-      { v: "Hanya Anda", l: "Yang bisa membuka dokumen Anda" },
-      { v: "10 menit", l: "Waktu setup hingga siap pakai", estimate: true },
-    ] satisfies Stat[],
-    problemTitle: "Rasanya Familiar?",
-    problemDesc: "Ini yang biasanya terjadi sebelum semua dokumen Anda ada di satu tempat yang bisa ditanya.",
-    problemPoints: [
-      "Catatan kuliah, kontrak, dan manual alat tersebar di banyak folder dan aplikasi berbeda.",
-      "Ctrl+F menemukan kata yang tepat, tapi tidak menemukan maknanya, jadi Anda tetap harus membaca ulang halaman demi halaman.",
-      "Detail kecil yang sebenarnya sudah pernah Anda baca, harus dicari ulang dari awal setiap kali lupa.",
-    ],
-    howTitle: "Cara Kerjanya",
-    howDesc: "Dua langkah. Tidak ada yang perlu disiapkan untuk orang lain.",
-    // Two steps, not three. The company flow's middle step is inviting
-    // employees, and there is no one-person version of it — padding the list
-    // back to three would mean inventing a step or reusing the screenshot of a
-    // dialog this account never opens.
-    steps: [
-      { n: "1", shot: "uploadPersonal", t: "Upload Dokumen Anda", d: "Tarik file PDF, DOCX, Excel, atau PowerPoint ke dashboard. Beri nama folder kalau ingin dirapikan: Riset, Keuangan, atau Kuliah. AI langsung mengindeksnya.", icon: FileText },
-      { n: "2", shot: "askPersonal", t: "Tanya & Dapat Jawaban", d: "Ketik pertanyaan di chat. AI menjawab dari dokumen Anda sendiri, lengkap dengan nama dokumen sumbernya, dan bisa dibatasi ke satu folder saja kalau pertanyaannya spesifik.", icon: MessageSquare },
-    ] satisfies Step[],
-    priceTitle: "Harga untuk Pemakaian Pribadi",
-    priceDesc: "Mulai gratis. Naik ke Personal saat dokumen dan pertanyaan Anda bertambah.",
-    pricePlans: [
-      { name: "Starter", price: "Gratis", desc: `${PLAN_LIMITS.starter.maxDocuments} dokumen, pencarian dokumen` },
-      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} dokumen, pertanyaan bulanan tanpa batas` },
-    ],
-    faqDesc: "Sebelum mengunggah dokumen pribadi, ini biasanya yang ingin dipastikan lebih dulu.",
-    faq: [
-      {
-        q: "Dokumen saya disimpan di mana, dan siapa yang bisa membukanya?",
-        a: "Dokumen disimpan di database PostgreSQL (Neon) dengan seluruh koneksi terenkripsi TLS. Setiap akun punya ruang datanya sendiri yang dipisahkan di level database, bukan sekadar difilter di aplikasi. Di akun individu tidak ada admin lain dan tidak ada rekan tim. Hanya akun Anda sendiri yang bisa membuka dokumen Anda.",
-      },
-      {
-        // Same disclosure as the company page, and it stays in full. The
-        // free-tier caveat is the one thing a person uploading their own
-        // documents has the most right to know before they do it.
-        q: "Apakah dokumen saya dipakai untuk melatih AI?",
-        a: "IntelliBase tidak melatih model AI apa pun dengan dokumen Anda, dan tidak menjual atau membagikannya. Yang perlu Anda tahu apa adanya: saat dokumen diunggah, isinya dikirim ke Google (Gemini API) untuk diubah menjadi indeks pencarian, dan saat pertanyaan dijawab, potongan teks yang relevan dikirim ke Groq. Groq menyatakan tidak memakai data API pelanggan untuk melatih modelnya. Akun Gemini kami saat ini masih di tier gratis, dan ketentuan Google untuk tier itu mengizinkan mereka memakai konten untuk meningkatkan layanannya. Kalau dokumen Anda bersifat rahasia atau terikat kewajiban kerahasiaan, hubungi kami sebelum mengunggah. Rincian lengkapnya ada di Kebijakan Privasi.",
-      },
-      {
-        q: "Bagaimana kalau AI-nya mengarang jawaban?",
-        a: "Setiap jawaban datang dengan daftar dokumen sumbernya (nama dokumen beserta potongan teks yang dipakai), sehingga jawaban selalu bisa dicek ke dokumen aslinya. Kalau tidak ada dokumen Anda yang relevan dengan pertanyaan, AI menyatakan tidak menemukannya, bukan menebak dari pengetahuan umum internet.",
-      },
-      {
-        q: "Apa bedanya akun Individu dan akun Perusahaan?",
-        a: "Akun individu untuk satu orang: dokumen pribadi, folder yang Anda atur sendiri, tanpa manajemen karyawan sama sekali. Akun perusahaan punya admin dan karyawan, akses dokumen per departemen, serta analitik tim. Jenis akun dipilih sekali saat mendaftar dan tidak bisa diubah setelahnya. Kalau nanti Anda butuh mengajak tim, daftarkan akun perusahaan baru.",
-      },
-      {
-        q: "Kalau saya berhenti berlangganan, dokumen saya hilang?",
-        a: "Tidak dihapus. Ada masa tenggang 7 hari setelah masa aktif berakhir, di mana batas paket lama Anda masih berlaku penuh. Setelah itu batas paket Starter yang berlaku, dan dokumen di atas batas itu dibekukan (tersimpan tetapi tidak ikut dicari) sampai Anda memperpanjang. Kalau Anda memang ingin data dihapus, penghapusan akun menghapus seluruh data dalam 30 hari.",
-      },
-      {
-        q: "Format dokumen apa saja yang didukung, dan berapa lama setupnya?",
-        a: "PDF, DOCX, Excel, dan PowerPoint. Dokumen diindeks otomatis begitu diunggah, tanpa tagging manual, dan sebagian besar orang sudah bisa mulai bertanya dalam waktu sekitar 10 menit sejak akun dibuat.",
-      },
-      {
-        q: "Bisa dicoba dulu tanpa bayar?",
-        a: `Bisa. Paket Starter gratis selamanya untuk ${PLAN_LIMITS.starter.maxDocuments} dokumen dan ${PLAN_LIMITS.starter.maxQuestionsPerMonth} pertanyaan per bulan, tanpa kartu kredit.`,
-      },
-    ],
-    ctaTitle: "Mulai Bangun Knowledge Base Pribadi Anda",
-    ctaDesc: "Gratis untuk mulai. Setup 10 menit. Tanpa kartu kredit.",
-    audienceHint: "Untuk satu orang: dokumen pribadi dan folder sendiri, tanpa kelola karyawan.",
-  },
-  en: {
-    badge: "An AI knowledge base for personal use",
-    hero1: "Every Document You Own,",
-    hero2: "Ready to Answer",
-    hero3: "Any Time",
-    heroDesc: "Lecture notes, papers, contracts, and manuals in one place. Ask what is inside them, and every answer names its source document.",
-    videoTitle: "See IntelliBase AI in Action",
-    videoDesc: "A short demo: from uploading a document to an answer that cites its source.",
-    stats: [
-      { v: "4 formats", l: "PDF, DOCX, Excel, PowerPoint" },
-      { v: `${PLAN_LIMITS.personal.maxDocuments} documents`, l: "Personal plan capacity" },
-      { v: "Only you", l: "Can open your documents" },
-      { v: "10 min", l: "Setup time until ready", estimate: true },
-    ] satisfies Stat[],
-    problemTitle: "Sound Familiar?",
-    problemDesc: "This is what usually happens before every document you own lives in one place you can just ask.",
-    problemPoints: [
-      "Lecture notes, contracts, and equipment manuals scattered across different folders and apps.",
-      "Ctrl+F finds the right word, but not the right meaning, so you still end up rereading page after page.",
-      "A small detail you already read once has to be hunted down again from scratch every time you forget it.",
-    ],
-    howTitle: "How It Works",
-    howDesc: "Two steps. Nothing to set up on anyone else's behalf.",
-    steps: [
-      { n: "1", shot: "uploadPersonal", t: "Upload Your Documents", d: "Drop PDF, DOCX, Excel or PowerPoint files onto the dashboard. Name a folder if you want them tidy: Research, Finance, Coursework. The AI indexes them straight away.", icon: FileText },
-      { n: "2", shot: "askPersonal", t: "Ask and Get Answers", d: "Type a question in the chat. The AI answers from your own documents and names the ones it used, and you can narrow a specific question to a single folder.", icon: MessageSquare },
-    ] satisfies Step[],
-    priceTitle: "Pricing for Personal Use",
-    priceDesc: "Start free. Move to Personal when your documents and questions outgrow it.",
-    pricePlans: [
-      { name: "Starter", price: "Free", desc: `${PLAN_LIMITS.starter.maxDocuments} documents, document search` },
-      { name: "Personal", price: "", desc: `${PLAN_LIMITS.personal.maxDocuments} documents, unlimited questions per month` },
-    ],
-    faqDesc: "Before uploading personal documents, this is usually what people want settled first.",
-    faq: [
-      {
-        q: "Where are my documents stored, and who can open them?",
-        a: "Documents are stored in a PostgreSQL database (Neon), with every connection encrypted over TLS. Each account gets its own data space, separated at the database level rather than merely filtered in the application. An individual account has no other admin and no colleagues. Only your own account can open your documents.",
-      },
-      {
-        q: "Are my documents used to train AI?",
-        a: "IntelliBase does not train any AI model on your documents, and does not sell or share them. What you should know plainly: when a document is uploaded its contents go to Google (Gemini API) to be turned into a search index, and when a question is answered the relevant excerpts go to Groq. Groq states that it does not use customer API data to train its models. Our Gemini account is currently on the free tier, and Google's terms for that tier allow them to use content to improve their services. If your documents are confidential or under a duty of confidence, contact us before uploading. The full detail is in the Privacy Policy.",
-      },
-      {
-        q: "What if the AI makes an answer up?",
-        a: "Every answer comes with the documents it drew on (the document name and the excerpt used), so any answer can be checked against the original. If none of your documents is relevant to the question, the AI says it could not find an answer rather than guessing from general internet knowledge.",
-      },
-      {
-        q: "What is the difference between an Individual and a Company account?",
-        a: "An individual account is for one person: personal documents, folders you arrange yourself, and no employee management at all. A company account has an admin and employees, department-level document access, and team analytics. The account type is chosen once at sign-up and cannot be changed afterwards. If you later need to bring in a team, register a new company account.",
-      },
-      {
-        q: "If I stop subscribing, do I lose my documents?",
-        a: "Nothing is deleted. There is a 7-day grace period after your plan ends, during which your old plan's limits still apply in full. After that the Starter limits apply and documents above that limit are frozen (kept, but left out of search) until you renew. If you do want your data gone, deleting your account removes everything within 30 days.",
-      },
-      {
-        q: "Which document formats are supported, and how long is setup?",
-        a: "PDF, DOCX, Excel, and PowerPoint. Documents are indexed automatically on upload, with no manual tagging, and most people are asking questions within about 10 minutes of creating an account.",
-      },
-      {
-        q: "Can I try it without paying?",
-        a: `Yes. The Starter plan is free forever for ${PLAN_LIMITS.starter.maxDocuments} documents and ${PLAN_LIMITS.starter.maxQuestionsPerMonth} questions a month, with no credit card.`,
-      },
-    ],
-    ctaTitle: "Start Building Your Personal Knowledge Base",
-    ctaDesc: "Free to start. 10-minute setup. No credit card.",
-    audienceHint: "For one person: personal documents and your own folders, no employees to manage.",
-  },
-};
+// "A, B, C, dan D". Written out rather than Intl.ListFormat so the prerendered
+// HTML and the hydrated client cannot disagree about locale data.
+function joinNames(names: string[], lang: string) {
+  if (names.length < 2) return names.join("");
+  return names.slice(0, -1).join(", ") + (lang === "id" ? ", dan " : ", and ") + names[names.length - 1];
+}
 
 function formatRp(v: number) {
   if (v >= 1_000_000_000) return `Rp ${(v / 1_000_000_000).toFixed(1)} M`;
@@ -569,39 +407,9 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
   );
 }
 
-type Audience = "individual" | "company";
-
 export function LandingContent() {
   const { lang } = useLang();
-
-  // Company is the default, and that is a decision about what gets indexed as
-  // much as about who we sell to. This component is prerendered, so the HTML a
-  // crawler receives is whatever the initial state renders — including the FAQ
-  // structured data below. Defaulting to company keeps the page Google already
-  // knows exactly as it was, and makes the individual copy something a visitor
-  // opts into rather than something that quietly replaces it.
-  const [audience, setAudience] = useState<Audience>("company");
-  const isIndividual = audience === "individual";
-
-  // Spread rather than a second copy object, so every `T.x` below keeps working
-  // and the company path renders precisely what it rendered before — the
-  // individual set only defines the keys that would otherwise be wrong for one
-  // person. A key added to CONTENT and forgotten here falls back to the company
-  // wording, which is the safe direction to fail: shared copy stays shared.
-  const T = isIndividual ? { ...CONTENT[lang], ...INDIVIDUAL_CONTENT[lang] } : CONTENT[lang];
-
-  // Appended to *every* link out of this page that leads to /register or
-  // /pricing, so the tab the visitor chose survives the navigation. Both routes
-  // read `type` and treat anything else as a company.
-  //
-  // Every one, not most: the first version carried it on the hero button, the
-  // pricing button and the closing CTA, and left the navbar and footer plain.
-  // The navbar's is the teal button that follows the reader down the page —
-  // easily the likeliest of the five to be clicked — and it would have dropped
-  // the choice silently, landing someone who had just read the individual pitch
-  // on a form defaulted to Perusahaan. That is not a tab to get wrong: the
-  // account type is fixed at signup and there is no way to change it after.
-  const audienceQuery = isIndividual ? "?type=individual" : "";
+  const T = CONTENT[lang];
 
   const [teaserEmployees, setTeaserEmployees] = useState(ROI_DEFAULTS.employees);
   // Same arithmetic and same assumptions as /roi, with headcount as the only
@@ -645,7 +453,7 @@ export function LandingContent() {
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: leadEmail, audience, locale: lang, website: leadWebsite }),
+        body: JSON.stringify({ email: leadEmail, audience: "company", locale: lang, website: leadWebsite }),
         signal: timeout,
       });
       setLeadStatus(res.ok ? "done" : "error");
@@ -670,54 +478,22 @@ export function LandingContent() {
                 is what makes the rest of the site reachable from an article,
                 and the article reachable from the rest of the site. */}
             <Link href="/blog" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.blog}</Link>
-            {/* Dropped on the individual tab for the same reason the ROI teaser
-                is: the calculator models a month of a company's wasted search
-                time against its headcount. Hiding the section further down
-                while leaving a link to the identical argument up here would
-                only mean the visitor meets it somewhere less expected. */}
-            {!isIndividual && (
-              <Link href="/roi" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.roi}</Link>
-            )}
-            <Link href={`/pricing${audienceQuery}`} className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.price}</Link>
+            <Link href="/roi" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.roi}</Link>
+            <Link href="/pricing" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.price}</Link>
             <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex text-stone-600 hover:bg-stone-100 hover:text-stone-900">{T.nav.login}</Button></Link>
-            <Link href={`/register${audienceQuery}`}><Button size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
+            <Link href="/register"><Button size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
           </div>
         </div>
       </nav>
-
-      {/* Audience switch.
-          Above the hero, because it changes the hero — a control that reorders
-          the page has to be visible before the page makes its first claim, not
-          discovered halfway down after the visitor has already decided the
-          product is not for them. Same two tabs as /pricing, in the same order,
-          so the two pages agree about which side the visitor is on. */}
-      <div className="px-6 pt-7">
-        <div className="max-w-6xl mx-auto flex flex-col items-center gap-2">
-          <Tabs value={audience} onValueChange={(v) => setAudience(v as Audience)}>
-            <TabsList className="bg-stone-100 text-stone-500">
-              <TabsTrigger value="individual" className="gap-1.5 px-4 data-[state=active]:text-stone-900">
-                <User className="h-4 w-4" />
-                {T.audienceIndividual}
-              </TabsTrigger>
-              <TabsTrigger value="company" className="gap-1.5 px-4 data-[state=active]:text-stone-900">
-                <Building2 className="h-4 w-4" />
-                {T.audienceCompany}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-          <p className="text-xs text-stone-400 text-center max-w-md">{T.audienceHint}</p>
-        </div>
-      </div>
 
       {/* Hero
           A centred headline over a scrolling band of product screenshots. The
           two-column hero this replaced showed one screenshot; the marquee shows
           six, which is the cheapest way to answer "is there actually a product
-          behind this" before a visitor scrolls. Copy is unchanged — same badge,
-          same three-part headline, same paragraph, same two CTAs.
+          behind this" before a visitor scrolls. The copy is written for
+          hospitals and clinics; the headline drafts sit next to `hero1`.
 
-          Not `h-screen` as the component ships: a nav bar and the audience
-          tabs sit above it here, so a full viewport height would push the CTA
+          Not `h-screen` as the component ships: a nav bar sits above it here, so a full viewport height would push the CTA
           below the fold on a laptop. The bottom padding keeps the centred text
           clear of the marquee band, which is positioned against the section's
           own bottom edge. */}
@@ -731,7 +507,7 @@ export function LandingContent() {
         }
         description={T.heroDesc}
         ctaText={T.cta1}
-        ctaHref={`/register${audienceQuery}`}
+        ctaHref="/register"
         images={HERO_MARQUEE_SHOTS}
         cardAspectClassName="aspect-[16/10]"
         footer={
@@ -757,139 +533,47 @@ export function LandingContent() {
       />
 
       {/* Who is behind this
-          Moved up to sit directly under the hero, before any other claim: the
-          visitor should know who they're trusting with their documents before
-          reading anything else the page argues. */}
+          Directly under the hero, before any other claim: the visitor should
+          know who they are trusting with their documents before reading
+          anything else the page argues. The hero badge says "built by a
+          doctor"; this is where that doctor has a name and a voice.
+
+          The portrait slot keeps its size whether or not a photo exists, so
+          adding one later does not shift the layout. Until FOUNDER.photo is
+          set it shows initials, never a stock face. */}
       {FOUNDER.name.trim() && FOUNDER.intro[lang]?.trim() && (
         <section className="py-14 px-6 border-t border-hairline">
-          <div className="max-w-2xl mx-auto text-center">
-            <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
-            <p className="text-lg text-stone-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
-            <p className="font-semibold text-stone-900">{FOUNDER.name}</p>
-            <p className="text-sm text-stone-500">{FOUNDER.role[lang]}</p>
-            <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-4">
-              <a href={`mailto:${SUPPORT_EMAIL}`} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
-                <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
-              </a>
-              <a
-                href={whatsappUrl(lang === "en" ? "Hi, I'd like to ask about IntelliBase AI." : "Halo, saya ingin bertanya soal IntelliBase AI.")}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium"
-              >
-                <MessageSquare className="h-4 w-4" />WhatsApp
-              </a>
+          <div className="max-w-3xl mx-auto flex flex-col items-center gap-8 text-center md:flex-row md:items-start md:gap-12 md:text-left">
+            <div className="relative h-28 w-28 md:h-36 md:w-36 shrink-0 overflow-hidden rounded-full border border-hairline bg-sunken">
+              {FOUNDER.photo ? (
+                <Image src={FOUNDER.photo} alt={FOUNDER.name} fill sizes="(min-width: 768px) 9rem, 7rem" className="object-cover" />
+              ) : (
+                <span aria-hidden="true" className="flex h-full w-full items-center justify-center text-3xl font-semibold text-teal-700">
+                  {FOUNDER.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-teal-700 mb-4">{T.founderTitle}</p>
+              <p className="text-lg text-stone-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
+              <p className="font-semibold text-stone-900">{FOUNDER.name}</p>
+              <p className="text-sm text-stone-500">{FOUNDER.role[lang]}</p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 mt-4">
+                <a href={"mailto:" + SUPPORT_EMAIL} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
+                  <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
+                </a>
+                <a
+                  href={whatsappUrl(lang === "en" ? "Hi, I'd like to ask about IntelliBase AI." : "Halo, saya ingin bertanya soal IntelliBase AI.")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium"
+                >
+                  <MessageSquare className="h-4 w-4" />WhatsApp
+                </a>
+              </div>
             </div>
           </div>
         </section>
-      )}
-
-      {/* Industries */}
-      {/* Sits directly under the hero, so it qualifies the pitch ("…and yes,
-          that includes your clinical pathways") before the visitor decides
-          whether the demo video is worth their time. No top padding on purpose:
-          it reads as a closing line of the hero, so the hero's own py-24 is the
-          gap it wants.
-
-          Two tiers, not one row of equals. The featured vertical gets a card
-          with a headline, three situations, and a link into its own page; the
-          rest keep the original short cards below it. The hero above stays
-          industry-neutral on purpose — the product genuinely fits any document
-          set, and a hospital-only hero would turn away the other four before
-          they ever reach this band. */}
-      {/* Dropped entirely for an individual, not rewritten. Every card in this
-          band names an organisation's document set — clinical pathways, HR
-          regulations, branch manuals — and the featured card leads to a page
-          written for a hospital's quality team. There is an interesting version
-          of this for individuals (doctors, students, consultants) but it is a
-          different band with different copy, and inventing it here would put
-          professions on the page we have no basis for naming yet. */}
-      {!isIndividual && (
-      <section className="pb-10 px-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Rendered from the registry rather than hardcoded, so the day another
-              vertical earns the spot this band follows it.
-              On the raised surface with a hairline border rather than a tinted
-              gradient: this card is the most-clicked thing on the page and does
-              not need colour to be found. Lifting it off the paper is enough,
-              and it stops competing with the hero directly above. */}
-          {FEATURED_INDUSTRY?.featured && FEATURED_INDUSTRY.href && (
-            <div className="rounded-2xl border border-hairline bg-raised p-7 md:p-9 mb-10 shadow-sm">
-              <div className="grid md:grid-cols-2 gap-8 md:gap-12 items-center">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-teal-700 mb-3">
-                    {FEATURED_INDUSTRY.featured.eyebrow[lang]}
-                  </p>
-                  <h2 className="text-2xl md:text-[1.75rem] font-semibold tracking-[-0.015em] text-stone-900 leading-[1.2] mb-4">
-                    {FEATURED_INDUSTRY.featured.headline[lang]}
-                  </h2>
-                  <p className="text-base text-stone-600 leading-relaxed mb-6">
-                    {FEATURED_INDUSTRY.featured.body[lang]}
-                  </p>
-                  <Link href={FEATURED_INDUSTRY.href}>
-                    <Button className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] gap-2 h-11 px-6">
-                      {FEATURED_INDUSTRY.featured.cta[lang]} <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-                <ul className="space-y-3.5">
-                  {FEATURED_INDUSTRY.featured.points[lang].map((p) => (
-                    <li key={p} className="flex items-start gap-3">
-                      <span className="rounded-full bg-teal-700/10 p-1 mt-0.5 shrink-0">
-                        <Check className="h-3.5 w-3.5 text-teal-700" aria-hidden="true" />
-                      </span>
-                      <span className="text-[0.95rem] text-stone-700 leading-relaxed">{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Left-aligned, not centred, and a step quieter than the card above:
-              this row is the footnote to the featured vertical, and centring it
-              gave it the same ceremony as a section of its own. */}
-          <div className="mb-5">
-            <h2 className="text-xl font-semibold tracking-[-0.01em] text-stone-900 mb-1.5">{T.industriesTitle}</h2>
-            <p className="text-sm text-stone-500 max-w-2xl">{T.industriesDesc}</p>
-          </div>
-          {/* Columns under one rule, not four boxes. A card is a promise of
-              elevation, and these four are plain text that mostly is not even
-              clickable, sitting one section below a row of pricing cards and
-              one above another. Dropping the borders leaves the featured band
-              above as the only card in this part of the page, which is what
-              makes it read as the featured one. */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-7 border-t border-hairline pt-6">
-            {OTHER_INDUSTRIES.map((ind) => {
-              const body = (
-                <>
-                  <p className="font-medium text-[0.95rem] text-stone-900 mb-1">
-                    {ind.name[lang]}
-                    {ind.href && <ArrowRight className="h-3.5 w-3.5 inline-block ml-1 -mt-0.5 text-teal-700" />}
-                  </p>
-                  <p className="text-[0.8rem] text-stone-500 leading-relaxed">{ind.docs[lang]}</p>
-                </>
-              );
-              // An industry with a page of its own is the only one that reads as
-              // clickable: it carries the arrow above and its name underlines on
-              // hover. The rest are flat, so nothing invites a click that goes
-              // nowhere.
-              return ind.href ? (
-                <Link
-                  key={ind.key}
-                  href={ind.href}
-                  className="block hover:[&_p:first-child]:underline underline-offset-4"
-                  aria-label={`${ind.name[lang]}: ${T.industriesMore}`}
-                >
-                  {body}
-                </Link>
-              ) : (
-                <div key={ind.key}>{body}</div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
       )}
 
       {/* Problem
@@ -903,6 +587,12 @@ export function LandingContent() {
           <div className="md:col-span-5">
             <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.problemTitle}</h2>
             <p className="text-stone-500 max-w-[46ch]">{T.problemDesc}</p>
+            {/* The full list of hospital document types and real ward questions
+                lives on the hospital page. The featured band that used to link
+                there is gone now that the whole homepage speaks to hospitals. */}
+            <Link href="/solusi/rumah-sakit" className="inline-flex items-center gap-1.5 mt-5 text-sm font-medium text-teal-700 hover:text-teal-800 underline underline-offset-4 decoration-teal-300">
+              {T.problemMore} <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
           </div>
           {/* Hairlines, not three boxes. Three equal cards in a row is the
               single most recognisable AI-built section, and the boxes were
@@ -1017,12 +707,6 @@ export function LandingContent() {
           screen of scrolling out from between the demo and the price. */}
 
       {/* ROI Teaser */}
-      {/* Hidden for an individual, and this one is about honesty rather than
-          relevance. The calculator prices a month of a company's wasted search
-          time against its headcount; dragging the slider to 1 does not produce
-          a smaller version of that argument, it produces a number we have never
-          modelled and would not stand behind. The claim is not "worth less for
-          one person" — it is a claim we have not made. */}
       {/* Light, on the same warm paper as the rest of the page. This was a
           cool slate-900 slab: not just a second theme, but a second *palette*,
           since every neutral elsewhere here is warm. The red/green result
@@ -1030,7 +714,6 @@ export function LandingContent() {
           and they carried an implied verdict the numbers already state. Cost
           reads as plain ink, saving reads as the brand colour, and the figures
           are the only large type in the block. */}
-      {!isIndividual && (
       <section className="py-14 px-6 border-t border-hairline">
         <div className="max-w-4xl mx-auto">
           <div className="mb-7 max-w-2xl">
@@ -1076,7 +759,6 @@ export function LandingContent() {
           </div>
         </div>
       </section>
-      )}
 
       {/* Pricing teaser */}
       <section className="py-14 px-6">
@@ -1091,20 +773,16 @@ export function LandingContent() {
               <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.priceTitle}</h2>
               <p className="text-stone-500">{T.priceDesc}</p>
             </div>
-            <Link href={`/pricing${audienceQuery}`} className="shrink-0">
+            <Link href="/pricing" className="shrink-0">
               <Button variant="outline" className="gap-2 active:scale-[0.98] border-hairline bg-raised text-stone-800 hover:bg-stone-100 hover:text-stone-900">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button>
             </Link>
           </div>
-          {/* Two cards for an individual, four for a company. Left at four
-              columns the two would stretch to a quarter of the row each and sit
-              in a line of empty space; the narrower grid keeps them the size of
-              cards rather than of gaps. */}
-          <div className={`grid gap-4 mb-8 ${isIndividual ? "sm:grid-cols-2 max-w-xl mx-auto" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
+          <div className="grid gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4">
             {T.pricePlans.map((p) => {
               // Only the self-serve tiers take their price from the pricing
               // module; Starter is free and Custom has no list price at all, so
               // both keep the literal string from the copy above.
-              const planKey = p.name === "Personal" ? "personal" : p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
+              const planKey = p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
               const promo = planKey ? isPromoActive() : false;
               const priceText = planKey
                 ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
@@ -1166,13 +844,7 @@ export function LandingContent() {
               // static and never reordered at runtime, and an index cannot
               // collide or drift between the two translations the way a
               // hand-written id in both arrays would.
-              //
-              // The audience is part of that identity because the two FAQs are
-              // different lists that happen to be the same length. Radix keeps
-              // its open item in uncontrolled state and this accordion never
-              // unmounts, so a plain index left "faq-5" open across a tab switch
-              // — the panel stayed down, now showing a question nobody clicked.
-              <AccordionItem key={`${audience}-${i}`} value={`faq-${audience}-${i}`} className="last:border-b-0">
+              <AccordionItem key={i} value={`faq-${i}`} className="last:border-b-0">
                 <AccordionTrigger className="text-left text-base font-semibold text-stone-900 hover:no-underline py-5">
                   {f.q}
                 </AccordionTrigger>
@@ -1211,7 +883,7 @@ export function LandingContent() {
         <h2 className="text-3xl md:text-4xl font-semibold tracking-[-0.015em] text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href={`/register${audienceQuery}`}><Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
+          <Link href="/register"><Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
           {/* Was a second "view pricing" button, sitting one section below the
               pricing teaser and a scroll below the pricing link in the nav. The
               page's last word is better spent on the visitor who has read
@@ -1294,6 +966,17 @@ export function LandingContent() {
         </form>
       </section>
 
+      {/* Other industries
+          One line, not a section: the homepage is written for hospitals, and
+          this is only the door for a visitor who is not one. The names come
+          from the registry, so this sentence and /industri cannot disagree. */}
+      <section className="px-6 py-8">
+        <p className="max-w-6xl mx-auto text-center text-sm text-stone-500">
+          {T.industryRowLead} {joinNames(OTHER_INDUSTRIES.map((i) => i.name[lang]), lang)}.{" "}
+          <Link href="/industri" className="font-medium text-teal-700 hover:text-teal-800 underline underline-offset-4 decoration-teal-300">{T.industryRowMore}</Link>
+        </p>
+      </section>
+
       {/* Footer
           Hand-written here instead of using <SiteFooter>, which every other
           marketing page renders. The two have drifted — this one carries the
@@ -1321,10 +1004,10 @@ export function LandingContent() {
                 SiteFooter reached every marketing page except the one that
                 matters most. See the note above <footer>. */}
             <Link href="/blog" className="hover:text-stone-600">{T.footer.blog}</Link>
-            {!isIndividual && <Link href="/roi" className="hover:text-stone-600">{T.footer.roi}</Link>}
-            <Link href={`/pricing${audienceQuery}`} className="hover:text-stone-600">{T.footer.price}</Link>
+            <Link href="/roi" className="hover:text-stone-600">{T.footer.roi}</Link>
+            <Link href="/pricing" className="hover:text-stone-600">{T.footer.price}</Link>
             <Link href="/login" className="hover:text-stone-600">{T.footer.login}</Link>
-            <Link href={`/register${audienceQuery}`} className="hover:text-stone-600">{T.footer.register}</Link>
+            <Link href="/register" className="hover:text-stone-600">{T.footer.register}</Link>
             <Link href="/terms" className="hover:text-stone-600">{T.footer.terms}</Link>
             <Link href="/privacy" className="hover:text-stone-600">{T.footer.privacy}</Link>
           </div>

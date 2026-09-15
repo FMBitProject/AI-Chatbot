@@ -16,6 +16,10 @@ const STATIC_ROUTES = [
   // The index changes whenever a post ships, which is more often than anything
   // else here — the articles themselves are the opposite and say so below.
   { path: "/blog", changeFrequency: "weekly", priority: 0.8 },
+  // The non-hospital verticals, moved off the homepage when it was repositioned
+  // around hospitals. Static, not derived from INDUSTRIES like /solusi/* below:
+  // it is one page listing all of them, not one page per entry.
+  { path: "/industri", changeFrequency: "monthly", priority: 0.6 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
 ] as const;

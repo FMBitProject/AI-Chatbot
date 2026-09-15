@@ -68,7 +68,7 @@ const CONTENT = {
 
     ctaTitle: "Coba dengan Satu Clinical Pathway Anda",
     ctaDesc: "Upload satu dokumen, ajukan lima pertanyaan, dan nilai sendiri jawabannya. Gratis, tanpa kartu kredit.",
-    back: "Lihat semua industri",
+    back: "Lihat industri lain",
   },
   en: {
     nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator" },
@@ -121,7 +121,7 @@ const CONTENT = {
 
     ctaTitle: "Try It With One of Your Clinical Pathways",
     ctaDesc: "Upload one document, ask five questions, and judge the answers yourself. Free, no credit card.",
-    back: "See all industries",
+    back: "See other industries",
   },
 };
 
@@ -268,7 +268,7 @@ export function HospitalSolutionContent() {
           <Link href="/register"><Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">{T.cta1} <ArrowRight className="h-5 w-5" /></Button></Link>
           <Link href="/pricing"><Button size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8">{T.cta2}</Button></Link>
         </div>
-        <Link href="/" className="inline-block mt-8 text-sm text-teal-100 hover:text-white underline underline-offset-4">{T.back}</Link>
+        <Link href="/industri" className="inline-block mt-8 text-sm text-teal-100 hover:text-white underline underline-offset-4">{T.back}</Link>
       </section>
 
       <SiteFooter lang={lang} />
