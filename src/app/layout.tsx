@@ -37,11 +37,11 @@ export const metadata: Metadata = {
   // is stated in one place; the literal is the fallback for local builds.
   metadataBase: new URL(siteOrigin()),
   title: { default: "IntelliBase AI", template: "%s · IntelliBase AI" },
-  description: "Platform RAG untuk akses SOP, regulasi, dan panduan perusahaan secara instan melalui AI chat. Multi-tenant, aman, dan mudah digunakan.",
-  keywords: ["knowledge base", "AI chat", "internal dokumen", "SOP", "RAG", "perusahaan", "HR"],
+  description: "SPO, PPK, clinical pathway, dan formularium rumah sakit & klinik Anda jadi asisten AI yang menjawab pertanyaan staf kapan saja, lengkap dengan dokumen sumbernya.",
+  keywords: ["knowledge base rumah sakit", "AI rumah sakit", "klinik", "SPO", "PPK", "clinical pathway", "akreditasi", "formularium"],
   openGraph: {
-    title: "IntelliBase AI: Knowledge Base Internal Perusahaan",
-    description: "Karyawan bisa tanya apa saja tentang kebijakan perusahaan dan dapat jawaban instan dari AI.",
+    title: "IntelliBase AI: Knowledge Base AI untuk Rumah Sakit & Klinik",
+    description: "Perawat dan dokter jaga bertanya, AI menjawab dari SPO, PPK, dan clinical pathway resmi rumah sakit Anda.",
     type: "website",
     locale: "id_ID",
     siteName: "IntelliBase AI",
@@ -61,8 +61,8 @@ export const metadata: Metadata = {
   // half. The image itself comes from `twitter-image.tsx`.
   twitter: {
     card: "summary_large_image",
-    title: "IntelliBase AI: Knowledge Base Internal Perusahaan",
-    description: "Karyawan bisa tanya apa saja tentang kebijakan perusahaan dan dapat jawaban instan dari AI.",
+    title: "IntelliBase AI: Knowledge Base AI untuk Rumah Sakit & Klinik",
+    description: "Perawat dan dokter jaga bertanya, AI menjawab dari SPO, PPK, dan clinical pathway resmi rumah sakit Anda.",
   },
   // Google Search Console ownership proof for the https://www.intellibaseai.com
   // URL-prefix property. Next renders this as

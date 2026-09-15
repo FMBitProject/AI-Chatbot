@@ -11,7 +11,7 @@ import { join } from "node:path";
 // wide in a chat list, where a dashboard shrinks to unreadable. It has room for
 // one sentence, so it carries the promise and the domain, and nothing else.
 export const alt =
-  "IntelliBase AI: karyawan bertanya, AI menjawab dari dokumen resmi perusahaan";
+  "IntelliBase AI: staf rumah sakit bertanya, AI menjawab dari SPO dan PPK resmi rumah sakit";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -70,8 +70,8 @@ export default async function OpengraphImage() {
               lineHeight: 1.18,
             }}
           >
-            <span>Karyawan bertanya. AI menjawab</span>
-            <span>dari dokumen resmi perusahaan.</span>
+            <span>Staf RS bertanya. AI menjawab</span>
+            <span>dari SPO &amp; PPK resmi rumah sakit.</span>
           </div>
           <div
             style={{
@@ -82,7 +82,7 @@ export default async function OpengraphImage() {
               lineHeight: 1.4,
             }}
           >
-            SOP, regulasi HR, panduan IT, clinical pathway, dijawab dalam detik.
+            Clinical pathway, formularium, dokumen akreditasi. Kapan saja.
           </div>
         </div>
 
@@ -96,7 +96,7 @@ export default async function OpengraphImage() {
           }}
         >
           <span>intellibaseai.com</span>
-          <span>Gratis untuk tim kecil · Setup 10 menit</span>
+          <span>Dibangun oleh dokter · Untuk rumah sakit &amp; klinik</span>
         </div>
       </div>
     ),

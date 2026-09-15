@@ -20,7 +20,7 @@ import {
 } from "../src/lib/errors.ts";
 import { INTERACTIVE_CHAIN, BATCH_CHAIN, usableChain, isRateLimitFailure, describeAiFailure } from "../src/lib/models.ts";
 import { t, admin, pricing } from "../src/lib/i18n.ts";
-import { INDUSTRIES, FEATURED_INDUSTRY, OTHER_INDUSTRIES } from "../src/lib/industries.ts";
+import { INDUSTRIES, OTHER_INDUSTRIES, PRIMARY_INDUSTRY_KEY } from "../src/lib/industries.ts";
 
 let gagal = 0;
 const laporkan = (ok: boolean, nama: string, catatan = "") => {
@@ -227,19 +227,15 @@ sama(INDUSTRIES.length > 1, true, "lebih dari satu industri — produknya bukan 
 sama(new Set(INDUSTRIES.map((i) => i.key)).size, INDUSTRIES.length, "key industri unik");
 sama(INDUSTRIES.every((i) => i.name.id && i.name.en), true, "setiap industri punya nama dua bahasa");
 sama(INDUSTRIES.every((i) => i.docs.id && i.docs.en), true, "setiap industri punya contoh dokumen dua bahasa");
-sama(FEATURED_INDUSTRY !== null, true, "ada satu industri yang diangkat jadi band");
-sama(!!FEATURED_INDUSTRY?.href, true, "industri unggulan punya href — CTA-nya harus menuju suatu tempat");
+const industriUtama = INDUSTRIES.find((i) => i.key === PRIMARY_INDUSTRY_KEY);
+sama(industriUtama !== undefined, true, "industri utama homepage ada di registry");
+sama(!!industriUtama?.href, true, "industri utama punya href — tautan ke halaman solusinya harus menuju suatu tempat");
 sama(
-  OTHER_INDUSTRIES.some((i) => i.key === FEATURED_INDUSTRY?.key),
+  OTHER_INDUSTRIES.some((i) => i.key === PRIMARY_INDUSTRY_KEY),
   false,
-  "industri unggulan TIDAK muncul lagi di baris bawah (duplikat = bug bagi pembaca, duplicate content bagi crawler)",
+  "industri utama TIDAK muncul lagi di baris 'industri lain' maupun /industri (duplikat = bug bagi pembaca, duplicate content bagi crawler)",
 );
-sama(OTHER_INDUSTRIES.length, INDUSTRIES.length - 1, "unggulan + sisanya = seluruh daftar, tak ada yang hilang");
-sama(
-  FEATURED_INDUSTRY?.featured?.points.id.length === FEATURED_INDUSTRY?.featured?.points.en.length,
-  true,
-  "poin band unggulan sama banyak di dua bahasa",
-);
+sama(OTHER_INDUSTRIES.length, INDUSTRIES.length - 1, "utama + sisanya = seluruh daftar, tak ada yang hilang");
 
 console.log(gagal === 0 ? "\n✓ semua kasus lulus" : `\n✗ ${gagal} kasus GAGAL`);
 process.exit(gagal === 0 ? 0 : 1);
