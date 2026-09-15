@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import {
@@ -35,6 +35,26 @@ const MIN_AGE_MINUTES = 10;
 // question that is not going to change. It keeps its "pending" status because
 // that is the honest record: we do not know.
 const MAX_AGE_DAYS = 7;
+
+// An order Midtrans told us had expired is swept too, for this long after it was
+// created.
+//
+// "Expired" is Midtrans' verdict on the payment window, not on the money: a bank
+// transfer made minutes before the deadline can settle *after* the expire
+// notification was sent, and the customer is by then long gone from the success
+// page. Until this window existed, that order was closed here and never looked
+// at again — the sweep only considered "pending" — so if its settlement
+// notification was also missed (a maintenance window, an outage, a notification
+// Midtrans stopped retrying), the money was ours and the subscription was never
+// activated, with nothing anywhere to say so. That is precisely the silent
+// failure this route exists to prevent, and it was the one case it could not see.
+//
+// Shorter than MAX_AGE_DAYS because the uncertainty is shorter: a settlement
+// that lands after expiry lands within hours, not days, and unlike a pending
+// order an expired one never leaves the candidate set on its own — its status
+// does not change when we re-check it — so every extra hour is paid for on every
+// run.
+const EXPIRED_RECHECK_HOURS = 48;
 
 // Upper bound on one run. Each candidate costs a Midtrans round trip, so this
 // caps both the outbound traffic and the time before the loop even starts.
@@ -109,9 +129,20 @@ export async function GET(req: NextRequest) {
   // zone, so the driver hands it back as local time.
   const candidates = await db.select().from(transactions)
     .where(and(
-      eq(transactions.status, "pending"),
       sql`${transactions.createdAt} < now() - ${sql.raw(`interval '${MIN_AGE_MINUTES} minutes'`)}`,
-      sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${MAX_AGE_DAYS} days'`)}`,
+      or(
+        and(
+          eq(transactions.status, "pending"),
+          sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${MAX_AGE_DAYS} days'`)}`,
+        ),
+        // See EXPIRED_RECHECK_HOURS: a payment can settle after Midtrans has
+        // already declared the order expired, and this is the only mechanism
+        // that would ever notice.
+        and(
+          eq(transactions.status, "expired"),
+          sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${EXPIRED_RECHECK_HOURS} hours'`)}`,
+        ),
+      ),
     ))
     // Least recently checked first, never-checked before that.
     //
@@ -197,7 +228,15 @@ export async function GET(req: NextRequest) {
       // order settled by the webhook a moment earlier was counted as closed.
       const marked = await db.update(transactions)
         .set({ status: closedStatus })
-        .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
+        // Skipped when the row already says this, which is the ordinary case for
+        // the expired orders the sweep now re-checks: re-writing "expired" over
+        // "expired" is a pointless write, and it would count as a close on every
+        // run for two days, turning the `closed` figure in the log into noise.
+        .where(and(
+          eq(transactions.id, tx.id),
+          ne(transactions.status, "paid"),
+          ne(transactions.status, closedStatus),
+        ))
         .returning({ id: transactions.id })
         .catch((err) => {
           console.error(`[payment/reconcile] Could not mark order=${tx.orderId} ${closedStatus}:`, err);
