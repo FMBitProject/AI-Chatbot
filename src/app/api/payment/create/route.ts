@@ -5,6 +5,7 @@ import { companies, transactions } from "@/lib/db/schema";
 import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   amountMatches,
+  cancelMidtransTransaction,
   closedTransactionStatus,
   createSnapTransaction,
   fetchMidtransStatus,
@@ -27,10 +28,11 @@ const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
 const PENDING_REUSE_HOURS = 24;
 
 // How many pending orders one checkout will ask Midtrans about. One is the
-// normal case; more than one only exists as leftovers from before reuse was
-// added. Capped because each one costs an outbound request on a path the
-// customer is waiting on.
-const MAX_PENDING_TO_CHECK = 3;
+// normal case. transactions_one_pending_per_plan allows at most one per plan,
+// and there are three purchasable plans, so four is already more than can
+// legitimately exist. Capped because each one costs an outbound request on a
+// path the customer is waiting on.
+const MAX_PENDING_TO_CHECK = 4;
 
 /**
  * Postgres' SQLSTATE for a unique violation, which is how
@@ -127,6 +129,16 @@ export async function POST(req: NextRequest) {
   // twice for one month. Reusing the order they already have is what makes
   // clicking twice harmless.
   //
+  // Every plan, not just the one being bought. The reuse above is per plan
+  // because only a same-plan order can be handed back, but the *danger* is not:
+  // transactions_one_pending_per_plan permits one live order for Professional
+  // and another for Enterprise at the same time, which is two virtual account
+  // numbers that both work. Paying both charges the customer twice, and the
+  // second one to settle is the lower tier, so it lands in settlePaidOrder's
+  // "nothing-granted" branch — money banked, nothing given, resolved by hand.
+  // Anything still open for another plan is therefore closed further down
+  // before a new order is minted.
+  //
   // Several are fetched, not one, because there may already *be* several: every
   // checkout before this guard existed minted its own order, so a company can
   // carry more than one live at once. Looking only at the newest would settle
@@ -136,7 +148,6 @@ export async function POST(req: NextRequest) {
   const pendings = await db.select().from(transactions)
     .where(and(
       eq(transactions.companyId, dbUser.companyId),
-      eq(transactions.plan, plan),
       eq(transactions.status, "pending"),
       // Compared against now() inside Postgres, not a JS Date built here:
       // created_at is written by the database's own clock (defaultNow), and a
@@ -210,10 +221,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // The settled order is not necessarily the plan being bought now: this
+      // block looks at every open order, so it can be the Professional order
+      // the customer abandoned before coming back for Enterprise. Saying which
+      // plan was activated matters — the plan they just clicked is not the one
+      // they now hold, and the retry they are invited to make is re-evaluated
+      // against the company row this settlement has just changed (the downgrade
+      // check above reads it fresh on every call).
+      const paidPlanName = isPurchasablePlan(paidOrder.plan) ? PLAN_NAMES[paidOrder.plan] : paidOrder.plan;
       return NextResponse.json(
         {
           error: "already_paid",
-          message: "Pembayaran Anda untuk paket ini sudah kami terima. Silakan buka dashboard untuk melihat status langganan.",
+          message: paidOrder.plan === plan
+            ? "Pembayaran Anda untuk paket ini sudah kami terima. Silakan buka dashboard untuk melihat status langganan."
+            : `Pembayaran Anda untuk paket ${paidPlanName} sudah kami terima dan langganan itu sudah kami aktifkan. Silakan buka dashboard untuk melihat statusnya.`,
           orderId: paidOrder.orderId,
         },
         { status: 409 },
@@ -239,14 +260,90 @@ export async function POST(req: NextRequest) {
     // counts as open on purpose: a token minted inside the window is almost
     // certainly still good, and reusing it can never create a second way to pay,
     // while minting a new order on a bad guess can.
+    //
+    // Only an order for the plan being bought can be handed back: returning an
+    // Enterprise checkout to someone who asked for Professional would charge
+    // them the wrong price for the wrong thing.
     const reusable = checked.find(
       (c) =>
+        c.order.plan === plan &&
         c.order.snapToken !== null &&
         (!c.status.ok || !closedTransactionStatus(c.status.data.transaction_status)),
     );
     if (reusable?.order.snapToken) {
+      // An order left open for another plan is deliberately not closed on this
+      // path. Handing back a token the customer already has creates no second
+      // way to pay, so there is nothing new to protect them from, and cancelling
+      // an order they may be about to pay would be worse than leaving it.
       console.log(`[payment/create] Reusing pending order: company=${dbUser.companyId} order=${reusable.order.orderId}`);
       return NextResponse.json({ token: reusable.order.snapToken, orderId: reusable.order.orderId, reused: true });
+    }
+
+    // Nothing to hand back, so a new order is about to be minted — and this is
+    // the moment a second live way to pay would come into existence. Every order
+    // still open for a different plan is closed first, at Midtrans as well as
+    // here: the row is ours to rewrite, but the virtual account number belongs
+    // to Midtrans and stays payable until Midtrans is told otherwise.
+    for (const c of checked) {
+      // Same plan: either reused above, or open without a token — the insert
+      // below handles that one through the unique index.
+      if (c.order.plan === plan) continue;
+      // Already closed by the loop above.
+      if (c.status.ok && closedTransactionStatus(c.status.data.transaction_status)) continue;
+
+      const otherPlanName = isPurchasablePlan(c.order.plan) ? PLAN_NAMES[c.order.plan] : c.order.plan;
+
+      if (!c.status.ok && !c.status.notFound) {
+        // Midtrans is unreachable, so whether that order can still take money is
+        // exactly what we do not know. Minting anyway is the one irreversible
+        // choice available here, and it is the one that can cost the customer a
+        // second month. Ask them to come back instead.
+        console.warn(`[payment/create] Cannot confirm other-plan order=${c.order.orderId}; refusing to open a second checkout for company=${dbUser.companyId}`);
+        return NextResponse.json(
+          {
+            error: "status_unavailable",
+            message: "Kami belum bisa memastikan status pesanan Anda yang lain. Coba lagi beberapa saat lagi.",
+            orderId: c.order.orderId,
+          },
+          { status: 503 },
+        );
+      }
+
+      if (c.status.ok) {
+        // Registered at Midtrans, which for a virtual account means a number the
+        // customer can transfer to right now. Cancelling is what makes it stop
+        // working.
+        const cancelled = await cancelMidtransTransaction(c.order.orderId, "[payment/create]");
+        if (!cancelled) {
+          // Midtrans refused. The most likely reason is that the order settled
+          // in the seconds since the status check above, so the row is left
+          // pending on purpose — the webhook, the next checkout and the
+          // reconciliation sweep all still see it, which they would not if it
+          // were filed as closed here.
+          return NextResponse.json(
+            {
+              error: "pending_other_plan",
+              message: `Masih ada pesanan pembayaran yang aktif untuk paket ${otherPlanName}. Selesaikan pembayaran itu dulu, atau tunggu sampai kedaluwarsa (maksimal 24 jam), lalu coba lagi.`,
+              orderId: c.order.orderId,
+            },
+            { status: 409 },
+          );
+        }
+      }
+      // The remaining case is notFound: a Snap token the customer was given but
+      // never opened, so Midtrans has no transaction to cancel and no payment
+      // instrument was ever issued. Nothing to do there but close our own row.
+
+      // "expired" rather than "failed": nothing was rejected, the payment window
+      // was simply abandoned. It is also the status the reconciliation sweep
+      // re-checks for a late settlement, which keeps the narrow race above (an
+      // order that settles between the status check and the cancel) recoverable
+      // without a human.
+      await db.update(transactions)
+        .set({ status: "expired" })
+        .where(and(eq(transactions.id, c.order.id), ne(transactions.status, "paid")))
+        .catch((err) => console.error(`[payment/create] Could not close other-plan order=${c.order.orderId}:`, err));
+      console.log(`[payment/create] Closed other-plan order=${c.order.orderId} (${c.order.plan}) before opening ${plan} checkout for company=${dbUser.companyId}`);
     }
   }
 
