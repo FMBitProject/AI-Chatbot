@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { settlePaidOrder } from "@/lib/payment";
 import {
   amountMatches,
@@ -194,15 +194,29 @@ export async function POST(req: NextRequest) {
         console.log(`[payment] Duplicate paid notification ignored: order=${body.order_id}`);
       }
     } else if (closedStatus) {
-      // `status <> 'paid'` on both branches so a late cancel/expire/pending
-      // notification can never rewrite an order we already settled and granted.
+      // Only an order still open is closed here, rather than anything that is
+      // merely `<> 'paid'`. Midtrans re-delivers on its own schedule, so an
+      // older notification can arrive after a newer one: a retried "pending"
+      // landing after we already recorded "expire" would otherwise reopen a
+      // dead order, and a retried "expire" would rewrite a "cancel" we had
+      // already recorded. Reopening is the harmful one — it puts the order back
+      // in the dashboard as "Menunggu", back in the reconciliation sweep, and,
+      // when the customer has since started another order for the same plan,
+      // straight into a transactions_one_pending_per_plan unique violation,
+      // which becomes a 500 that Midtrans then retries on a loop.
+      //
+      // "paid" is covered by this too: a settled order is not open, so a late
+      // cancel/expire can never rewrite an order we already granted a plan for.
       await db.update(transactions)
         .set({ status: closedStatus })
-        .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")));
+        .where(and(eq(transactions.orderId, body.order_id), eq(transactions.status, "pending")));
     } else if (body.transaction_status === "pending") {
+      // Same guard, where it does the most work: this branch only ever confirms
+      // "pending" for an order that is already pending, so it is a no-op rather
+      // than a resurrection.
       await db.update(transactions)
         .set({ status: "pending" })
-        .where(and(eq(transactions.orderId, body.order_id), ne(transactions.status, "paid")));
+        .where(and(eq(transactions.orderId, body.order_id), eq(transactions.status, "pending")));
     } else if (isReversalStatus(body.transaction_status)) {
       // Deliberately not automated — see isReversalStatus. Money has gone back
       // to the customer while their subscription is still running, so this is
