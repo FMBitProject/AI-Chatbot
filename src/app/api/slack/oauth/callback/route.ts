@@ -1,31 +1,23 @@
 import { NextRequest } from "next/server";
 import { WebClient } from "@slack/web-api";
 import { eq, ne, and } from "drizzle-orm";
-import { slackInstallations } from "@/lib/db/schema";
+import { companies, slackInstallations } from "@/lib/db/schema";
 import { withTransaction } from "@/lib/db/transaction";
-import { decryptSecret, encryptSecret } from "@/lib/secret-box";
+import { encryptSecret } from "@/lib/secret-box";
 import { absoluteUrl } from "@/lib/site-url";
 import { toAdminWithSlackStatus, type SlackStatus } from "@/lib/slack";
 import {
-  SLACK_INSTALL_STATE_CONTEXT,
+  readSlackInstallState,
+  consumeSlackInstallState,
   SLACK_INSTALL_NONCE_COOKIE,
   SLACK_INSTALL_NONCE_PATH,
-} from "@/app/api/slack/install/route";
+} from "@/lib/slack-install-state";
+import { requireCompanyAdmin } from "@/lib/auth-guard";
+import { resolvePlanById } from "@/lib/subscription";
+import { canUseAiAnswers } from "@/lib/pricing";
 
-/**
- * Answers the admin's browser and burns the install nonce on the way out.
- *
- * Every exit from this route goes through here, success and failure alike. The
- * nonce has done its job the moment this callback runs, and leaving the cookie
- * in place would keep it valid for the rest of its ten minutes — a second
- * callback could then reuse it, which is the property the cookie exists to
- * remove.
- *
- * Every attribute mirrors the one the install route set. Only name, domain and
- * path decide which cookie this replaces, so the rest is not strictly required
- * — but an asymmetric pair is how a later edit to `path` on one side silently
- * stops clearing the other.
- */
+// Clear the browser cookie on every exit. Replay protection is enforced by
+// consuming the server-side nonce before exchanging the OAuth code.
 function finish(status: SlackStatus) {
   const res = toAdminWithSlackStatus(status);
   res.cookies.set(SLACK_INSTALL_NONCE_COOKIE, "", {
@@ -64,49 +56,20 @@ export async function GET(req: NextRequest) {
   let companyId: string;
   let userId: string;
   try {
-    const decoded = JSON.parse(decryptSecret(stateParam, SLACK_INSTALL_STATE_CONTEXT)) as {
-      companyId?: unknown;
-      userId?: unknown;
-      nonce?: unknown;
-      exp?: unknown;
-    };
-    // Typed before it is compared. `Date.now() > undefined` is false, so a
-    // state object without a numeric exp used to skip the expiry check
-    // silently — unreachable without BYOK_SECRET_KEY, but the one field here
-    // that had no explicit guard.
-    if (typeof decoded.exp !== "number" || Date.now() > decoded.exp) throw new Error("state expired");
-    if (typeof decoded.companyId !== "string" || !decoded.companyId
-      || typeof decoded.userId !== "string" || !decoded.userId
-      || typeof decoded.nonce !== "string" || !decoded.nonce) {
-      throw new Error("state missing fields");
+    const decoded = readSlackInstallState(
+      stateParam, req.cookies.get(SLACK_INSTALL_NONCE_COOKIE)?.value,
+    );
+    const guard = await requireCompanyAdmin(req);
+    if (!guard.ok || guard.user.companyId !== decoded.companyId || guard.user.id !== decoded.userId) {
+      return finish("error");
     }
-
-    // The state proves *a* company started an install; the cookie proves this
-    // browser did. Without this, a leaked state value would be enough to finish
-    // the flow from somewhere else — see SLACK_INSTALL_NONCE_COOKIE.
-    //
-    // Compared with `!==` rather than in constant time, and the reason is
-    // entropy alone. An attacker can retry this freely — the check runs before
-    // the OAuth code is exchanged, so a junk `code` costs them nothing and
-    // there is no rate limit in front of it — which means a timing oracle does
-    // exist. It is simply not usable: the nonce is 256 random bits, so the
-    // comparison almost always ends on the first byte, and distinguishing that
-    // over a network would take far longer than the ten-minute window the value
-    // survives. Widen the window or shorten the nonce and this stops being true.
-    const cookieNonce = req.cookies.get(SLACK_INSTALL_NONCE_COOKIE)?.value;
-    if (!cookieNonce || cookieNonce !== decoded.nonce) throw new Error("state/cookie nonce mismatch");
-
-    companyId = decoded.companyId;
-    userId = decoded.userId;
-  } catch (err) {
-    // Wrong signature, tampered value, expired, or started in another browser —
-    // all the same response to the caller: the install did not happen, try
-    // again from the dashboard.
-    //
-    // An install already in flight when this deploys lands here too, because
-    // its state predates the nonce field. It costs that admin one retry, which
-    // is why the window is ten minutes and not ten hours.
-    console.error("[slack/oauth/callback] Invalid or expired state:", err);
+    const { subscription } = await resolvePlanById(guard.user.companyId);
+    if (!canUseAiAnswers(subscription.plan)) return finish("plan");
+    if (!(await consumeSlackInstallState(decoded))) return finish("error");
+    companyId = guard.user.companyId;
+    userId = guard.user.id;
+  } catch (error) {
+    console.error("[slack/oauth/callback] State validation failed:", error);
     return finish("error");
   }
 
@@ -135,38 +98,16 @@ export async function GET(req: NextRequest) {
 
     const encryptedToken = encryptSecret(botToken, `${companyId}:slackBotToken`);
 
-    // Three statements, one transaction. Two problems, both about the same
-    // pair of unique constraints:
-    //
-    // 1. A company reinstalling to a *different* workspace must not collide
-    //    with the `slack_installations_company_idx` unique index the old row
-    //    still holds — handled by deleting any other installation for this
-    //    company first, then upserting by team_id.
-    // 2. team_id is the primary key, and `onConflictDoUpdate` below would
-    //    happily overwrite *any* existing row's companyId on conflict —
-    //    including one that belongs to someone else. Without the ownership
-    //    check, a different company completing OAuth for a workspace that is
-    //    already connected would silently reassign it away from its real
-    //    owner, no error, no notice to the company that lost it. The check
-    //    has to run inside this same transaction, not before it, or a
-    //    concurrent install could still slip past a check-then-act gap.
+    // Serialize replacements within a company. The conditional upsert below
+    // also prevents two companies racing to claim the same Slack workspace.
     await withTransaction(async (tx) => {
-      const [existing] = await tx.select({ companyId: slackInstallations.companyId })
-        .from(slackInstallations)
-        .where(eq(slackInstallations.teamId, teamId))
-        .limit(1);
-
-      if (existing && existing.companyId !== companyId) {
-        throw new WorkspaceOwnedByAnotherCompanyError(
-          `Workspace ${teamId} is already connected to company ${existing.companyId}`,
-        );
-      }
-
+      await tx.select({ id: companies.id }).from(companies)
+        .where(eq(companies.id, companyId)).for("update");
       await tx.delete(slackInstallations).where(
         and(eq(slackInstallations.companyId, companyId), ne(slackInstallations.teamId, teamId)),
       );
 
-      await tx.insert(slackInstallations).values({
+      const installed = await tx.insert(slackInstallations).values({
         teamId,
         companyId,
         teamName: result.team?.name ?? null,
@@ -177,7 +118,6 @@ export async function GET(req: NextRequest) {
       }).onConflictDoUpdate({
         target: slackInstallations.teamId,
         set: {
-          companyId,
           teamName: result.team?.name ?? null,
           botToken: encryptedToken,
           botUserId: result.bot_user_id ?? null,
@@ -185,7 +125,11 @@ export async function GET(req: NextRequest) {
           installedByUserId: userId,
           installedAt: new Date(),
         },
-      });
+        setWhere: eq(slackInstallations.companyId, companyId),
+      }).returning({ teamId: slackInstallations.teamId });
+      if (installed.length !== 1) {
+        throw new WorkspaceOwnedByAnotherCompanyError("Slack workspace belongs to another company");
+      }
     });
   } catch (err) {
     if (err instanceof WorkspaceOwnedByAnotherCompanyError) {

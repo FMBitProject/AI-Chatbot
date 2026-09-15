@@ -19,12 +19,12 @@ export const maxDuration = 60;
  * nothing — the person has already been told the question is being worked on,
  * and the only thing left to do about a failed delivery is log it.
  */
-async function reply(responseUrl: string, text: string, inChannel = false): Promise<void> {
+async function reply(responseUrl: string, text: string): Promise<void> {
   try {
     await fetch(responseUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ response_type: inChannel ? "in_channel" : "ephemeral", text }),
+      body: JSON.stringify({ response_type: "ephemeral", text }),
     });
   } catch (err) {
     console.error("[slack/command] Failed to post to response_url:", err);
@@ -169,12 +169,11 @@ export async function POST(req: NextRequest) {
 
       // The question is escaped here because only this route echoes it; the
       // answer and its source footer are escaped inside formatSlackAnswer,
-      // which /api/slack/events shares. Posted in_channel, under this app's
-      // name, so every value in it comes from outside — see escapeSlackText.
+      // which /api/slack/events shares. Retrieval authorizes only the asker,
+      // so the answer must remain private to that same person.
       await reply(
         responseUrl,
         `*Pertanyaan:* ${escapeSlackText(text)}\n\n*Jawaban:*\n${formatSlackAnswer(answer)}`,
-        true,
       );
     } catch (err) {
       console.error("[slack/command] Failed to answer:", err);

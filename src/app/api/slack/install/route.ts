@@ -1,62 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomBytes } from "crypto";
 import { requireCompanyAdmin } from "@/lib/auth-guard";
 import { resolvePlanById } from "@/lib/subscription";
 import { canUseAiAnswers } from "@/lib/pricing";
-import { encryptSecret } from "@/lib/secret-box";
 import { absoluteUrl } from "@/lib/site-url";
 import { toAdminWithSlackStatus } from "@/lib/slack";
+import {
+  issueSlackInstallState,
+  SLACK_INSTALL_NONCE_COOKIE,
+  SLACK_INSTALL_NONCE_PATH,
+  SLACK_INSTALL_STATE_TTL_MS,
+} from "@/lib/slack-install-state";
 
 // Scopes the bot needs: `commands` + `app_mentions:read` for the two answering
 // entry points, `chat:write` to post the answer back, `users:read` +
 // `users:read.email` for resolveSlackUser's email match (see @/lib/slack).
 const SLACK_SCOPES = "commands,app_mentions:read,chat:write,users:read,users:read.email";
-
-// The AAD for the OAuth state token: distinct from every other encryptSecret
-// call in the app (BYOK keys use `<companyId>:<field>`) so a state value could
-// never be replayed as a provider key or vice versa, even though both go
-// through the same cipher.
-// Exported so the callback route decrypts with the exact same AAD — a typo'd
-// duplicate string in either file would make every install fail closed with
-// "malformed secret", which is safe but would be a confusing bug to chase.
-export const SLACK_INSTALL_STATE_CONTEXT = "slack:install";
-const STATE_TTL_MS = 10 * 60 * 1000;
-
-/**
- * Cookie holding the nonce that also lives inside the encrypted `state`.
- *
- * The state token cannot be forged — it is AES-256-GCM ciphertext — but on its
- * own it is a bearer token: it says which company is installing and nothing
- * about *who* is holding it. Anyone who obtained a live state value (it travels
- * to slack.com as a query parameter, so it lands in the admin's browser
- * history) could finish the flow from their own browser with their own
- * workspace inside the 10-minute window. They could not then ask questions —
- * `resolveSlackUser` would find no employee of the victim company matching
- * their Slack profile email — but the upsert in the callback deletes any other
- * installation row for that company, which would disconnect the victim's real
- * workspace.
- *
- * Pairing the state with an httpOnly cookie fixes that: completing the flow now
- * requires the browser that started it, not merely the string it was handed.
- * `SameSite=Lax` is deliberate and required — the callback arrives as a
- * top-level GET navigation from slack.com, which Lax allows and Strict would
- * not.
- *
- * Exported for the callback route, which reads it back. Same reasoning as
- * SLACK_INSTALL_STATE_CONTEXT above: one definition, so a typo cannot make
- * every install fail in a way that looks like a Slack problem.
- */
-export const SLACK_INSTALL_NONCE_COOKIE = "slack_install_nonce";
-
-/**
- * Path the nonce cookie is scoped to — the OAuth routes and nothing else.
- *
- * Narrower than `/api/slack`, which would also attach it to the two webhooks.
- * Slack's servers hold no cookies so nothing would have leaked, but a value
- * that only the callback reads has no business travelling anywhere else.
- * Shared with the callback so setting and clearing cannot disagree.
- */
-export const SLACK_INSTALL_NONCE_PATH = "/api/slack/oauth";
 
 /**
  * Starts the "Add to Slack" OAuth flow for the caller's company.
@@ -87,23 +45,14 @@ export async function GET(req: NextRequest) {
     return toAdminWithSlackStatus("error");
   }
 
-  // 256 bits from the CSPRNG: this is the only thing tying the flow to this
-  // browser, so it has to be unguessable rather than merely unique.
-  const nonce = randomBytes(32).toString("base64url");
-
-  // Bound to this admin's company and short-lived, so a copied/leaked install
-  // link cannot be replayed later or against a different company than the one
-  // whose admin clicked the button. Also bound to the cookie set below, so a
-  // leaked state alone is not enough to finish the flow.
-  const state = encryptSecret(
-    JSON.stringify({
-      companyId: guard.user.companyId,
-      userId: guard.user.id,
-      nonce,
-      exp: Date.now() + STATE_TTL_MS,
-    }),
-    SLACK_INSTALL_STATE_CONTEXT,
-  );
+  let state: string;
+  let nonce: string;
+  try {
+    ({ state, nonce } = await issueSlackInstallState(guard.user));
+  } catch (error) {
+    console.error("[slack/install] Could not issue OAuth state:", error);
+    return toAdminWithSlackStatus("error");
+  }
 
   const authorizeUrl = new URL("https://slack.com/oauth/v2/authorize");
   authorizeUrl.searchParams.set("client_id", clientId);
@@ -120,7 +69,7 @@ export async function GET(req: NextRequest) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: SLACK_INSTALL_NONCE_PATH,
-    maxAge: STATE_TTL_MS / 1000,
+    maxAge: SLACK_INSTALL_STATE_TTL_MS / 1000,
   });
   return res;
 }

@@ -141,13 +141,18 @@ export async function POST(req: NextRequest) {
         ? error.message
         : "Dokumen gagal diimpor karena kesalahan tak terduga di server.";
       try {
-        await recordDocumentFailure({
+        const stored = await recordDocumentFailure({
           companyId,
+          maxDocuments: limits.maxDocuments,
           docId,
           name: displayName.replace(/[^\w.\- ]/g, "").trim() || "upload",
           department: folder,
           errorMessage,
         });
+        if (!stored) {
+          limitReached = true;
+          break;
+        }
       } catch (insertError) {
         console.error(`[google-drive/import] Could not record failure for ${fileRef.id}:`, insertError);
       }

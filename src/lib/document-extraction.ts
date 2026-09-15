@@ -6,6 +6,13 @@
 
 import { AppError, type ErrorCode } from "./errors";
 
+// Bound actual DOCX inflation before XML parsing, then bound stored text.
+const DOCX_DECOMPRESSION_LIMITS = {
+  maxUncompressedBytes: 16 * 1024 * 1024,
+  maxZipEntries: 2_000,
+};
+const MAX_DOCX_TEXT_CHARACTERS = 2_000_000;
+
 // Failures an admin can actually act on (a scanned PDF, a corrupt file, a
 // password-protected one) carry a specific message that gets stored on the
 // document row and shown in the admin UI. Everything else falls back to a
@@ -93,6 +100,7 @@ export async function unwrapParseError(
   try {
     return await parse();
   } catch (error) {
+    if (error instanceof DocumentError) throw error;
     console.error(`[document-extraction] ${format} parser could not read ${fileName}:`, error);
     throw new DocumentError(
       `File ${format} ini tidak bisa dibaca — kemungkinan filenya rusak atau ekstensinya ` +
@@ -118,9 +126,20 @@ export async function extractText(buffer: Buffer, fileName: string): Promise<str
   // is the common cause and the advice is the same for all three.
   if (name.endsWith(".docx")) {
     return unwrapParseError(fileName, "DOCX", async () => {
-      const mammoth = await import("mammoth");
-      const result = await mammoth.extractRawText({ buffer });
-      return result.value;
+      // OfficeParser counts actual inflated bytes; ZIP header sizes alone
+      // cannot enforce the limit because the uploader controls those headers.
+      const { parseOffice } = await import("officeparser");
+      const ast = await parseOffice(buffer, {
+        fileType: "docx",
+        decompressionLimits: DOCX_DECOMPRESSION_LIMITS,
+        extractAttachments: false,
+        ocr: false,
+      });
+      const { value: text } = await ast.to("text");
+      if (typeof text !== "string" || text.length > MAX_DOCX_TEXT_CHARACTERS) {
+        throw new DocumentError("Isi DOCX melebihi batas 2.000.000 karakter.");
+      }
+      return text;
     });
   }
 
