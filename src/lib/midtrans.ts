@@ -108,19 +108,27 @@ export interface MidtransStatus {
  *
  * Returns `ok: false` for every failure (unset key, network error, non-2xx)
  * rather than throwing; callers decide what to tell the customer or Midtrans.
- * Details go to the log under `logPrefix` so the two callers stay
- * distinguishable.
+ * Details go to the log under `logPrefix` so the callers stay distinguishable.
+ *
+ * `notFound` separates the one failure that means something specific: Midtrans
+ * answers 404 for an order it has never heard of, which for a Snap checkout is
+ * the ordinary state of a token the customer was given but never opened — the
+ * transaction is only registered here once they pick a payment method. Every
+ * other failure (our outage, a revoked key, a timeout) says nothing about the
+ * order, and a caller that has to choose between "there is no payment
+ * instrument out there" and "we cannot tell" must not read the second as the
+ * first.
  */
 export async function fetchMidtransStatus(
   orderId: string,
   logPrefix: string,
-): Promise<{ ok: true; data: MidtransStatus } | { ok: false }> {
+): Promise<{ ok: true; data: MidtransStatus } | { ok: false; notFound: boolean }> {
   let serverKey: string;
   try {
     serverKey = requireServerKey();
   } catch (err) {
     console.error(`${logPrefix} Cannot check order=${orderId}:`, err);
-    return { ok: false };
+    return { ok: false, notFound: false };
   }
 
   try {
@@ -143,13 +151,72 @@ export async function fetchMidtransStatus(
     // a transaction_status. Without this check that body would fall through and
     // be read as "payment still pending", hiding our own outage.
     if (!res.ok) {
-      console.error(`${logPrefix} Midtrans returned ${res.status} for order=${orderId}`);
-      return { ok: false };
+      // 404 is logged at a lower level than the rest: an unopened Snap checkout
+      // produces one on every sweep, and it is not a fault.
+      const log = res.status === 404 ? console.warn : console.error;
+      log(`${logPrefix} Midtrans returned ${res.status} for order=${orderId}`);
+      return { ok: false, notFound: res.status === 404 };
     }
     return { ok: true, data: await res.json() as MidtransStatus };
   } catch (err) {
     console.error(`${logPrefix} Midtrans request failed for order=${orderId}:`, err);
-    return { ok: false };
+    return { ok: false, notFound: false };
+  }
+}
+
+/**
+ * Asks Midtrans to cancel an order that has not been paid.
+ *
+ * Used at checkout to make sure a customer is never holding two live ways to
+ * pay at once: a virtual account number stays payable for the whole transaction
+ * lifetime, so an abandoned order for one plan plus a fresh order for another
+ * is two numbers that both work, and transferring to both is two charges for
+ * one subscription.
+ *
+ * Returns true only when Midtrans confirms the cancellation. Every other answer
+ * is false, including 412 "cannot be updated", which is what an order that has
+ * *already settled* between our status check and this call looks like — the
+ * caller must treat false as "this order may still take money" and leave it
+ * open rather than closing it locally, or a payment that arrived a second ago
+ * would be filed as cancelled and nobody would ever look at it again.
+ */
+export async function cancelMidtransTransaction(orderId: string, logPrefix: string): Promise<boolean> {
+  let serverKey: string;
+  try {
+    serverKey = requireServerKey();
+  } catch (err) {
+    console.error(`${logPrefix} Cannot cancel order=${orderId}:`, err);
+    return false;
+  }
+
+  try {
+    const res = await fetch(`${coreApiBaseUrl()}/${encodeURIComponent(orderId)}/cancel`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(serverKey),
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      console.error(`${logPrefix} Midtrans refused to cancel order=${orderId}: HTTP ${res.status}`);
+      return false;
+    }
+    // A 200 body still carries Midtrans' own status_code, and that is the field
+    // that says whether the cancellation happened: "412" (transaction cannot be
+    // updated) arrives inside an HTTP 200 on some endpoints. Anything but "200"
+    // is treated as a refusal.
+    const data = await res.json() as { status_code?: unknown; status_message?: unknown };
+    if (String(data.status_code) !== "200") {
+      console.error(`${logPrefix} Midtrans refused to cancel order=${orderId}: ${String(data.status_code)} ${String(data.status_message ?? "")}`);
+      return false;
+    }
+    console.log(`${logPrefix} Cancelled order=${orderId} at Midtrans`);
+    return true;
+  } catch (err) {
+    console.error(`${logPrefix} Cancel request failed for order=${orderId}:`, err);
+    return false;
   }
 }
 
