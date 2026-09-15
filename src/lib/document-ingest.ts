@@ -72,23 +72,36 @@ export async function queueDocument(params: {
   });
 }
 
-// No cap check here on purpose — a failed document never counted against the
-// company's quota, so recording it can never push a company over the limit
-// the way a successful insert could. No lock needed either.
+// Failed rows count toward the same quota as queued rows. Use the same company
+// lock as queueDocument so successful and failed imports cannot race for a slot.
 export async function recordDocumentFailure(params: {
   companyId: string;
+  maxDocuments: number;
   docId: string;
   name: string;
   department: string | null;
   errorMessage: string;
-}): Promise<void> {
-  const { companyId, docId, name, department, errorMessage } = params;
-  await withTenant(companyId, (tx) => tx.insert(documents).values({
-    id: docId,
-    name,
-    companyId,
-    department,
-    status: "failed",
-    errorMessage,
-  }));
+}): Promise<boolean> {
+  const { companyId, maxDocuments, docId, name, department, errorMessage } = params;
+  return withTenant(companyId, async (tx) => {
+    await tx.select({ id: companiesTable.id })
+      .from(companiesTable)
+      .where(eq(companiesTable.id, companyId))
+      .for("update");
+
+    const [{ count: current }] = await tx.select({ count: count() })
+      .from(documents)
+      .where(eq(documents.companyId, companyId));
+    if (!isUnderLimit(current, maxDocuments)) return false;
+
+    await tx.insert(documents).values({
+      id: docId,
+      name,
+      companyId,
+      department,
+      status: "failed",
+      errorMessage,
+    });
+    return true;
+  });
 }

@@ -16,8 +16,8 @@ import { absoluteUrl } from "@/lib/site-url";
  * one of its failure paths returned `NextResponse.json(...)`, which a real
  * browser renders as a page of literal `{"error":"..."}` text since the route
  * is only ever reached via `<a href>`, never `fetch()`. Living here rather
- * than in either route file avoids a circular import between the two (the
- * callback route already imports install's SLACK_INSTALL_STATE_CONTEXT).
+ * than in either route file lets both routes share the redirect without
+ * importing one route handler from another.
  */
 /** The `?slack=` values SlackTab knows how to turn into a toast. */
 export type SlackStatus = "connected" | "denied" | "error" | "taken" | "plan";

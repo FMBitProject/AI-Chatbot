@@ -11,7 +11,7 @@ import { LIMITS } from "@/lib/validate";
 export const maxDuration = 60;
 
 /**
- * Events API entry point — answers an `app_mention` in-thread.
+ * Events API entry point — answers an `app_mention` privately to its author.
  *
  * Slack expects an acknowledgement within 3 seconds and retries the delivery
  * up to three times when it does not get one. That made the old shape
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const threadTs = event.ts;
     const question = (event.text ?? "").replace(/<@[^>]+>/g, "").trim();
 
-    if (!question) return NextResponse.json({ ok: true });
+    if (!question || !slackUserId || !channel) return NextResponse.json({ ok: true });
 
     after(async () => {
       // Resolved before anything can post: every reply below needs a client,
@@ -94,7 +94,8 @@ export async function POST(req: NextRequest) {
 
       const say = async (text: string) => {
         try {
-          await client.chat.postMessage({ channel, thread_ts: threadTs, text });
+          // Only the author was authorized to read the retrieved documents.
+          await client.chat.postEphemeral({ channel, user: slackUserId, thread_ts: threadTs, text });
         } catch (err) {
           console.error(`[slack/events] Failed to post to channel ${channel}:`, err);
         }

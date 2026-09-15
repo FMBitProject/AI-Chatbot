@@ -44,6 +44,7 @@ const GOOGLE_THUMBNAILS = "https://*.googleusercontent.com";
 // Dev needs 'unsafe-eval' (React error stacks) and ws: (HMR).
 const csp = [
   "default-src 'self'",
+  // TODO: LOW — replace script-src unsafe-inline with per-response nonces and review dynamic rendering requirements.
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
   "style-src 'self' 'unsafe-inline'",
   `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_THUMBNAILS}`,
@@ -95,6 +96,7 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    // TODO: INFO — verify AVIF advisory exposure and update Next.js/Sharp to patched versions; keep remotePatterns restricted.
     remotePatterns: [
       { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
     ],

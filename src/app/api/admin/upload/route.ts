@@ -169,7 +169,18 @@ export async function POST(req: NextRequest) {
       // would lose the per-file results collected so far. Recording the reason
       // is a nicety; not derailing the batch is not.
       try {
-        await recordDocumentFailure({ companyId, docId, name: safeName, department: folder, errorMessage });
+        const stored = await recordDocumentFailure({
+          companyId,
+          maxDocuments: limits.maxDocuments,
+          docId,
+          name: safeName,
+          department: folder,
+          errorMessage,
+        });
+        if (!stored) {
+          limitReached = true;
+          break;
+        }
       } catch (insertError) {
         console.error(`[upload] Could not record failure for ${file.name}:`, insertError);
       }
