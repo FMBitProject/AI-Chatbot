@@ -77,6 +77,10 @@ export const INTERACTIVE_CHAIN: readonly ChainLink[] = [
   { id: "gemini-3.5-flash", provider: "google" },
 ];
 
+// Public demo uses the inexpensive model already serving interactive chat.
+// Deliberately no paid-provider fallback when its quota is exhausted.
+export const DEMO_MODEL: ChainLink = INTERACTIVE_CHAIN[0];
+
 /**
  * The chain for work a machine started and nobody is waiting on: currently the
  * auto-generated document summary in the indexer.
