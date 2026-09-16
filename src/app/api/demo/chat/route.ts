@@ -3,14 +3,36 @@ import { DEMO_MODEL, modelFor } from "@/lib/models";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { retrieveDemoChunks } from "@/lib/demo/retrieve";
-import { DEMO_NOT_FOUND, DEMO_REFUSAL, demoSystemPrompt, isDemoQuestionAllowed, parseDemoQuestion, readDemoBody } from "@/lib/demo/policy";
+import { DEMO_NOT_FOUND, DEMO_REFUSAL, demoSystemPrompt, isDemoQuestionAllowed, parseDemoBodyLang, parseDemoQuestion, readDemoBody, type DemoLang } from "@/lib/demo/policy";
 import type { DemoFrame } from "@/lib/demo/shared";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const headers = { "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
-const unavailable = () => Response.json({ error: "Demo sedang tidak tersedia. Silakan coba lagi atau hubungi kami melalui WhatsApp." }, { status: 503, headers: { "Cache-Control": "no-store" } });
+
+// Error strings the browser shows verbatim, so they follow the reader's language
+// like everything else on the page. Kept here rather than in the component: the
+// component cannot know which of these the server picked, and an English page
+// that fails in Indonesian is exactly the half-translated seam this change is
+// fixing.
+const ERRORS: Record<DemoLang, Record<"unavailable" | "badRequest" | "forbiddenOrigin" | "rateLimited", string>> = {
+  id: {
+    unavailable: "Demo sedang tidak tersedia. Silakan coba lagi atau hubungi kami melalui WhatsApp.",
+    badRequest: "Kirim hanya pertanyaan, maksimal 300 karakter.",
+    forbiddenOrigin: "Origin tidak diizinkan.",
+    rateLimited: "Batas demo 10 pertanyaan per jam tercapai. Coba lagi nanti atau hubungi kami melalui WhatsApp.",
+  },
+  en: {
+    unavailable: "The demo is unavailable right now. Please try again, or reach us on WhatsApp.",
+    badRequest: "Send the question only, 300 characters at most.",
+    forbiddenOrigin: "Origin not allowed.",
+    rateLimited: "You have reached the demo limit of 10 questions per hour. Try again later, or reach us on WhatsApp.",
+  },
+};
+
+const unavailable = (lang: DemoLang = "id") =>
+  Response.json({ error: ERRORS[lang].unavailable }, { status: 503, headers: { "Cache-Control": "no-store" } });
 function fixedAnswer(text: string) {
   return new Response([
     { type: "sources", citations: [] }, { type: "text", text }, { type: "done" },
@@ -24,10 +46,14 @@ export async function POST(req: Request) {
   // caller-provided routing hint. Vercel validates destination hosts upstream.
   const destination = new URL(req.url);
   if (req.headers.get("host")) destination.host = req.headers.get("host")!;
-  if (origin && origin !== destination.origin) return Response.json({ error: "Origin tidak diizinkan." }, { status: 403 });
+  if (origin && origin !== destination.origin) return Response.json({ error: ERRORS.id.forbiddenOrigin }, { status: 403 });
   if (process.env.DEMO_CHAT_ENABLED === "false") return unavailable();
-  const question = parseDemoQuestion(await readDemoBody(req));
-  if (!question || new URL(req.url).search) return Response.json({ error: "Kirim hanya pertanyaan, maksimal 300 karakter." }, { status: 400 });
+  // Read once: readDemoBody consumes the request stream, so the language and the
+  // question have to come out of the same parse rather than two reads.
+  const body = await readDemoBody(req);
+  const lang = parseDemoBodyLang(body);
+  const question = parseDemoQuestion(body);
+  if (!question || new URL(req.url).search) return Response.json({ error: ERRORS[lang].badRequest }, { status: 400 });
 
   const requestId = crypto.randomUUID();
   const started = Date.now();
@@ -38,20 +64,20 @@ export async function POST(req: Request) {
     const limit = await consumeRateLimit(`demo-chat:ip:${getClientIp(req)}`, { max: 10, windowMs: 3_600_000 });
     if (!limit.ok) {
       log("rate_limited");
-      return Response.json({ error: "Batas demo 10 pertanyaan per jam tercapai. Coba lagi nanti atau hubungi kami melalui WhatsApp." }, {
+      return Response.json({ error: ERRORS[lang].rateLimited }, {
         status: 429, headers: { "Retry-After": String(Math.max(1, limit.retryAfter)), "Cache-Control": "no-store" },
       });
     }
     log("question_sent");
-    if (!isDemoQuestionAllowed(question)) { log("refused"); return fixedAnswer(DEMO_REFUSAL); }
-    if (!process.env.GROQ_API_KEY || !process.env.GOOGLE_GENERATIVE_AI_API_KEY) return unavailable();
+    if (!isDemoQuestionAllowed(question)) { log("refused"); return fixedAnswer(DEMO_REFUSAL[lang]); }
+    if (!process.env.GROQ_API_KEY || !process.env.GOOGLE_GENERATIVE_AI_API_KEY) return unavailable(lang);
     const configured = Number(process.env.DEMO_DAILY_LIMIT ?? 200);
     const dailyMax = Number.isInteger(configured) && configured > 0 && configured <= 10_000 ? configured : 200;
     const budget = await consumeRateLimit("demo-chat:global", { max: dailyMax, windowMs: 86_400_000 });
-    if (!budget.ok) { log("budget_exhausted"); return unavailable(); }
+    if (!budget.ok) { log("budget_exhausted"); return unavailable(lang); }
 
     const chunks = await retrieveDemoChunks(question);
-    if (!chunks.length) { log("not_found"); return fixedAnswer(DEMO_NOT_FOUND); }
+    if (!chunks.length) { log("not_found"); return fixedAnswer(DEMO_NOT_FOUND[lang]); }
     const citations = chunks.map(({ id, text, documentName }, index) => ({ id, text, documentName, number: index + 1 }));
     const controller = new AbortController();
     const signal = AbortSignal.any([req.signal, controller.signal, AbortSignal.timeout(25_000)]);
@@ -66,7 +92,7 @@ export async function POST(req: Request) {
           let answer = "";
           const result = streamText({
             model: modelFor(DEMO_MODEL, { groq: null, gemini: null }),
-            system: demoSystemPrompt(JSON.stringify(citations.map((c, i) => ({ source: i + 1, document: c.documentName, excerpt: c.text })))),
+            system: demoSystemPrompt(JSON.stringify(citations.map((c, i) => ({ source: i + 1, document: c.documentName, excerpt: c.text }))), lang),
             prompt: question,
             temperature: RAG_TEMPERATURE,
             maxOutputTokens: 800,
@@ -93,7 +119,7 @@ export async function POST(req: Request) {
           log("answered");
         } catch {
           log("generation_failed", { elapsedMs: Date.now() - started });
-          if (!signal.aborted) send({ type: "error", error: "Jawaban belum selesai. Silakan coba lagi." });
+          if (!signal.aborted) send({ type: "error", error: lang === "en" ? "The answer did not finish. Please try again." : "Jawaban belum selesai. Silakan coba lagi." });
         } finally {
           try { output.close(); } catch { /* Reader cancelled. */ }
         }
@@ -103,6 +129,6 @@ export async function POST(req: Request) {
     return new Response(stream, { headers });
   } catch {
     log("unavailable", { elapsedMs: Date.now() - started });
-    return unavailable();
+    return unavailable(lang);
   }
 }
