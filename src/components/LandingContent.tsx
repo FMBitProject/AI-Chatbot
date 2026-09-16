@@ -12,7 +12,7 @@ import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from
 import { OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Users, FileText, MessageSquare, Play } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 import { DemoChat } from "@/components/DemoChat";
 import { CtaGroup } from "@/components/CtaGroup";
@@ -33,10 +33,6 @@ type PricePlan = {
   desc: string;
   pilot?: boolean;
 };
-
-// https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
-// the embed and its thumbnail to resolve.
-const DEMO_VIDEO_ID = "DPUYHnEo0cM";
 
 // Product screenshots for the "how it works" steps, keyed by name rather than
 // step order — each translation's step names which shot it wants (see `Step`
@@ -237,9 +233,6 @@ const CONTENT = {
     hero2: "Bisa Ditanya",
     hero3: "Kapan Saja",
     heroDesc: "Pertanyaan prosedur jam 3 pagi, revisi SPO yang kalah cepat dari fotokopi lama di dinding ruangan, perawat orientasi yang menanyakan hal yang sama berulang kali. Asisten AI menjawab dari dokumen resmi rumah sakit Anda sendiri, lengkap dengan dokumen sumbernya.",
-    videoTitle: "Lihat IntelliBase AI Bekerja",
-    videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
-    videoPlay: "Putar video demo",
     stats: [
       // Not the per-question reduction — that number is far bigger and far less
       // honest. This is the share of a month's search cost still standing after
@@ -320,7 +313,13 @@ const CONTENT = {
       },
     ],
     founderTitle: "Siapa di balik IntelliBase",
-    faqMore: "Masih ada yang ingin ditanyakan?",
+    // A whole sentence, not half of one. This was written as the lead-in to a
+    // "Konsultasi gratis" link; with the link gone it read as a question the
+    // page asks and then walks away from — which on a page about answering
+    // questions is the worst possible place to leave a loose end. It is not
+    // given a link back: the closing section directly below is the answer, and
+    // a fourth CTA here is how the sprawl this page was just cleaned of returns.
+    faqMore: "Masih ada yang ingin ditanyakan? Jadwalkan demo 15 menit di bawah, dan tanyakan langsung.",
     privacyLink: "Baca Kebijakan Privasi",
     ctaTitle: "Mulai Transformasi Knowledge Base Anda Hari Ini",
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
@@ -333,10 +332,16 @@ const CONTENT = {
     leadBtn: "Kirim",
     leadSuccess: "Terima kasih. Kami akan menghubungi Anda.",
     leadError: "Gagal mengirim. Coba lagi sebentar lagi.",
+    // Written for the reader the rest of this page is written for. The generic
+    // "perusahaan / karyawan / dokumen internal" wording was correct and
+    // placeless: it sat between a hospital hero, a demo answering ward
+    // questions, and hospital pricing, and read as a block lifted from another
+    // product. The arithmetic is untouched — only the nouns change, and the
+    // slider still counts headcount, which is what `calculateRoi` consumes.
     roiTeaser: {
-      title: "Berapa Kerugian Perusahaan Anda Setiap Bulan?",
-      desc: "Geser slider untuk melihat estimasi biaya waktu yang terbuang karyawan Anda saat mencari dokumen internal.",
-      label: "Jumlah Karyawan",
+      title: "Berapa Kerugian Rumah Sakit Anda Setiap Bulan?",
+      desc: "Geser slider untuk melihat estimasi biaya waktu yang terbuang saat perawat dan dokter jaga mencari SPO, PPK, atau clinical pathway.",
+      label: "Jumlah staf",
       // Was hardcoded next to the slider value, so the English page counted its
       // headcount in "orang".
       unit: "orang",
@@ -360,9 +365,6 @@ const CONTENT = {
     hero2: "Answered",
     hero3: "at Any Hour",
     heroDesc: "A procedure question at 3 a.m., an SOP revision that loses to the old photocopy on the ward wall, orientation nurses asking the same thing again and again. The AI answers from your hospital's own official documents and names the source every time.",
-    videoTitle: "See IntelliBase AI in Action",
-    videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
-    videoPlay: "Play demo video",
     stats: [
       { v: RECOVERED_SHARE_LABEL, l: "Estimated share of search cost recoverable", estimate: true },
       { v: "< 3 sec", l: "Average AI response time", estimate: true },
@@ -429,7 +431,7 @@ const CONTENT = {
       },
     ],
     founderTitle: "Who is behind IntelliBase",
-    faqMore: "Still have a question?",
+    faqMore: "Still have a question? Book the 15-minute demo below and ask it directly.",
     privacyLink: "Read the Privacy Policy",
     ctaTitle: "Start Transforming Your Knowledge Base Today",
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
@@ -440,9 +442,9 @@ const CONTENT = {
     leadSuccess: "Thanks. We'll be in touch.",
     leadError: "Something went wrong. Please try again shortly.",
     roiTeaser: {
-      title: "How Much Is Your Company Losing Every Month?",
-      desc: "Drag the slider to see the estimated cost of time wasted when employees manually search for internal documents.",
-      label: "Number of Employees",
+      title: "How Much Is Your Hospital Losing Every Month?",
+      desc: "Drag the slider to see the estimated cost of time lost when nurses and on-call doctors go hunting for an SOP, care pathway, or formulary.",
+      label: "Number of staff",
       unit: "people",
       lostLabel: "Value of search time / month",
       savingLabel: "Estimated savings after conservative assumptions",
@@ -465,60 +467,6 @@ function formatRp(v: number) {
   if (v >= 1_000_000_000) return `Rp ${(v / 1_000_000_000).toFixed(1)} M`;
   if (v >= 1_000_000) return `Rp ${(v / 1_000_000).toFixed(1)} jt`;
   return `Rp ${(v / 1_000).toFixed(0)}rb`;
-}
-
-// The player is only mounted once the visitor clicks play, so a landing page
-// visit costs a single thumbnail instead of the ~1MB the YouTube embed pulls in.
-// maxresdefault only exists for uploads of 720p and above; hqdefault always does.
-function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; playLabel: string }) {
-  const [playing, setPlaying] = useState(false);
-  const [thumbFallback, setThumbFallback] = useState(false);
-  const thumb = `https://i.ytimg.com/vi/${DEMO_VIDEO_ID}/${thumbFallback ? "hqdefault" : "maxresdefault"}.jpg`;
-
-  return (
-    // pt of its own rather than borrowing the previous section's: this used to
-    // sit directly under the hero and lean on its py-24, which quietly made the
-    // spacing here a property of whatever happens to be rendered above.
-    <section className="pt-10 pb-14 px-6">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-7">
-          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{title}</h2>
-          <p className="text-stone-500">{desc}</p>
-        </div>
-        <div className="relative aspect-video rounded-2xl overflow-hidden border shadow-sm bg-stone-900">
-          {playing ? (
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1`}
-              title={title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              className="absolute inset-0 h-full w-full"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => setPlaying(true)}
-              aria-label={playLabel}
-              className="group absolute inset-0 h-full w-full cursor-pointer"
-            >
-              <Image
-                src={thumb}
-                alt=""
-                fill
-                sizes="(max-width: 896px) 100vw, 896px"
-                className="object-cover"
-                onError={() => setThumbFallback(true)}
-              />
-              <span className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/10" />
-              <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-16 w-16 items-center justify-center rounded-full bg-teal-600 shadow-lg transition-transform group-hover:scale-110">
-                <Play className="h-7 w-7 text-white fill-white translate-x-0.5" />
-              </span>
-            </button>
-          )}
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export function LandingContent() {
@@ -563,7 +511,7 @@ export function LandingContent() {
             </Link>
             <Button asChild size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">
               <a
-                href={demoWhatsappUrl(lang, "nav")}
+                href={demoWhatsappUrl(lang)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => trackCta("demo_whatsapp", "nav")}
@@ -677,8 +625,18 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* Demo video */}
-      <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
+      {/* The "Lihat IntelliBase AI Bekerja" video stood here, and it was the
+          same promise made twice. It offered to *show* the product working, six
+          sections below a demo where the visitor already asked it a question and
+          read the answer with the source document attached. A recording cannot
+          beat that, and asking someone who has just used the thing to now watch
+          a film about it spends the one scroll where their attention is highest.
+
+          Deleted rather than merged: there was nothing in it the live demo does
+          not already do better. The video itself still exists on YouTube, so
+          bringing it back is a revert, not a reshoot — but its CSP grant
+          (youtube-nocookie in frame-src) and the i.ytimg.com remote-image
+          pattern went with it, and both have to come back too. */}
 
       {/* Stats */}
       {/* Was a saturated teal slab. The page's own surface is warm paper, and
@@ -939,10 +897,10 @@ export function LandingContent() {
             ))}
           </Accordion>
           <div className="text-center mt-8">
-            {/* The mailto link and the repeated address are gone; the question
-                itself stays. It is copy, not a CTA, and it now reads as what it
-                always was: a bridge into the closing section directly below,
-                which is where an unanswered question is answered. */}
+            {/* The mailto link and the repeated address are gone, and the line
+                that led into them is now a complete sentence that points at the
+                closing section instead of trailing off where the link used to
+                be. Copy, not a CTA — see the note on `faqMore`. */}
             <p className="text-sm text-stone-500">{T.faqMore}</p>
             <Link href="/privacy" className="inline-block text-xs text-stone-400 hover:text-stone-600 mt-3 underline underline-offset-4">
               {T.privacyLink}

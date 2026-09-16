@@ -20,12 +20,11 @@ const MIDTRANS_API = "https://api.midtrans.com https://api.sandbox.midtrans.com"
 const GA_TAGMANAGER = "https://www.googletagmanager.com";
 const GA_ANALYTICS = "https://*.google-analytics.com https://*.analytics.google.com";
 
-// Demo video embedded on the landing page. The player is framed from the
-// privacy-friendly nocookie host and only mounts after a click, so no YouTube
-// request happens on a plain page view. Its thumbnail is fetched server-side by
-// next/image (see `images.remotePatterns`) and served from our own origin, so
-// img-src needs no YouTube host.
-const YOUTUBE_EMBED = "https://www.youtube-nocookie.com";
+// The YouTube demo embed's grant stood here (youtube-nocookie in frame-src,
+// i.ytimg.com in images.remotePatterns). The section that used it is gone —
+// the landing page's live demo chat says the same thing better — and a CSP
+// grant with no feature behind it is a hole nobody is watching, so it went with
+// it. Restoring the video means restoring both.
 
 // Admin-only: the Google Drive import feature (GoogleDrivePicker.tsx) loads
 // Google Identity Services + the Picker's gapi loader as scripts, calls the
@@ -54,7 +53,7 @@ const csp = [
   // a script tag — unverified against a live API key, but cheap insurance
   // against a CSP violation nobody would think to look for.
   `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_DRIVE_API} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
-  `frame-src ${MIDTRANS_APP} ${YOUTUBE_EMBED} ${GOOGLE_PICKER_FRAME}`,
+  `frame-src ${MIDTRANS_APP} ${GOOGLE_PICKER_FRAME}`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -97,9 +96,13 @@ const nextConfig: NextConfig = {
   },
   images: {
     // TODO: INFO — verify AVIF advisory exposure and update Next.js/Sharp to patched versions; keep remotePatterns restricted.
-    remotePatterns: [
-      { protocol: "https", hostname: "i.ytimg.com", pathname: "/vi/**" },
-    ],
+    //
+    // Empty, and deliberately kept rather than deleted: an empty list is the
+    // strictest setting — next/image will optimize nothing from a remote host —
+    // and leaving the key here is what stops the next remote image from being
+    // added without a line saying which feature needs it. The one entry it held
+    // was the YouTube thumbnail; see the note beside the CSP block above.
+    remotePatterns: [],
   },
   experimental: {
     serverActions: {
