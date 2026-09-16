@@ -16,6 +16,9 @@ export const SUPPORT_EMAIL =
 // purchased — see NEXT_PUBLIC_SUPPORT_WHATSAPP to swap it without a code
 // change once that happens.
 //
+// TODO: MINOR — nomor yang gagal dinormalisasi jadi string kosong menghasilkan
+// https://wa.me/?text=... yang mendarat di beranda WhatsApp. Radiusnya kini
+// seluruh CTA utama situs; beri fallback ke nilai default saat hasilnya kosong.
 // wa.me requires digits only: country code, no leading zero, no "+", no
 // spaces or dashes. The env var is free-typed by whoever sets it in Vercel,
 // so it's normalized here rather than trusted verbatim — a human-typed

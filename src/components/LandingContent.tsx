@@ -10,11 +10,14 @@ import { getPlanPrice, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { OTHER_INDUSTRIES } from "@/lib/industries";
-import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/contact";
+import { SUPPORT_EMAIL, FOUNDER } from "@/lib/contact";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Users, FileText, MessageSquare, Play, Mail } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Play } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 import { DemoChat } from "@/components/DemoChat";
+import { CtaGroup } from "@/components/CtaGroup";
+import { demoWhatsappUrl } from "@/lib/cta";
+import { trackCta } from "@/lib/cta-analytics";
 
 const STA = PLAN_LIMITS.starter;
 const PRO = PLAN_LIMITS.professional;
@@ -117,6 +120,107 @@ function shotSizes(intrinsicWidth: number): string {
   return `(min-width: ${cap + HOW_PADDING_X}px) ${cap}px, calc(100vw - ${HOW_PADDING_X}px)`;
 }
 
+// The email capture, extracted from the closing CTA when it moved to the footer.
+// Its own component so its four pieces of state live where they are used rather
+// than in the page component, which was holding them only because the markup
+// happened to sit there.
+//
+// Behaviour is unchanged: same endpoint, same audience/locale payload, same
+// honeypot, same in-flight ref, same 10s timeout with the same feature test.
+// Only the colours moved with it, from white-on-teal to the light footer.
+function LeadForm() {
+  const { lang } = useLang();
+  const T = CONTENT[lang];
+  const [email, setEmail] = useState("");
+  const [website, setWebsite] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  // A ref, not the status above, because the guard has to hold *within* a tick.
+  // Two submits fired before React re-renders (Enter pressed twice) both read
+  // the same "idle" from the closure and both POST — two rows for one person,
+  // and the disabled button never gets a chance to intervene.
+  const inFlight = useRef(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (inFlight.current || status === "done") return;
+    inFlight.current = true;
+    setStatus("loading");
+
+    // Without this a server that accepts the connection and then never answers
+    // leaves the form disabled forever: fetch does not reject on its own, so
+    // the button stays greyed out with no way back short of reloading.
+    //
+    // Feature-detected for the same reason /admin does it — AbortSignal.timeout
+    // throws on older browsers, and calling it unguarded here would put every
+    // one of those visitors straight into the error branch, turning a working
+    // form into one that never submits.
+    const timeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
+      ? AbortSignal.timeout(10_000)
+      : undefined;
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, audience: "company", locale: lang, website }),
+        signal: timeout,
+      });
+      setStatus(res.ok ? "done" : "error");
+    } catch {
+      setStatus("error");
+    } finally {
+      inFlight.current = false;
+    }
+  }
+
+  if (status === "done") {
+    return <p className="text-sm font-medium text-teal-800">{T.leadSuccess}</p>;
+  }
+
+  return (
+    <form onSubmit={submit} className="mx-auto flex max-w-sm flex-col items-center gap-2">
+      <p className="text-xs text-stone-500">{T.leadLabel}</p>
+      <div className="flex w-full gap-2">
+        {/* aria-label, not the <p> above: that paragraph is not tied to this
+            input by anything, and a placeholder is not a name — a screen reader
+            would announce this field as unlabelled. */}
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder={T.leadPlaceholder}
+          aria-label={T.leadLabel}
+          className="h-10 flex-1 rounded-md border border-stone-300 bg-white px-3 text-sm text-stone-900 placeholder:text-stone-400 focus:border-teal-600 focus:outline-none"
+        />
+        {/* Honeypot, and deliberately the *last* field rather than the first.
+            Password managers fill by position and heuristic as much as by name,
+            and a bare text input sitting ahead of the email box is what
+            "username" looks like to one — which would trip the trap on a real
+            person and drop their address while still telling them it went
+            through. No name or id either, for the same reason: nothing here for
+            a matcher to grab.
+
+            Off-screen rather than display:none, because some bots skip what that
+            hides while still filling this. */}
+        <input
+          type="text"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          className="absolute -left-[9999px] h-0 w-0"
+        />
+        <Button type="submit" disabled={status === "loading"} className="h-10 shrink-0 px-4">
+          {T.leadBtn}
+        </Button>
+      </div>
+      {status === "error" && <p className="text-xs text-stone-500">{T.leadError}</p>}
+    </form>
+  );
+}
+
 const CONTENT = {
   id: {
     // Headline, chosen from three drafts. The two that lost:
@@ -133,8 +237,6 @@ const CONTENT = {
     hero2: "Bisa Ditanya",
     hero3: "Kapan Saja",
     heroDesc: "Pertanyaan prosedur jam 3 pagi, revisi SPO yang kalah cepat dari fotokopi lama di dinding ruangan, perawat orientasi yang menanyakan hal yang sama berulang kali. Asisten AI menjawab dari dokumen resmi rumah sakit Anda sendiri, lengkap dengan dokumen sumbernya.",
-    cta1: "Mulai Gratis",
-    cta2: "Lihat Paket Harga",
     videoTitle: "Lihat IntelliBase AI Bekerja",
     videoDesc: "Demo singkat: dari upload dokumen sampai karyawan mendapat jawaban instan.",
     videoPlay: "Putar video demo",
@@ -219,16 +321,12 @@ const CONTENT = {
     ],
     founderTitle: "Siapa di balik IntelliBase",
     faqMore: "Masih ada yang ingin ditanyakan?",
-    faqMoreCta: "Konsultasi gratis",
     privacyLink: "Baca Kebijakan Privasi",
     ctaTitle: "Mulai Transformasi Knowledge Base Anda Hari Ini",
     ctaDesc: "Gratis untuk tim kecil. Setup 10 menit. Tidak perlu kartu kredit.",
-    ctaBtn1: "Mulai Gratis",
-    ctaBtn2: "Konsultasi gratis",
     // The register button assumes a visitor ready to hand over documents. This
     // is the exit for everyone else — cheaper than signing up, and the only way
     // an unconvinced visitor leaves a trace instead of just leaving.
-    consult: "Konsultasi gratis",
     consultNote: "Balasan lewat email · Tanpa biaya, tanpa komitmen",
     leadLabel: "Atau tinggalkan email, kami hubungi lebih dulu",
     leadPlaceholder: "email@perusahaan.com",
@@ -250,7 +348,7 @@ const CONTENT = {
       cta: "Hitung Penghematan Lengkap",
       ctaNote: "Gratis, tanpa perlu daftar. Asumsi perhitungannya ditampilkan lengkap.",
     },
-    nav: { price: "Harga", login: "Masuk", start: "Mulai Gratis", roi: "Kalkulator ROI", blog: "Blog" },
+    nav: { price: "Harga", login: "Masuk", roi: "Kalkulator ROI", blog: "Blog", demo: "Jadwalkan Demo" },
     footer: { price: "Harga", login: "Masuk", register: "Daftar", terms: "Syarat & Ketentuan", privacy: "Privasi", roi: "Kalkulator ROI", contact: "Kontak", blog: "Blog" },
   },
   en: {
@@ -262,8 +360,6 @@ const CONTENT = {
     hero2: "Answered",
     hero3: "at Any Hour",
     heroDesc: "A procedure question at 3 a.m., an SOP revision that loses to the old photocopy on the ward wall, orientation nurses asking the same thing again and again. The AI answers from your hospital's own official documents and names the source every time.",
-    cta1: "Start Free",
-    cta2: "View Pricing",
     videoTitle: "See IntelliBase AI in Action",
     videoDesc: "A short demo: from uploading documents to employees getting instant answers.",
     videoPlay: "Play demo video",
@@ -334,13 +430,9 @@ const CONTENT = {
     ],
     founderTitle: "Who is behind IntelliBase",
     faqMore: "Still have a question?",
-    faqMoreCta: "Free consultation",
     privacyLink: "Read the Privacy Policy",
     ctaTitle: "Start Transforming Your Knowledge Base Today",
     ctaDesc: "Free for small teams. 10-minute setup. No credit card required.",
-    ctaBtn1: "Start Free",
-    ctaBtn2: "Free consultation",
-    consult: "Free consultation",
     consultNote: "We reply by email · Free, no commitment",
     leadLabel: "Or leave your email and we'll reach out first",
     leadPlaceholder: "email@company.com",
@@ -357,7 +449,7 @@ const CONTENT = {
       cta: "Calculate Full Savings",
       ctaNote: "Free, no sign-up. The assumptions are shown in full.",
     },
-    nav: { price: "Pricing", login: "Sign In", start: "Start Free", roi: "ROI Calculator", blog: "Blog" },
+    nav: { price: "Pricing", login: "Sign In", roi: "ROI Calculator", blog: "Blog", demo: "Book a Demo" },
     footer: { price: "Pricing", login: "Sign In", register: "Register", terms: "Terms", privacy: "Privacy", roi: "ROI Calculator", contact: "Contact", blog: "Blog" },
   },
 };
@@ -439,52 +531,6 @@ export function LandingContent() {
   // cannot quote different numbers for the same company size.
   const teaser = calculateRoi({ ...ROI_DEFAULTS, employees: teaserEmployees });
 
-  // The bottom CTA's other exit is a mailto link — real, but it hands the
-  // visitor off to their own mail client with nothing kept on our side. This
-  // is the low-friction alternative: an email stored against this audience
-  // and language, for someone not ready to open /register but willing to
-  // leave a trace. `leadWebsite` is the honeypot the form below never shows.
-  const [leadEmail, setLeadEmail] = useState("");
-  const [leadWebsite, setLeadWebsite] = useState("");
-  const [leadStatus, setLeadStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
-  // A ref, not the status above, because the guard has to hold *within* a tick.
-  // Two submits fired before React re-renders (Enter pressed twice) both read
-  // the same "idle" from the closure and both POST — two rows for one person,
-  // and the disabled button never gets a chance to intervene.
-  const leadInFlight = useRef(false);
-
-  async function submitLead(e: FormEvent) {
-    e.preventDefault();
-    if (leadInFlight.current || leadStatus === "done") return;
-    leadInFlight.current = true;
-    setLeadStatus("loading");
-
-    // Without this a server that accepts the connection and then never answers
-    // leaves the form disabled forever: fetch does not reject on its own, so
-    // the button stays greyed out with no way back short of reloading.
-    //
-    // Feature-detected for the same reason /admin does it — AbortSignal.timeout
-    // throws on older browsers, and calling it unguarded here would put every
-    // one of those visitors straight into the error branch, turning a working
-    // form into one that never submits.
-    const timeout = typeof AbortSignal !== "undefined" && "timeout" in AbortSignal
-      ? AbortSignal.timeout(10_000)
-      : undefined;
-
-    try {
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: leadEmail, audience: "company", locale: lang, website: leadWebsite }),
-        signal: timeout,
-      });
-      setLeadStatus(res.ok ? "done" : "error");
-    } catch {
-      setLeadStatus("error");
-    } finally {
-      leadInFlight.current = false;
-    }
-  }
 
   return (
     <div className="min-h-[100dvh] bg-background">
@@ -502,8 +548,29 @@ export function LandingContent() {
             <Link href="/blog" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.blog}</Link>
             <Link href="/roi" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.roi}</Link>
             <Link href="/pricing" className="text-sm text-stone-500 hover:text-stone-800 font-medium hidden md:block">{T.nav.price}</Link>
-            <Link href="/login"><Button variant="ghost" size="sm" className="hidden sm:inline-flex text-stone-600 hover:bg-stone-100 hover:text-stone-900">{T.nav.login}</Button></Link>
-            <Link href="/register"><Button size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">{T.nav.start}</Button></Link>
+            {/* One button in the bar, and it is the same ask the rest of the
+                page leads with. "Mulai Gratis" used to sit here, which put the
+                self-serve signup ahead of the demo in the one place a visitor
+                looks first — the opposite of the order the page argues for
+                everywhere else. Signup is still reachable: it is the text link
+                under every CtaGroup, and it is in the footer. */}
+            <Link
+              href="/login"
+              onClick={() => trackCta("login", "nav")}
+              className="hidden sm:inline-flex text-sm text-stone-600 hover:text-stone-900 font-medium"
+            >
+              {T.nav.login}
+            </Link>
+            <Button asChild size="sm" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] text-xs sm:text-sm px-3 sm:px-4">
+              <a
+                href={demoWhatsappUrl(lang, "nav")}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackCta("demo_whatsapp", "nav")}
+              >
+                {T.nav.demo}
+              </a>
+            </Button>
           </div>
         </div>
       </nav>
@@ -528,30 +595,14 @@ export function LandingContent() {
           </>
         }
         description={T.heroDesc}
-        ctaText={T.cta1}
-        ctaHref="/register"
+        // The whole hierarchy, from the one component that owns it. The hero
+        // used to carry a "Mulai Gratis" button with a separate consultation
+        // mailto beneath it — two different asks, neither of them the demo this
+        // page is actually selling, and the mailto led to a client many visitors
+        // do not have configured at all.
+        cta={<CtaGroup location="hero" />}
         images={HERO_MARQUEE_SHOTS}
         cardAspectClassName="aspect-[16/10]"
-        footer={
-          // A quiet second path, deliberately not a button: the button above
-          // asks a stranger to hand over internal documents before anyone has
-          // spoken to them, and that is the wrong first step for most of the
-          // companies being pitched. Kept as a text link so it stays an exit
-          // for the unconvinced rather than a competing CTA.
-          //
-          // It is also the *only* thing under the CTA now. The hero used to
-          // carry a fifth and sixth text element (this link plus a "gratis,
-          // tanpa kartu kredit" note), which is the templated-hero stack an
-          // AI-built page always ships. The note itself is not lost: the
-          // pricing section and the closing CTA both still say it, in the
-          // place a visitor is actually deciding about price.
-          <a
-            href={consultationMailto(lang)}
-            className="mt-5 text-sm text-teal-800 hover:text-teal-900 font-medium underline underline-offset-4 decoration-teal-300"
-          >
-            {T.consult}
-          </a>
-        }
       />
 
       <DemoChat />
@@ -582,19 +633,11 @@ export function LandingContent() {
               <p className="text-lg text-stone-700 leading-relaxed mb-6">&ldquo;{FOUNDER.intro[lang]}&rdquo;</p>
               <p className="font-semibold text-stone-900">{FOUNDER.name}</p>
               <p className="text-sm text-stone-500">{FOUNDER.role[lang]}</p>
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-6 gap-y-2 mt-4">
-                <a href={"mailto:" + SUPPORT_EMAIL} className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium">
-                  <Mail className="h-4 w-4" />{SUPPORT_EMAIL}
-                </a>
-                <a
-                  href={whatsappUrl(lang === "en" ? "Hi, I'd like to ask about IntelliBase AI." : "Halo, saya ingin bertanya soal IntelliBase AI.")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-teal-700 hover:text-teal-800 font-medium"
-                >
-                  <MessageSquare className="h-4 w-4" />WhatsApp
-                </a>
-              </div>
+              {/* The email and WhatsApp links that used to sit here are gone.
+                  They were a third and fourth way to start the same conversation,
+                  offered in the middle of a section whose job is to say who the
+                  founder is — not to ask for anything. The address now appears
+                  once, in the footer; WhatsApp is the primary CTA everywhere. */}
             </div>
           </div>
         </section>
@@ -773,8 +816,13 @@ export function LandingContent() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
+              {/* Outlined, not filled. It leads to a tool rather than to a
+                  conversation, so it belongs at the secondary weight — filled
+                  teal is now reserved for one ask on this page, and having a
+                  second one here is how the hierarchy quietly comes apart
+                  again. */}
               <Link href="/roi">
-                <Button size="lg" className="bg-teal-700 hover:bg-teal-800 active:scale-[0.98] gap-2 h-12 px-8 font-semibold">
+                <Button size="lg" variant="outline" className="border-hairline bg-raised text-stone-800 hover:bg-stone-100 hover:text-stone-900 active:scale-[0.98] gap-2 h-12 px-8">
                   {T.roiTeaser.cta} <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
@@ -797,8 +845,12 @@ export function LandingContent() {
               <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{T.priceTitle}</h2>
               <p className="text-stone-500">{T.priceDesc}</p>
             </div>
-            <Link href="/pricing" className="shrink-0">
-              <Button variant="outline" className="gap-2 active:scale-[0.98] border-hairline bg-raised text-stone-800 hover:bg-stone-100 hover:text-stone-900">{T.priceBtn} <ArrowRight className="h-4 w-4" /></Button>
+            {/* Wayfinding, not a call to action: a text link now, so the only
+                buttons in this section are the CTA group under the cards. As a
+                second outlined button it competed with "Coba Demo Langsung" for
+                the same visual weight while asking for something much smaller. */}
+            <Link href="/pricing" className="shrink-0 inline-flex items-center gap-1.5 text-sm font-medium text-teal-800 underline underline-offset-4 decoration-teal-300 hover:text-teal-900">
+              {T.priceBtn} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
           <div className="grid gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -828,6 +880,11 @@ export function LandingContent() {
               );
             })}
           </div>
+          {/* The second of the three placements. A price table is where a
+              visitor either decides or leaves, and the thing to offer at that
+              moment is the same conversation the hero offered — not a fourth
+              variation of it. */}
+          <CtaGroup location="pricing" />
         </div>
       </section>
 
@@ -882,17 +939,11 @@ export function LandingContent() {
             ))}
           </Accordion>
           <div className="text-center mt-8">
-            <p className="text-sm text-stone-500">
-              {T.faqMore}{" "}
-              <a href={consultationMailto(lang)} className="text-teal-700 hover:text-teal-800 font-medium underline underline-offset-4 decoration-teal-300">
-                {T.faqMoreCta}
-              </a>
-              {/* Plain text, deliberately not a second link: same reason as the
-                  final CTA, the address has to be readable when the mailto
-                  does nothing. On its own line rather than after a dash, which
-                  is one of the em-dashes this page no longer prints. */}
-            </p>
-            <p className="text-sm text-stone-500 mt-1">{SUPPORT_EMAIL}</p>
+            {/* The mailto link and the repeated address are gone; the question
+                itself stays. It is copy, not a CTA, and it now reads as what it
+                always was: a bridge into the closing section directly below,
+                which is where an unanswered question is answered. */}
+            <p className="text-sm text-stone-500">{T.faqMore}</p>
             <Link href="/privacy" className="inline-block text-xs text-stone-400 hover:text-stone-600 mt-3 underline underline-offset-4">
               {T.privacyLink}
             </Link>
@@ -909,88 +960,17 @@ export function LandingContent() {
       <section className="bg-teal-900 py-16 px-6 text-center">
         <h2 className="text-3xl md:text-4xl font-semibold tracking-[-0.015em] text-white mb-4">{T.ctaTitle}</h2>
         <p className="text-teal-100 text-lg mb-8">{T.ctaDesc}</p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/register"><Button size="lg" className="bg-white text-teal-900 hover:bg-teal-50 active:scale-[0.98] gap-2 font-semibold h-12 px-8">{T.ctaBtn1} <ArrowRight className="h-5 w-5" /></Button></Link>
-          {/* Was a second "view pricing" button, sitting one section below the
-              pricing teaser and a scroll below the pricing link in the nav. The
-              page's last word is better spent on the visitor who has read
-              everything and still wants to talk to a person first. */}
-          {/* asChild so the anchor *is* the button: wrapping a <button> in an
-              <a> nests interactive content, which gives keyboard and screen
-              reader users two stops for one action. */}
-          <Button asChild size="lg" className="bg-transparent border border-white text-white hover:bg-white/10 h-12 px-8 gap-2">
-            <a href={consultationMailto(lang)}>
-              <Mail className="h-4 w-4" />{T.ctaBtn2}
-            </a>
-          </Button>
-        </div>
-        {/* The address in plain text, not only behind the mailto: a browser
-            with no mail handler registered does nothing at all when that link
-            is clicked — no error, no window. Reading the address is the
-            fallback for a click that silently goes nowhere. */}
-        {/* Two lines, not one string joined by a second middle dot: the note
-            already carries one, and a line reading "a · b · c" is the metadata
-            strip every generated page prints. */}
+        {/* The third and last placement. What stood here was a "Mulai Gratis"
+            button, a consultation mailto button, the address in plain text
+            beneath it, and an email capture form — four asks stacked in the
+            section meant to close. The form has moved to the footer, where it is
+            the one secondary option; the address appears there too, once. */}
+        <CtaGroup location="closing" tone="dark" />
+        {/* Objection handling, not button text, and removing it with the buttons
+            was a mistake: "tanpa komitmen" is the exact worry a hospital has
+            about the words "jadwalkan demo", and after the first pass that
+            phrase appeared nowhere on the page. */}
         <p className="text-teal-100/90 text-xs mt-5">{T.consultNote}</p>
-        <p className="text-teal-100/90 text-xs mt-1">
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="underline underline-offset-4 hover:text-white">{SUPPORT_EMAIL}</a>
-        </p>
-
-        {/* A second, lower-friction exit next to the mailto above: no mail
-            client to switch to, and — unlike the mailto — a record on our
-            side to follow up on. Kept to one field on purpose; audience and
-            language are already known from page state, so the form asks for
-            nothing the visitor would have to think about. */}
-        <form onSubmit={submitLead} className="max-w-sm mx-auto mt-8 flex flex-col items-center gap-2">
-          {leadStatus === "done" ? (
-            <p className="text-white text-sm font-medium">{T.leadSuccess}</p>
-          ) : (
-            <>
-              <p className="text-teal-100 text-xs">{T.leadLabel}</p>
-              <div className="flex w-full gap-2">
-                {/* aria-label, not the <p> above: that paragraph is not tied to
-                    this input by anything, and a placeholder is not a name — a
-                    screen reader would announce this field as unlabelled. */}
-                <input
-                  type="email"
-                  required
-                  value={leadEmail}
-                  onChange={(e) => setLeadEmail(e.target.value)}
-                  placeholder={T.leadPlaceholder}
-                  aria-label={T.leadLabel}
-                  className="flex-1 h-10 rounded-md border border-white/30 bg-white/10 px-3 text-sm text-white placeholder:text-teal-200/60 focus:outline-none focus:border-white/60"
-                />
-                {/* Honeypot, and deliberately the *last* field rather than the
-                    first. Password managers fill by position and heuristic as
-                    much as by name, and a bare text input sitting ahead of the
-                    email box is what "username" looks like to one — which would
-                    trip the trap on a real person and drop their address while
-                    still telling them it went through. No name or id either,
-                    for the same reason: nothing here for a matcher to grab.
-
-                    Off-screen rather than display:none, because some bots skip
-                    what that hides while still filling this. */}
-                <input
-                  type="text"
-                  value={leadWebsite}
-                  onChange={(e) => setLeadWebsite(e.target.value)}
-                  tabIndex={-1}
-                  autoComplete="off"
-                  aria-hidden="true"
-                  className="absolute -left-[9999px] h-0 w-0"
-                />
-                <Button
-                  type="submit"
-                  disabled={leadStatus === "loading"}
-                  className="bg-white text-teal-700 hover:bg-teal-50 h-10 px-4 shrink-0"
-                >
-                  {T.leadBtn}
-                </Button>
-              </div>
-              {leadStatus === "error" && <p className="text-teal-100 text-xs">{T.leadError}</p>}
-            </>
-          )}
-        </form>
       </section>
 
       {/* Other industries
@@ -1017,6 +997,16 @@ export function LandingContent() {
           site-wide link has to be added in both places until these are
           unified. */}
       <footer className="border-t py-10 px-6">
+        {/* The email capture, moved down from the closing CTA and kept as the
+            one secondary option on the page. Same handler, same honeypot, same
+            endpoint — only its position changed. Here it competes with nothing:
+            a visitor who reaches the footer has already passed three CTA groups
+            without pressing one, so "leave your address instead" is the right
+            thing to offer, and the wrong thing to have offered beside the ask
+            itself. */}
+        <div className="max-w-6xl mx-auto mb-8 border-b border-hairline pb-8 text-center">
+          <LeadForm />
+        </div>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <LogoFull size="sm" />
           <p className="text-stone-400 text-sm">© 2026 IntelliBase AI. All rights reserved.</p>

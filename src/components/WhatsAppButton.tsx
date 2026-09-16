@@ -1,65 +1,120 @@
 "use client";
-import { useState } from "react";
-import { Mail, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { MessageCircle } from "lucide-react";
 import { useLang } from "@/lib/language-context";
-import { SUPPORT_EMAIL } from "@/lib/contact";
+import { demoWhatsappUrl } from "@/lib/cta";
+import { trackCta } from "@/lib/cta-analytics";
+
+// Kept at this filename because the root layout imports it, and the name is
+// finally accurate: this used to be an email bubble wearing a WhatsApp
+// component's name. It opened a panel whose entire content was one mailto link,
+// so it cost a tap, covered the corner of every page, and led somewhere the
+// footer already goes.
+//
+// Now it is the primary CTA in its smallest form: one tap, straight to
+// WhatsApp, no panel.
+const LABEL = {
+  id: "Jadwalkan demo lewat WhatsApp",
+  en: "Book a demo on WhatsApp",
+};
+
+// Below this width the button is held back until the visitor has scrolled half
+// the page. A floating circle in the thumb zone of a phone sits on top of the
+// hero CTA and the top of the demo chat, which are the two things the first
+// screen exists to offer — so on mobile it may only appear once those have been
+// scrolled past. On a desktop viewport it floats in empty margin and covers
+// nothing, so it is shown immediately.
+const MOBILE_MAX_WIDTH = 640; // Tailwind's `sm`
+const SCROLL_REVEAL_RATIO = 0.5;
+
+// Where a sales CTA belongs, as an allow-list rather than a list of pages to
+// hide it from.
+//
+// This mounts in the root layout, so before this guard it floated over /chat and
+// /admin too: a paying hospital admin was being asked, inside their own
+// workspace, to book a demo of the product they already own — and with the panel
+// gone, one stray tap in the chat corner now jumps straight out to WhatsApp.
+//
+// An allow-list and not a deny-list, because the failure modes are not
+// symmetrical. A new marketing page missing from this list loses one entry point
+// nobody notices; a new authenticated route missing from a deny-list ships a
+// sales pitch into the product.
+const MARKETING_PATHS = ["/", "/pricing", "/roi", "/blog", "/industri", "/solusi"];
+
+function isMarketingPath(pathname: string): boolean {
+  return MARKETING_PATHS.some(
+    (p) => pathname === p || (p !== "/" && pathname.startsWith(`${p}/`)),
+  );
+}
 
 export function WhatsAppButton() {
   const { lang } = useLang();
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const onMarketingPage = isMarketingPath(pathname);
+  const [visible, setVisible] = useState(false);
 
-  const subject = lang === "en"
-    ? "Help with IntelliBase AI"
-    : "Bantuan IntelliBase AI";
+  useEffect(() => {
+    // No setState here on purpose: the render already returns null off a
+    // marketing page, so writing `false` would only be a cascading render for a
+    // value nothing reads. Coming back to a marketing page re-runs this effect
+    // and measures again.
+    if (!onMarketingPage) return;
+    const desktop = window.matchMedia(`(min-width: ${MOBILE_MAX_WIDTH}px)`);
+    // Coalesced into one animation frame. `scrollHeight` is a layout-forcing
+    // read, and calling it straight from the scroll handler made the browser
+    // recompute layout on every scroll event — on phones, which is the only
+    // place this calculation is even needed, and the slowest hardware it runs
+    // on. The flag keeps at most one read per frame.
+    let queued = false;
 
-  const mailUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+    const measure = () => {
+      queued = false;
+      if (desktop.matches) {
+        setVisible(true);
+        return;
+      }
+      // Guard the division: a page shorter than the viewport has no scrollable
+      // distance, and 0/0 is NaN — which compares false against everything and
+      // would leave the button permanently hidden on a short page.
+      const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+      setVisible(scrollable <= 0 ? true : window.scrollY / scrollable >= SCROLL_REVEAL_RATIO);
+    };
+
+    const update = () => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(measure);
+    };
+
+    measure();
+    // Passive: this only reads scroll position and never calls preventDefault,
+    // so telling the browser that up front keeps it off the scrolling path.
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    desktop.addEventListener("change", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      desktop.removeEventListener("change", update);
+    };
+  }, [onMarketingPage]);
+
+  if (!onMarketingPage || !visible) return null;
 
   return (
-    <div className="fixed bottom-20 sm:bottom-6 right-4 sm:right-6 z-50 flex flex-col items-end gap-3">
-      {open && (
-        <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-4 w-72 animate-in slide-in-from-bottom-2 duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-teal-600 flex items-center justify-center">
-                <Mail className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="font-semibold text-stone-900 text-sm">IntelliBase Support</p>
-                <p className="text-xs text-stone-400">{SUPPORT_EMAIL}</p>
-              </div>
-            </div>
-            <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-600">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="bg-stone-50 rounded-xl p-3 mb-3">
-            <p className="text-sm text-stone-700 leading-relaxed">
-              {lang === "en"
-                ? "👋 Hi! Need help with IntelliBase? Send us an email and we'll get back to you shortly."
-                : "👋 Halo! Butuh bantuan dengan IntelliBase? Kirim email ke kami dan kami akan segera membalas."}
-            </p>
-          </div>
-          <a
-            href={mailUrl}
-            className="flex items-center justify-center gap-2 w-full bg-teal-600 hover:bg-teal-700 text-white rounded-xl py-2.5 text-sm font-medium transition-colors"
-            onClick={() => setOpen(false)}
-          >
-            <Mail className="h-4 w-4" />
-            {lang === "en" ? "Send Email" : "Kirim Email"}
-          </a>
-        </div>
-      )}
-
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="h-14 w-14 rounded-full bg-teal-600 hover:bg-teal-700 shadow-lg flex items-center justify-center transition-all hover:scale-105 active:scale-95"
-        aria-label="Email Support"
-      >
-        {open
-          ? <X className="h-6 w-6 text-white" />
-          : <Mail className="h-7 w-7 text-white" />
-        }
-      </button>
-    </div>
+    <a
+      href={demoWhatsappUrl(lang, "floating")}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={() => trackCta("demo_whatsapp", "floating")}
+      aria-label={LABEL[lang]}
+      title={LABEL[lang]}
+      // bottom-20 on mobile clears the slim cookie bar while it is still up;
+      // once dismissed the gap simply reads as margin.
+      className="fixed bottom-20 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-teal-700 text-white shadow-lg transition-transform hover:scale-105 hover:bg-teal-800 active:scale-95 sm:bottom-6 sm:right-6"
+    >
+      <MessageCircle className="h-6 w-6" />
+    </a>
   );
 }

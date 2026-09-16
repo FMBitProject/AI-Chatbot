@@ -5,7 +5,8 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
 import { ArrowUp, FileText, LoaderCircle, MessageSquare } from "lucide-react";
-import { whatsappUrl } from "@/lib/contact";
+import { demoWhatsappUrl } from "@/lib/cta";
+import { trackCta } from "@/lib/cta-analytics";
 import { useLang } from "@/lib/language-context";
 import { isAnalyticsOptedOut } from "@/lib/analytics-optout";
 import { DEMO_MAX_QUESTION, DEMO_QUESTIONS, type DemoCitation, type DemoFrame } from "@/lib/demo/shared";
@@ -49,6 +50,8 @@ const CONTENT = {
     ctaDesc: "Diskusikan kebutuhan RS Anda atau mulai buat workspace sendiri.",
     ctaWhatsapp: "Jadwalkan demo via WhatsApp",
     ctaRegister: "Daftar dan coba sendiri",
+    // TODO: MINOR — tidak lagi dipakai sejak CTA demo memakai demoWhatsappUrl();
+    // hapus setelah dipastikan tak ada surface lain yang memerlukannya.
     ctaWhatsappMessage: "Halo, saya sudah mencoba demo chat IntelliBase AI. Saya ingin demo dengan SPO RS kami sendiri.",
   },
   en: {
@@ -81,6 +84,9 @@ const CONTENT = {
   },
 };
 
+// TODO: MINOR — dua helper analitik hidup berdampingan. Setelah CTA demo pindah
+// ke trackCta(), ini hanya melayani demo_opened dan demo_question_sent; leburkan
+// agar cuma ada satu jalan melapor.
 function event(name: string, fields: Record<string, string | number> = {}) {
   try {
     if (!isAnalyticsOptedOut() && localStorage.getItem("cookie-consent") === "accepted") {
@@ -233,9 +239,30 @@ export function DemoChat() {
         {(sent >= 3 || turns.some((turn) => turn.error)) && <div className="mt-6 rounded-2xl bg-teal-900 p-5 text-white sm:p-6">
           <h3 className="text-lg font-semibold">{T.ctaTitle}</h3>
           <p className="mt-2 text-sm text-teal-100">{T.ctaDesc}</p>
+          {/* Inside the CTA hierarchy, not beside it. These two were built
+              before it and kept their own WhatsApp message and their own GA-only
+              event name, which meant the highest-intent CTA on the page — from
+              someone who has just used the product three times — reported under
+              a different name, to one backend, with no placement in the message
+              the person on WhatsApp reads. `questions_sent` rides along as an
+              extra property so nothing is lost in the move. */}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
-            <a href={whatsappUrl(T.ctaWhatsappMessage)} onClick={() => event("demo_cta_clicked", { target: "whatsapp", questions_sent: sent })} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-white px-4 py-3 text-center text-sm font-semibold text-teal-900">{T.ctaWhatsapp}</a>
-            <Link href="/register" onClick={() => event("demo_cta_clicked", { target: "register", questions_sent: sent })} className="rounded-lg border border-teal-300/50 px-4 py-3 text-center text-sm font-medium text-white">{T.ctaRegister}</Link>
+            <a
+              href={demoWhatsappUrl(lang, "demo")}
+              onClick={() => trackCta("demo_whatsapp", "demo", { questions_sent: sent })}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-lg bg-white px-4 py-3 text-center text-sm font-semibold text-teal-900"
+            >
+              {T.ctaWhatsapp}
+            </a>
+            <Link
+              href="/register"
+              onClick={() => trackCta("register", "demo", { questions_sent: sent })}
+              className="rounded-lg border border-teal-300/50 px-4 py-3 text-center text-sm font-medium text-white"
+            >
+              {T.ctaRegister}
+            </Link>
           </div>
         </div>}
       </div>

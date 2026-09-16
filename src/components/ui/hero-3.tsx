@@ -20,14 +20,22 @@ interface AnimatedMarqueeHeroProps {
   tagline: React.ReactNode;
   title: React.ReactNode;
   description: string;
-  ctaText: string;
+  /** The built-in single-button CTA. Ignored when `cta` is supplied. */
+  ctaText?: string;
   /** Where the CTA button navigates. The upstream component shipped a button
    *  that did nothing; on a landing page whose whole job is the click, the CTA
    *  has to be a real link (and an <a>, so middle-click and "open in new tab"
    *  behave). */
-  ctaHref: string;
+  ctaHref?: string;
+  /** Replaces the built-in button outright, for a hero that needs a CTA with
+   *  more than one level. Passed in rather than adding a second set of
+   *  text/href props, so the whole hierarchy (and its click tracking) stays in
+   *  the one component that owns it. */
+  cta?: React.ReactNode;
   images: string[];
-  /** Rendered under the CTA — the quiet second path (consultation link, the
+  /** TODO: MINOR — prop mati: satu-satunya pemanggil beralih ke `cta` dan tidak
+   *  lagi mengirim ini. Hapus kalau tetap tak terpakai.
+   *  Rendered under the CTA — the quiet second path (consultation link, the
    *  "no credit card" note). Optional so the component still works as the
    *  single-CTA hero it was written as. */
   footer?: React.ReactNode;
@@ -53,6 +61,7 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
   description,
   ctaText,
   ctaHref,
+  cta,
   images,
   footer,
   cardAspectClassName = "aspect-[3/4]",
@@ -144,14 +153,18 @@ export const AnimatedMarqueeHero: React.FC<AnimatedMarqueeHeroProps> = ({
         >
           {/* Teal, not the upstream red: brand colour is the one thing a
               drop-in hero can never bring with it. */}
-          <motion.a
-            href={ctaHref}
-            whileHover={reduceMotion ? undefined : { scale: 1.05 }}
-            whileTap={reduceMotion ? undefined : { scale: 0.95 }}
-            className="mt-8 inline-flex items-center gap-2 rounded-full bg-teal-700 px-8 py-3 font-semibold text-white shadow-lg transition-colors hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
-          >
-            {ctaText}
-          </motion.a>
+          {cta ? (
+            <div className="mt-8">{cta}</div>
+          ) : ctaText && ctaHref ? (
+            <motion.a
+              href={ctaHref}
+              whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+              whileTap={reduceMotion ? undefined : { scale: 0.95 }}
+              className="mt-8 inline-flex items-center gap-2 rounded-full bg-teal-700 px-8 py-3 font-semibold text-white shadow-lg transition-colors hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+            >
+              {ctaText}
+            </motion.a>
+          ) : null}
           {footer}
         </motion.div>
       </div>
