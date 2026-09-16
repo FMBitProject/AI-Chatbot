@@ -69,7 +69,12 @@ export type SocialKey =
  * (scripts/content/), the rest are posted by hand.
  */
 export const SOCIAL_LINKS: { key: SocialKey; label: string; href: string }[] = [
-  { key: "instagram", label: "Instagram", href: "https://www.instagram.com/intellibaseai" },
+  // Not /intellibaseai, which is a different account. Worth knowing before
+  // "correcting" this to match the Threads entry below: Threads usernames mirror
+  // the Instagram account they were created from, so @intellibaseai on Threads
+  // implies an instagram.com/intellibaseai exists too — and it is not the one
+  // this footer should point at.
+  { key: "instagram", label: "Instagram", href: "https://www.instagram.com/intellibaseaisupport" },
   { key: "tiktok", label: "TikTok", href: "https://www.tiktok.com/@intellibaseai" },
   { key: "youtube", label: "YouTube", href: "https://www.youtube.com/@Intellibaseai" },
   { key: "threads", label: "Threads", href: "https://www.threads.com/@intellibaseai" },
