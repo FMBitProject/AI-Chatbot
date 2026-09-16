@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoHomeLink } from "@/components/Logo";
+import { SocialLinks } from "@/components/SocialLinks";
 
 const LINKS = [
   { href: "/blog",    labelId: "Blog",   labelEn: "Blog" },
@@ -33,6 +34,11 @@ export function SiteFooter({ lang = "id" }: { lang?: "id" | "en" }) {
             </Link>
           ))}
         </div>
+        {/* Rendered from the shared component, not spelled out here. The same
+            row has to appear in the landing page's own footer, and two copies
+            of it is how this footer and that one drifted apart in the first
+            place — see the note above <footer> in LandingContent. */}
+        <SocialLinks />
       </div>
     </footer>
   );

@@ -11,6 +11,7 @@ import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER } from "@/lib/contact";
+import { SocialLinks } from "@/components/SocialLinks";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { ArrowRight, Users, FileText, MessageSquare } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
@@ -986,6 +987,10 @@ export function LandingContent() {
             <Link href="/terms" className="hover:text-stone-600">{T.footer.terms}</Link>
             <Link href="/privacy" className="hover:text-stone-600">{T.footer.privacy}</Link>
           </div>
+          {/* The same <SocialLinks /> <SiteFooter> renders, which is the whole
+              point of it being a component: this footer is hand-written and has
+              silently diverged from that one before. */}
+          <SocialLinks />
         </div>
       </footer>
     </div>

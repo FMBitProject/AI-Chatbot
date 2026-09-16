@@ -39,6 +39,51 @@ export function whatsappUrl(message: string) {
   return `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(message)}`;
 }
 
+/** The platforms <SocialLinks /> knows how to draw a glyph for. */
+export type SocialKey =
+  | "instagram"
+  | "tiktok"
+  | "youtube"
+  | "threads"
+  | "facebook"
+  | "linkedin";
+
+/**
+ * Where IntelliBase actually posts, in the order the row renders.
+ *
+ * Literal URLs rather than handles assembled from a template. Two of these
+ * six do not follow the `/@handle` shape at all — Facebook is a numeric
+ * profile id and LinkedIn a numeric company id — so a `buildUrl(platform,
+ * handle)` helper would have needed a special case for a third of its input,
+ * which is a helper that has stopped helping. A full URL is also the thing
+ * that can be pasted straight into a browser to check, and these were checked.
+ *
+ * This list is the switch. A platform with no account yet is left out entirely
+ * rather than given a placeholder, and <SocialLinks /> renders nothing when the
+ * list is empty — the same rule FOUNDER above follows, and for the same reason:
+ * a vendor asking a hospital to upload its internal SOPs cannot afford an icon
+ * that lands on a 404.
+ *
+ * Ordered by where the marketing pipeline actually publishes, not
+ * alphabetically: Instagram and LinkedIn are the two channels wired to Buffer
+ * (scripts/content/), the rest are posted by hand.
+ */
+export const SOCIAL_LINKS: { key: SocialKey; label: string; href: string }[] = [
+  { key: "instagram", label: "Instagram", href: "https://www.instagram.com/intellibaseai" },
+  { key: "tiktok", label: "TikTok", href: "https://www.tiktok.com/@intellibaseai" },
+  { key: "youtube", label: "YouTube", href: "https://www.youtube.com/@Intellibaseai" },
+  { key: "threads", label: "Threads", href: "https://www.threads.com/@intellibaseai" },
+  // Numeric because the Page has no username set yet. The link works and is
+  // stable, but it is the ugly form: setting a username under Page Settings →
+  // Username turns this into facebook.com/intellibaseai, and the swap is this
+  // one line. The old numeric URL keeps redirecting either way.
+  { key: "facebook", label: "Facebook", href: "https://www.facebook.com/profile.php?id=61593686300333" },
+  // Same story: /company/142909017 resolves to the page and will keep doing so,
+  // but LinkedIn lets an admin claim a vanity slug (/company/intellibase-ai),
+  // which is what belongs here once it exists.
+  { key: "linkedin", label: "LinkedIn", href: "https://www.linkedin.com/company/142909017" },
+];
+
 // Who is behind IntelliBase. A company asked to upload its internal SOPs to a
 // vendor it has never met wants to know there is a person on the other end, and
 // for a one-person product naming that person reads as more honest than the
