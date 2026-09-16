@@ -104,7 +104,7 @@ export function WhatsAppButton() {
 
   return (
     <a
-      href={demoWhatsappUrl(lang, "floating")}
+      href={demoWhatsappUrl(lang)}
       target="_blank"
       rel="noopener noreferrer"
       onClick={() => trackCta("demo_whatsapp", "floating")}

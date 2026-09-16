@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+// TODO: MINOR — `type KeyboardEvent` dari React membayangi tipe DOM global
+// bernama sama di seluruh modul ini. Belum ada yang memakai yang global, tapi
+// penulis berikutnya akan dapat error tipe yang membingungkan. Ganti jadi alias
+// (KeyboardEvent as ReactKeyboardEvent) atau pakai React.KeyboardEvent langsung.
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
@@ -37,6 +41,10 @@ const CONTENT = {
     inputLabel: "Pertanyaan tentang dokumen demo",
     inputPlaceholder: "Contoh: siapa yang memeriksa obat high alert?",
     sendLabel: "Kirim pertanyaan",
+    // Stated rather than left to be discovered. The button is an icon with no
+    // text, so without this line the keyboard shortcut is invisible and the
+    // send affordance is an arrow the visitor has to recognise.
+    enterHint: "Enter untuk mengirim, Shift+Enter untuk baris baru.",
     charsSuffix: "karakter · Jangan masukkan data pasien atau informasi rahasia.",
     disclaimer: "Seluruh isi demo adalah fiktif untuk memperagakan produk, bukan panduan klinis atau saran medis.",
     statusBusy: "Sedang menyusun jawaban",
@@ -67,6 +75,7 @@ const CONTENT = {
     inputLabel: "A question about the demo documents",
     inputPlaceholder: "For example: who checks high alert medication?",
     sendLabel: "Send question",
+    enterHint: "Enter to send, Shift+Enter for a new line.",
     charsSuffix: "characters · Do not enter patient data or confidential information.",
     disclaimer: "Everything in this demo is fictional and exists to show the product. It is not clinical guidance or medical advice.",
     statusBusy: "Writing the answer",
@@ -191,6 +200,40 @@ export function DemoChat() {
 
   function submit(e: FormEvent) { e.preventDefault(); void ask(question); }
 
+  // Enter sends, Shift+Enter starts a new line.
+  //
+  // A <textarea> is not a <input type="text">: it has no implicit submit, so
+  // until this existed Enter did the one thing a textarea does natively —
+  // insert a newline — and the question sat in the box looking ignored. Every
+  // chat interface a visitor has ever used sends on Enter, so the reasonable
+  // conclusion was that the demo is broken, on the section whose entire job is
+  // to prove that it is not.
+  //
+  // The textarea (rather than an input) is still right: DEMO_MAX_QUESTION
+  // allows a question longer than one visible line, and rows={2} shows it.
+  //
+  // isComposing is the part that is easy to leave out and expensive to get
+  // wrong. While an IME candidate window is open — which for this audience
+  // means anyone typing with a phone or desktop IME — Enter *confirms the
+  // candidate*, and the browser reports that keypress here first. Submitting on
+  // it would send a half-composed question and swallow the confirmation. The
+  // flag is read off nativeEvent because React's synthetic keyboard event does
+  // not carry it.
+  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // TODO: MINOR — Safari dan sebagian IME lama melaporkan isComposing:false
+    // pada Enter yang mengonfirmasi kandidat dan hanya menandainya lewat
+    // keyCode 229; tambahkan `|| e.nativeEvent.keyCode === 229`.
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    // TODO: MINOR — preventDefault() jalan sebelum ask() memeriksa input kosong,
+    // jadi Enter di kotak kosong tidak mengirim DAN tidak menyisipkan baris baru.
+    // Pindahkan `if (!question.trim()) return;` ke atas baris ini.
+    e.preventDefault();
+    // TODO: MINOR — `void` membuang penolakan promise tanpa jejak. ask() hari ini
+    // membungkus semuanya dengan try/catch/finally sehingga tak pernah reject,
+    // tapi kalau itu berubah kegagalannya jadi tak terlihat di mana pun.
+    void ask(question);
+  }
+
   return (
     <section ref={section} id="demo-chat" aria-labelledby="demo-title" className="border-t border-hairline bg-teal-50/50 px-4 py-14 sm:px-6 sm:py-20">
       <div className="mx-auto max-w-3xl">
@@ -228,10 +271,10 @@ export function DemoChat() {
             <form onSubmit={submit}>
               <label htmlFor="demo-question" className="mb-2 block text-sm font-medium text-stone-700">{T.inputLabel}</label>
               <div className="flex items-end gap-2 rounded-xl border border-stone-300 p-2 focus-within:border-teal-600">
-                <textarea id="demo-question" rows={2} maxLength={DEMO_MAX_QUESTION} value={question} disabled={busy} onChange={(e) => setQuestion(e.target.value)} placeholder={T.inputPlaceholder} className="min-w-0 flex-1 resize-none bg-transparent p-1 text-base text-stone-900 outline-none placeholder:text-stone-400" aria-describedby="demo-input-note" />
+                <textarea id="demo-question" rows={2} maxLength={DEMO_MAX_QUESTION} value={question} disabled={busy} onChange={(e) => setQuestion(e.target.value)} onKeyDown={onKeyDown} placeholder={T.inputPlaceholder} className="min-w-0 flex-1 resize-none bg-transparent p-1 text-base text-stone-900 outline-none placeholder:text-stone-400" aria-describedby="demo-input-note" />
                 <button type="submit" aria-label={T.sendLabel} disabled={busy || !question.trim()} className="rounded-lg bg-teal-700 p-3 text-white hover:bg-teal-800 disabled:opacity-40">{busy ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}</button>
               </div>
-              <p id="demo-input-note" className="mt-2 text-xs text-stone-500">{question.length}/{DEMO_MAX_QUESTION} {T.charsSuffix}</p>
+              <p id="demo-input-note" className="mt-2 text-xs text-stone-500">{T.enterHint} {question.length}/{DEMO_MAX_QUESTION} {T.charsSuffix}</p>
             </form>
           </div>
         </div>
@@ -248,7 +291,7 @@ export function DemoChat() {
               extra property so nothing is lost in the move. */}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row">
             <a
-              href={demoWhatsappUrl(lang, "demo")}
+              href={demoWhatsappUrl(lang)}
               onClick={() => trackCta("demo_whatsapp", "demo", { questions_sent: sent })}
               target="_blank"
               rel="noopener noreferrer"

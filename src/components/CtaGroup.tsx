@@ -30,7 +30,8 @@ const CONTENT = {
 };
 
 type CtaGroupProps = {
-  /** Which placement this is. Travels into the WhatsApp message and both analytics backends. */
+  /** Which placement this is. Reported to both analytics backends via `trackCta`.
+   *  It no longer rides in the WhatsApp message — see `demoWhatsappUrl`. */
   location: CtaLocation;
   /**
    * Dark sections invert the button treatment. Passed explicitly rather than
@@ -84,7 +85,7 @@ export function CtaGroup({ location, tone = "light", className }: CtaGroupProps)
           )}
         >
           <a
-            href={demoWhatsappUrl(lang, location)}
+            href={demoWhatsappUrl(lang)}
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackCta("demo_whatsapp", location)}

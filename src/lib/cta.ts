@@ -21,24 +21,41 @@ export type CtaLocation =
 /**
  * The WhatsApp link behind every primary CTA.
  *
- * The prefilled message carries the placement, and it does so in the message
- * body rather than only in an analytics event, because those two are visible to
- * different people. The analytics event tells us what happened; the message
- * tells whoever answers WhatsApp where this person was standing when they
- * decided to talk to us — which arrives even when analytics is blocked, opted
- * out, or simply not being read.
+ * One plain sentence, ready to send as it stands.
  *
- * The bracketed placeholder is deliberate and stays in the sent text. WhatsApp
- * opens with this prefilled but editable, so "[nama RS/klinik]" reads as a blank
- * the sender fills in. Replacing it with something neutral like "rumah sakit
- * kami" would produce a grammatical message that nobody edits, and the one fact
- * worth having before the first reply is which hospital is asking.
+ * It used to carry two pieces of machinery, and both of them leaked. A
+ * bracketed blank, "[nama RS/klinik]", was meant to read as a field the sender
+ * fills in; a trailing "(dari: hero)" carried the placement so that whoever
+ * answers WhatsApp would know where the person was standing when they decided
+ * to talk to us, even if analytics never reported it.
+ *
+ * Both assumed the prefill gets edited before it is sent. It does not. WhatsApp
+ * opens with the message in the composer and the overwhelmingly common action
+ * is to press send, so what actually reached the other end was square brackets
+ * and an internal placement name — from a vendor asking a hospital to trust it
+ * with its internal documents. A first message that looks like an unfinished
+ * template is a worse opening than one that omits the hospital's name, which is
+ * the first thing the reply will ask for anyway.
+ *
+ * The placement is not lost, only moved: every CTA still reports it through
+ * `trackCta`. Read that function before concluding this costs attribution,
+ * because the obvious assumption is wrong — Vercel Web Analytics is cookieless
+ * and `track()` there fires whether or not the cookie banner has been answered,
+ * so the placement of a click arrives for essentially every visitor. Only the
+ * GA4 half waits for consent. What genuinely loses attribution is a visitor who
+ * blocks analytics outright or has used /analytics-optout, and that visitor was
+ * never going to be counted anywhere.
+ *
+ * `CtaLocation` below is unchanged and still the type every call site passes to
+ * `trackCta`, so putting the placement back into the message text — and the
+ * square brackets back into a stranger's WhatsApp — would be a change to this
+ * one function. It should take more than a hunch about lost tracking.
  */
-export function demoWhatsappUrl(lang: Lang, location: CtaLocation): string {
+export function demoWhatsappUrl(lang: Lang): string {
   const message =
     lang === "en"
-      ? `Hi, I'm from [hospital/clinic name], I'd like a demo of IntelliBase AI. (from: ${location})`
-      : `Halo, saya dari [nama RS/klinik], ingin demo IntelliBase AI. (dari: ${location})`;
+      ? "Hello, I'd like a demo of IntelliBase AI for our hospital."
+      : "Halo, saya ingin demo IntelliBase AI untuk rumah sakit kami.";
   return whatsappUrl(message);
 }
 
