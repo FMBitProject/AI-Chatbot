@@ -11,8 +11,8 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { NORMAL_PRICES, PROMO_PRICES as PROMO, isPromoActive, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
-import { consultationMailto } from "@/lib/contact";
+import { NORMAL_PRICES, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
+import { consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const FEATURE_ICONS = [MessageSquare, FileText, Users, Shield, BarChart2, Link2, HardDrive];
@@ -70,28 +70,35 @@ export default function PricingPage() {
   const PLAN_COPY = isIndividual ? T.individualPlans : T.plans;
   const FEATURES = isIndividual ? T.individualFeatures : T.features;
 
-  // Prices and promo state come from the shared pricing module, so this page
-  // (and the checkout) automatically revert to normal prices once the promo ends.
-  // Keyed to PLAN_KEYS rather than to `string`: a plan added to that list with
-  // no entry here is then a type error, not a card that renders the price
+  // Prices come from the shared pricing module, the same one the checkout
+  // charges from, so this page cannot quote a number the payment then disagrees
+  // with. Keyed to PLAN_KEYS rather than to `string`: a plan added to that list
+  // with no entry here is then a type error, not a card that renders the price
   // "undefined". Partial because the two tiers without a list price — starter
   // and custom — are supposed to be missing.
-  const promoActive = isPromoActive();
+  //
+  // There is one price per plan now. The struck-through "before" price and the
+  // promo banner that used to sit above these cards are gone with the promo
+  // itself (see getPlanPrice) — on a page a hospital reads, a permanent discount
+  // mostly invites the reader to ask what the number becomes if they push.
   type PlanKey = (typeof PLAN_KEYS)[number];
-  const ORIGINAL_PRICES: Partial<Record<PlanKey, string>> = {
+  const PRICES: Partial<Record<PlanKey, string>> = {
     personal: formatRupiah(NORMAL_PRICES.personal, lang),
     professional: formatRupiah(NORMAL_PRICES.professional, lang),
     enterprise: formatRupiah(NORMAL_PRICES.enterprise, lang),
   };
-  const PROMO_PRICES: Partial<Record<PlanKey, string>> = {
-    personal: formatRupiah(PROMO.personal, lang),
-    professional: formatRupiah(PROMO.professional, lang),
-    enterprise: formatRupiah(PROMO.enterprise, lang),
-  };
-  const HAS_PROMO: Partial<Record<PlanKey, boolean>> = {
-    personal: promoActive,
-    professional: promoActive,
-    enterprise: promoActive,
+  // The pilot badge belongs ONLY on a card whose call to action is a
+  // conversation, and this is a correctness rule rather than a layout choice.
+  // There is no trial anywhere in the codebase: the pilot is something we agree
+  // to by hand during the demo. On the Klinik card the button opens Midtrans and
+  // charges Rp 1.500.000 immediately, so a "free pilot" badge sitting above it
+  // is a promise broken by the very next click. Rumah Sakit leads with
+  // "Jadwalkan Demo", which is where a pilot can actually be arranged.
+  //
+  // If a real trial is ever built (a trial_ends_at on companies, honoured by
+  // getEffectiveSubscription), this is the line to revisit — not before.
+  const HAS_PILOT: Partial<Record<PlanKey, boolean>> = {
+    enterprise: true,
   };
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
@@ -222,10 +229,14 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* Promo Banner */}
-      {promoActive && (
+      {/* The pilot offer, which replaced the launch promo banner. Only on the
+          company tab: the individual tier is not sold this way. The second half
+          of the line is not decoration — it is what keeps a page-wide banner
+          from reading as "every plan here comes with a free week", including the
+          two cards on this tab that are not sold with a pilot at all. */}
+      {!isIndividual && (
         <div className="bg-teal-800 text-white text-center py-2.5 px-4 text-sm font-medium">
-          {T.promoBanner} &nbsp;·&nbsp; <span className="underline">{T.promoEnds}</span>
+          {T.pilotBadge} &nbsp;·&nbsp; <span className="text-teal-100">{T.pilotNote}</span>
         </div>
       )}
 
@@ -287,7 +298,13 @@ export default function PricingPage() {
             // would mark nothing, since Professional is not on this tab at all.
             const isPopular = isIndividual ? key === "personal" : key === "professional";
             const isCustom = key === "custom";
-            const hasPromo = HAS_PROMO[key] ?? false;
+            const hasPilot = HAS_PILOT[key] ?? false;
+            // The hospital tier is sold after a conversation, not from a card:
+            // at Rp 4,5jt nobody types their card number without having spoken
+            // to someone first, and pretending otherwise just means the button
+            // is never pressed. The checkout still exists for it — see the
+            // secondary link below — it is simply not what the card leads with.
+            const leadsWithDemo = key === "enterprise";
             return (
             <div key={plan.name} className={cn("rounded-2xl border-2 p-6 flex flex-col relative",
               isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
@@ -311,9 +328,9 @@ export default function PricingPage() {
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="text-lg font-bold text-stone-900">{plan.name}</h3>
-                  {hasPromo && (
-                    <span className="text-xs font-semibold bg-teal-700/10 text-teal-800 border border-teal-200 rounded-full px-2 py-0.5">
-                      {T.discountBadge}
+                  {hasPilot && (
+                    <span className="text-xs font-semibold bg-teal-700/10 text-teal-800 border border-teal-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+                      {T.pilotBadge}
                     </span>
                   )}
                 </div>
@@ -323,18 +340,7 @@ export default function PricingPage() {
                     both lost: "Rp 200.000" split after "Rp", and on the Custom
                     card the note ran past the card's edge. `whitespace-nowrap`
                     keeps a price from ever breaking mid-number. */}
-                {hasPromo ? (
-                  <div>
-                    {/* "—" rather than an empty span if a key ever lacks a
-                        price: a blank where a number belongs looks like a
-                        loading bug, and reads as free. */}
-                    <span className="text-sm text-stone-400 line-through">{ORIGINAL_PRICES[key] ?? "-"}</span>
-                    <div className="flex flex-col mt-0.5">
-                      <span className="text-3xl font-bold text-teal-800 whitespace-nowrap">{PROMO_PRICES[key] ?? "-"}</span>
-                      <span className="text-stone-400 text-sm">/ {T.perMonth}</span>
-                    </div>
-                  </div>
-                ) : isCustom ? (
+                {isCustom ? (
                   // No number here on purpose: this tier is sized against the
                   // organisation before any price is quoted. Words need a
                   // smaller size than a figure does — at text-3xl "Sesuai
@@ -346,7 +352,10 @@ export default function PricingPage() {
                   </div>
                 ) : (
                   <div className="flex flex-col">
-                    <span className="text-3xl font-bold text-stone-900 whitespace-nowrap">{isFree ? T.free : ORIGINAL_PRICES[key] ?? "-"}</span>
+                    {/* "-" rather than an empty span if a key ever lacks a
+                        price: a blank where a number belongs looks like a
+                        loading bug, and reads as free. */}
+                    <span className="text-3xl font-bold text-stone-900 whitespace-nowrap">{isFree ? T.free : PRICES[key] ?? "-"}</span>
                     <span className="text-stone-400 text-sm">/ {isFree ? T.forever : T.perMonth}</span>
                   </div>
                 )}
@@ -387,6 +396,31 @@ export default function PricingPage() {
                     {T.contactUs} <ArrowRight className="h-4 w-4" />
                   </Button>
                 </a>
+              ) : leadsWithDemo ? (
+                // Demo first, checkout second — and the checkout is a text link
+                // rather than a hidden path, so a buyer who has already decided
+                // is not made to book a call to hand over money.
+                <div className="flex flex-col gap-2">
+                  <a href={whatsappUrl(T.demoWhatsappMessage)} target="_blank" rel="noopener noreferrer">
+                    <Button className="w-full gap-2 bg-teal-700 hover:bg-teal-800 active:scale-[0.98]">
+                      {T.demoCta} <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </a>
+                  {mounted && session?.user ? (
+                    <button
+                      type="button"
+                      className="text-xs text-stone-500 underline underline-offset-2 hover:text-teal-800 disabled:opacity-60"
+                      onClick={() => { if (isPurchasablePlan(key)) handlePay(key); }}
+                      disabled={loadingPlan !== null}
+                    >
+                      {loadingPlan === key ? "Memproses..." : T.orSubscribeDirectly}
+                    </button>
+                  ) : (
+                    <Link href={`/register?plan=${key}`} className="text-xs text-stone-500 underline underline-offset-2 hover:text-teal-800 text-center">
+                      {T.orSubscribeDirectly}
+                    </Link>
+                  )}
+                </div>
               ) : mounted && session?.user ? (
                 <Button
                   className={"w-full gap-2 bg-teal-700 hover:bg-teal-800"}

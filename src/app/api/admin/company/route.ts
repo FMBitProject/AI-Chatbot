@@ -141,7 +141,12 @@ export async function PATCH(req: NextRequest) {
     const { subscription } = await resolvePlan(companyRow);
     if (!BYOK_PLANS.includes(subscription.plan)) {
       return NextResponse.json(
-        { error: "Fitur ini hanya tersedia untuk paket Professional ke atas." },
+        // Names the audience, not a position on one ladder. The guard here is
+        // requireAdmin, not requireCompanyAdmin, so an individual account's
+        // admin reaches this line — and BYOK_PLANS grants them BYOK on Personal.
+        // "Klinik ke atas" would tell a solo practitioner to buy a hospital
+        // package for something their own plan already includes.
+        { error: "Menyimpan API key sendiri tersedia di paket berbayar: Personal untuk akun Individu, Klinik ke atas untuk akun Perusahaan." },
         { status: 403 },
       );
     }

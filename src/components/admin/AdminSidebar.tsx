@@ -5,6 +5,7 @@ import { LogoFull, LogoIcon } from "@/components/Logo";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, LogOut, X, type LucideIcon } from "lucide-react";
 import type { Plan } from "@/lib/plan-limits";
+import { PLAN_LABELS } from "@/lib/pricing";
 import type { Lang } from "@/lib/i18n";
 
 export type AdminNavItem = {
@@ -18,10 +19,15 @@ export type AdminNavItem = {
 // most of all — as being on the free tier. Moved out of the old header with
 // the badge itself; the dark sidebar needs its own colours for these, because
 // the light-background pills were unreadable on it.
+// TODO: MINOR — "⚡ Rumah Sakit" dan "✦ Klinik" jauh lebih panjang dari label
+// lamanya ("⚡ Enterprise", "✦ Pro"), dan badge ini duduk di sidebar sempit yang
+// bisa menciut. Belum diverifikasi secara visual (sandbox tidak bisa screenshot
+// halaman Next). Periksa di dashboard; kalau terpotong, pakai `truncate` atau
+// label pendek khusus sidebar.
 const PLAN_BADGE: Record<Plan, { label: string; className: string }> = {
   custom: { label: "★ Custom", className: "bg-white text-gray-900" },
-  enterprise: { label: "⚡ Enterprise", className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },
-  professional: { label: "✦ Pro", className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },
+  enterprise: { label: `⚡ ${PLAN_LABELS.enterprise}`, className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },
+  professional: { label: `✦ ${PLAN_LABELS.professional}`, className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },
   personal: { label: "◆ Personal", className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },
   starter: { label: "Free", className: "bg-white/10 text-gray-300 border border-white/15" },
 };

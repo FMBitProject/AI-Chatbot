@@ -134,9 +134,15 @@ const RULES = [
     // here only as "Ini", so every rule shaped as "Slack near Personal" missed
     // it entirely. The impossible plan list is the part that is always present,
     // and it carries any other feature claim just as wrongly.
+    // The company tiers are named "Klinik" and "Rumah Sakit" to customers now
+    // (PLAN_LABELS in src/lib/pricing.ts) while their plan ids stayed
+    // `professional`/`enterprise`. Both vocabularies are listed: the model is
+    // handed the new names, but the old ones are still all over the docs it may
+    // have picked up, and a rule that only knew one set would pass the very
+    // sentence it exists to catch.
     pattern:
-      /\bPersonal\b\s*[,/&]\s*(dan\s+)?Professional|\bProfessional\b\s*[,/&]\s*(dan\s+)?Personal|\bPersonal\b\s+dan\s+(Professional|Enterprise)/i,
-    why: "Personal hanya untuk akun Individu; Professional/Enterprise hanya untuk akun Perusahaan (isPlanAllowedFor di src/lib/pricing.ts). Tidak ada pembaca yang bisa memilih dari daftar berisi keduanya — pisahkan per audiens.",
+      /\bPersonal\b\s*[,/&]\s*(dan\s+)?(Professional|Klinik|Rumah\s+Sakit)|(\bProfessional\b|\bKlinik\b|\bRumah\s+Sakit\b)\s*[,/&]\s*(dan\s+)?Personal|\bPersonal\b\s+dan\s+(Professional|Enterprise|Klinik|Rumah\s+Sakit)/i,
+    why: "Personal hanya untuk akun Individu; Klinik/Rumah Sakit (plan id professional/enterprise) hanya untuk akun Perusahaan (isPlanAllowedFor di src/lib/pricing.ts). Tidak ada pembaca yang bisa memilih dari daftar berisi keduanya — pisahkan per audiens.",
     // The negation window cannot tell *what* a "bukan" refers to, and that is
     // not hypothetical here: the sentence that shipped this bug ended "...,
     // bukan biaya tambahan terpisah", negating the fee rather than the plan
@@ -148,18 +154,39 @@ const RULES = [
   },
 ];
 
+// The short forms of a price that Indonesian copy actually uses, chosen by the
+// size of the number rather than fixed to one suffix.
+//
+// This used to be `Rp${n / 1000}rb` for every tier, which was fine while the
+// paid plans were Rp 200rb and Rp 500rb. At Rp 1.500.000 it produces "Rp1500rb",
+// a string nobody writes — so the allow-list stopped containing any form the
+// model would produce, while the matcher below still catches the `jt` forms. The
+// result was the exact inverse of this rule's purpose: a post quoting the
+// correct price as "Rp1,5jt" was rejected as stale.
+//
+// Both decimal separators are listed because both are ordinary in Indonesian
+// copy, and a rule that only knew the comma would fail the pack over punctuation.
+function shorthands(amount) {
+  if (amount < 1_000_000) return [`Rp${Math.round(amount / 1000)}rb`];
+  const jt = String(amount / 1_000_000);
+  return [`Rp${jt.replace(".", ",")}jt`, `Rp${jt}jt`];
+}
+
 // Any Rupiah figure in the copy has to be a price we actually charge today.
-// Catches the promo/normal drift that would otherwise appear silently in 2027.
+// Catches a price in the generated copy drifting from src/lib/pricing.ts.
+//
+// TODO: MINOR — `now` is a dead parameter. currentPrices() stopped taking a date
+// when the promo was removed, so this argument no longer influences anything.
+// Drop it from the chain (or restore it if a dated promo comes back).
 function checkPrices(text, now) {
   const p = currentPrices(now);
   const allowed = new Set([
     formatRupiah(p.personal),
     formatRupiah(p.professional),
     formatRupiah(p.enterprise),
-    // Shorthand the landing page also uses.
-    `Rp${Math.round(p.personal / 1000)}rb`,
-    `Rp${Math.round(p.professional / 1000)}rb`,
-    `Rp${Math.round(p.enterprise / 1000)}rb`,
+    ...shorthands(p.personal),
+    ...shorthands(p.professional),
+    ...shorthands(p.enterprise),
   ]);
   const found = text.match(/Rp\s?[\d.,]+\s*(rb|ribu|jt|juta)?/gi) ?? [];
   return found
