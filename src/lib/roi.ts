@@ -47,7 +47,12 @@ export const ESTIMATE_NOTE = {
 // landing page's teaser slider — which varies only headcount. Shared so the
 // teaser can never quote a figure the page it links to disagrees with.
 export const ROI_DEFAULTS = {
-  employees: 50,
+  // Inside the Klinik tier's seat limit (PLAN_LIMITS.professional.maxEmployees,
+  // 25). This was 50 while that tier held 50 seats; left alone after the
+  // repricing it would open the comparison page with the Klinik card already
+  // struck out as "over limit", so the first thing a visitor saw on a page built
+  // to compare two plans was one plan crossed off before they touched anything.
+  employees: 25,
   questionsPerDay: 3,
   // 15, not the 20 this used to open on: three searches a day at twenty minutes
   // put every employee on the calculator's own worst case before the visitor

@@ -1,8 +1,8 @@
-// Single source of truth for plan pricing and the launch promo.
+// Single source of truth for plan pricing.
 //
-// The promo (discounted prices) runs until PROMO_ENDS_AT; after that both the
-// checkout charge and every price shown on the site automatically revert to the
-// normal prices — no code change needed. To adjust the promo, edit this file.
+// One price per plan, read by both the checkout charge and every price shown on
+// the site, so the two can never disagree. There is no promo: see getPlanPrice
+// for why the launch discount was removed rather than re-dated.
 
 // Two different questions, and conflating them is a live bug rather than a
 // style choice:
@@ -31,47 +31,64 @@ export function isPlanAllowedFor(
   return accountType === "individual" ? plan === "personal" : plan !== "personal";
 }
 
-// Personal is priced under the psychological line a person pays out of their own
-// pocket rather than a company card — the whole point of the tier. It is NOT a
-// researched number: pick a real one before the first individual customer and
-// change it here, which is the only place both the checkout charge and every
-// price on the site read from.
-// Set so the launch promo lands just under half price on every tier (~50% off,
-// against the lopsided 33%/37%/40% these used to give), then charm-priced to
-// the nearest 9 — which is why they are 399/999/119 rather than a literal
-// double. If a promo price changes, re-derive these with it; the ~50% is the
-// intent, the exact figures are only its rounding.
+// Priced for the segment this product is actually sold to: hospitals and
+// clinics. The two paid company tiers keep the plan ids `professional` and
+// `enterprise`, because those ids are written into Midtrans orders, the payment
+// webhook, the downgrade guards and every plan-gated route — renaming them
+// would be a data migration bought for nothing. What a buyer reads is "Klinik"
+// and "Rumah Sakit" (src/lib/i18n.ts); what the database stores is unchanged.
 //
-// Sized against src/lib/roi.ts rather than against competitors. At these
-// prices the calculator's own (thrice-discounted, deliberately conservative)
-// model still returns roughly 20x for Professional at its 50-employee limit
-// and ~31x for Enterprise at its 200 — each read at the headcount that tier is
-// sold for, NOT at a shared one (Enterprise at 50 employees is only ~8x, which
-// is the honest reason it is not the tier to push a small team toward).
-// So the headroom that remains is deliberate. It is what we
-// have to trade with before there is a single paying customer or a reference
-// to point at; raising into it is a decision to make once the product has
-// customers proving it gets used, not now.
+// Why these numbers, since the ones they replace are the reason this was
+// revisited. At Rp 500.000 for 100 seats, Enterprise sold an entire type-C
+// hospital for Rp 5.000 per person per month. The problem with that is not
+// margin, it is that the price loses the deal before the demo: a hospital reads
+// it as a student project rather than a vendor. These land at Rp 60rb and
+// Rp 30rb per user per month, which survives being read aloud in a procurement
+// meeting, and the hospital tier's Rp 54jt/year sits inside an IT operating
+// budget without tripping a formal tender.
+//
+// There is deliberately no second, cheaper "SMB" ladder beside this one. Two
+// tracks selling the same software can only differ by price, so the cheap track
+// wins every comparison a buyer makes and the expensive one never sells —
+// which is exactly what a 6x-per-seat gap between the two would have done here.
+// Anything that fits neither tier goes to `custom`: negotiated, set by hand,
+// and not purchasable.
+//
+// `personal` is a different product for a different account type (one person,
+// no seats) and is not part of that ladder. It is reachable only from the
+// Individu tab, and isPlanAllowedFor refuses it to company accounts. It is
+// still NOT a researched number — pick a real one before the first individual
+// customer.
 export const NORMAL_PRICES: Record<PurchasablePlan, number> = {
   personal: 119000,
-  professional: 399000,
-  enterprise: 999000,
+  professional: 1500000,
+  enterprise: 4500000,
 };
 
-export const PROMO_PRICES: Record<PurchasablePlan, number> = {
-  personal: 59000,
-  professional: 200000,
-  enterprise: 500000,
+// What a customer calls each plan. Separate from the plan id, which is what the
+// database, Midtrans orders and every guard use and which must not change.
+//
+// This exists because the label is not only on the pricing page: it is on the
+// plan badge in the dashboard sidebar, in the "your plan does not include this"
+// errors, and on the Midtrans invoice. Those drifted apart the last time a tier
+// was renamed in the price table alone, and a buyer who is quoted "Klinik" then
+// billed for "Professional" has to ask whether they bought the right thing.
+//
+// Not translated. These are product names, and the Indonesian and English pages
+// should quote a hospital the same word — "Rumah Sakit" is the name of the
+// package, not a description that needs an English equivalent.
+export const PLAN_LABELS: Record<Plan, string> = {
+  starter: "Starter",
+  personal: "Personal",
+  professional: "Klinik",
+  enterprise: "Rumah Sakit",
+  custom: "Custom",
 };
-
-// Promo valid through 31 December 2026 (WIB); reverts to normal prices at
-// 1 January 2027 00:00 WIB (= 2026-12-31T17:00:00Z).
-export const PROMO_ENDS_AT = new Date("2026-12-31T17:00:00Z");
 
 export const PLAN_NAMES: Record<PurchasablePlan, string> = {
-  personal: "IntelliBase Personal — 1 Bulan",
-  professional: "IntelliBase Professional — 1 Bulan",
-  enterprise: "IntelliBase Enterprise — 1 Bulan",
+  personal: `IntelliBase ${PLAN_LABELS.personal} — 1 Bulan`,
+  professional: `IntelliBase ${PLAN_LABELS.professional} — 1 Bulan`,
+  enterprise: `IntelliBase ${PLAN_LABELS.enterprise} — 1 Bulan`,
 };
 
 // Use this — never isPaidPlan — to validate anything that leads to a charge.
@@ -302,13 +319,20 @@ export function computeRenewedExpiry(
   return addOneMonth(base);
 }
 
-export function isPromoActive(now: Date = new Date()): boolean {
-  return now.getTime() < PROMO_ENDS_AT.getTime();
-}
-
 // The authoritative price a customer is charged for a plan right now.
+//
+// There used to be a launch promo here, and with it a second price table, an
+// end date, and a struck-through price on every card. It is gone: the prices
+// above are the real ones, so a discount off a list price nobody ever paid is
+// theatre, and on a page aimed at hospitals it invites the buyer to wonder what
+// the number would be if they pushed. One price, stated plainly.
+//
+// Still takes `now`, unused, so that reintroducing a real dated promo is a
+// change to this function alone rather than to all of its callers.
 export function getPlanPrice(plan: PurchasablePlan, now: Date = new Date()): number {
-  return isPromoActive(now) ? PROMO_PRICES[plan] : NORMAL_PRICES[plan];
+  // TODO: MINOR — `void now` hanya untuk meredam lint atas parameter tak terpakai.
+  void now;
+  return NORMAL_PRICES[plan];
 }
 
 // "Rp 299.000" (id) / "Rp 299,000" (en)

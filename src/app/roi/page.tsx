@@ -6,7 +6,8 @@ import { LogoHomeLink } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
-import { getPlanPrice, formatRupiah, type PurchasablePlan } from "@/lib/pricing";
+import { getPlanPrice, formatRupiah, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { consultationMailto } from "@/lib/contact";
 import {
   ROI_DEFAULTS,
@@ -17,6 +18,13 @@ import {
   MINUTES_WITH_AI,
 } from "@/lib/roi";
 import { ArrowRight, Users, Clock, TrendingDown, TrendingUp, Calculator, Zap, Shield, AlertTriangle, CheckCircle2, Sparkles, Scale } from "lucide-react";
+
+// The seat and document figures on the comparison cards used to be literals
+// typed into both language blocks — four copies of every number, which is how
+// this page ended up advertising 50 employees and 100 documents while the API
+// enforced something else. Read from the same table the API enforces instead.
+const PRO = PLAN_LIMITS.professional;
+const ENT = PLAN_LIMITS.enterprise;
 
 const CONTENT = {
   id: {
@@ -62,18 +70,18 @@ const CONTENT = {
     plans: [
       {
         key: "professional",
-        name: "Professional",
-        price: 200_000,
-        priceLabel: "Rp 200.000 / bulan",
-        limit: "Hingga 50 karyawan · 100 dokumen",
-        employeeLimit: 50,
+        name: PLAN_LABELS.professional,
+        price: getPlanPrice("professional"),
+        priceLabel: `${formatRupiah(getPlanPrice("professional"), "id")} / bulan`,
+        limit: `Hingga ${PRO.maxEmployees} karyawan · ${PRO.maxDocuments} dokumen`,
+        employeeLimit: PRO.maxEmployees,
         color: "teal",
-        cta: "Mulai Professional",
+        cta: `Mulai ${PLAN_LABELS.professional}`,
         ctaHref: "/register?plan=professional",
         recommendedLabel: "Cocok untuk Tim Anda",
         overLimitLabel: "Melebihi Batas",
-        overLimitDesc: "Plan ini hanya untuk maks. 50 karyawan. Upgrade ke Enterprise.",
-        overLimitCta: "Lihat Enterprise →",
+        overLimitDesc: `Paket ini hanya untuk maks. ${PRO.maxEmployees} karyawan. Naik ke paket ${PLAN_LABELS.enterprise}.`,
+        overLimitCta: `Lihat ${PLAN_LABELS.enterprise} →`,
         overLimitHref: "/pricing",
         // Only used by the "custom" mode below, where the card stops being this
         // plan and starts being the negotiated one. Empty means "keep my name".
@@ -85,17 +93,17 @@ const CONTENT = {
       },
       {
         key: "enterprise",
-        name: "Enterprise",
-        price: 500_000,
-        priceLabel: "Rp 500.000 / bulan",
-        limit: "Hingga 100 karyawan · 300 dokumen",
-        employeeLimit: 100,
+        name: PLAN_LABELS.enterprise,
+        price: getPlanPrice("enterprise"),
+        priceLabel: `${formatRupiah(getPlanPrice("enterprise"), "id")} / bulan`,
+        limit: `Hingga ${ENT.maxEmployees} karyawan · ${ENT.maxDocuments} dokumen`,
+        employeeLimit: ENT.maxEmployees,
         color: "teal-deep",
-        cta: "Mulai Enterprise",
+        cta: `Mulai ${PLAN_LABELS.enterprise}`,
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Cocok untuk Tim Anda",
-        overLimitLabel: "Perlu Paket Custom",
-        overLimitDesc: "Di atas 100 karyawan, paket disusun bersama sesuai skala organisasi Anda.",
+        overLimitLabel: `Perlu Paket ${PLAN_LABELS.custom}`,
+        overLimitDesc: `Di atas ${ENT.maxEmployees} karyawan, paket disusun bersama sesuai skala organisasi Anda.`,
         overLimitCta: "Hubungi Kami →",
         overLimitHref: "",
         overLimitName: "Custom",
@@ -175,35 +183,35 @@ const CONTENT = {
     plans: [
       {
         key: "professional",
-        name: "Professional",
-        price: 200_000,
-        priceLabel: "Rp 200,000 / month",
-        limit: "Up to 50 employees · 100 documents",
-        employeeLimit: 50,
+        name: PLAN_LABELS.professional,
+        price: getPlanPrice("professional"),
+        priceLabel: `${formatRupiah(getPlanPrice("professional"), "en")} / month`,
+        limit: `Up to ${PRO.maxEmployees} employees · ${PRO.maxDocuments} documents`,
+        employeeLimit: PRO.maxEmployees,
         color: "teal",
-        cta: "Start Professional",
+        cta: `Start ${PLAN_LABELS.professional}`,
         ctaHref: "/register?plan=professional",
         recommendedLabel: "Right for Your Team",
         overLimitLabel: "Over Limit",
-        overLimitDesc: "This plan supports max. 50 employees. Upgrade to Enterprise.",
-        overLimitCta: "See Enterprise →",
+        overLimitDesc: `This plan supports max. ${PRO.maxEmployees} employees. Move up to ${PLAN_LABELS.enterprise}.`,
+        overLimitCta: `See ${PLAN_LABELS.enterprise} →`,
         overLimitHref: "/pricing",
         overLimitName: "",
         overLimitMode: "upgrade",
       },
       {
         key: "enterprise",
-        name: "Enterprise",
-        price: 500_000,
-        priceLabel: "Rp 500,000 / month",
-        limit: "Up to 100 employees · 300 documents",
-        employeeLimit: 100,
+        name: PLAN_LABELS.enterprise,
+        price: getPlanPrice("enterprise"),
+        priceLabel: `${formatRupiah(getPlanPrice("enterprise"), "en")} / month`,
+        limit: `Up to ${ENT.maxEmployees} employees · ${ENT.maxDocuments} documents`,
+        employeeLimit: ENT.maxEmployees,
         color: "teal-deep",
-        cta: "Start Enterprise",
+        cta: `Start ${PLAN_LABELS.enterprise}`,
         ctaHref: "/register?plan=enterprise",
         recommendedLabel: "Right for Your Team",
-        overLimitLabel: "Custom Plan Needed",
-        overLimitDesc: "Above 100 employees the plan is put together with you, sized to your organisation.",
+        overLimitLabel: `${PLAN_LABELS.custom} Plan Needed`,
+        overLimitDesc: `Above ${ENT.maxEmployees} employees the plan is put together with you, sized to your organisation.`,
         overLimitCta: "Contact Us →",
         overLimitHref: "",
         overLimitName: "Custom",

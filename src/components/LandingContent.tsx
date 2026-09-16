@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
-import { getPlanPrice, isPromoActive } from "@/lib/pricing";
+import { getPlanPrice, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
+import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/contact";
@@ -14,6 +15,21 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { ArrowRight, Users, FileText, MessageSquare, Play, Mail } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 import { DemoChat } from "@/components/DemoChat";
+
+const STA = PLAN_LIMITS.starter;
+const PRO = PLAN_LIMITS.professional;
+const ENT = PLAN_LIMITS.enterprise;
+
+// A card in the homepage price teaser. `planKey` is what decides whether the
+// price is read from the pricing module (and so can never disagree with the
+// checkout) or taken from the `price` string — the tiers with no list price.
+type PricePlan = {
+  planKey: PurchasablePlan | null;
+  name: string;
+  price: string;
+  desc: string;
+  pilot?: boolean;
+};
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -156,12 +172,16 @@ const CONTENT = {
     priceTitle: "Harga yang Transparan",
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
-      { name: "Starter", price: "Gratis", desc: "5 karyawan, 10 dokumen" },
-      { name: "Professional", price: "Rp 200rb/bln", desc: "50 karyawan · 100 dokumen", promo: true },
-      { name: "Enterprise", price: "Rp 500rb/bln", desc: "100 karyawan · 300 dokumen", promo: true },
-      { name: "Custom", price: "Hubungi kami", desc: "Grup RS & multi-cabang" },
-    ],
+      { planKey: null, name: PLAN_LABELS.starter, price: "Gratis", desc: `${STA.maxEmployees} karyawan · ${STA.maxDocuments} dokumen` },
+      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} pengguna · ${PRO.maxDocuments} dokumen` },
+      // TODO: MINOR — `price: ""` adalah sentinel diam. Kalau planKey suatu saat
+      // jadi null, kartunya me-render harga kosong tanpa error. Jadikan mustahil
+      // lewat discriminated union, atau isi dengan "-" sebagai fallback terlihat.
+      { planKey: "enterprise", name: PLAN_LABELS.enterprise, price: "", desc: `${ENT.maxEmployees} pengguna · ${ENT.maxDocuments} dokumen`, pilot: true },
+      { planKey: null, name: PLAN_LABELS.custom, price: "Hubungi kami", desc: "Grup RS, multi-cabang, industri lain" },
+    ] satisfies PricePlan[],
     priceBtn: "Lihat Detail Harga",
+    pricePilotBadge: "PILOT 7 HARI",
     // Every answer here is checked against what the product actually does and
     // against /privacy — this is the section a cautious buyer reads hardest, so
     // a claim that overshoots costs more here than anywhere else on the page.
@@ -273,12 +293,13 @@ const CONTENT = {
     priceTitle: "Transparent Pricing",
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
-      { name: "Starter", price: "Free", desc: "5 employees, 10 documents" },
-      { name: "Professional", price: "Rp 200k/mo", desc: "50 employees · 100 documents", promo: true },
-      { name: "Enterprise", price: "Rp 500k/mo", desc: "100 employees · 300 documents", promo: true },
-      { name: "Custom", price: "Contact us", desc: "Hospital groups & multi-site" },
-    ],
+      { planKey: null, name: PLAN_LABELS.starter, price: "Free", desc: `${STA.maxEmployees} employees · ${STA.maxDocuments} documents` },
+      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} users · ${PRO.maxDocuments} documents` },
+      { planKey: "enterprise", name: PLAN_LABELS.enterprise, price: "", desc: `${ENT.maxEmployees} users · ${ENT.maxDocuments} documents`, pilot: true },
+      { planKey: null, name: PLAN_LABELS.custom, price: "Contact us", desc: "Hospital groups, multi-site, other industries" },
+    ] satisfies PricePlan[],
     priceBtn: "View Full Pricing",
+    pricePilotBadge: "7-DAY PILOT",
     faqTitle: "The Questions That Come Up First",
     faqDesc: "Before uploading internal documents, this is usually what people want settled.",
     faq: [
@@ -782,21 +803,24 @@ export function LandingContent() {
           </div>
           <div className="grid gap-4 mb-8 sm:grid-cols-2 lg:grid-cols-4">
             {T.pricePlans.map((p) => {
-              // Only the self-serve tiers take their price from the pricing
-              // module; Starter is free and Custom has no list price at all, so
-              // both keep the literal string from the copy above.
-              const planKey = p.name === "Professional" ? "professional" : p.name === "Enterprise" ? "enterprise" : null;
-              const promo = planKey ? isPromoActive() : false;
+              // Only the priced tiers read from the pricing module; Starter is
+              // free and Custom has no list price at all, so both keep the
+              // literal string from the copy above. Matched on `planKey`, not on
+              // the displayed name — the names are product labels now and change
+              // with the copy, which would silently leave both paid cards
+              // falling through to the `null` branch and printing an empty
+              // price.
+              const planKey = p.planKey;
+              const pilot = p.pilot ?? false;
               const priceText = planKey
                 ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
                 : p.price;
               return (
-                <div key={p.name} className={`rounded-xl border p-5 text-left ${promo ? "border-teal-200 bg-teal-50/60" : "border-hairline"}`}>
+                <div key={p.name} className={`rounded-xl border p-5 text-left ${pilot ? "border-teal-200 bg-teal-50/60" : "border-hairline"}`}>
                   {/* Teal, not orange. One accent per page: an orange pill was
-                      the only orange on the whole site, and a promo badge is
-                      not the thing worth introducing a second brand colour
-                      for. */}
-                  {promo && <span className="text-[0.7rem] font-semibold tracking-wide text-teal-800 bg-teal-700/10 px-2 py-0.5 rounded-full mb-2 inline-block">PROMO</span>}
+                      the only orange on the whole site, and a badge here is not
+                      the thing worth introducing a second brand colour for. */}
+                  {pilot && <span className="text-[0.7rem] font-semibold tracking-wide text-teal-800 bg-teal-700/10 px-2 py-0.5 rounded-full mb-2 inline-block">{T.pricePilotBadge}</span>}
                   <p className="font-semibold text-stone-900">{p.name}</p>
                   <p className="text-teal-800 font-semibold text-sm">{priceText}</p>
                   <p className="text-stone-500 text-xs mt-1">{p.desc}</p>

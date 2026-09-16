@@ -23,7 +23,6 @@ import {
   getEffectiveSubscription,
   getPlanPrice,
   isPlanAllowedFor,
-  isPromoActive,
   isSubscriptionActive,
   planRank,
   planRankInForce,
@@ -31,8 +30,6 @@ import {
   formatRupiah,
   GRACE_PERIOD_DAYS,
   NORMAL_PRICES,
-  PROMO_PRICES,
-  PROMO_ENDS_AT,
 } from "../src/lib/pricing.ts";
 
 let gagal = 0;
@@ -178,24 +175,40 @@ console.log("\nPENURUNAN PAKET — planRankInForce");
     "starter dengan tanggal di depan → tetap tidak aktif, starter bukan paket berbayar");
 }
 
-console.log("\nPROMO — batas 31 Desember 2026");
+console.log("\nHARGA — satu harga, tanpa promo");
 {
-  // Harga promo berbalik ke normal dengan sendirinya. Tidak ada deploy yang
-  // menandainya, jadi ini satu-satunya hal yang akan memberi tahu kalau
-  // tanggalnya bergeser tanpa sengaja.
-  const sedetikSebelum = new Date(PROMO_ENDS_AT.getTime() - 1000);
-  const sedetikSesudah = new Date(PROMO_ENDS_AT.getTime() + 1000);
+  // Angka persis, bukan sekadar "lebih besar dari nol". Ini nominal yang
+  // benar-benar dikirim ke Midtrans sebagai gross_amount, jadi kesalahan ketik
+  // satu nol di sini adalah pelanggan tertagih Rp 450rb atau Rp 45jt. Satu-
+  // satunya hal yang akan menangkapnya sebelum pelanggan yang menangkapnya.
+  sama(NORMAL_PRICES.professional, 1_500_000, "Klinik (plan id `professional`) Rp 1,5jt");
+  sama(NORMAL_PRICES.enterprise, 4_500_000, "Rumah Sakit (plan id `enterprise`) Rp 4,5jt");
+  sama(NORMAL_PRICES.personal, 119_000, "Personal Rp 119rb");
 
-  laporkan(isPromoActive(sedetikSebelum), "sedetik sebelum batas → promo masih jalan");
-  laporkan(!isPromoActive(sedetikSesudah), "sedetik sesudah batas → promo berhenti");
-  laporkan(!isPromoActive(PROMO_ENDS_AT), "tepat di batas → sudah berhenti (perbandingan `<`)");
-
+  // Promo sudah dihapus. getPlanPrice masih menerima tanggal supaya promo
+  // berjangka bisa dipasang lagi tanpa menyentuh pemanggilnya, tetapi hari ini
+  // tanggal tidak boleh mengubah apa pun — termasuk tanggal yang dulu menjadi
+  // batas promo, yang persis kondisi paling mungkin tersisa setengah jalan.
+  const dulu = new Date("2026-01-01T00:00:00Z");
+  const bekasBatasPromo = new Date("2026-12-31T17:00:00Z");
+  const nanti = new Date("2030-01-01T00:00:00Z");
   for (const paket of ["personal", "professional", "enterprise"] as const) {
-    sama(getPlanPrice(paket, sedetikSebelum), PROMO_PRICES[paket], `harga promo ${paket}`);
-    sama(getPlanPrice(paket, sedetikSesudah), NORMAL_PRICES[paket], `harga normal ${paket}`);
-    laporkan(PROMO_PRICES[paket] < NORMAL_PRICES[paket],
-      `promo ${paket} memang lebih murah dari normal`);
+    for (const [kapan, nama] of [[dulu, "dulu"], [bekasBatasPromo, "bekas batas promo"], [nanti, "nanti"]] as const) {
+      sama(getPlanPrice(paket, kapan), NORMAL_PRICES[paket], `${paket} harganya sama ${nama}`);
+    }
   }
+
+  // Tangga harganya harus naik, dan harga per kursinya harus TURUN. Yang kedua
+  // itu alasan seluruh perubahan harga ini ada: paket yang lebih mahal wajib
+  // lebih murah per orang, kalau tidak pembeli yang menghitung akan selalu
+  // memilih paket kecil dan paket besar tidak pernah laku.
+  laporkan(NORMAL_PRICES.enterprise > NORMAL_PRICES.professional,
+    "Rumah Sakit lebih mahal dari Klinik");
+  const perKursi = (p: "professional" | "enterprise") =>
+    NORMAL_PRICES[p] / PLAN_LIMITS[p].maxEmployees;
+  laporkan(perKursi("enterprise") < perKursi("professional"),
+    "Rumah Sakit lebih murah PER KURSI dari Klinik",
+    ` — Rp ${perKursi("enterprise").toLocaleString("id-ID")} vs Rp ${perKursi("professional").toLocaleString("id-ID")}`);
 }
 
 console.log("\nTIPE AKUN — isPlanAllowedFor");
@@ -232,9 +245,10 @@ console.log("\nBATAS PAKET — plan-limits");
     "paket tak dikenal jatuh ke starter, bukan undefined — ini yang membuat kolom plan rusak gagal-tertutup");
 
   // Enterprise harus lebih longgar dari Professional di setiap sumbu, kalau
-  // tidak tabel harganya berbohong. Batas dokumen & karyawan Enterprise baru
-  // saja diturunkan (500→300, 200→100), yang persis kondisi ketika urutan
-  // seperti ini paling mudah rusak tanpa disadari.
+  // tidak tabel harganya berbohong. Kedua paket baru saja diubah bersamaan
+  // (Professional 100→300 dokumen tetapi 50→25 karyawan, Enterprise 300→1.000
+  // dan 100→150), dan satu sumbu yang bergerak ke arah berlawanan dari yang
+  // lain persis kondisi ketika urutan seperti ini rusak tanpa disadari.
   for (const sumbu of ["maxDocuments", "maxEmployees", "maxQuestionsPerDay"] as const) {
     laporkan(PLAN_LIMITS.enterprise[sumbu] > PLAN_LIMITS.professional[sumbu],
       `enterprise.${sumbu} > professional.${sumbu}`,

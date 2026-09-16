@@ -1,4 +1,5 @@
 import { PLAN_LIMITS } from "./plan-limits";
+import { PLAN_LABELS } from "./pricing";
 import { MAX_UPLOAD_MB } from "./upload-limits";
 
 export type Lang = "id" | "en";
@@ -70,14 +71,14 @@ const enDaily = (n: number) => (n === -1 ? "Unlimited questions" : `${enNum(n)} 
 // a branch here would cover it is worse than not having one.
 const idEntQuota =
   entDaily === -1
-    ? "Paket Enterprise tidak dibatasi."
-    : `Paket Enterprise ${idNum(entDaily)} pertanyaan/hari${
+    ? `Paket ${PLAN_LABELS.enterprise} tidak dibatasi.`
+    : `Paket ${PLAN_LABELS.enterprise} ${idNum(entDaily)} pertanyaan/hari${
         entPerUser === -1 ? "" : ` (maksimal ${idNum(entPerUser)} per karyawan)`
       }.`;
 const enEntQuota =
   entDaily === -1
-    ? "Enterprise is uncapped."
-    : `Enterprise allows ${enNum(entDaily)} questions/day${
+    ? `${PLAN_LABELS.enterprise} is uncapped.`
+    : `${PLAN_LABELS.enterprise} allows ${enNum(entDaily)} questions/day${
         entPerUser === -1 ? "" : ` (at most ${enNum(entPerUser)} per employee)`
       }.`;
 
@@ -463,9 +464,21 @@ export const pricing = {
     customPrice: "Sesuai Kebutuhan",
     customPriceNote: "Harga disepakati bersama",
     contactUs: "Hubungi Kami",
-    promoBanner: "Promo terbatas, hemat hingga 37%",
-    promoEnds: "Promo berlaku sampai 31 Desember 2026",
-    discountBadge: "PROMO",
+    // The pilot the hospital tier is sold on. It replaces the launch promo: a
+    // discount says "the price is negotiable", a pilot says "prove it first",
+    // and only one of those is an argument a hospital finds convincing.
+    //
+    // The wording has to carry one fact, because the product cannot: there is no
+    // trial mechanism in the code — no trial_ends_at, no timed free plan,
+    // nothing. The pilot is arranged by hand in the demo conversation. So this
+    // may never appear on a card whose button charges money (see HAS_PILOT in
+    // the pricing page), and the note says where the pilot is actually agreed
+    // rather than implying the checkout honours it.
+    pilotBadge: "Pilot gratis 7 hari",
+    pilotNote: "Pilot diatur lewat demo bersama kami, bukan lewat checkout.",
+    demoCta: "Jadwalkan Demo",
+    orSubscribeDirectly: "atau berlangganan langsung",
+    demoWhatsappMessage: `Halo, saya ingin menjadwalkan demo IntelliBase untuk paket ${PLAN_LABELS.enterprise}.`,
     allFeatures: "Semua yang Anda Butuhkan",
     allFeaturesDesc: "Platform lengkap untuk manajemen pengetahuan internal perusahaan",
     faqTitle: "Pertanyaan Umum",
@@ -474,10 +487,10 @@ export const pricing = {
     ctaBtn: "Mulai Gratis Sekarang",
     signin: "Masuk",
     plans: [
-      { name: "Starter", desc: "Untuk tim kecil yang baru memulai" },
-      { name: "Professional", desc: "Untuk perusahaan berkembang" },
-      { name: "Enterprise", desc: "Untuk perusahaan skala besar" },
-      { name: "Custom", desc: "Untuk grup RS, multi-cabang, atau kebutuhan khusus" },
+      { name: PLAN_LABELS.starter, desc: "Untuk mencoba dengan beberapa dokumen dulu" },
+      { name: PLAN_LABELS.professional, desc: "Untuk klinik dan fasilitas kesehatan kecil" },
+      { name: PLAN_LABELS.enterprise, desc: "Untuk rumah sakit dengan banyak unit" },
+      { name: PLAN_LABELS.custom, desc: "Untuk grup RS, multi-cabang, atau industri lain" },
     ],
     features: [
       // Starter searches; it does not get answers. The first five entries are
@@ -489,7 +502,10 @@ export const pricing = {
       [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Pencarian dokumen: temukan & baca kutipan aslinya", "Upload PDF, DOCX, Excel & PowerPoint", "Isolasi data penuh antar perusahaan", "Chat AI: jawaban otomatis lengkap dengan sumber", "Analytics lengkap", "Notifikasi email", "Role per departemen", "Prioritas dukungan"],
       [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 24 jam"],
       [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap + ekspor", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
-      ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", "Semua fitur paket Enterprise", "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
+      // TODO: MINOR — "Onboarding & pendampingan langsung" menjanjikan layanan
+      // yang, menurut pemilik produk, kenyataannya tinggal unggah. Itu alasan
+      // rancangan dua-jalur dibatalkan; kalimat ini sisa yang belum ikut dicabut.
+      ["Karyawan tanpa batas", "Dokumen tanpa batas", "Pertanyaan tanpa batas", `Semua fitur paket ${PLAN_LABELS.enterprise}`, "Skema multi-cabang / multi-unit", "Pakai API key sendiri (BYOK)", "Onboarding & pendampingan langsung", "Perjanjian dan SLA menyesuaikan"],
     ],
     // The Individu tab. Its own arrays rather than extra entries in `plans` /
     // `features` above, because those two are addressed by index — by this page
@@ -519,7 +535,7 @@ export const pricing = {
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: `Jawaban AI tersedia mulai paket berbayar. Paket Starter yang gratis memakai pencarian dokumen: Anda mengetik pertanyaan, sistem menemukan bagian dokumen yang paling relevan, dan Anda membaca kutipan aslinya; yang tidak dilakukan adalah menuliskan jawabannya untuk Anda. Paket Professional dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket Custom tidak dibatasi. Silakan hubungi kami.` },
+      { q: "Apakah ada batasan pertanyaan?", a: `Jawaban AI tersedia mulai paket berbayar. Paket ${PLAN_LABELS.starter} yang gratis memakai pencarian dokumen: Anda mengetik pertanyaan, sistem menemukan bagian dokumen yang paling relevan, dan Anda membaca kutipan aslinya; yang tidak dilakukan adalah menuliskan jawabannya untuk Anda. Paket ${PLAN_LABELS.professional} dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket ${PLAN_LABELS.custom} tidak dibatasi. Silakan hubungi kami.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -547,9 +563,11 @@ export const pricing = {
     customPrice: "Tailored",
     customPriceNote: "Priced with you",
     contactUs: "Contact Us",
-    promoBanner: "Limited promo, save up to 37%",
-    promoEnds: "Valid until 31 December 2026",
-    discountBadge: "PROMO",
+    pilotBadge: "7-day free pilot",
+    pilotNote: "The pilot is arranged in the demo, not through checkout.",
+    demoCta: "Schedule a Demo",
+    orSubscribeDirectly: "or subscribe directly",
+    demoWhatsappMessage: `Hi, I would like to schedule an IntelliBase demo for the ${PLAN_LABELS.enterprise} plan.`,
     allFeatures: "Everything You Need",
     allFeaturesDesc: "A complete platform for internal company knowledge management",
     faqTitle: "Frequently Asked Questions",
@@ -558,16 +576,16 @@ export const pricing = {
     ctaBtn: "Start Free Now",
     signin: "Sign In",
     plans: [
-      { name: "Starter", desc: "For small teams just getting started" },
-      { name: "Professional", desc: "For growing companies" },
-      { name: "Enterprise", desc: "For large-scale organizations" },
-      { name: "Custom", desc: "For hospital groups, multi-site, or special requirements" },
+      { name: PLAN_LABELS.starter, desc: "To try it out on a few documents first" },
+      { name: PLAN_LABELS.professional, desc: "For clinics and smaller health facilities" },
+      { name: PLAN_LABELS.enterprise, desc: "For hospitals running several units" },
+      { name: PLAN_LABELS.custom, desc: "For hospital groups, multi-site, or other industries" },
     ],
     features: [
       [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "Document search: find and read the original passage", "PDF, DOCX, Excel & PowerPoint upload", "Full data isolation between companies", "AI chat: written answers with their sources", "Full analytics", "Email notifications", "Department roles", "Priority support"],
       [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 24h"],
       [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics + export", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
-      ["Unlimited employees", "Unlimited documents", "Unlimited questions", "Everything in Enterprise", "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
+      ["Unlimited employees", "Unlimited documents", "Unlimited questions", `Everything in ${PLAN_LABELS.enterprise}`, "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
     ],
     audienceIndividual: "Individual",
     audienceCompany: "Company",
@@ -587,7 +605,7 @@ export const pricing = {
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: `AI answers start with the paid plans. The free Starter plan uses document search: you type a question, the system finds the passages that match it, and you read the original text; what it does not do is write the answer for you. Professional is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the Custom plan is uncapped. Get in touch.` },
+      { q: "Are there question limits?", a: `AI answers start with the paid plans. The free ${PLAN_LABELS.starter} plan uses document search: you type a question, the system finds the passages that match it, and you read the original text; what it does not do is write the answer for you. ${PLAN_LABELS.professional} is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the ${PLAN_LABELS.custom} plan is uncapped. Get in touch.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],

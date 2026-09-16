@@ -9,16 +9,17 @@
 // Read by generate.mjs (as the system prompt) and lint.mjs (as the check).
 
 // --- pricing: keep in sync with src/lib/pricing.ts -------------------------
-// Deliberately re-implements the promo window instead of hardcoding "Rp200rb".
-// The promo reverts on 1 Jan 2027 and the app's prices revert with it; a literal
-// here would keep generating posts advertising a price we no longer charge.
-const NORMAL_PRICES = { personal: 119000, professional: 399000, enterprise: 999000 };
-const PROMO_PRICES = { personal: 59000, professional: 200000, enterprise: 500000 };
-const PROMO_ENDS_AT = new Date("2026-12-31T17:00:00Z");
+// A copy, not an import: these scripts run as plain Node outside the Next build
+// and cannot resolve the `@/` alias. It is the one number here worth checking by
+// hand whenever pricing.ts changes, because a stale figure does not fail — it
+// generates a post advertising a price we do not charge.
+//
+// This used to re-implement a promo window as well. The promo is gone; the
+// prices below are simply the prices.
+const NORMAL_PRICES = { personal: 119000, professional: 1500000, enterprise: 4500000 };
 
-export function currentPrices(now = new Date()) {
-  const promoActive = now.getTime() < PROMO_ENDS_AT.getTime();
-  return { promoActive, ...(promoActive ? PROMO_PRICES : NORMAL_PRICES) };
+export function currentPrices() {
+  return { ...NORMAL_PRICES };
 }
 
 // "200000" -> "Rp200.000". Matches how the landing page writes money.
@@ -32,6 +33,10 @@ const STARTER = { maxDocuments: 10, maxEmployees: 5, maxQuestionsPerMonth: 100 }
 // pricing tier, no employees to manage. maxQuestionsPerMonth is -1 (unlimited)
 // on Personal, capped per-day instead — see PLAN_LIMITS.personal.
 const PERSONAL = { maxDocuments: 50, maxQuestionsPerDay: 60 };
+// The two paid company tiers, sold as "Klinik" and "Rumah Sakit" — the plan ids
+// stayed `professional`/`enterprise`, the customer-facing names did not.
+const PROFESSIONAL = { maxDocuments: 300, maxEmployees: 25 };
+const ENTERPRISE = { maxDocuments: 1000, maxEmployees: 150 };
 
 // --- which plans get Slack: one finished sentence, not a fact to paraphrase --
 //
@@ -49,10 +54,10 @@ const PERSONAL = { maxDocuments: 50, maxQuestionsPerDay: 60 };
 //     at /api/slack/install.
 //   - isPlanAllowedFor() (src/lib/pricing.ts) means a Personal plan is only
 //     ever held by an individual account.
-// So the correct list is exactly Professional + Enterprise, and Personal is not
+// So the correct list is exactly Klinik + Rumah Sakit (plan id professional + enterprise), and Personal is not
 // merely absent from it — it is unreachable.
 const SLACK_PLANS_LINE =
-  "Integrasi Slack hanya untuk akun Perusahaan di paket Professional dan Enterprise. " +
+  "Integrasi Slack hanya untuk akun Perusahaan di paket Klinik dan Rumah Sakit. " +
   "Bukan paket Starter yang gratis, dan tidak pernah paket Personal — Personal hanya " +
   "dimiliki akun Individu, dan akun Individu tidak bisa memasang Slack sama sekali.";
 
@@ -72,7 +77,7 @@ const SLACK_PLANS_LINE =
 const DRIVE_LINE =
   "Dokumen bisa diambil langsung dari Google Drive lewat pemilih file Google, " +
   "bukan hanya diunggah manual. Sama seperti Slack: hanya akun Perusahaan di paket " +
-  "Professional dan Enterprise, dan hanya admin yang bisa menjalankannya. Dua " +
+  "Klinik dan Rumah Sakit, dan hanya admin yang bisa menjalankannya. Dua " +
   "batasnya sebutkan apa adanya kalau ditanya: format yang didukung tetap PDF, " +
   "DOCX, XLSX, PPTX — Google Docs, Sheets, dan Slides asli tidak bisa diimpor — " +
   "dan ini impor sekali jalan, bukan folder yang terus tersinkronisasi.";
@@ -90,14 +95,13 @@ const DRIVE_LINE =
 // Everything below is voice-neutral: what the product is, what may be claimed,
 // what must be disclosed, what is forbidden. Nothing here says who is speaking
 // or how long the text should be.
+// TODO: MINOR — `now` sudah jadi parameter mati: currentPrices() tidak lagi
+// menerima tanggal sejak promo dihapus. Hapus dari rantainya, atau kembalikan
+// kalau promo berjangka dipasang lagi.
 export function buildProductFacts(now = new Date()) {
   const p = currentPrices(now);
-  const priceLine = p.promoActive
-    ? `Professional ${formatRupiah(p.professional)}/bulan dan Enterprise ${formatRupiah(p.enterprise)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
-    : `Professional ${formatRupiah(p.professional)}/bulan dan Enterprise ${formatRupiah(p.enterprise)}/bulan`;
-  const personalPriceLine = p.promoActive
-    ? `${formatRupiah(p.personal)}/bulan (harga promo peluncuran, berlaku sampai 31 Desember 2026)`
-    : `${formatRupiah(p.personal)}/bulan`;
+  const priceLine = `Klinik ${formatRupiah(p.professional)}/bulan (${PROFESSIONAL.maxEmployees} pengguna, ${PROFESSIONAL.maxDocuments} dokumen) dan Rumah Sakit ${formatRupiah(p.enterprise)}/bulan (${ENTERPRISE.maxEmployees} pengguna, ${ENTERPRISE.maxDocuments} dokumen)`;
+  const personalPriceLine = `${formatRupiah(p.personal)}/bulan`;
 
   return `# Produk
 IntelliBase adalah asisten AI yang menjawab pertanyaan berdasarkan dokumen yang
@@ -125,7 +129,7 @@ yang sedang dibahas.
 - Akun Individu juga mulai gratis (paket Starter, pencarian dokumen), lalu
   paket Personal ${personalPriceLine} untuk jawaban AI tanpa batas bulanan
   (dibatasi ${PERSONAL.maxQuestionsPerDay}/hari), sampai ${PERSONAL.maxDocuments} dokumen. Personal HANYA
-  untuk akun Individu — bukan pengganti Professional/Enterprise untuk tim.
+  untuk akun Individu — bukan pengganti Klinik/Rumah Sakit untuk tim.
 - ${SLACK_PLANS_LINE}
   Kutip batasan paket itu apa adanya; jangan diringkas jadi "semua paket
   berbayar", karena Personal juga paket berbayar dan justru tidak dapat Slack.
@@ -205,4 +209,4 @@ Dua audiens berbeda, jangan ditulis seolah satu:
 - Caption Instagram: lebih pendek dari LinkedIn, 60–100 kata.`;
 }
 
-export const BRAND = { STARTER, PERSONAL, NORMAL_PRICES, PROMO_PRICES, PROMO_ENDS_AT };
+export const BRAND = { STARTER, PERSONAL, PROFESSIONAL, ENTERPRISE, NORMAL_PRICES };

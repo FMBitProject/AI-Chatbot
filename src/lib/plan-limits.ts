@@ -13,6 +13,14 @@
 // in normal use — anything genuinely bigger belongs on `custom`, where the price
 // is agreed with the customer first.
 //
+// The two paid company tiers are sized for what they are sold as — `professional`
+// is the "Klinik" package (25 staff, 300 documents) and `enterprise` is "Rumah
+// Sakit" (150 staff, 1.000 documents); see the pricing rationale in pricing.ts.
+// The seat numbers are the real fence here: a hospital that tries to take the
+// smaller package runs out of seats during onboarding rather than quietly
+// fitting its whole estate into the cheaper tier, which is what 100 seats on
+// Enterprise used to allow.
+//
 // `custom` is the only unlimited tier, and it is NOT purchasable: it has no
 // price, no checkout path, and `isPurchasablePlan()` in pricing.ts rejects it.
 // A company only lands on it when we set it by hand after agreeing terms —
@@ -31,8 +39,8 @@
 export const PLAN_LIMITS = {
   starter:      { maxDocuments: 10,  maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
   personal:     { maxDocuments: 50,  maxEmployees: 1,   maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 60,   maxQuestionsPerDayPerUser: -1 },
-  professional: { maxDocuments: 100, maxEmployees: 50,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
-  enterprise:   { maxDocuments: 300, maxEmployees: 100, maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
+  professional: { maxDocuments: 300,  maxEmployees: 25,  maxQuestionsPerMonth: -1, maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
+  enterprise:   { maxDocuments: 1000, maxEmployees: 150, maxQuestionsPerMonth: -1, maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },
   custom:       { maxDocuments: -1,  maxEmployees: -1,  maxQuestionsPerMonth: -1,  maxQuestionsPerDay: -1,   maxQuestionsPerDayPerUser: -1 },
 } as const;
 
