@@ -50,12 +50,26 @@ export type CtaLocation =
  * `trackCta`, so putting the placement back into the message text — and the
  * square brackets back into a stranger's WhatsApp — would be a change to this
  * one function. It should take more than a hunch about lost tracking.
+ *
+ * It names no institution, and that is the second thing this sentence got
+ * wrong. "untuk rumah sakit kami" was written for the homepage, which leads
+ * with hospitals; this link does not live only there. <WhatsAppButton /> floats
+ * on /industri and /blog as well, where the reader may well be a factory or a
+ * law firm — see MARKETING_PATHS — so a fixed noun is wrong for them outright,
+ * and wrong for a clinic everywhere.
+ *
+ * "RS/klinik" is not the fix, tempting as it looks. A slash-list reads as a
+ * field waiting to be picked from, which is the same thing the square brackets
+ * did: it announces a template, and it still leaves out everyone the list does
+ * not name. Dropping the noun costs nothing — the first reply asks who is
+ * writing anyway — and leaves one sentence that is true for every visitor who
+ * can reach this link.
  */
 export function demoWhatsappUrl(lang: Lang): string {
   const message =
     lang === "en"
-      ? "Hello, I'd like a demo of IntelliBase AI for our hospital."
-      : "Halo, saya ingin demo IntelliBase AI untuk rumah sakit kami.";
+      ? "Hello, I'd like to schedule a demo of IntelliBase AI for our team."
+      : "Halo, saya ingin menjadwalkan demo IntelliBase AI untuk tim kami.";
   return whatsappUrl(message);
 }
 
