@@ -13,6 +13,7 @@ import { SUPPORT_EMAIL, FOUNDER, consultationMailto, whatsappUrl } from "@/lib/c
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { ArrowRight, Users, FileText, MessageSquare, Play, Mail } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
+import { DemoChat } from "@/components/DemoChat";
 
 // https://youtu.be/DPUYHnEo0cM — product demo, must stay public on YouTube for
 // the embed and its thumbnail to resolve.
@@ -532,8 +533,10 @@ export function LandingContent() {
         }
       />
 
+      <DemoChat />
+
       {/* Who is behind this
-          Directly under the hero, before any other claim: the visitor should
+          Following the interactive demo, the visitor should
           know who they are trusting with their documents before reading
           anything else the page argues. The hero badge says "built by a
           doctor"; this is where that doctor has a name and a voice.
