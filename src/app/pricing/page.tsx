@@ -89,17 +89,22 @@ export default function PricingPage() {
   };
   // The pilot badge belongs ONLY on a card whose call to action is a
   // conversation, and this is a correctness rule rather than a layout choice.
-  // There is no trial anywhere in the codebase: the pilot is something we agree
-  // to by hand during the demo. On the Klinik card the button opens Midtrans and
-  // charges Rp 1.500.000 immediately, so a "free pilot" badge sitting above it
-  // is a promise broken by the very next click. Rumah Sakit leads with
-  // "Jadwalkan Demo", which is where a pilot can actually be arranged.
+  // There is no trial anywhere in the codebase: the pilot is agreed by hand in
+  // the demo. A "free pilot" badge above a button that opens Midtrans and
+  // charges immediately is a promise broken by the very next click.
+  //
+  // Both paid tiers now lead with "Jadwalkan Demo" (see LEADS_WITH_DEMO), which
+  // is what makes the badge honest on both. The two lists must stay in step: a
+  // tier that goes back to leading with checkout has to lose its badge in the
+  // same edit.
   //
   // If a real trial is ever built (a trial_ends_at on companies, honoured by
   // getEffectiveSubscription), this is the line to revisit — not before.
-  const HAS_PILOT: Partial<Record<PlanKey, boolean>> = {
+  const LEADS_WITH_DEMO: Partial<Record<PlanKey, boolean>> = {
+    professional: true,
     enterprise: true,
   };
+  const HAS_PILOT = LEADS_WITH_DEMO;
   const { data: session } = authClient.useSession();
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -299,12 +304,13 @@ export default function PricingPage() {
             const isPopular = isIndividual ? key === "personal" : key === "professional";
             const isCustom = key === "custom";
             const hasPilot = HAS_PILOT[key] ?? false;
-            // The hospital tier is sold after a conversation, not from a card:
-            // at Rp 4,5jt nobody types their card number without having spoken
-            // to someone first, and pretending otherwise just means the button
-            // is never pressed. The checkout still exists for it — see the
-            // secondary link below — it is simply not what the card leads with.
-            const leadsWithDemo = key === "enterprise";
+            // Both paid tiers are sold after a conversation, not from a card:
+            // at these prices nobody types their card number without having
+            // spoken to someone first, and pretending otherwise just means the
+            // button is never pressed. The checkout still exists for both — see
+            // the secondary link below — it is simply not what the card leads
+            // with.
+            const leadsWithDemo = LEADS_WITH_DEMO[key] ?? false;
             return (
             <div key={plan.name} className={cn("rounded-2xl border-2 p-6 flex flex-col relative",
               isPopular ? "border-teal-500 shadow-teal-100 shadow-xl"
@@ -401,7 +407,11 @@ export default function PricingPage() {
                 // rather than a hidden path, so a buyer who has already decided
                 // is not made to book a call to hand over money.
                 <div className="flex flex-col gap-2">
-                  <a href={whatsappUrl(T.demoWhatsappMessage)} target="_blank" rel="noopener noreferrer">
+                  {/* The plan name goes into the message so the conversation
+                      starts knowing which package was on screen — two cards
+                      share this branch now, and "saya ingin demo" alone would
+                      lose that. */}
+                  <a href={whatsappUrl(T.demoWhatsappMessage.replace("{plan}", plan.name))} target="_blank" rel="noopener noreferrer">
                     <Button className="w-full gap-2 bg-teal-700 hover:bg-teal-800 active:scale-[0.98]">
                       {T.demoCta} <ArrowRight className="h-4 w-4" />
                     </Button>

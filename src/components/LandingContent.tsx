@@ -173,7 +173,7 @@ const CONTENT = {
     priceDesc: "Mulai gratis, upgrade ketika tim Anda berkembang. Tidak ada biaya tersembunyi.",
     pricePlans: [
       { planKey: null, name: PLAN_LABELS.starter, price: "Gratis", desc: `${STA.maxEmployees} karyawan · ${STA.maxDocuments} dokumen` },
-      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} pengguna · ${PRO.maxDocuments} dokumen` },
+      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} pengguna · ${PRO.maxDocuments} dokumen`, pilot: true },
       // TODO: MINOR — `price: ""` adalah sentinel diam. Kalau planKey suatu saat
       // jadi null, kartunya me-render harga kosong tanpa error. Jadikan mustahil
       // lewat discriminated union, atau isi dengan "-" sebagai fallback terlihat.
@@ -294,7 +294,7 @@ const CONTENT = {
     priceDesc: "Start free, upgrade as your team grows. No hidden fees.",
     pricePlans: [
       { planKey: null, name: PLAN_LABELS.starter, price: "Free", desc: `${STA.maxEmployees} employees · ${STA.maxDocuments} documents` },
-      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} users · ${PRO.maxDocuments} documents` },
+      { planKey: "professional", name: PLAN_LABELS.professional, price: "", desc: `${PRO.maxEmployees} users · ${PRO.maxDocuments} documents`, pilot: true },
       { planKey: "enterprise", name: PLAN_LABELS.enterprise, price: "", desc: `${ENT.maxEmployees} users · ${ENT.maxDocuments} documents`, pilot: true },
       { planKey: null, name: PLAN_LABELS.custom, price: "Contact us", desc: "Hospital groups, multi-site, other industries" },
     ] satisfies PricePlan[],
