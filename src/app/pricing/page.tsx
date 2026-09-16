@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
-import { NORMAL_PRICES, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
+import { getPlanPrice, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
 import { consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -81,11 +81,20 @@ export default function PricingPage() {
   // promo banner that used to sit above these cards are gone with the promo
   // itself (see getPlanPrice) — on a page a hospital reads, a permanent discount
   // mostly invites the reader to ask what the number becomes if they push.
+  //
+  // Read through getPlanPrice(), not from NORMAL_PRICES directly, and that is
+  // not a stylistic preference: getPlanPrice is the function /api/payment/create
+  // charges from. Today the two are the same value, so reading the table
+  // directly is harmless — but it is harmless only for as long as nobody puts a
+  // dated promo back into getPlanPrice, at which point this page would quote the
+  // full price while the checkout billed the discounted one. The landing teaser
+  // and the ROI calculator already read the function; this page was the one
+  // surface still reading around it.
   type PlanKey = (typeof PLAN_KEYS)[number];
   const PRICES: Partial<Record<PlanKey, string>> = {
-    personal: formatRupiah(NORMAL_PRICES.personal, lang),
-    professional: formatRupiah(NORMAL_PRICES.professional, lang),
-    enterprise: formatRupiah(NORMAL_PRICES.enterprise, lang),
+    personal: formatRupiah(getPlanPrice("personal"), lang),
+    professional: formatRupiah(getPlanPrice("professional"), lang),
+    enterprise: formatRupiah(getPlanPrice("enterprise"), lang),
   };
   // The pilot badge belongs ONLY on a card whose call to action is a
   // conversation, and this is a correctness rule rather than a layout choice.
