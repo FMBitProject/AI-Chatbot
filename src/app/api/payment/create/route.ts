@@ -264,9 +264,28 @@ export async function POST(req: NextRequest) {
     // Only an order for the plan being bought can be handed back: returning an
     // Enterprise checkout to someone who asked for Professional would charge
     // them the wrong price for the wrong thing.
+    //
+    // The same plan at a different price is the same mistake, one step subtler,
+    // and it is what a price change makes possible. An order opened before the
+    // change carries the old amount in its Snap token, so handing it back means
+    // the page quotes Rp 1.500.000 while Midtrans opens a bill for Rp 200.000.
+    // Nothing downstream catches that: amountMatches compares what Midtrans
+    // reports against what *this order* invoiced, which is the check for a
+    // customer paying something other than what we billed — not for us billing
+    // something other than the list price. Both agree on the stale figure and
+    // the plan is granted.
+    //
+    // Compared as the stored string against a freshly stringified price, not as
+    // numbers, because `amount` is a text column: "200000" is what is written,
+    // and a mismatch here should fall through to the mint path below, which
+    // already closes the old order at Midtrans before opening a new one — so the
+    // stale virtual account stops being payable rather than living alongside the
+    // new one.
+    const currentAmount = String(getPlanPrice(plan));
     const reusable = checked.find(
       (c) =>
         c.order.plan === plan &&
+        c.order.amount === currentAmount &&
         c.order.snapToken !== null &&
         (!c.status.ok || !closedTransactionStatus(c.status.data.transaction_status)),
     );
@@ -285,12 +304,22 @@ export async function POST(req: NextRequest) {
     // here: the row is ours to rewrite, but the virtual account number belongs
     // to Midtrans and stays payable until Midtrans is told otherwise.
     for (const c of checked) {
-      // Same plan: either reused above, or open without a token — the insert
-      // below handles that one through the unique index.
-      if (c.order.plan === plan) continue;
+      // A same-plan order with no token never became a way to pay, so there is
+      // nothing at Midtrans to cancel; transactions_one_pending_per_plan handles
+      // that row when the insert below runs.
+      //
+      // A same-plan order WITH a token that was not reused is a different thing
+      // entirely, and it only exists because the price moved. It has to be closed
+      // here like any other live order. Skipping it — which this loop used to do
+      // for every same-plan row — would leave it pending, the insert below would
+      // hit the unique index, and the "lost the race" branch would hand the
+      // customer back that very order's token: the stale price again, by a
+      // longer route.
+      if (c.order.plan === plan && c.order.snapToken === null) continue;
       // Already closed by the loop above.
       if (c.status.ok && closedTransactionStatus(c.status.data.transaction_status)) continue;
 
+      const samePlan = c.order.plan === plan;
       const otherPlanName = isPurchasablePlan(c.order.plan) ? PLAN_NAMES[c.order.plan] : c.order.plan;
 
       if (!c.status.ok && !c.status.notFound) {
@@ -298,11 +327,11 @@ export async function POST(req: NextRequest) {
         // exactly what we do not know. Minting anyway is the one irreversible
         // choice available here, and it is the one that can cost the customer a
         // second month. Ask them to come back instead.
-        console.warn(`[payment/create] Cannot confirm other-plan order=${c.order.orderId}; refusing to open a second checkout for company=${dbUser.companyId}`);
+        console.warn(`[payment/create] Cannot confirm open order=${c.order.orderId} (${c.order.plan}); refusing to open a second checkout for company=${dbUser.companyId}`);
         return NextResponse.json(
           {
             error: "status_unavailable",
-            message: "Kami belum bisa memastikan status pesanan Anda yang lain. Coba lagi beberapa saat lagi.",
+            message: "Kami belum bisa memastikan status pesanan Anda yang masih terbuka. Coba lagi beberapa saat lagi.",
             orderId: c.order.orderId,
           },
           { status: 503 },
@@ -322,8 +351,14 @@ export async function POST(req: NextRequest) {
           // were filed as closed here.
           return NextResponse.json(
             {
-              error: "pending_other_plan",
-              message: `Masih ada pesanan pembayaran yang aktif untuk paket ${otherPlanName}. Selesaikan pembayaran itu dulu, atau tunggu sampai kedaluwarsa (maksimal 24 jam), lalu coba lagi.`,
+              error: samePlan ? "pending_stale_price" : "pending_other_plan",
+              // Same plan means the open order is the one whose price has moved,
+              // and telling that customer to "finish the other payment" would be
+              // telling them to pay the old amount. Say what is true instead:
+              // there is a live order we could not cancel, and it will lapse.
+              message: samePlan
+                ? `Masih ada pesanan pembayaran lama untuk paket ${otherPlanName} yang belum bisa kami tutup. Tunggu sampai kedaluwarsa (maksimal 24 jam), lalu coba lagi — atau hubungi kami kalau mendesak.`
+                : `Masih ada pesanan pembayaran yang aktif untuk paket ${otherPlanName}. Selesaikan pembayaran itu dulu, atau tunggu sampai kedaluwarsa (maksimal 24 jam), lalu coba lagi.`,
               orderId: c.order.orderId,
             },
             { status: 409 },
@@ -342,8 +377,8 @@ export async function POST(req: NextRequest) {
       await db.update(transactions)
         .set({ status: "expired" })
         .where(and(eq(transactions.id, c.order.id), ne(transactions.status, "paid")))
-        .catch((err) => console.error(`[payment/create] Could not close other-plan order=${c.order.orderId}:`, err));
-      console.log(`[payment/create] Closed other-plan order=${c.order.orderId} (${c.order.plan}) before opening ${plan} checkout for company=${dbUser.companyId}`);
+        .catch((err) => console.error(`[payment/create] Could not close open order=${c.order.orderId}:`, err));
+      console.log(`[payment/create] Closed ${samePlan ? "stale-price" : "other-plan"} order=${c.order.orderId} (${c.order.plan}, amount=${c.order.amount}) before opening ${plan} checkout for company=${dbUser.companyId}`);
     }
   }
 
