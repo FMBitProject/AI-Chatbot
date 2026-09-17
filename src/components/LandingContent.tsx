@@ -570,7 +570,13 @@ export function LandingContent() {
           <div className="max-w-3xl mx-auto flex flex-col items-center gap-8 text-center md:flex-row md:items-start md:gap-12 md:text-left">
             <div className="relative h-28 w-28 md:h-36 md:w-36 shrink-0 overflow-hidden rounded-full border border-hairline bg-sunken">
               {FOUNDER.photo ? (
-                <Image src={FOUNDER.photo} alt={FOUNDER.name} fill sizes="(min-width: 768px) 9rem, 7rem" className="object-cover" />
+                /* object-position, not the default centre: the portrait is far
+                   taller than the round slot, so centring it crops the top of
+                   the head and fills the circle with jacket. 25% from the top
+                   puts the face in the middle of the circle with the headroom a
+                   portrait wants. Retune this number, not the crop, if the photo
+                   is ever replaced. */
+                <Image src={FOUNDER.photo} alt={FOUNDER.name} fill sizes="(min-width: 768px) 9rem, 7rem" className="object-cover object-[50%_25%]" />
               ) : (
                 <span aria-hidden="true" className="flex h-full w-full items-center justify-center text-3xl font-semibold text-teal-700">
                   {FOUNDER.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}
