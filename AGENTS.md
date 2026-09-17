@@ -36,6 +36,8 @@ npm run content:cards      # render social image cards
 npm run content:channels   # push drafts to Buffer (LinkedIn only; Buffer can't upload media for YT/IG)
 
 npm run leads             # list landing-page leads (--csv, --since, --audience)
+npm run pilot -- <company>  # start the advertised 7-day free pilot for one company
+npm run plan:grant -- <company> --revert starter   # end a pilot (or a custom deal) early
 npm run test:pricing      # regression test for pricing/plan-limits (pure, no DB)
 
 npm run inbox:check        # poll hello@ inbox via IMAP

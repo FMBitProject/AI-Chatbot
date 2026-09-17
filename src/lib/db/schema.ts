@@ -27,7 +27,7 @@ export const companies = pgTable("companies", {
   // answers for questions nobody has asked yet (who owns the documents, what
   // happens to a personal plan with seats).
   accountType: text("account_type").$type<"company" | "individual">().default("company").notNull(),
-  // "custom" is granted by hand (scripts/grant-custom-plan.mjs), never bought —
+  // "custom" is granted by hand (scripts/grant-plan.mjs), never bought —
   // which is why it appears here but not on `transactions.plan` below.
   // "personal" is the individual-account tier and is refused to company
   // accounts at checkout (see /api/payment/create); the reverse holds too — an
