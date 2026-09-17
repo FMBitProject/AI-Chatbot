@@ -104,7 +104,7 @@ export const FOUNDER = {
   // the landing page. Null renders the initials instead, never a stock photo:
   // an invented face next to a real name is exactly the kind of claim this page
   // was cleaned of. Drop the file into /public and set this; nothing else changes.
-  photo: null as string | null,
+  photo: "/founder.png" as string | null,
   // The profession leads the role line because it is the single most useful
   // thing a hospital reading this page can know, and a role line is the part
   // that gets scanned. It is a statement of fact and nothing more: no
