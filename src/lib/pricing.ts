@@ -350,7 +350,7 @@ function addOneMonth(date: Date): Date {
 //
 // Comped customer accounts did become a real feature, and took the separate flag
 // this note used to ask for: companies.isPilot. The caller is what skips the
-// stack — grantPlanForTransaction passes null instead of a pilot's expiry, so
+// stack — settlePaidOrder passes null instead of a pilot's expiry, so
 // the paid month runs from the payment rather than from the end of the free
 // week. Trial days were never bought and must not push a paid period later.
 export function computeRenewedExpiry(
