@@ -1,0 +1,1 @@
+ALTER TABLE "companies" ADD COLUMN "is_pilot" boolean DEFAULT false NOT NULL;

@@ -32,19 +32,16 @@
 // indefinitely. planRankInForce() in pricing.ts is what stops a later
 // self-serve purchase from overwriting it.
 //
-// A pilot is the opposite: the date is the whole point. Two things about it are
-// worth knowing before you promise a customer seven days, and the script prints
-// both every run:
+// A pilot is the opposite: the date is the whole point, and it is a hard stop.
+// The grant sets companies.is_pilot, which is what takes the grace period away
+// — a lapsed *paid* plan keeps full limits for GRACE_PERIOD_DAYS so a late bank
+// transfer cannot cut a customer off, but a pilot has no transfer to be late,
+// and seven days advertised has to be seven days served. At the end of the last
+// day the account is on starter limits and the only way on is to subscribe.
 //
-//   - A lapsed paid plan keeps working in full for GRACE_PERIOD_DAYS (7) after
-//     plan_expires_at, so `--days 7` really means seven days of pilot followed
-//     by seven days of grace before the account drops to starter. The grace
-//     exists so a late bank transfer does not cut a paying customer off; a
-//     pilot has no transfer to be late, so it is pure extra runway here. Run
-//     `--revert starter` on the day if you want a hard stop.
-//   - RENEWAL_WARNING_DAYS is also 7, so a 7-day pilot shows the renewal banner
-//     in the customer's dashboard from day one. For a pilot that is the nudge
-//     you want, even though the banner says "Perpanjang".
+// RENEWAL_WARNING_DAYS is also 7, so a 7-day pilot shows the renewal banner in
+// the customer's dashboard from day one. For a pilot that is the nudge you
+// want, even though the banner says "Perpanjang".
 //
 // Run it with the OWNER connection string, not the app_rls one: `companies` is
 // not an RLS table, but the owner URL is what .env.local already holds for
@@ -67,11 +64,6 @@ function fromEnvFile(key) {
 const DATABASE_URL = process.env.DATABASE_URL || fromEnvFile("DATABASE_URL");
 if (!DATABASE_URL) throw new Error("DATABASE_URL not set");
 
-// Mirrored from GRACE_PERIOD_DAYS in src/lib/pricing.ts. A plain .mjs script
-// cannot resolve the `@/` alias (see the note on scripts/pricing.test.mts in
-// AGENTS.md), so this is a copy — if the constant there ever changes, the dates
-// this script prints go stale rather than the grant going wrong.
-const GRACE_PERIOD_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ALL_PLANS = ["custom", "starter", "personal", "professional", "enterprise"];
@@ -156,13 +148,12 @@ if (pilot && (!Number.isInteger(days) || days < 1 || days > 365)) {
 
 const now = new Date();
 const pilotEndsAt = new Date(now.getTime() + days * DAY_MS);
-const accessEndsAt = new Date(pilotEndsAt.getTime() + GRACE_PERIOD_DAYS * DAY_MS);
 const fmt = (d) => d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
 const sql = neon(DATABASE_URL);
 
 const matches = await sql.query(
-  `select c.id, c.name, c.plan, c.plan_expires_at, c.account_type,
+  `select c.id, c.name, c.plan, c.plan_expires_at, c.account_type, c.is_pilot,
           (select count(*) from users u where u.company_id = c.id) as user_count
      from companies c
     where c.id = $1
@@ -191,7 +182,7 @@ const currentExpiry = company.plan_expires_at ? new Date(company.plan_expires_at
 console.log(`Company : ${company.name} (${company.id})`);
 console.log(`Type    : ${company.account_type}`);
 console.log(`Users   : ${company.user_count}`);
-console.log(`Plan    : ${company.plan}${currentExpiry ? ` (expires ${fmt(currentExpiry)})` : " (no expiry)"}`);
+console.log(`Plan    : ${company.plan}${currentExpiry ? ` (expires ${fmt(currentExpiry)})` : " (no expiry)"}${company.is_pilot ? " [PILOT]" : ""}`);
 
 // `personal` is the individual tier and the team plans are seats an individual
 // has nowhere to put — checkout refuses both crossings, so a pilot that granted
@@ -218,7 +209,10 @@ if (!pilot && company.plan === targetPlan) {
 // A paying customer's expiry is money. Overwriting it with a shorter pilot date
 // would quietly take back time they bought, and nothing else in the app would
 // ever flag it.
-if (pilot && !force && currentExpiry && currentExpiry > now && currentExpiry > pilotEndsAt) {
+//
+// A running *pilot* is not money, so shortening one is allowed: re-granting a
+// shorter pilot over a longer one is a correction, not a loss.
+if (pilot && !force && !company.is_pilot && currentExpiry && currentExpiry > now && currentExpiry > pilotEndsAt) {
   console.error(`\nThis company already has access until ${fmt(currentExpiry)}, which is later than this pilot would set (${fmt(pilotEndsAt)}).`);
   console.error("Refusing to shorten it. Re-run with --force if that is genuinely what you want.");
   process.exit(1);
@@ -241,15 +235,20 @@ if (dryRun) {
 // prints the new plan on a rejected write and the deal looks done when the
 // company is still on its old one.
 try {
+  // is_pilot is written in the same statement as the plan and the date, never
+  // separately: it is what removes the grace period, so a row carrying the flag
+  // without an end date would be a free plan with nothing to stop it. Every
+  // non-pilot branch clears it for the mirror-image reason — a company coming
+  // off a pilot onto a real plan must get its grace period back.
   const updated = pilot
     ? await sql.query(
-        `update companies set plan = $1, plan_expires_at = $2 where id = $3 returning id`,
+        `update companies set plan = $1, plan_expires_at = $2, is_pilot = true where id = $3 returning id`,
         [targetPlan, pilotEndsAt.toISOString(), company.id],
       )
     : await sql.query(
         keepExpiry
-          ? `update companies set plan = $1 where id = $2 returning id`
-          : `update companies set plan = $1, plan_expires_at = null where id = $2 returning id`,
+          ? `update companies set plan = $1, is_pilot = false where id = $2 returning id`
+          : `update companies set plan = $1, plan_expires_at = null, is_pilot = false where id = $2 returning id`,
         [targetPlan, company.id],
       );
   if (updated.length === 0) throw new Error("no row updated — company disappeared mid-run?");
@@ -261,9 +260,9 @@ try {
 
 if (pilot) {
   console.log(`\n→ ${company.plan} → ${targetPlan}, pilot ${days} hari`);
-  console.log(`   Pilot berakhir : ${fmt(pilotEndsAt)}  (banner "Perpanjang" muncul di dashboard mereka mulai sekarang)`);
-  console.log(`   Akses penuh s/d: ${fmt(accessEndsAt)}  (+${GRACE_PERIOD_DAYS} hari masa tenggang, lalu turun ke starter sendirinya)`);
-  console.log(`\n   Mau berhenti tepat di hari ke-${days}? node scripts/grant-plan.mjs ${company.id} --revert starter`);
+  console.log(`   Berakhir : ${fmt(pilotEndsAt)} — setelah itu akun turun ke starter, tanpa masa tenggang.`);
+  console.log(`   Kalau mau lanjut, mereka harus berlangganan sendiri lewat /pricing.`);
+  console.log(`\n   Batalkan lebih awal: node scripts/grant-plan.mjs ${company.id} --revert starter`);
 } else {
   console.log(`\n→ ${company.plan} → ${targetPlan}${keepExpiry ? "" : ", expiry cleared"}`);
 }

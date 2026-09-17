@@ -34,7 +34,7 @@ export const PUT = withApiErrors("admin/ai-providers", async (req: NextRequest) 
     input.providers.every(p => p.apiKey === null);
   if (!disableOnly) {
     const [company] = await db.select().from(companies).where(eq(companies.id, guard.user.companyId));
-    if (!company || getEffectiveSubscription(company.plan, company.planExpiresAt).plan === "starter") {
+    if (!company || getEffectiveSubscription({ plan: company.plan, expiresAt: company.planExpiresAt, isPilot: company.isPilot }).plan === "starter") {
       throw new ForbiddenError("BYOK requires a paid plan", { userMessage: "BYOK tersedia pada paket berbayar." });
     }
   }

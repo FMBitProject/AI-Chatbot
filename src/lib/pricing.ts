@@ -169,11 +169,18 @@ export function planRank(plan: string | null | undefined): number {
 // Everything else is left exactly as it was — in particular a lapsed plan
 // inside its grace window still ranks 0, so a customer who wants to come back
 // on a smaller plan can still do that during grace instead of waiting it out.
+//
+// A running pilot ranks 0 for the same reason. Nothing was paid for it, so
+// there is no purchase to protect, and ranking it in force would turn the
+// pilot into a trap: give a hospital an Enterprise pilot, and the downgrade
+// guards would refuse to let them buy the Professional plan they can actually
+// afford — at checkout with a confusing refusal, or worse, in the webhook,
+// which banks the payment and grants nothing.
 export function planRankInForce(
-  plan: string | null | undefined,
-  expiresAt: Date | null | undefined,
+  { plan, expiresAt, isPilot }: SubscriptionInput,
   now: Date = new Date(),
 ): number {
+  if (isPilot) return 0;
   if (isPaidPlan(plan) && !expiresAt) return planRank(plan);
   return isSubscriptionActive(plan, expiresAt, now) ? planRank(plan) : 0;
 }
@@ -190,6 +197,11 @@ export function isSubscriptionActive(
 // Days after planExpiresAt during which a lapsed paid plan still works in full.
 // A customer whose transfer lands a day or two late keeps working instead of
 // dropping from 300 questions/day to 10 with no warning.
+//
+// Deliberately not applied to a pilot (companies.isPilot): the grace exists to
+// cover a payment in flight, and a free trial has none. Applying it there would
+// have served fourteen days against a "7 hari" badge and taken the urgency out
+// of the only conversation the pilot exists to start.
 export const GRACE_PERIOD_DAYS = 7;
 
 // How many days before expiry the renewal banner starts warning the admin.
@@ -216,13 +228,27 @@ export interface EffectiveSubscription {
   daysUntilExpiry: number | null; // negative once the expiry date has passed
 }
 
+// The three columns of `companies` that decide what a plan is worth right now.
+//
+// Passed as one object rather than three positional arguments so that adding
+// `isPilot` could not be forgotten anywhere: the property is required, so a call
+// site that does not mention it fails to compile. An optional flag would have
+// defaulted every caller to "not a pilot", which is precisely how a pilot ends
+// up honoured in one channel and given a grace period in another — the shape of
+// bug that once let expired companies keep answering in Slack.
+export interface SubscriptionInput {
+  plan: string | null | undefined;
+  expiresAt: Date | null | undefined;
+  /** Undefined is allowed (a company row may not be loaded) and means "not a pilot". */
+  isPilot: boolean | undefined;
+}
+
 // Single source of truth for "what is this company allowed to do right now".
 // Every channel (chat UI, public API, Slack) and every plan-gated admin route
 // goes through this, so an expired subscription can never keep working in one
 // channel while it is blocked in another.
 export function getEffectiveSubscription(
-  plan: string | null | undefined,
-  expiresAt: Date | null | undefined,
+  { plan, expiresAt, isPilot }: SubscriptionInput,
   now: Date = new Date(),
 ): EffectiveSubscription {
   const purchasedPlan: Plan = isPaidPlan(plan) ? plan : "starter";
@@ -247,13 +273,28 @@ export function getEffectiveSubscription(
   // Paid plan granted without an expiry date (seeded or manually set account):
   // nothing to expire, leave it alone.
   if (!expiresAt) {
+    // Unless it is flagged as a pilot, in which case the missing date is the
+    // bug and "free forever" is the cost of trusting it. Fail closed: the only
+    // way to reach this is a hand-edited row, since the grant writes the plan
+    // and the end date in one statement.
+    if (isPilot) {
+      return {
+        plan: "starter", purchasedPlan, status: "expired",
+        expiresAt: null, graceEndsAt: null, daysUntilExpiry: null,
+      };
+    }
     return {
       plan: purchasedPlan, purchasedPlan, status: "active",
       expiresAt: null, graceEndsAt: null, daysUntilExpiry: null,
     };
   }
 
-  const graceEndsAt = new Date(expiresAt.getTime() + GRACE_PERIOD_DAYS * DAY_MS);
+  // A pilot has no grace window at all — see the note on companies.isPilot.
+  // Null rather than a date equal to expiresAt, so that anything reading this
+  // (the renewal banner) cannot render "you have until <the day it ended>".
+  const graceEndsAt = isPilot
+    ? null
+    : new Date(expiresAt.getTime() + GRACE_PERIOD_DAYS * DAY_MS);
 
   if (now.getTime() < expiresAt.getTime()) {
     return {
@@ -263,7 +304,7 @@ export function getEffectiveSubscription(
     };
   }
 
-  if (now.getTime() < graceEndsAt.getTime()) {
+  if (graceEndsAt && now.getTime() < graceEndsAt.getTime()) {
     return { plan: purchasedPlan, purchasedPlan, status: "grace", expiresAt, graceEndsAt, daysUntilExpiry };
   }
 
@@ -305,9 +346,13 @@ function addOneMonth(date: Date): Date {
 // pays. Those rows are test accounts, created deliberately with a null expiry —
 // do NOT "clean them up" as bad data. Putting one on a normal billing cycle the
 // moment it pays is the accepted behaviour: paying is what turns a test account
-// into an ordinary one. If comped *customer* accounts ever become a real
-// feature, give them their own flag instead of reusing a null expiry, and skip
-// the grant for that flag.
+// into an ordinary one.
+//
+// Comped customer accounts did become a real feature, and took the separate flag
+// this note used to ask for: companies.isPilot. The caller is what skips the
+// stack — grantPlanForTransaction passes null instead of a pilot's expiry, so
+// the paid month runs from the payment rather than from the end of the free
+// week. Trial days were never bought and must not push a paid period later.
 export function computeRenewedExpiry(
   currentExpiresAt: Date | null | undefined,
   now: Date = new Date(),

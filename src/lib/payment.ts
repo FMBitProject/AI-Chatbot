@@ -65,7 +65,10 @@ export async function settlePaidOrder(tx: TransactionRow, logPrefix: string): Pr
       .limit(1)
       .for("update");
     const now = new Date();
-    const currentRank = planRankInForce(company?.plan, company?.planExpiresAt, now);
+    const currentRank = planRankInForce(
+      { plan: company?.plan, expiresAt: company?.planExpiresAt, isPilot: company?.isPilot },
+      now,
+    );
 
     // Grant tx.plan, never a plan named by a request body: the row is the only
     // record of what was actually charged.
@@ -84,9 +87,16 @@ export async function settlePaidOrder(tx: TransactionRow, logPrefix: string): Pr
     }
 
     // Renewal/upgrade stacks onto any remaining time; a lapsed plan starts fresh.
-    const planExpiresAt = computeRenewedExpiry(company?.planExpiresAt, now);
+    //
+    // A pilot stacks nothing. Its remaining days are days we gave away, not days
+    // the customer bought, so they must not push the paid month later: converting
+    // on day one of a 7-day pilot would otherwise buy a month and receive 37 days.
+    // Passing null puts them on the same footing as a brand-new subscriber, which
+    // is what they are — this is their first payment.
+    const planExpiresAt = computeRenewedExpiry(company?.isPilot ? null : company?.planExpiresAt, now);
     const granted = await dbTx.update(companies)
-      .set({ plan: tx.plan, planExpiresAt })
+      // isPilot false: they have paid, so the grace period is theirs from now on.
+      .set({ plan: tx.plan, planExpiresAt, isPilot: false })
       .where(eq(companies.id, tx.companyId))
       .returning({ id: companies.id });
 

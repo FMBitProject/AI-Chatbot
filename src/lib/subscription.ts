@@ -26,7 +26,10 @@ export interface ResolvedPlan {
 // correct either way — computeRenewedExpiry() starts a fresh month from a date
 // in the past, and isSubscriptionActive() is false for a starter plan.
 export async function resolvePlan(company: Company | undefined, now: Date = new Date()): Promise<ResolvedPlan> {
-  const subscription = getEffectiveSubscription(company?.plan, company?.planExpiresAt, now);
+  const subscription = getEffectiveSubscription(
+    { plan: company?.plan, expiresAt: company?.planExpiresAt, isPilot: company?.isPilot },
+    now,
+  );
 
   if (company && subscription.status === "expired" && company.plan !== "starter") {
     // Compare-and-set: only downgrade while the row still looks the way it did
@@ -34,7 +37,10 @@ export async function resolvePlan(company: Company | undefined, now: Date = new 
     // millisecond could be overwritten — the customer would have paid and still
     // be dropped to starter.
     const downgraded = await db.update(companies)
-      .set({ plan: "starter" })
+      // isPilot is cleared with the downgrade: the trial is over either way, and
+      // leaving it set would take the grace period away from the subscription
+      // this company might buy next.
+      .set({ plan: "starter", isPilot: false })
       .where(and(
         eq(companies.id, company.id),
         eq(companies.plan, company.plan),
@@ -48,12 +54,15 @@ export async function resolvePlan(company: Company | undefined, now: Date = new 
       // Someone changed the row underneath us — in practice a renewal. Trust
       // the fresh row instead of forcing the downgrade over the top of it.
       const [fresh] = await db.select().from(companies).where(eq(companies.id, company.id)).limit(1);
-      const freshSubscription = getEffectiveSubscription(fresh?.plan, fresh?.planExpiresAt, now);
+      const freshSubscription = getEffectiveSubscription(
+        { plan: fresh?.plan, expiresAt: fresh?.planExpiresAt, isPilot: fresh?.isPilot },
+        now,
+      );
       return { company: fresh, subscription: freshSubscription, limits: getLimits(freshSubscription.plan) };
     }
 
-    console.log(`[subscription] Downgraded to starter after grace: company=${company.id} was=${company.plan} expired=${company.planExpiresAt?.toISOString()}`);
-    return { company: { ...company, plan: "starter" }, subscription, limits: getLimits(subscription.plan) };
+    console.log(`[subscription] Downgraded to starter after ${company.isPilot ? "pilot" : "grace"}: company=${company.id} was=${company.plan} expired=${company.planExpiresAt?.toISOString()}`);
+    return { company: { ...company, plan: "starter", isPilot: false }, subscription, limits: getLimits(subscription.plan) };
   }
 
   return { company, subscription, limits: getLimits(subscription.plan) };
