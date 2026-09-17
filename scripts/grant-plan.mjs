@@ -67,6 +67,8 @@ if (!DATABASE_URL) throw new Error("DATABASE_URL not set");
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const ALL_PLANS = ["custom", "starter", "personal", "professional", "enterprise"];
+// Everything that is not the free tier. Mirrors isPaidPlan() in src/lib/pricing.ts.
+const PAID_PLANS = ["personal", "professional", "enterprise", "custom"];
 // A pilot is a taste of something the customer could go on to buy, so it is
 // restricted to the purchasable tiers: `custom` is negotiated and has no expiry
 // semantics, and a "pilot of starter" is just the free plan.
@@ -134,6 +136,17 @@ if (!ALL_PLANS.includes(targetPlan)) {
 }
 if (pilot && !PILOT_PLANS.includes(targetPlan)) {
   console.error(`A pilot must be of a purchasable plan (${PILOT_PLANS.join(", ")}), not "${targetPlan}".`);
+  process.exit(1);
+}
+// `--revert` reads like "undo", and reverting to a *paid* plan does the opposite
+// of what that suggests: it clears the expiry, which getEffectiveSubscription
+// reads as active forever. Ending a pilot with `--revert professional` — a very
+// natural thing to type — would hand out a free Professional plan with no end
+// date. The plain `grant-plan.mjs <company>` path is left alone: granting an
+// open-ended plan is that command's entire stated purpose, not a surprise.
+if (revertTo !== undefined && revertTo !== "starter" && !force) {
+  console.error(`--revert ${revertTo} does not end anything: it grants an indefinite, non-expiring ${revertTo} plan.`);
+  console.error("To end a pilot or a deal, use --revert starter. Add --force if you really meant the open-ended grant.");
   process.exit(1);
 }
 
@@ -206,6 +219,20 @@ if (!pilot && company.plan === targetPlan) {
   process.exit(0);
 }
 
+// The dangerous state is the one with no date on it, which is why this guard
+// comes before the one below: a paid plan carrying no expiry is a contract
+// granted by hand (custom), or a deliberately open-ended account. Both read as
+// "active forever", and neither leaves a date for the check below to compare
+// against — so without this, a mistyped identifier that happens to match a
+// negotiated customer replaces their contract with a 7-day pilot and ends it a
+// week later. That is a worse version of the wrong-tenant mistake the ambiguous
+// -match guard already refuses to make.
+if (pilot && !force && PAID_PLANS.includes(company.plan) && !currentExpiry) {
+  console.error(`\nThis company is on "${company.plan}" with no expiry date — a plan granted by hand, not a free account.`);
+  console.error(`A pilot would replace it and end it on ${fmt(pilotEndsAt)}. Re-run with --force if that is genuinely what you want.`);
+  process.exit(1);
+}
+
 // A paying customer's expiry is money. Overwriting it with a shorter pilot date
 // would quietly take back time they bought, and nothing else in the app would
 // ever flag it.
@@ -221,7 +248,13 @@ if (pilot && !force && !company.is_pilot && currentExpiry && currentExpiry > now
 // Reverting to starter keeps the expiry date, matching what the rest of the app
 // does with a lapsed customer: the date is what the renewal prompts are built
 // on. A plain grant gets a clean, non-expiring one.
-const keepExpiry = targetPlan === "starter";
+//
+// A cancelled *pilot* is the exception and must have its date cleared. That date
+// was never bought, and leaving it behind on a starter row re-opens the hole
+// settlePaidOrder closes: is_pilot is gone after this write, so a customer who
+// subscribes before the old pilot date would have computeRenewedExpiry() stack a
+// paid month on top of the free days we just cancelled.
+const keepExpiry = targetPlan === "starter" && !company.is_pilot;
 
 if (dryRun) {
   const change = pilot

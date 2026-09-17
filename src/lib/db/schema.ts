@@ -67,8 +67,10 @@ export const companies = pgTable("companies", {
   // to be late, and the seven days we advertise have to be seven days. See
   // getEffectiveSubscription in @/lib/pricing, which is where that is decided.
   //
-  // Cleared the moment the company actually pays (grantPlanForTransaction) —
-  // leaving it set would quietly deny a paying customer their grace period.
+  // Cleared the moment the company actually pays (settlePaidOrder, which every
+  // payment path funnels through: webhook, verify, checkout resume, and the
+  // reconciliation cron) — leaving it set would quietly deny a paying customer
+  // their grace period.
   isPilot: boolean("is_pilot").default(false).notNull(),
   // Held by whichever indexing pass is currently draining this company's queue,
   // and only that one. Nothing about the queue itself needs it — documents are
