@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
   // Block buying a lower tier while a paid subscription is still active — a
   // downgrade would strip time the customer already paid for. They can switch
   // once the current period lapses. Renewals (same tier) and upgrades are fine.
-  if (planRank(plan) < planRankInForce(company.plan, company.planExpiresAt)) {
+  if (planRank(plan) < planRankInForce({ plan: company.plan, expiresAt: company.planExpiresAt, isPilot: company.isPilot })) {
     return NextResponse.json(
       {
         error: "downgrade_not_allowed",

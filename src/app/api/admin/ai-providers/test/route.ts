@@ -22,7 +22,7 @@ export const POST = withApiErrors("admin/ai-providers/test", async (req: NextReq
   const guard = await requireAdmin(req);
   if (!guard.ok) return guard.response;
   const [company] = await db.select().from(companies).where(eq(companies.id, guard.user.companyId));
-  if (!company || getEffectiveSubscription(company.plan, company.planExpiresAt).plan === "starter") throw new ForbiddenError();
+  if (!company || getEffectiveSubscription({ plan: company.plan, expiresAt: company.planExpiresAt, isPilot: company.isPilot }).plan === "starter") throw new ForbiddenError();
   const body = await readJsonObject(req);
   if (!body) throw new ValidationError("Invalid JSON");
   const { purpose = "both", ...providerInput } = body;

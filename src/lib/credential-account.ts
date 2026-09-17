@@ -48,10 +48,13 @@ export async function createCredentialAccount(input: {
   } else {
     await withTenant(input.companyId, async (tx) => {
       // All seat-creating requests lock the same workspace before counting.
-      const [workspace] = await tx.select({ id: companies.id, plan: companies.plan, planExpiresAt: companies.planExpiresAt }).from(companies)
+      const [workspace] = await tx.select({ id: companies.id, plan: companies.plan, planExpiresAt: companies.planExpiresAt, isPilot: companies.isPilot }).from(companies)
         .where(eq(companies.id, input.companyId)).for("update");
       if (!workspace) throw new Error("Workspace not found");
-      const effective = getEffectiveSubscription(workspace.plan, workspace.planExpiresAt, new Date());
+      const effective = getEffectiveSubscription(
+        { plan: workspace.plan, expiresAt: workspace.planExpiresAt, isPilot: workspace.isPilot },
+        new Date(),
+      );
       const { maxEmployees } = getLimits(effective.plan);
       const [seats] = await tx.select({ count: count() }).from(users)
         .where(eq(users.companyId, input.companyId));

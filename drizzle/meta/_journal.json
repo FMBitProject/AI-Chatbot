@@ -155,6 +155,13 @@
       "when": 1789369967923,
       "tag": "0021_bumpy_warpath",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1789618055529,
+      "tag": "0022_organic_inertia",
+      "breakpoints": true
     }
   ]
 }

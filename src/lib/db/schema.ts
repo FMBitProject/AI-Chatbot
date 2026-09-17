@@ -27,7 +27,7 @@ export const companies = pgTable("companies", {
   // answers for questions nobody has asked yet (who owns the documents, what
   // happens to a personal plan with seats).
   accountType: text("account_type").$type<"company" | "individual">().default("company").notNull(),
-  // "custom" is granted by hand (scripts/grant-custom-plan.mjs), never bought —
+  // "custom" is granted by hand (scripts/grant-plan.mjs), never bought —
   // which is why it appears here but not on `transactions.plan` below.
   // "personal" is the individual-account tier and is refused to company
   // accounts at checkout (see /api/payment/create); the reverse holds too — an
@@ -60,6 +60,16 @@ export const companies = pgTable("companies", {
   monthlyQuestionCount: integer("monthly_question_count").default(0).notNull(),
   monthlyQuestionMonth: text("monthly_question_month"), // "YYYY-MM" (UTC)
   planExpiresAt: timestamp("plan_expires_at"),
+  // True while this plan is a free pilot granted by hand (scripts/grant-plan.mjs),
+  // rather than something the company paid for. It exists to take the grace
+  // period away: a lapsed *paid* plan keeps working for GRACE_PERIOD_DAYS so a
+  // late bank transfer does not cut a customer off, but a pilot has no transfer
+  // to be late, and the seven days we advertise have to be seven days. See
+  // getEffectiveSubscription in @/lib/pricing, which is where that is decided.
+  //
+  // Cleared the moment the company actually pays (grantPlanForTransaction) —
+  // leaving it set would quietly deny a paying customer their grace period.
+  isPilot: boolean("is_pilot").default(false).notNull(),
   // Held by whichever indexing pass is currently draining this company's queue,
   // and only that one. Nothing about the queue itself needs it — documents are
   // claimed one at a time and are safe under any number of workers — but the

@@ -107,7 +107,10 @@ console.log("\nPERPANJANGAN — luapan akhir bulan (bug yang sudah pernah ada)")
 console.log("\nSTATUS LANGGANAN — getEffectiveSubscription");
 {
   const skrg = tgl(2026, 8, 30);
-  const status = (p: string | null, exp: Date | null) => getEffectiveSubscription(p, exp, skrg);
+  // `isPilot` wajib di tipe SubscriptionInput supaya kode aplikasi tidak bisa
+  // lupa mengisinya; di sini diberi default false agar kasus lama tetap ringkas.
+  const status = (p: string | null, exp: Date | null, isPilot = false) =>
+    getEffectiveSubscription({ plan: p, expiresAt: exp, isPilot }, skrg);
 
   sama(status("starter", null).status, "active", "starter tanpa tanggal → aktif");
   sama(status("starter", tgl(2026, 1, 1)).status, "expired",
@@ -140,6 +143,31 @@ console.log("\nSTATUS LANGGANAN — getEffectiveSubscription");
   const persisUjungTenggang = new Date(skrg.getTime() - GRACE_PERIOD_DAYS * HARI);
   sama(status("professional", persisUjungTenggang).status, "expired",
     `tepat ${GRACE_PERIOD_DAYS} hari lewat → sudah kedaluwarsa, bukan tenggang`);
+
+  // PILOT: janji di halaman harga adalah "gratis 7 hari", jadi hari ke-8 harus
+  // benar-benar mati. Masa tenggang ada untuk menutup transfer yang sedang
+  // jalan; pilot tidak punya transfer, jadi tenggang di sini = 7 hari gratis
+  // ekstra yang tidak pernah dijanjikan.
+  const lewat1hari = new Date(skrg.getTime() - HARI);
+  sama(status("professional", lewat1hari, true).status, "expired",
+    "pilot lewat 1 hari → langsung kedaluwarsa, TANPA tenggang");
+  sama(status("professional", lewat1hari, true).plan, "starter",
+    "…dan batasnya langsung turun ke starter: mau lanjut berarti berlangganan");
+  // Pasangan pembanding di tanggal yang sama persis. Kalau suatu saat cabang
+  // pilot hilang, baris inilah yang tetap hijau sementara dua baris di atas
+  // merah — yang membuktikan benderanya yang bekerja, bukan tanggalnya.
+  sama(status("professional", lewat1hari, false).status, "grace",
+    "tanggal yang sama tapi BUKAN pilot → tetap dapat tenggang (pelanggan berbayar)");
+
+  sama(status("professional", lewat1hari, true).graceEndsAt, null,
+    "pilot tidak punya akhir tenggang untuk ditampilkan");
+  sama(status("professional", tgl(2026, 9, 5), true).plan, "professional",
+    "selama pilot masih berjalan → akses penuh paket yang dipilotkan");
+
+  // Baris ini menutup satu-satunya cara is_pilot bisa jadi bencana: baris yang
+  // ditandai pilot tapi tanpa tanggal akhir = paket berbayar gratis selamanya.
+  sama(status("professional", null, true).plan, "starter",
+    "pilot tanpa tanggal akhir → gagal-tertutup ke starter, bukan gratis selamanya");
 }
 
 console.log("\nPENURUNAN PAKET — planRankInForce");
@@ -149,16 +177,26 @@ console.log("\nPENURUNAN PAKET — planRankInForce");
   // Ini penjaga yang melindungi kontrak yang ditandatangani manual: tanpa
   // cabang null-expiry di planRankInForce, akun `custom` terbaca peringkat 0
   // dan checkout Professional Rp200rb menimpanya diam-diam.
-  sama(planRankInForce("custom", null, skrg), planRank("custom"),
+  const peringkat = (p: string | null, exp: Date | null, isPilot = false) =>
+    planRankInForce({ plan: p, expiresAt: exp, isPilot }, skrg);
+
+  sama(peringkat("custom", null), planRank("custom"),
     "custom tanpa tanggal → peringkat penuh, tidak bisa ditimpa pembelian self-serve");
   laporkan(planRank("custom") > planRank("enterprise"),
     "custom berperingkat di atas enterprise");
 
-  sama(planRankInForce("professional", tgl(2026, 12, 1), skrg), planRank("professional"),
+  sama(peringkat("professional", tgl(2026, 12, 1)), planRank("professional"),
     "professional aktif → peringkat penuh");
-  sama(planRankInForce("professional", tgl(2026, 1, 1), skrg), 0,
+  sama(peringkat("professional", tgl(2026, 1, 1)), 0,
     "professional kedaluwarsa → peringkat 0, jadi pelanggan bisa kembali dengan paket lebih kecil");
-  sama(planRankInForce(null, null, skrg), 0, "tanpa paket → 0");
+  sama(peringkat(null, null), 0, "tanpa paket → 0");
+
+  // Kalau pilot dihitung berperingkat penuh, pilot Enterprise justru mengunci
+  // customer: penjaga penurunan paket menolak pembelian Professional mereka —
+  // di checkout dengan penolakan membingungkan, atau di webhook, yang menerima
+  // uangnya dan tidak memberikan apa pun.
+  sama(peringkat("enterprise", tgl(2026, 12, 1), true), 0,
+    "pilot yang sedang berjalan → peringkat 0: tidak ada pembelian yang perlu dilindungi");
   sama(planRank("paket-yang-tidak-ada"), 0, "paket tak dikenal → 0, tidak melempar error");
 
   // isSubscriptionActive menjawab pertanyaan yang berbeda dari planRankInForce:
