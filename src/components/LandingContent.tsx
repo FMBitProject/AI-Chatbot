@@ -44,6 +44,19 @@ type PricePlan = {
 // dimensions at build time: nothing here has to restate them, they cannot drift
 // from the files, and a deleted or renamed screenshot breaks the build instead
 // of quietly shipping a gap in the page.
+//
+// Taken from the RS Cakrawala Medika workspace — a fictional hospital we run
+// ourselves, on real hospital documents (identifikasi pasien, transfusi darah,
+// obat high alert). The generic-HR shots these replaced argued for a different
+// product than the copy above them: a page selling to rumah sakit should not
+// illustrate itself with pengajuan cuti and expense reimbursement.
+import rsUploadDocumentsShot from "../../public/screenshots/rs-upload-documents.png";
+import rsAskAndAnswerShot from "../../public/screenshots/rs-ask-and-answer.png";
+import rsAiPersonaShot from "../../public/screenshots/rs-ai-persona.png";
+// Still the HR-era shots. `invite-employees` survives because the employee list
+// says nothing about the industry — it is the same screen for a hospital — and
+// re-shooting it would only change the names in it. The other two stayed
+// imported for the marquee only; their step is now served by the RS shots above.
 import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
 import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
 import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
@@ -55,9 +68,9 @@ import personalAskShot from "../../public/screenshots/personal-ask.png";
 import personalPersonaShot from "../../public/screenshots/personal-persona.png";
 
 const STEP_SHOTS = {
-  upload: uploadDocumentsShot,
+  upload: rsUploadDocumentsShot,
   invite: inviteEmployeesShot,
-  ask: askAndAnswerShot,
+  ask: rsAskAndAnswerShot,
 };
 
 // The hero marquee runs on the same product screenshots, not stock photography.
@@ -67,16 +80,22 @@ const STEP_SHOTS = {
 // band of generic office photos under "your employees can know every company
 // policy" is exactly the stock-image filler this page spent PR #38 removing.
 //
+// The RS shots lead, because the band starts at its first frame and a visitor
+// who scrolls past after two seconds should have seen a hospital.
+//
 // `.src` rather than the imported object because these are laid out with
 // `fill` — the intrinsic dimensions are unused — while the import itself still
 // means a deleted or renamed screenshot breaks the build.
 
 const HERO_MARQUEE_SHOTS = [
-  askAndAnswerShot,
-  uploadDocumentsShot,
+  rsAskAndAnswerShot,
+  rsUploadDocumentsShot,
+  rsAiPersonaShot,
   personalAskShot,
   inviteEmployeesShot,
+  askAndAnswerShot,
   personalUploadShot,
+  uploadDocumentsShot,
   personalPersonaShot,
 ].map((shot) => shot.src);
 
