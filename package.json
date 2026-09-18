@@ -28,6 +28,7 @@
     "leads": "node scripts/list-leads.mjs",
     "pilot": "node scripts/grant-plan.mjs --pilot",
     "plan:grant": "node scripts/grant-plan.mjs",
+    "company:rename": "node scripts/rename-company.mjs",
     "test:pricing": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/pricing.test.mts",
     "test:security": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/security.test.mts",
     "test:secret-box": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/secret-box.test.mts",
