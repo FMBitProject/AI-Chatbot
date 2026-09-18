@@ -199,6 +199,9 @@ export const t = {
     registerTitle: "Register as Admin",
     registerSubtitle: "Create your account and register your company",
     companyName: "Company Name",
+    // TODO: [MINOR] same fictional hospital, two spellings — the ID locale calls
+    // it "RS Cakrawala Medika". A proper name should not be translated; whoever
+    // greps for the demo tenant to keep it in sync will only find one of these.
     companyPlaceholder: "Cakrawala Medika Hospital",
     fullName: "Admin Full Name",
     namePlaceholder: "John Doe",
