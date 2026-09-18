@@ -55,9 +55,16 @@ import rsAskAndAnswerShot from "../../public/screenshots/rs-ask-and-answer.png";
 import rsAiPersonaShot from "../../public/screenshots/rs-ai-persona.png";
 // Still the HR-era shots. `invite-employees` survives because the employee list
 // says nothing about the industry — it is the same screen for a hospital — and
-// re-shooting it would only change the names in it. The other two stayed
-// imported for the marquee only; their step is now served by the RS shots above.
-import uploadDocumentsShot from "../../public/screenshots/upload-documents.png";
+// re-shooting it would only change the names in it. `ask-and-answer` stayed for
+// the marquee only; its step is now served by the RS shot above, and no company
+// name is visible in it, so it sits beside the RS frames without contradicting
+// them.
+//
+// `upload-documents.png` is no longer on the page at all. Its header still read
+// "PT. Maju Bersama", a workspace that does not exist any more, and a marquee
+// that rotates two different company names past the same visitor reads as two
+// different products rather than one. The file stays in the folder as the
+// pre-hospital record; nothing imports it.
 import inviteEmployeesShot from "../../public/screenshots/invite-employees.png";
 import askAndAnswerShot from "../../public/screenshots/ask-and-answer.png";
 // Taken from a real individual account. They no longer back a step of their
@@ -95,7 +102,6 @@ const HERO_MARQUEE_SHOTS = [
   inviteEmployeesShot,
   askAndAnswerShot,
   personalUploadShot,
-  uploadDocumentsShot,
   personalPersonaShot,
 ].map((shot) => shot.src);
 
