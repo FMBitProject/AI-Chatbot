@@ -19,6 +19,7 @@ import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
+import { getLimits } from "@/lib/plan-limits";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { randomUUID } from "crypto";
@@ -158,7 +159,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // resolvePlan applies the grace period and persists the downgrade once it is
   // over, so everything below runs on the plan that is actually in force.
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
-  const { company, subscription, limits } = await resolvePlan(companyRow);
+  const { company, subscription } = await resolvePlan(companyRow);
 
   // Answers are a paid feature; search is not. Checked here — before the seat
   // check, before the per-user cap, and above all before consumeQuestionQuota —
@@ -173,9 +174,34 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       { status: 403 },
     );
   }
-  const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
-
   const companyId = dbUser.companyId;
+
+  // BYOK keys are unwrapped here, ABOVE consumeQuestionQuota, and both halves of
+  // that placement are deliberate.
+  //
+  // Above the quota, because a key we cannot decrypt is not a transient failure
+  // the way a provider 429 is — it lasts until someone fixes BYOK_SECRET_KEY. A
+  // customer would otherwise spend their entire daily allowance on requests that
+  // charge them a question and then return 500.
+  //
+  // And as its own error rather than inside the embedding try below, because
+  // that try answers with `provider: "gemini"` — which sent the admin to check
+  // Google's status page for a problem that is entirely ours.
+  //
+  // It also now sits above the per-user cap rather than below it, because the
+  // limits themselves depend on its answer: a company on its own keys has no
+  // question caps to check (see getLimits).
+  const byok = await resolveByok(company);
+  if (!byok.ok) {
+    console.error(`[chat] BYOK key unreadable for company ${companyId}: ${byok.message}`);
+    return new Response(
+      JSON.stringify({ error: "BYOK_KEY_UNREADABLE", message: byok.message }),
+      { status: 503 }
+    );
+  }
+
+  const limits = getLimits(subscription.plan, byok.ownOnly);
+  const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
 
   // Seats above the effective plan's employee limit are frozen (see isSeatActive).
   if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
@@ -204,26 +230,6 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
         { status: 429 }
       );
     }
-  }
-
-  // BYOK keys are unwrapped here, ABOVE consumeQuestionQuota, and both halves of
-  // that placement are deliberate.
-  //
-  // Above the quota, because a key we cannot decrypt is not a transient failure
-  // the way a provider 429 is — it lasts until someone fixes BYOK_SECRET_KEY. A
-  // customer would otherwise spend their entire daily allowance on requests that
-  // charge them a question and then return 500.
-  //
-  // And as its own error rather than inside the embedding try below, because
-  // that try answers with `provider: "gemini"` — which sent the admin to check
-  // Google's status page for a problem that is entirely ours.
-  const byok = await resolveByok(company);
-  if (!byok.ok) {
-    console.error(`[chat] BYOK key unreadable for company ${companyId}: ${byok.message}`);
-    return new Response(
-      JSON.stringify({ error: "BYOK_KEY_UNREADABLE", message: byok.message }),
-      { status: 503 }
-    );
   }
 
   // Company-wide daily + monthly quota, shared with the public API and Slack.

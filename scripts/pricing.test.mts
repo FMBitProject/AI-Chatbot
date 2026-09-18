@@ -296,6 +296,35 @@ console.log("\nBATAS PAKET — plan-limits");
     "professional.maxDocuments > starter.maxDocuments");
 }
 
+console.log("\nBATAS PAKET — BYOK (kunci API milik pelanggan sendiri)");
+{
+  // Pertanyaan dibayar ke Groq/Google oleh pelanggan, jadi tidak ada lagi
+  // alasan biaya untuk membatasinya.
+  const byok = getLimits("enterprise", true);
+  laporkan(byok.maxQuestionsPerDay === -1, "BYOK melepas kuota harian");
+  laporkan(byok.maxQuestionsPerMonth === -1, "BYOK melepas kuota bulanan");
+  laporkan(byok.maxQuestionsPerDayPerUser === -1,
+    "BYOK melepas rem per-user — rem itu hanya melindungi kolam bersama, dan kolamnya kini milik mereka");
+
+  // Dokumen dan kursi TIDAK ikut lepas: chunk + vektor tetap duduk di database
+  // kita, dan kursi adalah dasar penetapan harga paketnya.
+  laporkan(byok.maxDocuments === PLAN_LIMITS.enterprise.maxDocuments,
+    "BYOK TIDAK mengubah batas dokumen — storage tetap biaya kita");
+  laporkan(byok.maxEmployees === PLAN_LIMITS.enterprise.maxEmployees,
+    "BYOK TIDAK mengubah batas kursi — kursi adalah dasar harga paket");
+
+  // Yang membuat ini konsesi ke pelanggan berbayar, bukan jalan pintas
+  // menembus paywall: paket gratis tetap 10/hari walau kuncinya dipasang.
+  sama(getLimits("starter", true), PLAN_LIMITS.starter,
+    "starter + kunci sendiri tetap starter — kalau lolos, siapa pun bisa melewati paywall dengan menempelkan kunci API");
+  sama(getLimits("paket-yang-tidak-ada", true), PLAN_LIMITS.starter,
+    "paket tak dikenal + kunci sendiri tetap starter, bukan tanpa batas");
+
+  // Tanpa kunci sendiri, tidak ada yang berubah dari perilaku lama.
+  sama(getLimits("enterprise"), PLAN_LIMITS.enterprise,
+    "tanpa BYOK, enterprise tetap memakai batas paketnya");
+}
+
 console.log("\nFORMAT — formatRupiah");
 {
   sama(formatRupiah(299000, "id"), "Rp 299.000", "format Indonesia memakai titik");

@@ -11,7 +11,8 @@
 // its whole estate against our inference budget. The numbers below are set well
 // above what any customer at that price should reach, so nobody bumps into them
 // in normal use — anything genuinely bigger belongs on `custom`, where the price
-// is agreed with the customer first.
+// is agreed with the customer first. The one exception is a customer on BYOK,
+// whose questions are not on our bill at all; see getLimits below.
 //
 // The two paid company tiers are sized for what they are sold as — `professional`
 // is the "Klinik" package (25 staff, 300 documents) and `enterprise` is "Rumah
@@ -48,8 +49,37 @@ export const PLAN_LIMITS = {
 
 export type Plan = keyof typeof PLAN_LIMITS;
 
-export function getLimits(plan: string) {
-  return PLAN_LIMITS[plan as Plan] ?? PLAN_LIMITS.starter;
+export interface PlanLimits {
+  maxDocuments: number;
+  maxEmployees: number;
+  maxQuestionsPerMonth: number;
+  maxQuestionsPerDay: number;
+  maxQuestionsPerDayPerUser: number;
+}
+
+// `hasOwnKeys` is BYOK: the company answers through its own provider account.
+//
+// Every question allowance above exists to bound OUR inference bill — that is
+// the whole argument for capping `enterprise` rather than selling it unlimited.
+// When the customer brings their own key, each question is billed to them by
+// Groq or Google directly, so the reason for the cap is gone and keeping it
+// would be charging a hospital Rp 4,5jt plus its own API spend and still
+// stopping it at 2.000 questions. The per-user brake goes with them: it only
+// ever protected the shared company pool, and there is no shared pool left.
+//
+// Documents and seats deliberately do NOT move. Chunks and their pgvector
+// embeddings sit in our database for as long as the customer stays, whoever
+// paid to compute them, and seats are what the tier is priced on.
+//
+// Paid plans only. An unrecognised plan resolves to starter, and starter keeps
+// its 10/day whatever keys are configured — otherwise a free workspace could
+// lift its own ceiling by pasting in a key, which is the one path that turns
+// this into a way around the paywall rather than a concession to a customer.
+export function getLimits(plan: string, hasOwnKeys = false): PlanLimits {
+  const key: Plan = plan in PLAN_LIMITS ? (plan as Plan) : "starter";
+  const limits = PLAN_LIMITS[key];
+  if (!hasOwnKeys || key === "starter") return limits;
+  return { ...limits, maxQuestionsPerDay: -1, maxQuestionsPerMonth: -1, maxQuestionsPerDayPerUser: -1 };
 }
 
 export function isUnderLimit(current: number, max: number) {

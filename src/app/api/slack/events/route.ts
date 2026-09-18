@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, slackClient, readSlackBody } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { resolveByok } from "@/lib/byok";
+import { getLimits } from "@/lib/plan-limits";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
 import { LIMITS } from "@/lib/validate";
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
         const dbUser = userLookup.user;
 
         // Same plan rules as the chat UI and the public API (see resolvePlan).
-        const { company, subscription, limits } = await resolvePlanById(companyId);
+        const { company, subscription } = await resolvePlanById(companyId);
 
         // Answers are a paid feature; a mention and a slash command must agree
         // about that, or the gate is only as strong as whichever entry point
@@ -140,18 +141,22 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
-          await say(`❌ ${SEAT_FROZEN_MESSAGE}`);
-          return;
-        }
-
         // Before the quota, for the reason spelled out in resolveByok: a key
         // we cannot decrypt is a standing failure, not a passing one. Charging
         // a question for it would drain the whole daily allowance into errors.
+        // And before the limits are read at all, because a company on its own
+        // keys has no question caps (see getLimits).
         const byok = await resolveByok(company);
         if (!byok.ok) {
           console.error(`[slack/events] BYOK key unreadable for company ${companyId}: ${byok.message}`);
           await say(`❌ ${byok.message}`);
+          return;
+        }
+
+        const limits = getLimits(subscription.plan, byok.ownOnly);
+
+        if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+          await say(`❌ ${SEAT_FROZEN_MESSAGE}`);
           return;
         }
 

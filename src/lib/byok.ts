@@ -137,6 +137,20 @@ export function resolveStoredByok(companyId: string, settings: StoredAiSettings)
   }
   return keys;
 }
+/**
+ * Whether this company answers through its own provider account.
+ *
+ * The same condition `resolveStoredByok` reports as `ownOnly`, for callers that
+ * need the fact without the keys — the dashboard showing which limits apply.
+ * Reads the settings row only and never decrypts, so an unreadable key cannot
+ * take the subscription page down with it: a customer whose key is broken still
+ * needs to see their plan in order to fix it.
+ */
+export async function usesOwnKeys(companyId: string): Promise<boolean> {
+  const { loadAiSettings } = await import("./ai-settings-store");
+  return !!(await loadAiSettings(companyId)).primary;
+}
+
 export async function resolveByok(company: Company | undefined): Promise<ByokResolution> {
   try {
     if (!company) return { ok: true, groq: null, gemini: null };
