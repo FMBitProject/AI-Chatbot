@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, readSlackBody } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
-import { resolveByok } from "@/lib/byok";
+import { billsOwnProvider, resolveByok } from "@/lib/byok";
+import { getLimits } from "@/lib/plan-limits";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
 import { LIMITS } from "@/lib/validate";
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
       // Slack is a full answering channel, so it runs the same plan rules as
       // the chat UI and the public API: effective plan (with grace period),
       // frozen seats, company quota and frozen documents.
-      const { company, subscription, limits } = await resolvePlanById(companyId);
+      const { company, subscription } = await resolvePlanById(companyId);
 
       // Same rule as the chat UI. Slack is a full answering channel, so
       // leaving it open would make the gate a suggestion: a Starter workspace
@@ -134,18 +135,22 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
-        await reply(responseUrl, `❌ ${SEAT_FROZEN_MESSAGE}`);
-        return;
-      }
-
       // Before the quota, for the reason spelled out in resolveByok: a key we
       // cannot decrypt is a standing failure, so charging a question for it
-      // would drain the whole daily allowance into errors.
+      // would drain the whole daily allowance into errors. And before the
+      // limits are read at all, because a company on its own keys has no
+      // question caps (see getLimits).
       const byok = await resolveByok(company);
       if (!byok.ok) {
         console.error(`[slack/command] BYOK key unreadable for company ${companyId}: ${byok.message}`);
         await reply(responseUrl, `❌ ${byok.message}`);
+        return;
+      }
+
+      const limits = getLimits(subscription.plan, billsOwnProvider(byok));
+
+      if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
+        await reply(responseUrl, `❌ ${SEAT_FROZEN_MESSAGE}`);
         return;
       }
 

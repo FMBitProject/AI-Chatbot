@@ -111,11 +111,17 @@ export async function PATCH(req: NextRequest) {
   // Storing a key is a paid-plan feature, judged on the plan in force right now
   // so a lapsed subscription cannot keep configuring dedicated capacity.
   //
-  // Professional was added to this list deliberately, and it does NOT come with
-  // a quota change: BYOK is sold as data residency ("your documents are embedded
-  // and answered inside your own provider account"), not as a way around the
-  // plan's question limits. Custom is the one place the two are linked — an
-  // uncapped plan is only viable when the customer's key pays per question.
+  // BYOK is sold as data residency ("your documents are embedded and answered
+  // inside your own provider account"), and every paid tier can have it.
+  //
+  // It DOES now lift the question allowances, which reverses what this comment
+  // used to say. The old rule held that BYOK must not be a way around the plan's
+  // limits, with `custom` as the single exception. That had it backwards: the
+  // allowances exist to bound our inference bill, and a customer paying Groq or
+  // Google directly is not on that bill at all — so the cap was charging them
+  // for a cost we no longer carry. `custom` was never the exception, it was the
+  // only tier where the rule had already been noticed. Documents and seats are
+  // untouched, which is the part that does still cost us. See getLimits.
   //
   // REMOVING a key is always allowed, whatever the plan: it is the customer's
   // own credential, and a company whose key was revoked upstream must be able

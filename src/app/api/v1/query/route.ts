@@ -6,11 +6,12 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, refundQuestionQuota, resolvePlanById } from "@/lib/subscription";
+import { getLimits } from "@/lib/plan-limits";
 import { hashApiKey } from "@/lib/api-key";
 import { checkRateLimit, consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateWithFallback, isRateLimitFailure } from "@/lib/models";
-import { resolveByok } from "@/lib/byok";
+import { billsOwnProvider, resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withApiErrors } from "@/lib/api-error";
@@ -71,7 +72,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
 
   // Same effective plan, grace period and quotas as the chat UI — an expired
   // subscription must not survive just because the caller uses the API.
-  const { company, subscription, limits } = await resolvePlanById(apiKey.companyId);
+  const { company, subscription } = await resolvePlanById(apiKey.companyId);
 
   // Same rule as the chat UI, and it has to be here or it is not a rule: an API
   // key is created by any admin regardless of plan, so without this a Starter
@@ -90,6 +91,10 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     console.error(`[v1/query] BYOK key unreadable for company ${apiKey.companyId}: ${byok.message}`);
     return failure(req, 503, "BYOK_KEY_UNREADABLE", byok.message);
   }
+
+  // A caller on its own provider keys has no question caps to enforce here (see
+  // getLimits); the document and seat limits are unchanged either way.
+  const limits = getLimits(subscription.plan, billsOwnProvider(byok));
 
   const quotaFailure = await consumeQuestionQuota(apiKey.companyId, limits);
   if (quotaFailure) {

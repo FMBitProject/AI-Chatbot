@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { companies, transactions } from "@/lib/db/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { resolvePlan } from "@/lib/subscription";
+import { getLimits } from "@/lib/plan-limits";
+import { usesOwnKeys } from "@/lib/byok";
 
 // Matches the reuse window in payment/create and the default Midtrans
 // transaction lifetime: past it the Snap token is dead.
@@ -20,7 +22,14 @@ export async function GET(req: NextRequest) {
   const { companyId } = guard.user;
 
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
-  const { subscription, limits } = await resolvePlan(companyRow);
+  const { subscription } = await resolvePlan(companyRow);
+
+  // The limits the answering channels will actually apply, not the ones written
+  // in the plan table. A company on its own provider keys has no question caps
+  // (see getLimits), and this page is where they go to check that — showing the
+  // plan's 2.000/day to a customer who is paying their own inference bill is the
+  // page contradicting the product.
+  const limits = getLimits(subscription.plan, await usesOwnKeys(companyId));
   const rows = await db.select({
     id: transactions.id,
     orderId: transactions.orderId,
