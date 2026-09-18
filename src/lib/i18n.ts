@@ -131,7 +131,7 @@ export const t = {
     registerTitle: "Daftar sebagai Admin",
     registerSubtitle: "Buat akun dan daftarkan perusahaan Anda",
     companyName: "Nama Perusahaan",
-    companyPlaceholder: "PT. Maju Bersama",
+    companyPlaceholder: "RS Cakrawala Medika",
     fullName: "Nama Lengkap Admin",
     namePlaceholder: "Budi Santoso",
     passwordMin: "Minimal 8 karakter",
@@ -199,7 +199,7 @@ export const t = {
     registerTitle: "Register as Admin",
     registerSubtitle: "Create your account and register your company",
     companyName: "Company Name",
-    companyPlaceholder: "Acme Corp",
+    companyPlaceholder: "Cakrawala Medika Hospital",
     fullName: "Admin Full Name",
     namePlaceholder: "John Doe",
     passwordMin: "Minimum 8 characters",
@@ -277,9 +277,9 @@ export const admin = {
     aiNamePlaceholder: "Contoh: Ava, Max, Aria, atau nama kustom",
     greeting: "Greeting / Pesan Sambutan",
     // Two versions, because the example is the fastest way to tell someone what
-    // this product thinks they are. "PT Maju Bersama" shown to a person who
+    // this product thinks they are. "RS Cakrawala Medika" shown to a person who
     // signed up as an individual answers a question they did not ask.
-    greetingPlaceholder: "Contoh: Halo! Saya Ava, asisten AI PT Maju Bersama. Ada yang bisa saya bantu?",
+    greetingPlaceholder: "Contoh: Halo! Saya Ava, asisten AI RS Cakrawala Medika. Ada yang bisa saya bantu?",
     greetingPlaceholderIndividual: "Contoh: Halo! Saya Ava. Mau cari apa di dokumen Anda hari ini?",
     // The preview bubble's fallback, shown until a greeting is actually typed.
     previewGreeting: "Selamat datang! Saya siap membantu Anda menemukan informasi dari dokumen internal perusahaan.",
@@ -385,7 +385,7 @@ export const admin = {
     aiNameHint: "This name appears in the chat header and in AI responses",
     aiNamePlaceholder: "e.g. Ava, Max, Aria, or a name of your own",
     greeting: "Greeting / Welcome Message",
-    greetingPlaceholder: "e.g. Hello! I am Ava, the AI assistant at Maju Bersama. How can I help?",
+    greetingPlaceholder: "e.g. Hello! I am Ava, the AI assistant at Cakrawala Medika Hospital. How can I help?",
     greetingPlaceholderIndividual: "e.g. Hello! I am Ava. What are we looking for in your documents today?",
     previewGreeting: "Welcome! I am here to help you find information in your company's internal documents.",
     previewGreetingIndividual: "Welcome! I am here to help you find information in your own documents.",
