@@ -21,8 +21,8 @@ variasi, atau kalau rekaman layar belum sempat dibuat.
 
 **Durasi:** ±40 detik · **Rasio:** 9:16 (Reels) — ekspor ulang 1:1 untuk feed
 **Yang direkam:** akun demo IntelliBase dengan **dokumen contoh, bukan dokumen asli
-perusahaan mana pun**. Nama perusahaan di layar: pakai placeholder yang sudah ada di
-produk ("PT. Maju Bersama"), jangan nama perusahaan nyata.
+rumah sakit mana pun**. Nama di layar: pakai placeholder nama yang sedang ada di form
+pendaftaran produk (`companyPlaceholder` di `src/lib/i18n.ts`), jangan nama faskes nyata.
 
 ### Skrip (voiceover + aksi layar)
 
