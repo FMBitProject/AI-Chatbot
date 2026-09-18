@@ -15,7 +15,7 @@ export type CtaAction =
 /**
  * Report a CTA click to both analytics backends, once, from one place.
  *
- * Two backends because the site already runs two and they answer different
+ * Three backends because the site already runs two and they answer different
  * questions: Vercel Web Analytics is per-route and needs no cookie banner, GA4
  * is where the rest of the funnel lives. Reporting from one helper is what stops
  * a new button being wired to one of them and not the other.
@@ -50,6 +50,12 @@ export function trackCta(
     // ANALYTICS_OPT_OUT_KEY.
     if (localStorage.getItem("cookie-consent") === "accepted") {
       sendGAEvent("event", "cta_click", { action, location, ...extra });
+      // Meta Pixel (see MetaPixel.tsx) is behind the same consent check, and
+      // optional-called because it only exists once the vendor script has
+      // loaded. trackCustom, not track: "cta_click" is not one of Meta's
+      // standard events, and passing a non-standard name to track() makes it
+      // unusable as a campaign optimisation goal in Ads Manager.
+      window.fbq?.("trackCustom", "cta_click", { action, location, ...extra });
     }
   } catch {
     /* Analytics must never interrupt a click that is about to navigate. */

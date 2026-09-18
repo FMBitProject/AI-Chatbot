@@ -5,6 +5,7 @@ import { LanguageProvider } from "@/lib/language-context";
 import { CookieConsent } from "@/components/CookieConsent";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AnalyticsConsent } from "@/components/AnalyticsConsent";
+import { MetaPixel } from "@/components/MetaPixel";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { siteOrigin } from "@/lib/site-url";
 
@@ -113,6 +114,7 @@ export default function RootLayout({
           <CookieConsent />
           <WhatsAppButton />
           <AnalyticsConsent />
+          <MetaPixel />
         </LanguageProvider>
         <VercelAnalytics />
       </body>

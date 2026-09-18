@@ -20,6 +20,15 @@ const MIDTRANS_API = "https://api.midtrans.com https://api.sandbox.midtrans.com"
 const GA_TAGMANAGER = "https://www.googletagmanager.com";
 const GA_ANALYTICS = "https://*.google-analytics.com https://*.analytics.google.com";
 
+// Meta (Facebook) Pixel for the running Meta Ads campaign, gated on cookie
+// consent in MetaPixel.tsx. The snippet injects fbevents.js from
+// connect.facebook.net; the events it reports leave as image beacons and
+// fetches to www.facebook.com. As with GA4, whitelisting these hosts loads
+// nothing by itself — the component still needs consent plus a set
+// NEXT_PUBLIC_META_PIXEL_ID.
+const META_PIXEL_SCRIPT = "https://connect.facebook.net";
+const META_PIXEL_BEACON = "https://www.facebook.com";
+
 // The YouTube demo embed's grant stood here (youtube-nocookie in frame-src,
 // i.ytimg.com in images.remotePatterns). The section that used it is gone —
 // the landing page's live demo chat says the same thing better — and a CSP
@@ -44,15 +53,15 @@ const GOOGLE_THUMBNAILS = "https://*.googleusercontent.com";
 const csp = [
   "default-src 'self'",
   // TODO: LOW — replace script-src unsafe-inline with per-response nonces and review dynamic rendering requirements.
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} ${MIDTRANS_APP} ${GA_TAGMANAGER} ${META_PIXEL_SCRIPT} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_THUMBNAILS}`,
+  `img-src 'self' blob: data: ${MIDTRANS_APP} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${META_PIXEL_BEACON} ${GOOGLE_THUMBNAILS}`,
   "font-src 'self' data:",
   // apis.google.com is in connect-src (not just script-src) because
   // gapi.load('picker', ...) fetches its module config from there, not just
   // a script tag — unverified against a live API key, but cheap insurance
   // against a CSP violation nobody would think to look for.
-  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${GOOGLE_DRIVE_API} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
+  `connect-src 'self'${isDev ? " ws: wss:" : ""} ${MIDTRANS_APP} ${MIDTRANS_API} ${GA_TAGMANAGER} ${GA_ANALYTICS} ${META_PIXEL_SCRIPT} ${META_PIXEL_BEACON} ${GOOGLE_DRIVE_API} ${GOOGLE_IDENTITY} ${GOOGLE_APIS}`,
   `frame-src ${MIDTRANS_APP} ${GOOGLE_PICKER_FRAME}`,
   "worker-src 'self'",
   "object-src 'none'",
