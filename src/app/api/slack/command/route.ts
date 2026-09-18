@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { verifySlackSignature, installationFor, resolveSlackUser, escapeSlackText, readSlackBody } from "@/lib/slack";
 import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
-import { resolveByok } from "@/lib/byok";
+import { billsOwnProvider, resolveByok } from "@/lib/byok";
 import { getLimits } from "@/lib/plan-limits";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { answerForSlack, formatSlackAnswer } from "@/lib/slack-answer";
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
         return;
       }
 
-      const limits = getLimits(subscription.plan, byok.ownOnly);
+      const limits = getLimits(subscription.plan, billsOwnProvider(byok));
 
       if (!(await isSeatActive({ ...dbUser, companyId }, limits.maxEmployees))) {
         await reply(responseUrl, `❌ ${SEAT_FROZEN_MESSAGE}`);

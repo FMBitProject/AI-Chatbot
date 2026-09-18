@@ -57,7 +57,11 @@ export interface PlanLimits {
   maxQuestionsPerDayPerUser: number;
 }
 
-// `hasOwnKeys` is BYOK: the company answers through its own provider account.
+// `hasOwnKeys` means the WHOLE question runs on the customer's own provider
+// account — generation and the embedding in front of it. Callers must get it
+// from `billsOwnProvider()`, never from `ownOnly` alone: that flag covers
+// generation only, and a workspace with a Groq key but no Gemini one still
+// embeds every question on our key. See the note there.
 //
 // Every question allowance above exists to bound OUR inference bill — that is
 // the whole argument for capping `enterprise` rather than selling it unlimited.
@@ -77,6 +81,9 @@ export interface PlanLimits {
 // this into a way around the paywall rather than a concession to a customer.
 export function getLimits(plan: string, hasOwnKeys = false): PlanLimits {
   const key: Plan = plan in PLAN_LIMITS ? (plan as Plan) : "starter";
+  // TODO: MINOR — cabang ini mengembalikan objek PLAN_LIMITS itu sendiri (bukan
+  // salinan), jadi pemanggil bisa memutasinya untuk semua tenant. Perilaku lama,
+  // tidak ada pemanggil yang melakukannya; kembalikan salinan saat dirapikan.
   const limits = PLAN_LIMITS[key];
   if (!hasOwnKeys || key === "starter") return limits;
   return { ...limits, maxQuestionsPerDay: -1, maxQuestionsPerMonth: -1, maxQuestionsPerDayPerUser: -1 };

@@ -138,17 +138,45 @@ export function resolveStoredByok(companyId: string, settings: StoredAiSettings)
   return keys;
 }
 /**
- * Whether this company answers through its own provider account.
+ * Whether answering a question costs us nothing — the test that decides
+ * whether this company's question caps come off (see getLimits).
  *
- * The same condition `resolveStoredByok` reports as `ownOnly`, for callers that
- * need the fact without the keys — the dashboard showing which limits apply.
+ * `ownOnly` alone is NOT that test, and the gap is not hypothetical. It only
+ * says the *generation* chain is the customer's. Every question also runs one
+ * embedding, and `getEmbedding` falls back to our platform key whenever the
+ * customer's Gemini key is null (`apiKey || process.env…`). A legacy workspace
+ * that set a Groq key and never a Gemini one lands exactly there: `ownOnly` is
+ * true, `gemini` is null, and lifting its caps would hand it unlimited
+ * questions that each bill an embedding to our shared free-tier key — the
+ * unbounded cost the caps exist to prevent, reintroduced by the very feature
+ * meant to retire them, and on the one key every other tenant shares.
+ *
+ * So both halves have to be the customer's before anything is lifted.
+ */
+export function billsOwnProvider(keys: ProviderKeys): boolean {
+  return !!keys.ownOnly && !!keys.gemini;
+}
+
+/**
+ * The same question as `billsOwnProvider`, for callers that need the answer
+ * without the keys — the dashboard showing which limits apply.
+ *
+ * A google row present is exactly what makes `resolveStoredByok` set
+ * `keys.gemini`, so the two agree by construction. They have to: if this said
+ * yes where the answering channels say no, the subscription page would promise
+ * a customer unlimited questions that chat then refuses at 2.000.
+ *
  * Reads the settings row only and never decrypts, so an unreadable key cannot
  * take the subscription page down with it: a customer whose key is broken still
  * needs to see their plan in order to fix it.
  */
 export async function usesOwnKeys(companyId: string): Promise<boolean> {
+  // TODO: MINOR — ini menambah satu transaksi WebSocket (withTenant, wajib
+  // karena company_ai_settings kena RLS) per muat halaman dasbor admin.
+  // Bukan jalur panas, tapi bisa digabung ke query yang sudah ada di endpoint.
   const { loadAiSettings } = await import("./ai-settings-store");
-  return !!(await loadAiSettings(companyId)).primary;
+  const settings = await loadAiSettings(companyId);
+  return !!settings.primary && settings.providers.some(row => row.provider === "google");
 }
 
 export async function resolveByok(company: Company | undefined): Promise<ByokResolution> {

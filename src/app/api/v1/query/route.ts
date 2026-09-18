@@ -11,7 +11,7 @@ import { hashApiKey } from "@/lib/api-key";
 import { checkRateLimit, consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateWithFallback, isRateLimitFailure } from "@/lib/models";
-import { resolveByok } from "@/lib/byok";
+import { billsOwnProvider, resolveByok } from "@/lib/byok";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withApiErrors } from "@/lib/api-error";
@@ -94,7 +94,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
 
   // A caller on its own provider keys has no question caps to enforce here (see
   // getLimits); the document and seat limits are unchanged either way.
-  const limits = getLimits(subscription.plan, byok.ownOnly);
+  const limits = getLimits(subscription.plan, billsOwnProvider(byok));
 
   const quotaFailure = await consumeQuestionQuota(apiKey.companyId, limits);
   if (quotaFailure) {

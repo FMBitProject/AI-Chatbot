@@ -1,7 +1,7 @@
 import { documentAccessCondition } from "@/lib/document-access";
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
-import { resolveByok } from "@/lib/byok";
+import { billsOwnProvider, resolveByok } from "@/lib/byok";
 import {
   INTERACTIVE_CHAIN,
   describeAiFailure,
@@ -200,7 +200,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     );
   }
 
-  const limits = getLimits(subscription.plan, byok.ownOnly);
+  const limits = getLimits(subscription.plan, billsOwnProvider(byok));
   const { maxQuestionsPerDayPerUser, maxDocuments } = limits;
 
   // Seats above the effective plan's employee limit are frozen (see isSeatActive).
