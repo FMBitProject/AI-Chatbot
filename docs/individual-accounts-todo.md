@@ -1,8 +1,8 @@
 # Akun individu — catatan tertunda
 
-Temuan MINOR dari review internal 11 Agustus 2026 atas fitur akun individu,
-sengaja **belum diperbaiki**. Tidak ada yang berbahaya dibiarkan: tidak satu pun
-menyentuh isolasi data, kuota, atau pembayaran.
+Temuan dari review internal 11 Agustus 2026 atas fitur akun individu.
+Status ditinjau ulang 21 September 2026; perbaikan yang sudah selesai ditandai
+per butir. Regresi folder/upload diuji melalui `node scripts/frontend-review.test.mjs`.
 
 Temuan MEDIUM dari review yang sama sudah diperbaiki dan tidak ada di daftar
 ini: tab halaman harga yang melompat balik, jatah "5 Karyawan" yang tampil di
@@ -15,17 +15,19 @@ keliru saat `/api/admin/company` gagal.
   Folder yang baru dibuat lewat dashboard tidak muncul di pemilih folder chat
   sampai halaman di-reload. Muncul saat seseorang mengatur dokumen dan bertanya
   di dua tab yang sama-sama terbuka.
-- **`src/components/admin/DocumentsTab.tsx`** — upload ke folder B sementara
+- **SELESAI 21 September 2026 — `src/components/admin/DocumentsTab.tsx`** — upload ke folder B sementara
   filter sedang di folder A: baris baru tidak muncul di tabel (hanya angka di
-  chip yang bertambah), sehingga upload terlihat seperti gagal.
-- **`src/components/admin/DocumentsTab.tsx`** — tombol "Coba ulang file yang
+  chip yang bertambah), sehingga upload terlihat seperti gagal. Filter kini
+  mengikuti folder tujuan setelah ada file yang berhasil disimpan.
+- **SELESAI 21 September 2026 — `src/components/admin/DocumentsTab.tsx`** — tombol "Coba ulang file yang
   gagal" membaca isi field folder **saat itu**, bukan folder batch aslinya.
   Kalau field diubah di antara dua percobaan, file ulangan mendarat di folder
-  lain.
-- **`src/app/admin/page.tsx`** — polling daftar dokumen (tiap 3 detik, hanya
+  lain. Retry kini menyimpan tujuan batch asli, termasuk tujuan tanpa folder.
+- **SELESAI 21 September 2026 — `src/app/admin/page.tsx`** — polling daftar dokumen (tiap 3 detik, hanya
   selama ada dokumen di antrean indexing) mengganti seluruh array. Respons yang
   berangkat sebelum PATCH folder bisa mendarat sesudahnya dan membalik tampilan
-  folder untuk satu siklus. Sembuh sendiri di poll berikutnya.
+  folder untuk satu siklus. Respons lama kini diabaikan setelah mutasi lokal
+  (pindah folder, hapus, upload/import) atau refresh yang lebih baru.
 
 ## Ketidakkonsistenan yang tidak terlihat pemakai
 
@@ -109,7 +111,10 @@ disembunyikan di tab individu). Yang tersisa:
   **SUDAH DIPERBAIKI 12 Agustus 2026:** tab-nya sekarang dioper lewat prop
   `onOpenTab` dan `<Tabs>` jadi controlled. Naik prioritas karena ini tombol
   pertama yang diklik pemakai baru.
-- **`src/app/api/auth/register-admin/route.ts`** — cek nama perusahaan unik
+- **SUDAH SELESAI (diverifikasi 21 September 2026) — `src/app/api/auth/register-admin/route.ts`** — cek nama perusahaan unik
   masih read-then-write, jadi dua pendaftaran serentak dengan nama sama
   menghasilkan pelanggaran unik (23505) yang tidak ditangani → 500. Index
   parsial baru di migrasi 0016 mempertahankan bentuk yang persis sama.
+  Implementasi sekarang memakai `createCredentialAccount` dan menangani
+  konflik unik melalui `isUniqueConflict`, termasuk error Drizzle yang dibungkus,
+  dengan respons 409. Tidak memerlukan perubahan tambahan.

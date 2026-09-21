@@ -111,6 +111,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   // button can send the very same bytes without asking the admin to find them
   // in the file picker again.
   const [failedFiles, setFailedFiles] = useState<UploadOutcome[]>([]);
+  const [failedFolder, setFailedFolder] = useState<string | null>(null);
   const [isImportingDrive, setIsImportingDrive] = useState(false);
   const [driveFailed, setDriveFailed] = useState<DriveImportOutcome[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -155,13 +156,13 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     return documents.filter((d) => d.department === effectiveFolder);
   }, [documents, effectiveFolder, showFolders]);
 
-  async function handleUpload(files: File[]) {
+  async function handleUpload(files: File[], folder = showFolders ? uploadFolder.trim() || null : null) {
     setIsUploading(true);
     setFailedFiles([]);
     setProgress({ label: `${T.uploadProgress} 0 / ${files.length}`, percent: 0 });
-    // Read once, at the start: the field stays editable during a long import and
-    // a folder renamed mid-batch would otherwise split it across two folders.
-    const folder = showFolders ? uploadFolder.trim() || null : null;
+    // Keep the original destination with the retry batch, even if the field
+    // changes before a failed file is retried (including an unfiled upload).
+    setFailedFolder(folder);
     try {
       const outcomes = await onUpload(files, folder, (done) => {
         setProgress({
@@ -175,6 +176,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
       const stored = outcomes.length - failed.length;
 
       if (stored > 0) {
+        if (showFolders) setActiveFolder(folder ?? "");
         toast({ title: "Berhasil!", description: `${stored} ${T.uploadedCount} ${T.indexingContinues}` });
       }
       if (failed.length > 0) {
@@ -299,7 +301,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
 
   async function handleRetryFailedFiles() {
     const files = failedFiles.map((o) => o.file);
-    if (files.length > 0) await handleUpload(files);
+    if (files.length > 0) await handleUpload(files, failedFolder);
   }
 
   async function handleReindex(id: string) {

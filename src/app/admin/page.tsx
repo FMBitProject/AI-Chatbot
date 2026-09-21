@@ -1,7 +1,7 @@
 "use client";
 import { fetchPages } from "@/lib/fetch-pages";
 import { readApiError } from "@/lib/errors";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome, type DriveImportOutcome } from "@/components/admin/DocumentsTab";
 import type { DrivePickedFile } from "@/components/admin/GoogleDrivePicker";
@@ -79,6 +79,11 @@ export default function AdminPage() {
   ));
 
   const [documents, setDocuments] = useState<Document[]>([]);
+  // A refresh may finish after another refresh or a local mutation. Only the
+  // latest unchanged snapshot may replace the list.
+  const documentsRevision = useRef(0);
+  const documentsRequest = useRef(0);
+  const documentsAppliedRequest = useRef(0);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [companyName, setCompanyName] = useState<string>("");
   // Defaults to "company" so a dashboard that has not answered yet renders the
@@ -112,9 +117,18 @@ export default function AdminPage() {
   // repeated here would arrive at runtime while the type insisted it could not.
   const [plan, setPlan] = useState<Plan>("starter");
 
-  async function loadDocuments() {
+  async function loadDocuments(shouldApply: () => boolean = () => true) {
+    const revision = documentsRevision.current;
+    const request = ++documentsRequest.current;
     const data = await fetchPages<Document>("/api/admin/documents").catch(() => null);
-    if (Array.isArray(data)) setDocuments(data);
+    // Compare against the last APPLIED response. If every poll takes longer
+    // than the interval, discarding it merely because another started would
+    // prevent the list from ever refreshing on a slow connection.
+    if (revision === documentsRevision.current && request > documentsAppliedRequest.current
+      && shouldApply() && Array.isArray(data)) {
+      documentsAppliedRequest.current = request;
+      setDocuments(data);
+    }
   }
 
   useEffect(() => {
@@ -197,9 +211,7 @@ export default function AdminPage() {
       }
 
       if (cancelled) return;
-      fetchPages<Document>("/api/admin/documents").then((data) => {
-        if (!cancelled && Array.isArray(data)) setDocuments(data);
-      }).catch(() => {});
+      void loadDocuments(() => !cancelled);
       // Skipped entirely for an individual account: there is no employee tab to
       // fill and the only row it could return is the person asking.
       if (resolvedAccountType === "company") {
@@ -267,6 +279,7 @@ export default function AdminPage() {
           outcomes.push({ file, error: body?.error ?? "Upload gagal." });
         } else {
           const data = await res.json() as { documents: Document[]; error?: string };
+          documentsRevision.current++;
           setDocuments((prev) => [...data.documents, ...prev]);
           const failedDoc = data.documents.find((d) => d.status === "failed");
           outcomes.push(
@@ -317,6 +330,7 @@ export default function AdminPage() {
       }
 
       const documents = data?.documents ?? [];
+      documentsRevision.current++;
       setDocuments((prev) => [...documents, ...prev]);
       const outcomes: DriveImportOutcome[] = documents.map((d) =>
         d.status === "failed"
@@ -420,6 +434,7 @@ export default function AdminPage() {
   async function handleDelete(id: string) {
     const res = await fetch(`/api/admin/documents/${id}`, { method: "DELETE" });
     if (!res.ok) throw new Error("Hapus gagal");
+    documentsRevision.current++;
     setDocuments((prev) => prev.filter((d) => d.id !== id));
   }
 
@@ -436,6 +451,7 @@ export default function AdminPage() {
     // Patched in place rather than re-fetching the list: the server has already
     // stored it, the row is the only thing that changed, and a refetch here
     // would fight the three-second poll that runs during an import.
+    documentsRevision.current++;
     setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, department: folder } : d)));
   }
 
