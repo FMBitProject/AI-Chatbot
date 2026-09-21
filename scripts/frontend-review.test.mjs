@@ -119,12 +119,21 @@ const offline = async () => { throw new TypeError("simulated offline"); };
   const globals = {
     localStorage: { getItem() { throw new Error("SecurityError"); }, setItem() { throw new Error("SecurityError"); } },
     setVisible: (v) => { visible = v; }, Event,
-    window: { dispatchEvent() { notified = true; } },
+    document: { documentElement: { scrollHeight: 800 } },
+    window: {
+      dispatchEvent() { notified = true; }, innerHeight: 800, scrollY: 0,
+      addEventListener() {}, removeEventListener() {},
+      matchMedia: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }),
+    },
   };
   const tree = source("src/components/CookieConsent.tsx");
   const effect = find(tree, (n) => ts.isCallExpression(n) && n.expression.getText(tree) === "useEffect");
   assert.ok(effect);
   const ctx = handlers("src/components/CookieConsent.tsx", ["saveConsent"], globals);
+  for (const name of ["MOBILE_MAX_WIDTH", "SCROLL_REVEAL_RATIO"]) {
+    const declaration = find(tree, n => ts.isVariableDeclaration(n) && n.name.getText(tree) === name);
+    vm.runInContext(ts.transpile(`const ${declaration.getText(tree)};`), ctx);
+  }
   vm.runInContext(ts.transpile(`(${effect.arguments[0].getText(tree)})();`), ctx);
   assert.equal(visible, true);
   ctx.saveConsent("accepted");
@@ -148,4 +157,75 @@ const offline = async () => { throw new TypeError("simulated offline"); };
   listener(); assert.equal(updates, 1);
   cleanup(); assert.equal(listener, null);
 }
-console.log("Frontend review regressions passed (search, auth, consent, motion).");
+// Upload retries retain the original folder, including an explicitly unfiled
+// batch. A changed input must only affect a new upload.
+for (const originalFolder of ["Riset", null]) {
+  const file = { name: "notes.pdf" };
+  const destinations = [];
+  let attempt = 0;
+  const ctx = handlers("src/components/admin/DocumentsTab.tsx", ["handleUpload", "handleRetryFailedFiles"], {
+    showFolders: true, uploadFolder: originalFolder ?? "", failedFiles: [], failedFolder: null,
+    T: {}, toast() {}, runIndexing: async () => {},
+    setIsUploading() {}, setProgress() {},
+    setFailedFolder(value) { ctx.failedFolder = value; },
+    setFailedFiles(value) { ctx.failedFiles = value; },
+    setActiveFolder(value) { ctx.activeFolder = value; },
+    onUpload: async (_files, folder) => {
+      destinations.push(folder);
+      return ++attempt === 1 ? [{ file, error: "offline" }] : [{ file }];
+    },
+  });
+  await ctx.handleUpload([file]);
+  ctx.uploadFolder = "Folder baru";
+  await ctx.handleRetryFailedFiles();
+  assert.deepEqual(destinations, [originalFolder, originalFolder]);
+  assert.equal(ctx.activeFolder, originalFolder ?? "");
+  await ctx.handleUpload([file]);
+  assert.equal(destinations[2], "Folder baru");
+  assert.equal(ctx.activeFolder, "Folder baru");
+}
+
+// Slow polling cannot revert a folder change, resurrect a deletion, or replace
+// a newer refresh. Failed mutations must not discard an otherwise valid read.
+{
+  let documents = [{ id: "a", department: "Old" }];
+  const pending = [];
+  const ctx = handlers("src/app/admin/page.tsx", ["loadDocuments", "handleSetFolder", "handleDelete"], {
+    documentsRevision: { current: 0 },
+    documentsRequest: { current: 0 }, documentsAppliedRequest: { current: 0 },
+    fetchPages: () => new Promise(resolve => pending.push(resolve)),
+    fetch: async () => ({ ok: true }),
+    setDocuments(value) { documents = typeof value === "function" ? value(documents) : value; },
+  });
+  const beforeMove = ctx.loadDocuments();
+  await ctx.handleSetFolder("a", "New");
+  pending.shift()([{ id: "a", department: "Old" }]);
+  await beforeMove;
+  assert.equal(documents[0].department, "New");
+  const beforeDelete = ctx.loadDocuments();
+  await ctx.handleDelete("a");
+  pending.shift()([{ id: "a", department: "New" }]);
+  await beforeDelete;
+  assert.equal(documents.length, 0);
+  const older = ctx.loadDocuments();
+  const newer = ctx.loadDocuments();
+  pending[1]([{ id: "newer" }]); await newer;
+  pending[0]([{ id: "older" }]); await older;
+  pending.length = 0;
+  assert.equal(documents[0].id, "newer");
+  const slow = ctx.loadDocuments();
+  const stillPending = ctx.loadDocuments();
+  pending[0]([{ id: "slow-but-usable" }]); await slow;
+  assert.equal(documents[0].id, "slow-but-usable");
+  pending[1]([{ id: "newer" }]); await stillPending;
+  pending.length = 0;
+  const cancelled = ctx.loadDocuments(() => false);
+  pending.shift()([{ id: "cancelled" }]); await cancelled;
+  assert.equal(documents[0].id, "newer");
+  const validRead = ctx.loadDocuments();
+  ctx.fetch = async () => ({ ok: false, json: async () => ({ error: "Denied" }) });
+  await assert.rejects(() => ctx.handleSetFolder("newer", "Other"), /Denied/);
+  pending.shift()([{ id: "valid" }]); await validRead;
+  assert.equal(documents[0].id, "valid");
+}
+console.log("Frontend review regressions passed (search, auth, consent, motion, document folders).");

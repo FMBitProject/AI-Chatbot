@@ -35,12 +35,13 @@
     "test:rag": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/rag.test.mts",
     "test:errors": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/errors.test.mts",
     "test:byok": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/byok-test-hook.mjs scripts/byok.test.mts",
-    "test": "npm run test:pricing && npm run test:security && npm run test:secret-box && npm run test:rag && npm run test:errors && npm run test:byok && npm run inbox:test && npm run content:lint:test && npm run test:security:integration && npm run test:api-design && npm run test:slack:security && npm run test:documents:security && npm run test:demo && npm run test:payment",
+    "test": "npm run test:pricing && npm run test:security && npm run test:secret-box && npm run test:rag && npm run test:errors && npm run test:byok && npm run inbox:test && npm run content:lint:test && npm run test:security:integration && npm run test:api-design && npm run test:slack:security && npm run test:documents:security && npm run test:demo && npm run test:payment && npm run test:frontend",
     "test:security:integration": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/security-test-hook.mjs scripts/security-integration.test.mjs",
     "test:api-design": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/api-design-test-hook.mjs scripts/api-design.test.mjs",
     "test:slack:security": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/security-test-hook.mjs scripts/slack-security.test.mjs",
     "test:documents:security": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/document-security.test.mjs",
-    "test:payment": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/payment-test-hook.mjs scripts/payment.test.mjs"
+    "test:payment": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/payment-test-hook.mjs scripts/payment.test.mjs",
+    "test:frontend": "node scripts/frontend-review.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.118",
