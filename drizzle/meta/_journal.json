@@ -162,6 +162,13 @@
       "when": 1789618055529,
       "tag": "0022_organic_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1789960214762,
+      "tag": "0023_parent_child_chunks",
+      "breakpoints": true
     }
   ]
 }

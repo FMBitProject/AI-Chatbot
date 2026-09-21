@@ -2,6 +2,7 @@ import { documentAccessCondition, type DocumentAccess } from "@/lib/document-acc
 import { and, asc, cosineDistance, eq, gt, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { documentChunks, documents } from "@/lib/db/schema";
 import type { TenantTx } from "@/lib/db/tenant";
+import { expandParentContexts } from "@/lib/parent-context";
 
 // A document past its expiry date is not an answerable document.
 //
@@ -119,17 +120,24 @@ export async function retrieveChunks(opts: {
   folder?: string | null;
   limit?: number;
   minScore?: number;
+  // Search returns precise child excerpts; answer channels opt into the wider
+  // context. Legacy chunks have NULL parent metadata and keep their text.
+  expandParents?: boolean;
+  maxContextChars?: number;
   // Document limit of the plan that applies right now (-1 = unlimited). Callers
   // must pass the *effective* plan's limit (see resolvePlan) so an expired
   // subscription cannot keep querying documents it can no longer hold.
   maxDocuments?: number;
 }, tx: TenantTx): Promise<RetrievedChunk[]> {
-  const { companyId, queryEmbedding, access, folder = null, limit = 20, minScore = 0.5, maxDocuments = -1 } = opts;
+  const { companyId, queryEmbedding, access, folder = null, limit = 20, minScore = 0.5, maxDocuments = -1, expandParents = false } = opts;
+  // Siblings may collapse to one parent. Overfetch within a fixed bound so
+  // they do not consume all result slots before expansion.
+  const candidateLimit = expandParents ? Math.min(limit * 5, 150) : limit;
 
   const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
   if (activeIds !== null && activeIds.length === 0) return [];
 
-  await tuneVectorSearch(tx, limit);
+  await tuneVectorSearch(tx, candidateLimit);
 
   const distance = cosineDistance(documentChunks.embedding, queryEmbedding);
 
@@ -160,6 +168,8 @@ export async function retrieveChunks(opts: {
     .select({
       id: documentChunks.id,
       text: documentChunks.text,
+      parentText: documentChunks.parentText,
+      parentIndex: documentChunks.parentIndex,
       documentId: documentChunks.documentId,
       documentName: documents.name,
       department: documents.department,
@@ -169,9 +179,20 @@ export async function retrieveChunks(opts: {
     .innerJoin(documents, eq(documents.id, documentChunks.documentId))
     .where(and(...conditions))
     .orderBy(distance)
-    .limit(limit);
+    .limit(candidateLimit);
 
-  return rows
+  const matches = rows
     .map((r) => ({ ...r, score: Number(r.score) }))
     .filter((r) => r.score > minScore);
+  const expanded = expandParents ? expandParentContexts(matches) : matches;
+  const selected: RetrievedChunk[] = [];
+  let used = 0;
+  for (const chunk of expanded) {
+    if (selected.length >= limit) break;
+    if (used + chunk.text.length > (opts.maxContextChars ?? Infinity)) continue;
+    used += chunk.text.length;
+    selected.push({ id: chunk.id, text: chunk.text, documentId: chunk.documentId,
+      documentName: chunk.documentName, department: chunk.department, score: chunk.score });
+  }
+  return selected;
 }

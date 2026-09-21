@@ -9,6 +9,7 @@ export async function refundQuestionQuota() {}
 export async function runIndexingPass() { state.indexing++; return { remaining: 0 }; }
 export async function requeueDocument(companyId, id) { state.requeued.push([companyId, id]); return true; }
 export function resolveByok() { return { ok: true }; }
+export function billsOwnProvider() { return false; }
 export async function getEmbedding() { if (state.outage) throw new Error("Provider unavailable"); return [1]; }
 export async function retrieveChunks() { return []; }
 export async function generateWithFallback() { state.generated++; return { text: "Answer", model: { id: "test-model" } }; }

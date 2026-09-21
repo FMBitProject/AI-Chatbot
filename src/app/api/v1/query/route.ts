@@ -132,6 +132,9 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       queryEmbedding,
       access: { role: "admin" },
       maxDocuments: limits.maxDocuments,
+      expandParents: true,
+      limit: 4,
+      maxContextChars: 8000,
     }, tx))).slice(0, 4);
 
     const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");

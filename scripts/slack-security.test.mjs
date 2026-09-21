@@ -35,7 +35,8 @@ const mocks = {
       },
     };
   }`,
-  "@/lib/byok": `export async function resolveByok() { return {ok: true, gemini: "test", groq: "test"}; }`,
+  "@/lib/byok": `export async function resolveByok() { return {ok: true, gemini: "test", groq: "test"}; }
+    export function billsOwnProvider() { return false; }`,
   "@/lib/slack-answer": `export async function answerForSlack(options) {
       globalThis.slackSecurityFixture.answers.push(options);
       return {text: "Restricted HR answer", sources: ["HR-only document"]};

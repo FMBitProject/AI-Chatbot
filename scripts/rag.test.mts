@@ -126,7 +126,7 @@ sama(
 
 console.log("\nMODEL ROI — roi");
 const r = calculateRoi(ROI_DEFAULTS);
-sama(r.hoursPerMonth, (50 * 3 * 22 * 15) / 60, "jam pencarian per bulan = orang × pertanyaan × hari × menit / 60");
+sama(r.hoursPerMonth, (ROI_DEFAULTS.employees * ROI_DEFAULTS.questionsPerDay * ROI_DEFAULTS.workingDays * ROI_DEFAULTS.minutesPerSearch) / 60, "jam pencarian per bulan = orang × pertanyaan × hari × menit / 60");
 sama(r.savingsWithAI < r.grossSaving, true, "penghematan bersih SELALU di bawah kotor — diskon 50% terlihat");
 sama(r.savingsWithAI < r.costLost, true, "penghematan tak pernah melebihi biaya yang hilang");
 sama(r.recoveredShare > 0 && r.recoveredShare < 1, true, "porsi terpulihkan di antara 0 dan 1");
@@ -152,7 +152,7 @@ sama(cepat.savingsWithAI >= 0, true, "penghematan tak pernah negatif");
 const pas = calculateRoi({ ...ROI_DEFAULTS, minutesPerSearch: MINUTES_WITH_AI });
 sama(pas.savingsWithAI, 0, "pencarian tepat 3 menit → impas, hemat 0");
 sama(
-  calculateRoi({ ...ROI_DEFAULTS, employees: 100 }).savingsWithAI,
+  calculateRoi({ ...ROI_DEFAULTS, employees: ROI_DEFAULTS.employees * 2 }).savingsWithAI,
   r.savingsWithAI * 2,
   "dua kali karyawan → dua kali penghematan (linear)",
 );
