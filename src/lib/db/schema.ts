@@ -314,6 +314,11 @@ export const documentChunks = pgTable("document_chunks", {
   text: text("text").notNull(),
   embedding: vector("embedding", { dimensions: 1536 }),
   chunkIndex: integer("chunk_index").notNull().default(0),
+  // Inline parent payload keeps expansion inside the child's existing RLS and
+  // document access boundary. Repeated across siblings; only children embed.
+  // NULL marks legacy chunks, which remain searchable until re-indexed.
+  parentText: text("parent_text"),
+  parentIndex: integer("parent_index"),
 }, (t) => [
   index("document_chunks_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
   // The HNSW index above orders by distance across every tenant's vectors at

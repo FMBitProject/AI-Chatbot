@@ -299,6 +299,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       access: dbUser,
       folder,
       limit: 30,
+      expandParents: true,
       maxDocuments,
     }, tx);
 
@@ -381,7 +382,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   let totalChars = 0;
   for (const c of rankedChunks) {
     if (scored.length >= MAX_CONTEXT_CHUNKS) break;
-    if (totalChars + c.text.length > MAX_CONTEXT_CHARS) break;
+    if (totalChars + c.text.length > MAX_CONTEXT_CHARS) continue;
     if (!seenDocs.has(c.documentId)) {
       if (seenDocs.size >= MAX_UNIQUE_DOCS) continue;
       seenDocs.add(c.documentId);

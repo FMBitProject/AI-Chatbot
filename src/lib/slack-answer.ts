@@ -135,6 +135,9 @@ export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAns
     queryEmbedding,
     access,
     maxDocuments,
+    expandParents: true,
+    limit: MAX_SLACK_CHUNKS,
+    maxContextChars: 6000,
   }, tx))).slice(0, MAX_SLACK_CHUNKS);
 
   const context = scored.length > 0

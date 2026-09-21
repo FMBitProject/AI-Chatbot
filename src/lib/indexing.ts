@@ -5,7 +5,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
 import { companies, documents, documentChunks } from "@/lib/db/schema";
-import { chunkText } from "@/lib/chunker";
+import { chunkParentDocument } from "@/lib/chunker";
 import { getEmbeddings, EmbeddingBudgetExceededError, isRateLimitError } from "@/lib/embeddings";
 import type { Company } from "@/lib/subscription";
 
@@ -299,7 +299,8 @@ async function queueStats(companyId: string): Promise<{ queued: number; stuck: n
 // us. Claim, then work, then write — three short touches rather than one long
 // one.
 async function embedAndStore(companyId: string, doc: ClaimedDocument, company: Company): Promise<void> {
-  const chunks = chunkText(doc.rawText);
+  const childChunks = chunkParentDocument(doc.rawText);
+  const chunks = childChunks.map(chunk => chunk.text);
 
   // The text was checked for emptiness at upload, so an empty result here means
   // the file had *some* text but not enough for a single chunk.
@@ -485,6 +486,8 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
         text,
         embedding: embeddings[i],
         chunkIndex: i,
+        parentText: childChunks[i].parentText,
+        parentIndex: childChunks[i].parentIndex,
       }))
     );
   });

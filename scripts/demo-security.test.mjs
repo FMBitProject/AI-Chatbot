@@ -49,7 +49,7 @@ process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-only";
 process.env.DEMO_CHAT_ENABLED = "true";
 
 await pg.exec(`
-  CREATE TABLE document_chunks (id text PRIMARY KEY, document_id text NOT NULL REFERENCES documents(id), company_id text NOT NULL REFERENCES companies(id), text text NOT NULL, embedding text, chunk_index integer NOT NULL DEFAULT 0);
+  CREATE TABLE document_chunks (id text PRIMARY KEY, document_id text NOT NULL REFERENCES documents(id), company_id text NOT NULL REFERENCES companies(id), text text NOT NULL, embedding text, chunk_index integer NOT NULL DEFAULT 0, parent_text text, parent_index integer);
   CREATE FUNCTION demo_distance(text, text) RETURNS double precision LANGUAGE SQL IMMUTABLE AS 'SELECT 0.1::double precision';
   CREATE OPERATOR <=> (LEFTARG = text, RIGHTARG = text, FUNCTION = demo_distance);
   CREATE ROLE demo_reader;
