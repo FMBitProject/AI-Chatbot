@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
-import { and, eq, desc, ne } from "drizzle-orm";
+import { and, eq, desc, notInArray } from "drizzle-orm";
 import { isPurchasablePlan } from "@/lib/pricing";
 import { settlePaidOrder } from "@/lib/payment";
 import {
@@ -96,6 +96,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Tidak ada pesanan yang cocok." }, { status: 404 });
   }
 
+  // This outcome is durable, even if Midtrans is temporarily unavailable.
+  if (tx.status === "paid_review") {
+    return NextResponse.json({ ok: true, upgraded: false, status: "paid_review", plan: tx.plan,
+      message: "Pembayaran diterima, tetapi belum menambah layanan. Hubungi kami untuk penyelesaian; jangan membayar ulang." });
+  }
+
   // A cancelled or denied order cannot change again, so answer from what we
   // already know instead of spending an outbound request on a question with a
   // settled answer. Only "failed" gets this treatment:
@@ -129,7 +135,7 @@ export async function POST(req: NextRequest) {
     if (closedStatus) {
       await db.update(transactions)
         .set({ status: closedStatus })
-        .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
+        .where(and(eq(transactions.id, tx.id), notInArray(transactions.status, ["paid", "paid_review"])))
         .catch((err) => console.error(`[payment/verify] Could not mark order=${tx.orderId} ${closedStatus}:`, err));
     }
 
@@ -185,23 +191,16 @@ export async function POST(req: NextRequest) {
     // written to be safe to repeat: whichever call claims the order grants the
     // plan, and the rest come back "duplicate" instead of stacking a second
     // month onto planExpiresAt.
-    await settlePaidOrder(tx, "[payment/verify]");
+    const outcome = await settlePaidOrder(tx, "[payment/verify]");
+    if (outcome.result === "nothing-granted") {
+      return NextResponse.json({ ok: true, upgraded: false, status: "paid_review", plan: tx.plan,
+        message: "Pembayaran diterima, tetapi belum menambah layanan karena paket aktif lebih tinggi. Hubungi kami untuk penyelesaian; jangan membayar ulang." });
+    }
   } catch (err) {
     console.error(`[payment/verify] Failed to settle order=${tx.orderId}:`, err);
     return NextResponse.json({ error: "Gagal menerapkan pembayaran. Silakan coba lagi." }, { status: 500 });
   }
 
-  // Reaching here means a paid plan is in force: this call applied it, a
-  // previous one already committed it, or the company was already on something
-  // higher (settlePaidOrder's "nothing-granted" outcome, which raises its own
-  // alert on the way out).
-  // The success page keys its "Pembayaran Berhasil" state off this flag, so
-  // reporting false on an order the webhook settled first would tell a paying
-  // customer their upgrade is still pending. In the third case the customer is
-  // no worse off than before the click, and the money question needs a human
-  // rather than a different screen.
-  //
-  // `plan` is echoed from the transaction row so the caller can name the plan it
-  // actually settled instead of trusting its own query string.
+  // This order granted service, here or on an earlier settlement.
   return NextResponse.json({ ok: true, upgraded: true, plan: tx.plan });
 }

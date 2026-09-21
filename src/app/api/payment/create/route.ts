@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import { companies, transactions } from "@/lib/db/schema";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, notInArray } from "drizzle-orm";
 import {
   amountMatches,
   cancelMidtransTransaction,
@@ -11,6 +11,7 @@ import {
   fetchMidtransStatus,
   isSettledStatus,
 } from "@/lib/midtrans";
+import { checkoutOrderFields, isUniqueViolation, recordCheckout } from "@/lib/payment-checkout";
 import { settlePaidOrder } from "@/lib/payment";
 import { alertOps } from "@/lib/alerts";
 import { getPlanPrice, PLAN_NAMES, isPlanAllowedFor, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
@@ -22,33 +23,12 @@ import { randomUUID } from "crypto";
 // without limit. Well above what a customer clicking "Bayar" can reach.
 const CREATE_LIMIT = { max: 5, windowMs: 60 * 1000 };
 
-// How long a pending order is offered back instead of a new one. Matches the
-// default Midtrans transaction lifetime: past it the Snap token and any virtual
-// account issued with it are dead, so there is nothing left to reuse.
-const PENDING_REUSE_HOURS = 24;
-
 // How many pending orders one checkout will ask Midtrans about. One is the
 // normal case. transactions_one_pending_per_plan allows at most one per plan,
 // and there are three purchasable plans, so four is already more than can
 // legitimately exist. Capped because each one costs an outbound request on a
 // path the customer is waiting on.
 const MAX_PENDING_TO_CHECK = 4;
-
-/**
- * Postgres' SQLSTATE for a unique violation, which is how
- * transactions_one_pending_per_plan reports that another request got there
- * first. Checked structurally rather than by constraint name: the drivers do not
- * agree on whether they surface one, and the recovery below works out which
- * constraint it was by looking for the row that beat us.
- */
-function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === "23505"
-  );
-}
 
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin(req);
@@ -145,16 +125,10 @@ export async function POST(req: NextRequest) {
   // or close that one, find nothing else, and mint yet another alongside the
   // older ones still standing. Newest first — those have the most token life
   // left and are the likeliest to still be payable.
-  const pendings = await db.select().from(transactions)
+  const pendings = await db.select(checkoutOrderFields).from(transactions)
     .where(and(
       eq(transactions.companyId, dbUser.companyId),
       eq(transactions.status, "pending"),
-      // Compared against now() inside Postgres, not a JS Date built here:
-      // created_at is written by the database's own clock (defaultNow), and a
-      // timestamp is only meaningful against the clock that wrote it. The
-      // column carries no time zone, so a server running off UTC would shift
-      // this window by its offset if the cutoff came from JS.
-      sql`${transactions.createdAt} > now() - ${sql.raw(`interval '${PENDING_REUSE_HOURS} hours'`)}`,
     ))
     .orderBy(desc(transactions.createdAt))
     .limit(MAX_PENDING_TO_CHECK);
@@ -205,7 +179,10 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await settlePaidOrder(paidOrder, "[payment/create]");
+        const outcome = await settlePaidOrder(paidOrder, "[payment/create]");
+        if (outcome.result === "nothing-granted") {
+          return NextResponse.json({ error: "payment_needs_review", message: "Pembayaran diterima, tetapi belum menambah layanan karena paket aktif lebih tinggi. Hubungi kami untuk penyelesaian; jangan membayar ulang.", orderId: paidOrder.orderId }, { status: 409 });
+        }
       } catch (err) {
         // The money is ours and the plan is not theirs. Say so, instead of
         // reporting the success below on work that did not happen — the order
@@ -252,7 +229,7 @@ export async function POST(req: NextRequest) {
     for (const { order, closedStatus } of finished) {
       await db.update(transactions)
         .set({ status: closedStatus })
-        .where(and(eq(transactions.id, order.id), ne(transactions.status, "paid")))
+        .where(and(eq(transactions.id, order.id), notInArray(transactions.status, ["paid", "paid_review"])))
         .catch((err) => console.error(`[payment/create] Could not mark order=${order.orderId} ${closedStatus}:`, err));
     }
 
@@ -287,6 +264,7 @@ export async function POST(req: NextRequest) {
         c.order.plan === plan &&
         c.order.amount === currentAmount &&
         c.order.snapToken !== null &&
+        c.order.withinReuseWindow &&
         (!c.status.ok || !closedTransactionStatus(c.status.data.transaction_status)),
     );
     if (reusable?.order.snapToken) {
@@ -304,18 +282,8 @@ export async function POST(req: NextRequest) {
     // here: the row is ours to rewrite, but the virtual account number belongs
     // to Midtrans and stays payable until Midtrans is told otherwise.
     for (const c of checked) {
-      // A same-plan order with no token never became a way to pay, so there is
-      // nothing at Midtrans to cancel; transactions_one_pending_per_plan handles
-      // that row when the insert below runs.
-      //
-      // A same-plan order WITH a token that was not reused is a different thing
-      // entirely, and it only exists because the price moved. It has to be closed
-      // here like any other live order. Skipping it — which this loop used to do
-      // for every same-plan row — would leave it pending, the insert below would
-      // hit the unique index, and the "lost the race" branch would hand the
-      // customer back that very order's token: the stale price again, by a
-      // longer route.
-      if (c.order.plan === plan && c.order.snapToken === null) continue;
+      // Tokenless legacy rows still need a status check before closing them.
+      // A missing local token alone does not establish that no money arrived.
       // Already closed by the loop above.
       if (c.status.ok && closedTransactionStatus(c.status.data.transaction_status)) continue;
 
@@ -336,6 +304,11 @@ export async function POST(req: NextRequest) {
           },
           { status: 503 },
         );
+      }
+
+      if (!c.status.ok && c.status.notFound && c.order.snapToken
+        && c.order.tokenMayBeActive) {
+        return NextResponse.json({ error: "pending_checkout", message: "Masih ada halaman pembayaran aktif. Selesaikan pesanan tersebut atau tunggu hingga kedaluwarsa sebelum membuat pesanan baru.", orderId: c.order.orderId }, { status: 409 });
       }
 
       if (c.status.ok) {
@@ -365,9 +338,8 @@ export async function POST(req: NextRequest) {
           );
         }
       }
-      // The remaining case is notFound: a Snap token the customer was given but
-      // never opened, so Midtrans has no transaction to cancel and no payment
-      // instrument was ever issued. Nothing to do there but close our own row.
+      // A 404 is safe to close only after the token lifetime has ended (or
+      // when no token was issued). Younger pages were refused above.
 
       // "expired" rather than "failed": nothing was rejected, the payment window
       // was simply abandoned. It is also the status the reconciliation sweep
@@ -376,7 +348,7 @@ export async function POST(req: NextRequest) {
       // without a human.
       await db.update(transactions)
         .set({ status: "expired" })
-        .where(and(eq(transactions.id, c.order.id), ne(transactions.status, "paid")))
+        .where(and(eq(transactions.id, c.order.id), notInArray(transactions.status, ["paid", "paid_review"])))
         .catch((err) => console.error(`[payment/create] Could not close open order=${c.order.orderId}:`, err));
       console.log(`[payment/create] Closed ${samePlan ? "stale-price" : "other-plan"} order=${c.order.orderId} (${c.order.plan}, amount=${c.order.amount}) before opening ${plan} checkout for company=${dbUser.companyId}`);
     }
@@ -428,7 +400,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    await db.insert(transactions).values({
+    const recorded = await recordCheckout({
       id: randomUUID(),
       companyId: dbUser.companyId,
       orderId,
@@ -437,6 +409,17 @@ export async function POST(req: NextRequest) {
       status: "pending",
       snapToken: snapResponse.token,
     });
+    if (recorded.result === "downgrade") {
+      return NextResponse.json({ error: "downgrade_not_allowed", message: "Langganan Anda berubah. Muat ulang halaman untuk melihat paket aktif." }, { status: 409 });
+    }
+    if (recorded.result === "pending") {
+      const winner = recorded.order;
+      if (winner.plan === plan && winner.amount === String(amount) && winner.snapToken
+        && winner.withinReuseWindow) {
+        return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, reused: true });
+      }
+      return NextResponse.json({ error: "pending_checkout", message: "Pesanan pembayaran lain masih terbuka. Muat ulang halaman dan periksa pesanan tersebut sebelum melanjutkan.", orderId: winner.orderId }, { status: 409 });
+    }
   } catch (err) {
     if (!isUniqueViolation(err)) {
       console.error(`[payment/create] Could not record order=${orderId}:`, err);
@@ -455,7 +438,7 @@ export async function POST(req: NextRequest) {
     // Snap only issues a payment instrument (a virtual account number, a QR)
     // once the customer opens the popup and picks a method, and nobody will ever
     // receive this token. It expires on its own.
-    const [winner] = await db.select().from(transactions)
+    const [winner] = await db.select(checkoutOrderFields).from(transactions)
       .where(and(
         eq(transactions.companyId, dbUser.companyId),
         eq(transactions.plan, plan),
@@ -463,12 +446,13 @@ export async function POST(req: NextRequest) {
       ))
       .limit(1);
 
-    if (winner?.snapToken) {
+    if (winner?.snapToken && winner.amount === String(amount)
+      && winner.withinReuseWindow) {
       console.log(`[payment/create] Lost the race for a pending order; reusing company=${dbUser.companyId} order=${winner.orderId}`);
       return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, reused: true });
     }
 
-    if (winner) {
+    if (winner && !winner.snapToken) {
       // A pending order with no token blocks the index but can never be paid —
       // the customer was never given a way to pay it. Close it so the next
       // attempt gets through, instead of leaving checkout permanently wedged
@@ -476,9 +460,9 @@ export async function POST(req: NextRequest) {
       console.warn(`[payment/create] Closing tokenless pending order=${winner.orderId} blocking checkout for company=${dbUser.companyId}`);
       await db.update(transactions)
         .set({ status: "expired" })
-        .where(and(eq(transactions.id, winner.id), ne(transactions.status, "paid")))
+        .where(and(eq(transactions.id, winner.id), notInArray(transactions.status, ["paid", "paid_review"])))
         .catch((e) => console.error(`[payment/create] Could not close order=${winner.orderId}:`, e));
-    } else {
+    } else if (!winner) {
       // The violation was the order_id unique constraint, not ours — which the
       // random suffix makes all but impossible. Nothing to recover from.
       console.error(`[payment/create] Unique violation on order=${orderId} with no pending order to fall back on:`, err);

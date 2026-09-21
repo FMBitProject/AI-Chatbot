@@ -11,7 +11,7 @@ const quote = (value) => `"${value.replaceAll('"', '""')}"`;
 // Build relevant tables from the real schema, including defaults and FKs.
 for (const table of [schema.companies, schema.users, schema.accounts, schema.sessions,
   schema.verifications, schema.twoFactors, schema.documents, schema.apiKeys,
-  schema.chatSessions, schema.chatMessages]) {
+  schema.chatSessions, schema.chatMessages, schema.transactions]) {
   const config = getTableConfig(table);
   const columns = config.columns.map((col) => {
     let definition = `${quote(col.name)} ${col.getSQLType()}`;
