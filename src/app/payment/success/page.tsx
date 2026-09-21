@@ -14,6 +14,7 @@ function SuccessContent() {
   // falls back to the newest order for the plan in that case.
   const orderId = params.get("orderId");
   const [verifying, setVerifying] = useState(true);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [upgraded, setUpgraded] = useState(false);
   // The plan on the order the server looked at — reported whatever the outcome
   // was, so this says nothing about whether anything settled. The query string
@@ -59,9 +60,10 @@ function SuccessContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(orderId ? { plan, orderId } : { plan }),
         });
-        const data = await res.json() as { upgraded?: boolean; plan?: string };
+        const data = await res.json() as { upgraded?: boolean; plan?: string; status?: string; message?: string };
         if (res.ok) {
           setUpgraded(data.upgraded ?? false);
+          setReviewMessage(data.status === "paid_review" ? data.message ?? "Pembayaran perlu pemeriksaan. Hubungi kami; jangan membayar ulang." : null);
           if (data.plan) setOrderPlan(data.plan);
         } else {
           setCheckFailed(res.status === 429 || res.status >= 500 ? "retryable" : "unknown");
@@ -86,7 +88,7 @@ function SuccessContent() {
             {/* A green tick above "we could not confirm your payment" would be
                 its own small lie, so that case gets a neutral badge. */}
             <div className="flex justify-center mb-4">
-              {checkFailed === "unknown" ? (
+              {reviewMessage || checkFailed === "unknown" ? (
                 <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
                   <AlertCircle className="h-8 w-8 text-amber-600" />
                 </div>
@@ -97,14 +99,14 @@ function SuccessContent() {
               )}
             </div>
             <h1 className="text-xl font-bold text-stone-900 mb-2">
-              {upgraded
+              {reviewMessage ? "Pembayaran Perlu Pemeriksaan" : upgraded
                 ? "Pembayaran Berhasil!"
                 : checkFailed === "unknown"
                 ? "Status Belum Dapat Dipastikan"
                 : "Pembayaran Diterima"}
             </h1>
             <p className="text-stone-500 text-sm mb-1">
-              {upgraded
+              {reviewMessage ? reviewMessage : upgraded
                 ? "Akun Anda telah diupgrade ke paket"
                 : checkFailed === "unknown"
                 ? "Kami belum bisa memastikan status pembayaran Anda untuk paket"
@@ -113,7 +115,7 @@ function SuccessContent() {
                 : "Pembayaran sedang diverifikasi. Akun Anda akan diupgrade ke paket"}
             </p>
             <p className="text-teal-800 font-semibold text-lg mb-6">{planName}</p>
-            {!upgraded && (
+            {!upgraded && !reviewMessage && (
               <p className="text-xs text-stone-400 mb-4">
                 {checkFailed === "unknown"
                   ? "Jika Anda sudah membayar, buka dashboard untuk memeriksa status pesanan Anda atau hubungi kami."

@@ -22,6 +22,7 @@ interface SubData {
 
 const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", personal: "Personal", professional: "Professional", enterprise: "Enterprise", custom: "Custom" };
 const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
+  paid_review: { label: "Dibayar — perlu pemeriksaan", variant: "secondary" },
   paid: { label: "Lunas", variant: "success" },
   pending: { label: "Menunggu", variant: "warning" },
   failed: { label: "Gagal", variant: "destructive" },
@@ -131,7 +132,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, orderId }),
       });
-      const d = await res.json() as { upgraded?: boolean; status?: string; error?: string };
+      const d = await res.json() as { upgraded?: boolean; status?: string; message?: string; error?: string };
 
       // Every failure used to look identical to "not paid yet": the button just
       // stopped spinning and nothing happened. Say what actually went wrong,
@@ -142,6 +143,11 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
           title: res.status === 429 ? "Terlalu sering" : "Gagal memeriksa status",
           description: d.error ?? "Coba lagi beberapa saat lagi.",
         });
+        return;
+      }
+      if (d.status === "paid_review") {
+        load();
+        toast({ title: "Pembayaran perlu pemeriksaan", description: d.message });
         return;
       }
       if (d.upgraded) {

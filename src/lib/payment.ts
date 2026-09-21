@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import { withTransaction } from "@/lib/db/transaction";
 import { companies, transactions } from "@/lib/db/schema";
 import { computeRenewedExpiry, planRank, planRankInForce } from "@/lib/pricing";
@@ -15,7 +15,8 @@ export type SettleOutcome =
   | { result: "nothing-granted"; currentPlan: string };
 
 /**
- * Marks one order paid and grants the plan it bought, exactly once.
+ * Records funds received and grants the plan exactly once, or records paid_review
+ * when the purchase cannot grant service. Neither outcome can be claimed again.
  *
  * Three callers reach this: the Midtrans webhook, the admin's "Cek Status"
  * check, and the reconciliation sweep. Each can run at any time, more than
@@ -27,7 +28,7 @@ export type SettleOutcome =
  * settled, and for the amount we charged. This function does no network I/O and
  * makes no judgement about that.
  *
- * Idempotency comes from the conditional UPDATE: `status <> 'paid'` in the WHERE
+ * Idempotency comes from the conditional UPDATE: `status NOT IN ('paid', 'paid_review')` in the WHERE
  * clause makes claiming the order a single atomic statement, so out of any
  * number of concurrent callers exactly one gets a row back and the rest see
  * zero. That matters because granting is *not* idempotent —
@@ -43,10 +44,17 @@ export async function settlePaidOrder(tx: TransactionRow, logPrefix: string): Pr
   const outcome = await withTransaction(async (dbTx): Promise<SettleOutcome> => {
     const claimed = await dbTx.update(transactions)
       .set({ status: "paid", paidAt: new Date() })
-      .where(and(eq(transactions.id, tx.id), ne(transactions.status, "paid")))
+      .where(and(eq(transactions.id, tx.id), notInArray(transactions.status, ["paid", "paid_review"])))
       .returning({ id: transactions.id });
 
-    if (claimed.length === 0) return { result: "duplicate" };
+    if (claimed.length === 0) {
+      const [existing] = await dbTx.select().from(transactions).where(eq(transactions.id, tx.id));
+      if (existing?.status === "paid_review") {
+        const [company] = await dbTx.select().from(companies).where(eq(companies.id, tx.companyId));
+        return { result: "nothing-granted", currentPlan: company?.plan ?? "starter" };
+      }
+      return { result: "duplicate" };
+    }
 
     // FOR UPDATE, because the grant below is a read-modify-write: the new expiry
     // is computed in JS from the value read here. Two *different* paid orders
@@ -58,8 +66,10 @@ export async function settlePaidOrder(tx: TransactionRow, logPrefix: string): Pr
     // The lock is held until this transaction commits, which also briefly blocks
     // the quota counter's UPDATE on the same row (see consumeQuestionQuota).
     // That is one statement's worth of waiting, and it cannot deadlock: this
-    // path always takes transactions before companies, and the counter is a
-    // single autocommit statement holding one lock.
+    // settlement path takes transactions before companies, and the counter is a
+    // single autocommit statement holding one lock. Checkout locks companies
+    // but only reads existing orders without locking them, then inserts a NEW
+    // order, so it never waits for this settlement's existing order lock.
     const [company] = await dbTx.select().from(companies)
       .where(eq(companies.id, tx.companyId))
       .limit(1)
@@ -78,10 +88,11 @@ export async function settlePaidOrder(tx: TransactionRow, logPrefix: string): Pr
       // which time an order placed on Starter may land against an Enterprise
       // subscription. Never strip the higher plan.
       //
-      // The claim still commits, because nothing about this order will ever
-      // change: a retry would only take this same branch again. That makes it
+      // Commit a separate terminal outcome. Even if the higher plan later
+      // expires, retries must not grant a payment already sent for review. That makes it
       // the one path that banks a payment and hands the customer nothing, which
       // is why it is reported below rather than merely logged.
+      await dbTx.update(transactions).set({ status: "paid_review" }).where(eq(transactions.id, tx.id));
       console.warn(`${logPrefix} Ignored downgrade: company=${tx.companyId} current=${company?.plan} purchased=${tx.plan}`);
       return { result: "nothing-granted", currentPlan: company?.plan ?? "starter" };
     }

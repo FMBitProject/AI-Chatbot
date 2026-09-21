@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
-import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import {
@@ -234,7 +234,7 @@ export async function GET(req: NextRequest) {
         // run for two days, turning the `closed` figure in the log into noise.
         .where(and(
           eq(transactions.id, tx.id),
-          ne(transactions.status, "paid"),
+          notInArray(transactions.status, ["paid", "paid_review"]),
           ne(transactions.status, closedStatus),
         ))
         .returning({ id: transactions.id })
