@@ -219,8 +219,8 @@ console.log("\nHARGA — satu harga, tanpa promo");
   // benar-benar dikirim ke Midtrans sebagai gross_amount, jadi kesalahan ketik
   // satu nol di sini adalah pelanggan tertagih Rp 450rb atau Rp 45jt. Satu-
   // satunya hal yang akan menangkapnya sebelum pelanggan yang menangkapnya.
-  sama(NORMAL_PRICES.professional, 1_500_000, "Klinik (plan id `professional`) Rp 1,5jt");
-  sama(NORMAL_PRICES.enterprise, 4_500_000, "Rumah Sakit (plan id `enterprise`) Rp 4,5jt");
+  sama(NORMAL_PRICES.professional, 1_500_000, "Pro (plan id `professional`) Rp 1,5jt");
+  sama(NORMAL_PRICES.enterprise, 4_500_000, "Enterprise (plan id `enterprise`) Rp 4,5jt");
   sama(NORMAL_PRICES.personal, 119_000, "Personal Rp 119rb");
 
   // Promo sudah dihapus. getPlanPrice masih menerima tanggal supaya promo
@@ -241,11 +241,11 @@ console.log("\nHARGA — satu harga, tanpa promo");
   // lebih murah per orang, kalau tidak pembeli yang menghitung akan selalu
   // memilih paket kecil dan paket besar tidak pernah laku.
   laporkan(NORMAL_PRICES.enterprise > NORMAL_PRICES.professional,
-    "Rumah Sakit lebih mahal dari Klinik");
+    "Enterprise lebih mahal dari Pro");
   const perKursi = (p: "professional" | "enterprise") =>
     NORMAL_PRICES[p] / PLAN_LIMITS[p].maxEmployees;
   laporkan(perKursi("enterprise") < perKursi("professional"),
-    "Rumah Sakit lebih murah PER KURSI dari Klinik",
+    "Enterprise lebih murah PER KURSI dari Pro",
     ` — Rp ${perKursi("enterprise").toLocaleString("id-ID")} vs Rp ${perKursi("professional").toLocaleString("id-ID")}`);
 }
 
