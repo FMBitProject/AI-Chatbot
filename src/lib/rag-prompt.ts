@@ -48,3 +48,55 @@ export const GROUNDING_REMINDER =
 // model still has to write readable Indonesian and greedy decoding makes it
 // repeat itself.
 export const RAG_TEMPERATURE = 0.2;
+
+// How an answer reads, for the same four channels the rules above govern.
+//
+// Separate from GROUNDING_RULES because the two are different kinds of rule and
+// only one of them is safety-critical. Everything above decides what may appear
+// in an answer; everything here decides how it is worded once that question is
+// settled. Keeping them apart is what makes it safe to loosen the tone later
+// without anyone having to reread the grounding contract to check what moved.
+//
+// The problem it fixes: a chat answer to "untuk identifikasi pasien bagaimana
+// caranya" came back as five bold headings and eleven bullets — a faithful,
+// entirely grounded reformatting of the SOP, and nothing a colleague would ever
+// say out loud. The old rules asked for exactly that. They specified a "formal,
+// professional tone appropriate for a corporate internal knowledge base" (a
+// description of an archive, not of a conversation) and then asked for bold
+// headings, bullets and numbered lists as the default shape of every answer,
+// with nothing anywhere instructing the model to address the person asking.
+//
+// Unnumbered on purpose. The chat prompt continues GROUNDING_RULES at 5 with
+// its own numbered rules, while the three shorter channels append prose; a
+// block with no numbers of its own drops into either without renumbering.
+//
+// Deliberately not paired with a temperature change. Warmth here comes from
+// instructions, which are auditable, rather than from sampling, which is not:
+// RAG_TEMPERATURE stays where it is precisely because the invented connective
+// tissue it holds back is the same connective tissue a friendlier voice invites.
+export const ANSWER_STYLE = `VOICE AND SHAPE (this section changes how an answer is worded, never what it may contain — where it disagrees with rules 1-4 above, those win):
+- Open by naming where the answer comes from, as an ordinary sentence rather than a header: "Menurut SOP Identifikasi Pasien, ..." / "Berdasarkan Kebijakan Cuti, ...". Use the document title exactly as it is written above the excerpt you are using. If the excerpts carry no title, open without one — never invent or guess a title, and never name a document you did not quote.
+- Write to the person asking. Aim for a senior colleague who knows the document well and is explaining it to someone on the same shift: warm, plain, professional. Not stiff, not chatty. No emoji, no exclamation marks, no flattery about the question.
+- Let the question decide the shape. A definition, a yes/no, a single figure or a one-step answer is one to three plain sentences: do not inflate it into headings and bullets because the source document is formatted that way. A procedure that really is a sequence of four or more steps keeps its numbered list, but introduce it with a sentence of your own ("Prosedurnya ada lima tahap:") and write each step as a sentence, not as a bold heading with sub-bullets under it. Between those two cases, prefer prose.
+- Keep the document's own words for the things that must not drift — terms, names, numbers, and every qualifier attached to a number — and use your own for the sentences that connect them.
+- The not-found message is the exception to all of the above. When the documents do not answer the question, send that exact sentence by itself: no opener naming a document, no apology in your own words, no offer to help further, nothing before it and nothing after it.`;
+
+// An invitation to keep going, for the channels where "going on" is a thing the
+// reader can actually do.
+//
+// Not part of ANSWER_STYLE because it is wrong in two of the four places that
+// block is used: /api/v1/query answers an integration, which cannot take up an
+// offer and will paste the question straight into whatever it renders, and the
+// public demo is capped at 120 words and steers people towards its own sample
+// questions.
+//
+// The "only when the documents hold more" clause is what stops this from
+// reopening the hole the grounding rules close. An unbounded offer to elaborate
+// is an offer to elaborate from memory: a model that has exhausted the context
+// and is asked to suggest a follow-up will happily propose one it can only
+// answer by inventing, and the reader has no way to know that until they accept.
+export const FOLLOW_UP_OFFER =
+  "- Close with one short offer to go further, naming the specific thing you could expand on (\"Mau saya perinci "
+  + "tahap verifikasinya?\") rather than a generic \"let me know if you need anything else\". Offer it only when "
+  + "the excerpts you were given actually hold more on that point — if they do not, end on the answer instead. One at "
+  + "most, one line, and never after a not-found message.";
