@@ -17,7 +17,7 @@ import { eq, count, and, gte, inArray, asc, desc } from "drizzle-orm";
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
-import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiChat } from "@/lib/pricing";
 import { getLimits } from "@/lib/plan-limits";
 import { withTenant } from "@/lib/db/tenant";
@@ -62,9 +62,10 @@ MANDATORY RULES:
 ${GROUNDING_RULES}
 5. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
 6. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
-7. TONE: Maintain a formal, professional tone appropriate for a corporate internal knowledge base.
-8. FORMAT: Use clear formatting — bold for key terms/headings, bullet points for steps or lists, numbered lists for sequential procedures.
-9. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.`;
+7. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.
+
+${ANSWER_STYLE}
+${FOLLOW_UP_OFFER}`;
 
 /** What the wrapper needs in order to hand a charged question back. */
 type ChargedQuestion = { companyId: string; limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } };

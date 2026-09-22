@@ -6,7 +6,7 @@
 // Jalankan: npm run test:rag
 
 import { chunkText } from "../src/lib/chunker.ts";
-import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "../src/lib/rag-prompt.ts";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "../src/lib/rag-prompt.ts";
 import {
   calculateRoi,
   ROI_DEFAULTS,
@@ -123,6 +123,34 @@ sama(
   true,
   "pengingat menyuruh membaca ULANG jawaban, bukan sekadar mengulang aturannya",
 );
+
+console.log("\nGAYA JAWABAN — rag-prompt");
+sama(
+  /^-/m.test(ANSWER_STYLE) && !/^[0-9]\./m.test(ANSWER_STYLE),
+  true,
+  "blok gaya tidak bernomor — supaya bisa ditempel di prompt chat (yang bernomor) maupun tiga kanal pendek",
+);
+sama(
+  /not-found message is the exception/i.test(ANSWER_STYLE),
+  true,
+  "pesan tidak-ditemukan dikecualikan dari semua aturan gaya — kalimatnya harus berdiri sendiri, kalau tidak footer sumber Slack ikut terbawa",
+);
+sama(
+  /never invent or guess a title/i.test(ANSWER_STYLE),
+  true,
+  "menyebut nama dokumen tidak boleh berubah jadi menebak nama dokumen",
+);
+sama(
+  /never after a not-found message/i.test(FOLLOW_UP_OFFER),
+  true,
+  "tawaran lanjutan dilarang menempel pada jawaban tidak-ditemukan",
+);
+sama(
+  /actually hold more/i.test(FOLLOW_UP_OFFER),
+  true,
+  "tawaran lanjutan hanya boleh untuk hal yang memang ada di kutipan — kalau tidak, jawabannya nanti dikarang",
+);
+sama(RAG_TEMPERATURE, 0.2, "suhu TIDAK dinaikkan demi nada yang lebih hangat");
 
 console.log("\nMODEL ROI — roi");
 const r = calculateRoi(ROI_DEFAULTS);

@@ -12,7 +12,7 @@ import { checkRateLimit, consumeRateLimit, getClientIp } from "@/lib/rate-limit"
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 import { generateWithFallback, isRateLimitFailure } from "@/lib/models";
 import { billsOwnProvider, resolveByok } from "@/lib/byok";
-import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiAnswers } from "@/lib/pricing";
 import { withApiErrors } from "@/lib/api-error";
 import { AiUnavailableError, AppError, type ErrorCode } from "@/lib/errors";
@@ -121,7 +121,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // note further down congratulates itself on avoiding.
   let stage: "embedding" | "retrieval" | "generation" = "embedding";
   let answer: { text: string; model: { id: string } };
-  let scored: { id: string; text: string }[];
+  let scored: { id: string; text: string; documentName: string }[];
 
   try {
     const queryEmbedding = await getEmbedding(question, byok.gemini);
@@ -137,7 +137,11 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       maxContextChars: 8000,
     }, tx))).slice(0, 4);
 
-    const context = scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n");
+    // With titles, so an answer can say which document it is quoting instead of
+    // inventing a name for one. The `sources` array this route returns carries
+    // ids and excerpts only, so the title was not reaching the model by any
+    // other route.
+    const context = scored.map((c, i) => `[${i + 1}] ${c.documentName}\n${c.text}`).join("\n\n");
     const langRule = language === "en" ? "Respond in English." : "Jawab dalam Bahasa Indonesia.";
 
     // Down the shared chain rather than one hardcoded model. This endpoint is
@@ -154,7 +158,11 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       // figure worse, not better: it arrives as JSON in someone else's system with
       // a `sources` array beside it, and nothing downstream can tell which
       // sentence came from a document.
-      system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant.\n\n${GROUNDING_RULES}\n\n${langRule}\n\n${GROUNDING_REMINDER}`,
+      // ANSWER_STYLE, but not FOLLOW_UP_OFFER: this endpoint answers an
+      // integration rather than a person, and an offer to elaborate is addressed
+      // to someone who can accept it. Rendered verbatim inside somebody else’s
+      // product, "mau saya perinci?" is a promise their UI cannot keep.
+      system: `You are ${company?.aiName ?? "IntelliBase AI"}, an internal company AI assistant.\n\n${GROUNDING_RULES}\n\n${ANSWER_STYLE}\n\n${langRule}\n\n${GROUNDING_REMINDER}`,
       prompt: `Context:\n${context}\n\nQuestion: ${question}`,
       temperature: RAG_TEMPERATURE,
     });

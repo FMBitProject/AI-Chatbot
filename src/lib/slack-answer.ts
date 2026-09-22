@@ -3,7 +3,7 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { generateWithFallback } from "@/lib/models";
-import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { escapeSlackText } from "@/lib/slack";
 
 // The exact sentence the model is told to send when the documents do not
@@ -44,7 +44,11 @@ const SLACK_SYSTEM_PROMPT = `You are an internal AI assistant.
 
 ${GROUNDING_RULES}
 
-Use exact terminology from the source documents. Respond in the same language as the user. If no relevant information is found, reply with exactly "${NOT_FOUND_ID}" for an Indonesian question or "${NOT_FOUND_EN}" for an English one, and nothing else. Keep answers concise and professional.
+Respond in the same language as the user. If no relevant information is found, reply with exactly "${NOT_FOUND_ID}" for an Indonesian question or "${NOT_FOUND_EN}" for an English one, and nothing else.
+
+${ANSWER_STYLE}
+${FOLLOW_UP_OFFER}
+- Slack is the shortest channel this product answers in. Stay under roughly 150 words: the voice rules above decide how the answer reads, this line decides how much of it there is, and a friendlier tone is not a licence to write more.
 
 ${GROUNDING_REMINDER}`;
 
@@ -140,8 +144,16 @@ export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAns
     maxContextChars: 6000,
   }, tx))).slice(0, MAX_SLACK_CHUNKS);
 
+  // Each excerpt carries its document title, which it did not before.
+  //
+  // The voice rules ask an answer to open by naming what it is quoting, and the
+  // title was reaching this channel only in the footer formatSlackAnswer adds
+  // afterwards — outside the prompt entirely. A model asked to name its source
+  // with no source name in front of it does not decline; it produces a
+  // plausible-sounding title, which is rule 1 broken in the one place a reader
+  // would never think to check.
   const context = scored.length > 0
-    ? scored.map((c, i) => `[${i + 1}] ${c.text}`).join("\n\n")
+    ? scored.map((c, i) => `[${i + 1}] ${c.documentName}\n${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
   const { text } = await generateWithFallback({
