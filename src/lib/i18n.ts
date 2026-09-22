@@ -27,12 +27,10 @@ const entDaily: number = ent.maxQuestionsPerDay;
 const entPerUser: number = ent.maxQuestionsPerDayPerUser;
 const proDaily: number = pro.maxQuestionsPerDay;
 const proPerUser: number = pro.maxQuestionsPerDayPerUser;
-// No staDaily/staMonthly any more, and their absence is the point: Starter has
-// no question allowance to advertise because it has no AI answers (see
-// canUseAiAnswers in @/lib/pricing). The numbers still exist in PLAN_LIMITS as
-// the allowance the tier would get if that rule were ever relaxed; what must not
-// exist is copy quoting them, which is what made the pricing page promise a
-// chat the app now declines to give.
+// Starter's in-app chat allowance is shared by company and individual accounts.
+// Read both caps here so advertised questions match the enforced quota.
+const staDaily: number = sta.maxQuestionsPerDay;
+const staMonthly: number = sta.maxQuestionsPerMonth;
 const perDaily: number = per.maxQuestionsPerDay;
 const perMonthly: number = per.maxQuestionsPerMonth;
 // -1 is how PLAN_LIMITS spells "unlimited", and it reaches these strings
@@ -496,13 +494,10 @@ export const pricing = {
       { name: PLAN_LABELS.custom, desc: "Untuk grup RS, multi-cabang, atau industri lain" },
     ],
     features: [
-      // Starter searches; it does not get answers. The first five entries are
-      // the ones rendered with a tick (see the free-card rule in the pricing
-      // page), so everything true of the free plan has to sit above the line and
-      // "Chat AI" has to sit below it — this list claimed the opposite until the
-      // answers became a paid feature, which would have been a promise the app
-      // refuses to keep the moment someone signs up.
-      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Pencarian dokumen: temukan & baca kutipan aslinya", "Upload PDF, DOCX, Excel & PowerPoint", "Isolasi data penuh antar perusahaan", "Chat AI: jawaban otomatis lengkap dengan sumber", "Analytics lengkap", "Notifikasi email", "Role per departemen", "Prioritas dukungan"],
+      // The free card checks exactly five entries. Combine the two question
+      // caps in one entry so AI chat and every free benefit stay above the line;
+      // only paid integrations belong below it, never chat or data isolation.
+      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Chat AI: jawaban otomatis lengkap dengan sumber", `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint · data terisolasi", "Integrasi Slack", "API publik", "Impor dokumen dari Google Drive", "Bisa pakai API key sendiri (BYOK)"],
       [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 24 jam"],
       [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap + ekspor", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       // TODO: MINOR — "Onboarding & pendampingan langsung" menjanjikan layanan
@@ -518,8 +513,8 @@ export const pricing = {
     // Starter's greyed-out items are exactly what Personal adds, which is what
     // the free card's "first five are checked" rule expects: the five above the
     // line are true of the free plan, and everything below it is the upgrade.
-    // Folders are not on that line — they are not plan-gated, and putting them
-    // there would sell something the free tier already has.
+    // Chat, both question caps and private folders stay above the line; folders
+    // are not plan-gated and must never be presented as an upgrade.
     audienceIndividual: "Individu",
     audienceCompany: "Perusahaan",
     audienceIndividualHint: "Untuk satu orang: dokumen pribadi dan folder sendiri, tanpa kelola karyawan.",
@@ -531,14 +526,14 @@ export const pricing = {
       { name: "Personal", desc: "Untuk kebutuhan pribadi sehari-hari" },
     ],
     individualFeatures: [
-      ["Pencarian dokumen: temukan & baca kutipan aslinya", cap(idLimit(sta.maxDocuments, "dokumen")), "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Hanya Anda yang bisa membuka dokumen Anda", "Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Bisa pakai API key sendiri (BYOK)"],
+      ["Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(sta.maxDocuments, "dokumen")), `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi · hanya Anda yang bisa membuka dokumen Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Bisa pakai API key sendiri (BYOK)", "API publik", "Impor dokumen dari Google Drive"],
       ["1 pengguna, hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda", "Bisa pakai API key sendiri (BYOK)"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Apakah data perusahaan saya aman?", a: "Ya. Setiap perusahaan memiliki ruang data yang terisolasi penuh. Dokumen Anda tidak pernah dicampur atau dibagikan ke tenant lain." },
       { q: "Format dokumen apa yang didukung?", a: "Kami mendukung PDF, DOCX, Excel (.xlsx), dan PowerPoint (.pptx)." },
-      { q: "Apakah ada batasan pertanyaan?", a: `Jawaban AI tersedia mulai paket berbayar. Paket ${PLAN_LABELS.starter} yang gratis memakai pencarian dokumen: Anda mengetik pertanyaan, sistem menemukan bagian dokumen yang paling relevan, dan Anda membaca kutipan aslinya; yang tidak dilakukan adalah menuliskan jawabannya untuk Anda. Paket ${PLAN_LABELS.professional} dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket ${PLAN_LABELS.custom} tidak dibatasi. Silakan hubungi kami.` },
+      { q: "Apakah ada batasan pertanyaan?", a: `Chat AI di aplikasi tersedia pada paket ${PLAN_LABELS.starter}, gratis selamanya untuk akun Perusahaan dan Individu: ${idDaily(staDaily)} dan ${idLimit(staMonthly, "pertanyaan / bulan")}. Paket berbayar memberikan jatah lebih besar serta akses integrasi Slack, API publik, dan impor Google Drive. Paket ${PLAN_LABELS.professional} dibatasi ${idNum(proDaily)} pertanyaan/hari (untuk menjaga keadilan tim, maksimal ${idNum(proPerUser)} pertanyaan/hari per karyawan). ${idEntQuota} Kalau kebutuhan Anda di atas itu, paket ${PLAN_LABELS.custom} tidak dibatasi. Silakan hubungi kami.` },
       { q: "Bagaimana cara upgrade atau downgrade paket?", a: "Anda dapat mengubah paket kapan saja melalui dashboard admin. Perubahan berlaku di awal siklus billing berikutnya." },
       { q: "Apakah ada kontrak jangka panjang?", a: "Tidak. Semua paket berbasis bulanan dan dapat dibatalkan kapan saja tanpa biaya penalti." },
     ],
@@ -585,7 +580,7 @@ export const pricing = {
       { name: PLAN_LABELS.custom, desc: "For hospital groups, multi-site, or other industries" },
     ],
     features: [
-      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "Document search: find and read the original passage", "PDF, DOCX, Excel & PowerPoint upload", "Full data isolation between companies", "AI chat: written answers with their sources", "Full analytics", "Email notifications", "Department roles", "Priority support"],
+      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "AI chat: written answers with their sources", `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload · isolated data", "Slack integration", "Public API", "Import documents from Google Drive", "Bring your own API key (BYOK)"],
       [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 24h"],
       [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics + export", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", `Everything in ${PLAN_LABELS.enterprise}`, "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
@@ -601,14 +596,14 @@ export const pricing = {
       { name: "Personal", desc: "For everyday personal use" },
     ],
     individualFeatures: [
-      ["Document search: find and read the original passage", enLimit(sta.maxDocuments, "documents"), "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Only you can open your documents", "AI chat: written answers with their sources", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "Bring your own API key (BYOK)"],
+      ["AI chat: written answers with their sources", enLimit(sta.maxDocuments, "documents"), `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload", "Personal folders · only you can open your documents", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "Bring your own API key (BYOK)", "Public API", "Import documents from Google Drive"],
       ["1 user, just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history", "Bring your own API key (BYOK)"],
     ],
     fairUseNote: "",
     faqs: [
       { q: "Is my company data secure?", a: "Yes. Each company has a fully isolated data space. Your documents are never mixed with or shared to other tenants." },
       { q: "What document formats are supported?", a: "We support PDF, DOCX, Excel (.xlsx), and PowerPoint (.pptx)." },
-      { q: "Are there question limits?", a: `AI answers start with the paid plans. The free ${PLAN_LABELS.starter} plan uses document search: you type a question, the system finds the passages that match it, and you read the original text; what it does not do is write the answer for you. ${PLAN_LABELS.professional} is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the ${PLAN_LABELS.custom} plan is uncapped. Get in touch.` },
+      { q: "Are there question limits?", a: `In-app AI chat is available on ${PLAN_LABELS.starter}, free forever for Company and Individual accounts: ${enDaily(staDaily)} and ${enLimit(staMonthly, "questions / month")}. Paid plans add larger allowances plus Slack, public API and Google Drive import access. ${PLAN_LABELS.professional} is limited to ${enNum(proDaily)} questions/day (to keep things fair for the whole team, at most ${enNum(proPerUser)} questions/day per employee). ${enEntQuota} If you need more than that, the ${PLAN_LABELS.custom} plan is uncapped. Get in touch.` },
       { q: "How do I upgrade or downgrade my plan?", a: "You can change your plan at any time through the admin dashboard. Changes take effect at the start of the next billing cycle." },
       { q: "Is there a long-term contract?", a: "No. All plans are monthly and can be cancelled at any time without penalty." },
     ],

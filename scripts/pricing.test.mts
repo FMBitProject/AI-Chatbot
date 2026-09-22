@@ -27,6 +27,7 @@ import {
   planRank,
   planRankInForce,
   canUseAiAnswers,
+  canUseAiChat,
   formatRupiah,
   GRACE_PERIOD_DAYS,
   NORMAL_PRICES,
@@ -261,11 +262,26 @@ console.log("\nTIPE AKUN — isPlanAllowedFor");
 
 console.log("\nJAWABAN AI — canUseAiAnswers");
 {
-  laporkan(!canUseAiAnswers("starter"), "starter tidak dapat jawaban AI");
+  laporkan(!canUseAiAnswers("starter"), "starter tidak dapat integrasi AI berbayar");
   laporkan(!canUseAiAnswers(null), "tanpa paket tidak dapat jawaban AI");
   for (const paket of ["personal", "professional", "enterprise", "custom"]) {
     laporkan(canUseAiAnswers(paket), `${paket} dapat jawaban AI`);
   }
+}
+
+console.log("\nCHAT AI DI APLIKASI — canUseAiChat");
+{
+  laporkan(canUseAiChat("starter"), "starter company dan individual boleh chat");
+  for (const paket of [null, undefined, "paket-ngawur"]) {
+    laporkan(!canUseAiChat(paket), `${paket} tidak boleh chat`);
+  }
+  for (const paket of ["personal", "professional", "enterprise", "custom"]) {
+    laporkan(canUseAiChat(paket), `${paket} boleh chat`);
+  }
+  // Pemisahan ini menjaga Slack/API publik/Drive tetap khusus paket berbayar.
+  laporkan(!canUseAiAnswers("starter"), "chat gratis tidak membuka integrasi berbayar");
+  sama(getLimits("starter", true).maxQuestionsPerDay, 10, "BYOK starter tetap 10/hari");
+  sama(getLimits("starter", true).maxQuestionsPerMonth, 100, "BYOK starter tetap 100/bulan");
 }
 
 console.log("\nBATAS PAKET — plan-limits");

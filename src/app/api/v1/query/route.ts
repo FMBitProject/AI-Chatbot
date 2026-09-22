@@ -80,7 +80,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // endpoint instead of opening the app. Checked before the quota for the same
   // reason as there — a refusal must not spend the question it refuses.
   if (!canUseAiAnswers(subscription.plan)) {
-    return failure(req, 403, "AI_REQUIRES_PAID_PLAN", "Jawaban AI tersedia mulai paket berbayar. Paket gratis dapat memakai pencarian dokumen.");
+    return failure(req, 403, "AI_REQUIRES_PAID_PLAN", "API publik tersedia pada paket berbayar. Paket Starter dapat memakai Chat AI di aplikasi dengan jatah terbatas.");
   }
 
   // Before the quota is consumed, for the reason spelled out in /api/chat: an

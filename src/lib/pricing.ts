@@ -96,30 +96,24 @@ export function isPaidPlan(value: unknown): value is PaidPlan {
 }
 
 /**
- * Whether this plan may have its questions answered by the AI.
+ * Paid integration access: Slack, the public API and Google Drive import.
  *
- * The free tier searches; the paid tiers are answered. Document search
- * (/search) stays open to everyone — it costs one embedding call and nothing
- * from the model that is actually scarce.
- *
- * Two problems this solves at once. Generation runs through one Groq key shared
- * by every customer at 12,000 tokens per minute, so an unbounded free tier is
- * the paying customers queueing behind people who are not paying. And the gap
- * between Starter and Personal was only a number of questions, which is a weak
- * reason to pay; "read the passage yourself" versus "have it answered, with
- * sources" is a difference someone can feel in the first minute.
- *
- * Deliberately keyed on the *effective* plan (see getEffectiveSubscription), so
- * a lapsed subscription loses answers when its grace period ends, exactly as it
- * loses every other paid limit — and gets them back the moment it renews.
- *
- * If the free tier should instead get a small taste rather than nothing, this
- * is the one function to change: return true for starter and give it a low
- * per-day allowance in PLAN_LIMITS. That trade is a product decision, not a
- * technical one, which is why it is named and in one place.
+ * Starter gets in-app AI chat with a small quota. Paid plans add larger quotas
+ * and integrations, so access to AI answers alone is no longer the distinction.
+ * Callers use the effective plan so expiry also revokes paid integrations.
  */
 export function canUseAiAnswers(plan: string | null | undefined): boolean {
   return isPaidPlan(plan);
+}
+
+/**
+ * In-app chat is available to Starter for both company and individual accounts,
+ * within PLAN_LIMITS. Missing or unknown plans must not grant chat access.
+ * Keep this separate from canUseAiAnswers: merging them would give Slack and
+ * the public API (and Drive import) to free accounts.
+ */
+export function canUseAiChat(plan: string | null | undefined): boolean {
+  return plan === "starter" || isPaidPlan(plan);
 }
 
 export type Plan = "starter" | PaidPlan;

@@ -238,10 +238,10 @@ export class SeatFrozenError extends AppError {
   }
 }
 
-/** AI answers are a paid feature and this workspace is on the free tier. */
+/** Paid integration access was requested by a workspace on the free tier. */
 export class PaidPlanRequiredError extends AppError {
   constructor(userMessage: string) {
-    super("AI answers require a paid plan", "AI_REQUIRES_PAID_PLAN", 403, { userMessage });
+    super("This AI integration requires a paid plan", "AI_REQUIRES_PAID_PLAN", 403, { userMessage });
   }
 }
 
@@ -347,8 +347,8 @@ const USER_MESSAGES: Record<ErrorCode, { id: string; en: string }> = {
     en: "Your account is inactive. Please contact your company admin.",
   },
   AI_REQUIRES_PAID_PLAN: {
-    id: "Jawaban AI tersedia mulai paket berbayar.",
-    en: "AI answers are part of the paid plans.",
+    id: "Fitur AI ini memerlukan paket berbayar. Chat AI di aplikasi tersedia pada Starter dengan jatah terbatas.",
+    en: "This AI feature requires a paid plan. In-app AI chat is available on Starter with limited allowances.",
   },
   BYOK_KEY_UNREADABLE: {
     id: "Kunci API tersimpan tidak dapat dibaca. Hubungi dukungan.",

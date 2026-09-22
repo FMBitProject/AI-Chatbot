@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       // leaving it open would make the gate a suggestion: a Starter workspace
       // would simply ask from Slack instead.
       if (!canUseAiAnswers(subscription.plan)) {
-        await reply(responseUrl, "🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.");
+        await reply(responseUrl, "🔒 Integrasi Slack tersedia pada paket berbayar. Paket Starter dapat memakai Chat AI di aplikasi dengan jatah terbatas.");
         return;
       }
 
