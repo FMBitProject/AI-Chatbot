@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   const { subscription, limits } = await resolvePlanById(companyId);
   if (!canUseAiAnswers(subscription.plan)) {
     return NextResponse.json(
-      { error: "Impor dari Google Drive tersedia di paket Klinik dan Rumah Sakit." },
+      { error: "Impor dari Google Drive tersedia di paket Pro dan Enterprise." },
       { status: 403 },
     );
   }

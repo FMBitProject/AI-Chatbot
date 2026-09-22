@@ -19,11 +19,6 @@ export type AdminNavItem = {
 // most of all — as being on the free tier. Moved out of the old header with
 // the badge itself; the dark sidebar needs its own colours for these, because
 // the light-background pills were unreadable on it.
-// TODO: MINOR — "⚡ Rumah Sakit" dan "✦ Klinik" jauh lebih panjang dari label
-// lamanya ("⚡ Enterprise", "✦ Pro"), dan badge ini duduk di sidebar sempit yang
-// bisa menciut. Belum diverifikasi secara visual (sandbox tidak bisa screenshot
-// halaman Next). Periksa di dashboard; kalau terpotong, pakai `truncate` atau
-// label pendek khusus sidebar.
 const PLAN_BADGE: Record<Plan, { label: string; className: string }> = {
   custom: { label: "★ Custom", className: "bg-white text-gray-900" },
   enterprise: { label: `⚡ ${PLAN_LABELS.enterprise}`, className: "bg-teal-500/20 text-teal-200 border border-teal-400/30" },

@@ -35,8 +35,8 @@ export function isPlanAllowedFor(
 // clinics. The two paid company tiers keep the plan ids `professional` and
 // `enterprise`, because those ids are written into Midtrans orders, the payment
 // webhook, the downgrade guards and every plan-gated route — renaming them
-// would be a data migration bought for nothing. What a buyer reads is "Klinik"
-// and "Rumah Sakit" (src/lib/i18n.ts); what the database stores is unchanged.
+// would be a data migration bought for nothing. What a buyer reads is "Pro"
+// and "Enterprise" (PLAN_LABELS below); what the database stores is unchanged.
 //
 // Why these numbers, since the ones they replace are the reason this was
 // revisited. At Rp 500.000 for 100 seats, Enterprise sold an entire type-C
@@ -68,20 +68,13 @@ export const NORMAL_PRICES: Record<PurchasablePlan, number> = {
 // What a customer calls each plan. Separate from the plan id, which is what the
 // database, Midtrans orders and every guard use and which must not change.
 //
-// This exists because the label is not only on the pricing page: it is on the
-// plan badge in the dashboard sidebar, in the "your plan does not include this"
-// errors, and on the Midtrans invoice. Those drifted apart the last time a tier
-// was renamed in the price table alone, and a buyer who is quoted "Klinik" then
-// billed for "Professional" has to ask whether they bought the right thing.
-//
-// Not translated. These are product names, and the Indonesian and English pages
-// should quote a hospital the same word — "Rumah Sakit" is the name of the
-// package, not a description that needs an English equivalent.
+// Shared by pricing, dashboard badges, feature errors and checkout invoices.
+// Product names stay the same in Indonesian and English.
 export const PLAN_LABELS: Record<Plan, string> = {
   starter: "Starter",
   personal: "Personal",
-  professional: "Klinik",
-  enterprise: "Rumah Sakit",
+  professional: "Pro",
+  enterprise: "Enterprise",
   custom: "Custom",
 };
 

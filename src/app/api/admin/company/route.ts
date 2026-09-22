@@ -150,9 +150,9 @@ export async function PATCH(req: NextRequest) {
         // Names the audience, not a position on one ladder. The guard here is
         // requireAdmin, not requireCompanyAdmin, so an individual account's
         // admin reaches this line — and BYOK_PLANS grants them BYOK on Personal.
-        // "Klinik ke atas" would tell a solo practitioner to buy a hospital
+        // "Pro ke atas" would tell a solo practitioner to buy a hospital
         // package for something their own plan already includes.
-        { error: "Menyimpan API key sendiri tersedia di paket berbayar: Personal untuk akun Individu, Klinik ke atas untuk akun Perusahaan." },
+        { error: "Menyimpan API key sendiri tersedia di paket berbayar: Personal untuk akun Individu, Pro ke atas untuk akun Perusahaan." },
         { status: 403 },
       );
     }

@@ -7,6 +7,7 @@ import { ArrowRight, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { AiProvidersCard } from "./AiProvidersCard";
 import Link from "next/link";
+import { PLAN_LABELS as SHARED_PLAN_LABELS } from "@/lib/pricing";
 
 interface SubData {
   // plan = what applies right now; purchasedPlan = what was last paid for.
@@ -20,7 +21,7 @@ interface SubData {
   history: { id: string; orderId: string; plan: string; amount: string; status: string; snapToken?: string | null; createdAt: string; paidAt?: string | null }[];
 }
 
-const PLAN_LABELS: Record<string, string> = { starter: "Free Starter", personal: "Personal", professional: "Professional", enterprise: "Enterprise", custom: "Custom" };
+const PLAN_LABELS: Record<string, string> = { ...SHARED_PLAN_LABELS, starter: "Free Starter" };
 const STATUS_LABELS: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
   paid_review: { label: "Dibayar — perlu pemeriksaan", variant: "secondary" },
   paid: { label: "Lunas", variant: "success" },

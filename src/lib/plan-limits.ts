@@ -15,8 +15,7 @@
 // whose questions are not on our bill at all; see getLimits below.
 //
 // The two paid company tiers are sized for what they are sold as — `professional`
-// is the "Klinik" package (25 staff, 300 documents) and `enterprise` is "Rumah
-// Sakit" (150 staff, 1.000 documents); see the pricing rationale in pricing.ts.
+// is the "Pro" package (25 staff, 300 documents) and `enterprise` is "Enterprise" (150 staff, 1.000 documents); see the pricing rationale in pricing.ts.
 // The seat numbers are the real fence here: a hospital that tries to take the
 // smaller package runs out of seats during onboarding rather than quietly
 // fitting its whole estate into the cheaper tier, which is what 100 seats on

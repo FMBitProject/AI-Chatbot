@@ -14,7 +14,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Harga & Paket Langganan",
   description:
-    "Paket Starter gratis, Klinik, dan Rumah Sakit untuk knowledge base internal berbasis AI. Semua paket termasuk enkripsi data dan isolasi multi-tenant per perusahaan.",
+    "Paket Starter gratis, Pro, Enterprise, dan Custom untuk knowledge base internal berbasis AI. Semua paket termasuk enkripsi data dan isolasi multi-tenant per perusahaan.",
   // No `openGraph` key — see the note in src/app/page.tsx.
   alternates: { canonical: "/pricing" },
 };
