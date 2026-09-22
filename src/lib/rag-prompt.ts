@@ -96,8 +96,100 @@ export const ANSWER_STYLE = `VOICE AND SHAPE (this section changes how an answer
 // and is asked to suggest a follow-up will happily propose one it can only
 // answer by inventing, and the reader has no way to know that until they accept.
 export const FOLLOW_UP_OFFER =
-  "- Close with one short offer to go further, naming the specific thing you could expand on (\"Mau saya perinci "
-  + "tahap verifikasinya?\") rather than a generic \"let me know if you need anything else\". Offer it only when "
-  + "the excerpts in front of you visibly hold more on that point — point at text you can actually see, not at a "
-  + "topic that sounds like it should be in the document. If you cannot find it in the excerpts, end on the answer "
-  + "instead. One at most, one line, and never after a not-found message.";
+  "- Close with one short offer to go further, and pick what to offer from the OFFERABLE DETAILS list below. Say "
+  + "what that entry is ABOUT, in your own natural phrasing — never paste the line as written. The entry \"Gelang "
+  + "tambahan dipasang bila ada risiko khusus\" becomes \"Mau saya jelaskan soal gelang tambahan untuk risiko "
+  + "khusus?\", not \"Mau saya perinci Gelang tambahan dipasang bila ada risiko khusus?\". Nothing outside that list "
+  + "may be offered, however obviously a document like this one ought to contain it: an offer the excerpts cannot "
+  + "honour costs the reader a turn and comes back \"not found\". If the list is absent or empty, or nothing in it is "
+  + "worth offering, end on the answer with no offer at all. One at most, one line, and never after a not-found "
+  + "message.";
+
+// The list of things a closing offer is allowed to be about.
+//
+// FOLLOW_UP_OFFER used to state the rule and trust the model to apply it:
+// offer only what the excerpts hold. The primary Groq model (a small one)
+// obeyed the shape of that instruction and not its substance — after an answer
+// about what each wristband colour means, it offered "Mau saya perinci prosedur
+// penanganan pasien DNR?", a procedure that appears nowhere in the excerpt. The
+// offer is plausible, adjacent, and exactly the kind of thing a document like
+// that *would* contain, which is why a model reaches for it and why a reader
+// accepts it. Accepting costs a turn and comes back "tidak ditemukan".
+//
+// Tightening the sentence was tried first and changed nothing. So the rule stops
+// being a rule and becomes a menu: the excerpts are reduced to a list of short
+// phrases taken verbatim from them, and the offer has to be about one of those.
+// Choosing from a closed list is a task a small model can actually do; judging
+// whether something it just thought of appears in a wall of text is not.
+//
+// Fail-closed, and this is the half that matters: when nothing can be extracted,
+// the list is empty and the instruction becomes "do not offer". No list, no
+// offer — never "no list, use your judgement".
+//
+// Extraction is deliberately dumb and has to stay that way. It reads the leading
+// clause of each sentence, which is where Indonesian and English both put the
+// subject, and it never paraphrases: every phrase in the list is a substring of
+// a document the customer uploaded. A cleverer extractor that summarised would
+// reintroduce the exact failure this replaces, one level further down.
+
+/** Leading list markers ("1.", "-", "•") and citation markers ("[1]"). */
+const LEAD_NOISE = /^(?:\[\d+\]\s*)?(?:\d+[.)]\s*|[-*•]\s*)?/;
+
+/**
+ * Short phrases, taken verbatim from the excerpts, that a follow-up offer may
+ * be about.
+ *
+ * Deduplicated case-insensitively and capped, because this goes into every
+ * prompt: the list is a menu, not a second copy of the context. Markdown
+ * headings come first when a document has them — they are what the author
+ * themselves considered a topic — and leading clauses fill the rest.
+ */
+export function offerableDetails(excerpts: { text: string }[], max = 8): string[] {
+  const seen = new Set<string>();
+  const headings: string[] = [];
+  const clauses: string[] = [];
+
+  const add = (into: string[], raw: string) => {
+    const phrase = raw.replace(LEAD_NOISE, "").replace(/\s+/g, " ").trim().replace(/[.,;:]+$/, "");
+    const words = phrase.split(" ").filter(Boolean);
+    if (words.length < 3) return;
+    // Eight words is long enough to name a topic and short enough that the
+    // model quotes it rather than re-writing it.
+    const capped = words.slice(0, 8).join(" ");
+    const key = capped.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    into.push(capped);
+  };
+
+  for (const excerpt of excerpts) {
+    const text = (excerpt.text ?? "").replace(/\r\n?/g, "\n");
+    for (const line of text.split("\n")) {
+      const heading = /^#{1,6}\s+(.*)$/.exec(line.trim());
+      if (heading) add(headings, heading[1]);
+    }
+    // Sentences, then the first clause of each: the part before the comma,
+    // colon or bracket that starts the detail.
+    for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
+      const lead = sentence.split(/[,:;(]/)[0];
+      if (lead.trim().length > 0) add(clauses, lead);
+    }
+  }
+
+  return [...headings, ...clauses].slice(0, max);
+}
+
+/**
+ * The menu as it appears in a prompt, or "" when there is nothing to offer.
+ *
+ * The empty string is not a degenerate case to be tidied away later — it is how
+ * "this answer gets no closing offer" is expressed, and FOLLOW_UP_OFFER is
+ * written to read correctly without this section present.
+ */
+export function offerableDetailsBlock(details: string[]): string {
+  if (details.length === 0) return "";
+  return "OFFERABLE DETAILS — where the excerpts above go on to say more. This list exists for ONE purpose: to "
+    + "choose the closing offer from. It is not extra context, it answers nothing, and no line of it may be copied "
+    + "into the body of the answer.\n"
+    + details.map((d) => `- ${d}`).join("\n");
+}

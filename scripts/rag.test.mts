@@ -6,7 +6,7 @@
 // Jalankan: npm run test:rag
 
 import { chunkText } from "../src/lib/chunker.ts";
-import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "../src/lib/rag-prompt.ts";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, offerableDetails, offerableDetailsBlock } from "../src/lib/rag-prompt.ts";
 import {
   calculateRoi,
   ROI_DEFAULTS,
@@ -147,11 +147,58 @@ sama(
   "tawaran lanjutan dilarang menempel pada jawaban tidak-ditemukan",
 );
 sama(
-  /visibly hold more/i.test(FOLLOW_UP_OFFER),
+  /OFFERABLE DETAILS/.test(FOLLOW_UP_OFFER),
   true,
-  "tawaran lanjutan hanya boleh untuk hal yang memang ada di kutipan — kalau tidak, jawabannya nanti dikarang",
+  "tawaran lanjutan dipilih dari daftar tertutup, bukan dari penilaian model sendiri — memperketat kalimat aturan sudah dicoba dan gagal",
 );
 sama(RAG_TEMPERATURE, 0.2, "suhu TIDAK dinaikkan demi nada yang lebih hangat");
+
+console.log("\nMENU TAWARAN PENUTUP — offerableDetails");
+const kutipan = [{
+  text: "Gelang identitas berisi nama lengkap, tanggal lahir, dan nomor rekam medis. "
+    + "Gelang tambahan dipasang bila ada risiko khusus: merah untuk alergi, kuning untuk risiko jatuh.",
+}];
+const menu = offerableDetails(kutipan);
+sama(menu.length > 0, true, "kalimat biasa menghasilkan menu");
+sama(
+  menu.every((entri) => kutipan[0].text.includes(entri)),
+  true,
+  "SETIAP entri menu adalah potongan harfiah dari kutipan — tidak ada yang diparafrase",
+);
+sama(
+  menu.every((entri) => entri.split(" ").length <= 8),
+  true,
+  "entri dipotong 8 kata: cukup untuk menamai topik, tidak cukup untuk jadi jawaban",
+);
+sama(
+  menu.some((entri) => /gelang tambahan/i.test(entri)),
+  true,
+  "klausa pembuka kalimat kedua ikut masuk — itu yang ditawarkan model sebagai lanjutan",
+);
+sama(offerableDetails(kutipan, 2).length, 2, "batas jumlah entri dihormati");
+sama(
+  offerableDetails([{ text: "Gelang identitas berisi nama lengkap. GELANG IDENTITAS BERISI NAMA LENGKAP." }]).length,
+  1,
+  "duplikat beda huruf besar-kecil hanya dihitung sekali",
+);
+sama(offerableDetails([{ text: "30 menit." }]).length, 0, "penggalan di bawah 3 kata tidak layak ditawarkan");
+sama(offerableDetails([]).length, 0, "tanpa kutipan, tidak ada yang bisa ditawarkan");
+sama(offerableDetailsBlock([]), "", "menu kosong = blok kosong, dan itulah cara 'jangan menawarkan apa pun' dinyatakan");
+sama(
+  offerableDetails([{ text: "## Verifikasi Identitas Pasien\nPetugas meminta pasien menyebutkan nama lengkap." }])[0],
+  "Verifikasi Identitas Pasien",
+  "judul Markdown didahulukan — penulis dokumennya sendiri yang menyebutnya topik",
+);
+sama(
+  /only one purpose|ONE purpose/i.test(offerableDetailsBlock(menu)),
+  true,
+  "blok menyatakan dirinya khusus untuk memilih tawaran, supaya isinya tidak bocor jadi jawaban",
+);
+sama(
+  /Nothing outside that list/i.test(FOLLOW_UP_OFFER) && /no offer at all/i.test(FOLLOW_UP_OFFER),
+  true,
+  "aturan tawaran menutup dua sisi: di luar daftar dilarang, daftar kosong berarti tanpa tawaran",
+);
 
 console.log("\nPERTANYAAN LANJUTAN — follow-up");
 const sebelumnya = "gelang identitas berisi apa saja?";

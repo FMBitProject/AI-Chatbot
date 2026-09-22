@@ -18,7 +18,7 @@ import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate"
 import { getEmbedding } from "@/lib/embeddings";
 import { retrievalQueryFor } from "@/lib/follow-up";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
-import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, offerableDetails, offerableDetailsBlock } from "@/lib/rag-prompt";
 import { canUseAiChat } from "@/lib/pricing";
 import { getLimits } from "@/lib/plan-limits";
 import { withTenant } from "@/lib/db/tenant";
@@ -585,6 +585,19 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       + "not-found message from the LANGUAGE RULE and stop. The catalog above lists titles only — it can "
       + "still answer questions about which documents exist, never about their contents.)";
 
+  // The closed list the closing offer has to choose from (see rag-prompt.ts).
+  //
+  // Built from `scored` — the chunks that were actually quoted — rather than
+  // from the catalogue or the whole document, because the offer has to be
+  // honourable by the very excerpts in this prompt. Offering something that is
+  // in the document but not in the excerpts fails for the same reason inventing
+  // it does: the next turn retrieves afresh and may still not see it.
+  //
+  // Empty when nothing could be extracted, and empty is a working state: the
+  // block disappears and FOLLOW_UP_OFFER's "if the list is absent or empty …
+  // end with no offer" takes over.
+  const offerable = offerableDetailsBlock(offerableDetails(scored));
+
   const solo = company?.accountType === "individual";
   const notFoundId = notFoundMessage("id", solo);
   const notFoundEn = notFoundMessage("en", solo);
@@ -639,7 +652,7 @@ If no relevant information is found:
     ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
     : "Remember: detect the user's question language and respond in that same language.";
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${personaReminder ? `${personaReminder}\n\n` : ""}${langReminder}`;
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n${offerable ? `\n${offerable}\n---\n` : ""}\n${GROUNDING_REMINDER}\n\n${personaReminder ? `${personaReminder}\n\n` : ""}${langReminder}`;
 
   const userMsgId = randomUUID();
   await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
