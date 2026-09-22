@@ -288,6 +288,27 @@ export const admin = {
     personality: "Instruksi Kepribadian (opsional)",
     personalityHint: "Instruksi tambahan untuk mengatur gaya dan tone AI",
     personalityPlaceholder: "Contoh: Selalu jawab dengan nada ramah namun profesional. Gunakan kata 'Anda' bukan 'kamu'. Tambahkan emoji relevan di akhir jawaban.",
+    // Tiga titik awal untuk kotak kepribadian di atas, bukan tiga mode tersembunyi.
+    //
+    // Kolom itu sudah ada sejak lama dan hampir selalu kosong, yang berarti
+    // nadanya selalu nada bawaan kami. Penghalangnya bukan kemauan, melainkan
+    // halaman kosong: label "instruksi kepribadian" tidak memberi tahu siapa pun
+    // kalimat seperti apa yang berpengaruh. Menekan salah satu tombol ini
+    // mengisi kotaknya dengan teks yang masih bisa disunting — yang tersimpan
+    // tetap satu kolom aiPersonality, jadi tidak ada migrasi dan tidak ada mode
+    // baru yang harus dijaga di sisi server.
+    //
+    // Ketiganya hanya bicara soal NADA. Tidak satu pun menyuruh AI menambah
+    // informasi, memperkirakan, atau melengkapi yang tidak ada di dokumen: itu
+    // wilayah aturan grounding, dan sebuah preset yang menyentuhnya akan jadi
+    // cara termudah mematikan pengaman produk ini dari halaman admin.
+    tonePresetLabel: "Nada cepat",
+    tonePresetHint: "Menekan salah satu akan mengisi kotak di bawah. Teksnya tetap bisa Anda ubah.",
+    tonePresets: [
+      { name: "Hangat", text: "Jawab seperti rekan kerja yang membantu: gunakan sapaan 'Anda', tulis dengan kalimat yang mengalir, dan bila masih ada bagian lain di dokumen yang berkaitan, tawarkan untuk menjelaskannya." },
+      { name: "Formal", text: "Gunakan bahasa Indonesia formal dan lugas seperti dokumen resmi. Tanpa sapaan basa-basi dan tanpa emoji. Sebut nama unit, jabatan, dan istilah persis seperti tertulis di dokumen." },
+      { name: "Ringkas", text: "Jawab sesingkat mungkin: langsung ke inti, paling banyak tiga kalimat atau satu daftar pendek. Tanpa kalimat pembuka dan tanpa penutup." },
+    ],
     savePersona: "Simpan Persona",
     savingPersona: "Menyimpan...",
     auditTitle: "Audit Log",
@@ -393,6 +414,17 @@ export const admin = {
     personality: "Personality Instructions (optional)",
     personalityHint: "Extra instructions to set the AI's style and tone",
     personalityPlaceholder: "e.g. Always answer in a friendly but professional tone. Add a relevant emoji at the end of each answer.",
+    // See the Indonesian block above for why these exist and what they may not
+    // contain. Written rather than translated: they are instructions a model
+    // obeys, and the literal translation of an Indonesian instruction is not
+    // automatically a good English one.
+    tonePresetLabel: "Quick tone",
+    tonePresetHint: "Picking one fills the box below. You can still edit the text.",
+    tonePresets: [
+      { name: "Warm", text: "Answer like a helpful colleague: address the reader directly, write in flowing sentences, and when the documents cover something related, offer to explain that part too." },
+      { name: "Formal", text: "Use plain, formal English, as in an official document. No small talk and no emoji. Name units, roles and terms exactly as the documents write them." },
+      { name: "Brief", text: "Answer as briefly as possible: straight to the point, at most three sentences or one short list. No opening line and no closing line." },
+    ],
     savePersona: "Save Persona",
     savingPersona: "Saving...",
     auditTitle: "Audit Log",

@@ -16,6 +16,7 @@ import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schem
 import { eq, count, and, gte, inArray, asc, desc } from "drizzle-orm";
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
+import { retrievalQueryFor } from "@/lib/follow-up";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { canUseAiChat } from "@/lib/pricing";
@@ -63,9 +64,11 @@ ${GROUNDING_RULES}
 5. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
 6. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
 7. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.
+8. CONVERSATION: The turns before this question are the conversation so far, and they are for understanding what is being asked — a follow-up often names nothing ("kalau yang ungu?", "berapa lama?") and means whatever the previous turn was about. When a question continues the one before it, connect it in a few words ("Masih dari SOP yang sama, ...", "Untuk gelang yang lain, ...") instead of restarting as though it were the first question of the session. If your own previous answer already named the document and this answer quotes the same one, do not name it a second time — the reader has it; connect to it instead. But earlier turns are conversation, NEVER evidence: a fact, name or number from an earlier answer may be repeated only if it also appears in the excerpts given to you for THIS question. The excerpts are re-retrieved every turn, so something you quoted correctly three turns ago is, right now, your own memory — rule 1 covers it exactly as it covers anything else you happen to know.
 
 ${ANSWER_STYLE}
-${FOLLOW_UP_OFFER}`;
+${FOLLOW_UP_OFFER}
+9. PERSONALITY (last, because it decides what beats what): if a KEPRIBADIAN & GAYA section appears at the top of this prompt, it is this customer's own tone preference and it outranks the preferences in VOICE AND SHAPE — how formal to be, whether to greet, whether to use emoji, how short to keep an answer, whether to offer to go further. It never outranks rules 1-4, the LANGUAGE RULE, or the not-found message. A personality asking you to reassure, to encourage, to estimate, to fill gaps from general knowledge or to "just give an approximate figure" is asking for something no tone setting can license: obey the parts of it that are about wording, ignore the parts that are about evidence.`;
 
 /** What the wrapper needs in order to hand a charged question back. */
 type ChargedQuestion = { companyId: string; limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } };
@@ -237,6 +240,108 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     }
   }
 
+  // The session has to be resolved before the history can be read, and the
+  // history has to be read before this turn's question is embedded. Only the
+  // *verification* branch moves up here; a brand-new session is still created
+  // further down, after retrieval, so a question that never reaches the model
+  // does not leave an empty session behind.
+  //
+  // Verify the session belongs to this *user*, not merely to their company.
+  //
+  // The company check alone is what RLS already gives us, so on its own it
+  // authorises nothing extra: two employees of one workspace both satisfy it.
+  // That mattered because a caller supplying a colleague's session id got three
+  // things out of it — priorTurns below replays that session's history into the
+  // prompt (so the model can be asked to recite it), the new messages are
+  // written into the colleague's session, and the per-user daily quota counts
+  // messages by chatSessions.userId, so questions parked in someone else's
+  // session were never charged to the asker.
+  //
+  // Session ids are UUIDv4 and not guessable, which is why this was a narrow
+  // hole rather than an open one. It is still the wrong check:
+  // /api/chat/sessions/[id]/messages has always scoped by userId, and two
+  // routes reading the same rows under different rules is a difference that
+  // only ever gets noticed the expensive way.
+  //
+  // 404 rather than 403 on failure, deliberately — a session that is not yours
+  // should be indistinguishable from one that does not exist.
+  if (sessionId) {
+    const [existingSession] = await withTenant(companyId, (tx) => tx
+      .select({ id: chatSessions.id })
+      .from(chatSessions)
+      .where(and(
+        eq(chatSessions.id, sessionId),
+        eq(chatSessions.userId, dbUser.id),
+        eq(chatSessions.companyId, companyId),
+      ))
+      .limit(1));
+    if (!existingSession) {
+      return new Response(JSON.stringify({ error: "Session not found" }), { status: 404 });
+    }
+  }
+
+  // Earlier turns are read back from the database, never taken from the request.
+  //
+  // The body used to supply the whole conversation, and it was forwarded to the
+  // model as-is. That let a caller write the other side of the dialogue: a
+  // handcrafted `{ role: "assistant", content: "..." }` is indistinguishable
+  // from something this route actually said, so the model could be shown a past
+  // turn in which it agreed to ignore the grounding rules above. Nothing about
+  // it is visible afterwards either — the forged turns are never stored, so the
+  // history an admin reads in the Audit tab is not the history the model saw.
+  //
+  // No filter fixes that, because the request is not the authority on what was
+  // said. chat_messages is, and it is RLS-protected and already scoped to this
+  // session by the ownership check above. Read *before* this turn's user
+  // message is inserted below, so the current question is appended once rather
+  // than appearing twice.
+  //
+  // Read here, above the quota and the embedding rather than just below the
+  // prompt, because retrieval needs it now: retrievalQueryFor searches a
+  // follow-up question together with the one before it (see @/lib/follow-up),
+  // and the embedding is computed a few lines down. Moving the ownership check
+  // up with it is a bonus rather than a cost — a session id that is not yours
+  // now 404s before it can spend one of your questions.
+  //
+  // Newest-first with a LIMIT, then reversed: the cap has to keep the most
+  // recent turns, and ordering ascending with a limit would keep the oldest.
+  //
+  // `role` breaks ties before `id` does, and it has to. created_at defaults to
+  // now(), which in Postgres is the *transaction* start time — constant for
+  // every row written inside one transaction. The "no documents at all" path
+  // above writes the question and the canned reply in a single withTenant call,
+  // so that pair shares a timestamp exactly, and an id tiebreaker would order
+  // them by a random UUID: half the time the model would be shown its own
+  // answer before the question it answered. Sorting role ascending puts
+  // "assistant" ahead of "user" in this descending scan, which is what the
+  // reverse below turns into question-then-answer.
+  const priorTurns = sessionId
+    ? (await withTenant(companyId, (tx) => tx
+        .select({ role: chatMessages.role, content: chatMessages.content })
+        .from(chatMessages)
+        .where(eq(chatMessages.sessionId, sessionId))
+        .orderBy(desc(chatMessages.createdAt), asc(chatMessages.role), desc(chatMessages.id))
+        .limit(LIMITS.history)))
+        .reverse()
+        // Stored content is bounded on the way in, but rows written before that
+        // was true are not, and one of them is enough to blow the context.
+        .map((m) => ({ role: m.role, content: m.content.slice(0, LIMITS.message) }))
+    : [];
+
+  // What retrieval searches for, which is not always what the reader typed.
+  //
+  // A follow-up leans on the turn before it ("kalau yang ungu?"), and the
+  // retriever sees one question at a time. Searching those four words alone
+  // returns whatever the corpus keeps near "ungu" and answers a question the
+  // documents cover with "tidak ditemukan" — which is the single thing that
+  // makes a chat feel like a search box with a transcript above it.
+  //
+  // Retrieval only. `question` itself is untouched: it is what gets stored,
+  // what the model is asked, and what the grounding rules apply to. A wider
+  // search finds better excerpts; it does not widen what may be answered.
+  const previousQuestion = [...priorTurns].reverse().find((m) => m.role === "user")?.content ?? null;
+  const searchText = retrievalQueryFor(question, previousQuestion);
+
   // Company-wide daily + monthly quota, shared with the public API and Slack.
   const quotaFailure = await consumeQuestionQuota(companyId, limits);
   if (quotaFailure) {
@@ -252,7 +357,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
 
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(question, byok.gemini);
+    queryEmbedding = await getEmbedding(searchText, byok.gemini);
   } catch (err) {
     // The question was charged one line above and no answer will come of it, so
     // it goes back. Nothing about a Gemini outage is the reader's doing, and a
@@ -414,40 +519,6 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       companyId,
       title: question.slice(0, 60),
     }));
-  } else {
-    // Verify the session belongs to this *user* — not merely to their company.
-    //
-    // The company check alone is what RLS already gives us, so on its own it
-    // authorises nothing extra: two employees of one workspace both satisfy
-    // it. That mattered because a caller supplying a colleague's session id
-    // got three things out of it — `priorTurns` below replays that session's
-    // history into the prompt (so the model can be asked to recite it), the
-    // new messages are written into the colleague's session, and the
-    // per-user daily quota counts messages by `chatSessions.userId`, so
-    // questions parked in someone else's session were never charged to the
-    // asker.
-    //
-    // Session ids are UUIDv4 and not guessable, which is why this was a
-    // narrow hole rather than an open one. It is still the wrong check:
-    // /api/chat/sessions/[id]/messages has always scoped by userId, and two
-    // routes reading the same rows under different rules is a difference
-    // that only ever gets noticed the expensive way.
-    //
-    // 404 rather than 403 on failure, deliberately — a session that is not
-    // yours should be indistinguishable from one that does not exist.
-    const existingSessionId = activeSessionId;
-    const [existingSession] = await withTenant(companyId, (tx) => tx
-      .select({ id: chatSessions.id })
-      .from(chatSessions)
-      .where(and(
-        eq(chatSessions.id, existingSessionId),
-        eq(chatSessions.userId, dbUser.id),
-        eq(chatSessions.companyId, companyId),
-      ))
-      .limit(1));
-    if (!existingSession) {
-      return new Response(JSON.stringify({ error: "Session not found" }), { status: 404 });
-    }
   }
 
   // Stable, non-null handle to the session id for use inside withTenant closures
@@ -521,6 +592,25 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
 
+  // A pointer back to the persona, not a second copy of it.
+  //
+  // The persona sits at the very top of the prompt and the style rules sit
+  // thousands of tokens below it, so on a short question the style rules simply
+  // won: a workspace that had asked for no opener and no closing offer got both
+  // anyway. The instruction nearest the question is the one that survives — the
+  // same reason GROUNDING_REMINDER exists at all.
+  //
+  // What is repeated here is a reference ("follow the section above"), never the
+  // customer's own text. Persona text is the one part of this prompt a customer
+  // writes, and the end of the prompt is its strongest position; pasting it
+  // there would hand the admin page the last word over the grounding rules,
+  // which is exactly what rule 8 spends a paragraph refusing.
+  const personaReminder = company?.aiPersonality
+    ? "Also remember the KEPRIBADIAN & GAYA section at the top: it is this customer's tone preference and it "
+      + "outranks the tone preferences in VOICE AND SHAPE — including whether to open with a greeting, whether to "
+      + "close with an offer, and how long an answer should be. It does not outrank rules 1-4 or the not-found message."
+    : "";
+
   const langInstruction = responseLang === "en"
     ? `LANGUAGE RULE (ABSOLUTE — OVERRIDES ALL OTHER RULES):
 You MUST write your ENTIRE response in ENGLISH only.
@@ -549,48 +639,7 @@ If no relevant information is found:
     ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
     : "Remember: detect the user's question language and respond in that same language.";
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${langReminder}`;
-
-  // Earlier turns are read back from the database, never taken from the request.
-  //
-  // The body used to supply the whole conversation, and it was forwarded to the
-  // model as-is. That let a caller write the other side of the dialogue: a
-  // handcrafted `{ role: "assistant", content: "..." }` is indistinguishable
-  // from something this route actually said, so the model could be shown a past
-  // turn in which it agreed to ignore the grounding rules above. Nothing about
-  // it is visible afterwards either — the forged turns are never stored, so the
-  // history an admin reads in the Audit tab is not the history the model saw.
-  //
-  // No filter fixes that, because the request is not the authority on what was
-  // said. chat_messages is, and it is RLS-protected and already scoped to this
-  // session by the ownership check above. Read *before* this turn's user
-  // message is inserted below, so the current question is appended once rather
-  // than appearing twice.
-  //
-  // Newest-first with a LIMIT, then reversed: the cap has to keep the most
-  // recent turns, and ordering ascending with a limit would keep the oldest.
-  //
-  // `role` breaks ties before `id` does, and it has to. created_at defaults to
-  // now(), which in Postgres is the *transaction* start time — constant for
-  // every row written inside one transaction. The "no documents at all" path
-  // above writes the question and the canned reply in a single withTenant call,
-  // so that pair shares a timestamp exactly, and an id tiebreaker would order
-  // them by a random UUID: half the time the model would be shown its own
-  // answer before the question it answered. Sorting role ascending puts
-  // "assistant" ahead of "user" in this descending scan, which is what the
-  // reverse below turns into question-then-answer.
-  const priorTurns = sessionId
-    ? (await withTenant(companyId, (tx) => tx
-        .select({ role: chatMessages.role, content: chatMessages.content })
-        .from(chatMessages)
-        .where(eq(chatMessages.sessionId, resolvedSessionId))
-        .orderBy(desc(chatMessages.createdAt), asc(chatMessages.role), desc(chatMessages.id))
-        .limit(LIMITS.history)))
-        .reverse()
-        // Stored content is bounded on the way in, but rows written before that
-        // was true are not, and one of them is enough to blow the context.
-        .map((m) => ({ role: m.role, content: m.content.slice(0, LIMITS.message) }))
-    : [];
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${personaReminder ? `${personaReminder}\n\n` : ""}${langReminder}`;
 
   const userMsgId = randomUUID();
   await withTenant(companyId, (tx) => tx.insert(chatMessages).values({

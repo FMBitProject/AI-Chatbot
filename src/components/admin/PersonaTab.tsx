@@ -103,6 +103,33 @@ export function PersonaTab({ lang = "id", isIndividual = false }: { lang?: Lang;
           <Label className="flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5 text-blue-500" /> {T.personality}
           </Label>
+          {/* Starting points, not modes. Each button writes its text into the
+              same textarea below, which stays editable and stays the only thing
+              that is saved — so an admin who edits a preset by one word is not
+              silently "off-preset", they simply have their own text, which is
+              what the field always meant. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500">{T.tonePresetLabel}:</span>
+            {T.tonePresets.map((preset) => {
+              const active = form.aiPersonality.trim() === preset.text;
+              return (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => setForm({ ...form, aiPersonality: preset.text })}
+                  aria-pressed={active}
+                  className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                    active
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-700"
+                  }`}
+                >
+                  {preset.name}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-xs text-gray-400">{T.tonePresetHint}</p>
           <textarea
             className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm min-h-[80px] focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
             placeholder={T.personalityPlaceholder}
