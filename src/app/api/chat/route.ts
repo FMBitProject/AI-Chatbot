@@ -18,7 +18,7 @@ import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate"
 import { getEmbedding } from "@/lib/embeddings";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
 import { GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
-import { canUseAiAnswers } from "@/lib/pricing";
+import { canUseAiChat } from "@/lib/pricing";
 import { getLimits } from "@/lib/plan-limits";
 import { withTenant } from "@/lib/db/tenant";
 import { consumeQuestionQuota, isSeatActive, refundQuestionQuota, resolvePlan, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
@@ -161,14 +161,12 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const { company, subscription } = await resolvePlan(companyRow);
 
-  // Answers are a paid feature; search is not. Checked here — before the seat
-  // check, before the per-user cap, and above all before consumeQuestionQuota —
-  // because a refusal must not spend the question it refuses. The daily counter
-  // is decremented by nothing, so a quota burned here would be gone for the day.
-  //
-  // 403 with a code the chat page knows, not a bare message: it renders this as
-  // an invitation to /search rather than as an error, which is what it is.
-  if (!canUseAiAnswers(subscription.plan)) {
+  // Starter may chat within its quota. Keep this before the seat check,
+  // per-user cap and consumeQuestionQuota: a refusal must not spend a question.
+  // Check the stored plan too: resolvePlan normalizes missing/unknown plans to
+  // Starter for limits, which must not turn corrupt plan data into chat access.
+  // The effective plan still decides the allowance after a paid plan expires.
+  if (!canUseAiChat(companyRow?.plan) || !canUseAiChat(subscription.plan)) {
     return new Response(
       JSON.stringify({ error: "AI_REQUIRES_PAID_PLAN", plan: subscription.plan }),
       { status: 403 },

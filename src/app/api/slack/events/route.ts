@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         // about that, or the gate is only as strong as whichever entry point
         // was forgotten.
         if (!canUseAiAnswers(subscription.plan)) {
-          await say("🔒 Jawaban AI tersedia mulai paket berbayar. Paket gratis bisa memakai pencarian dokumen di aplikasi.");
+          await say("🔒 Integrasi Slack tersedia pada paket berbayar. Paket Starter dapat memakai Chat AI di aplikasi dengan jatah terbatas.");
           return;
         }
 

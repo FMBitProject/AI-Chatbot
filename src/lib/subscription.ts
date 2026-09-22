@@ -95,7 +95,7 @@ export async function consumeQuestionQuota(
 ): Promise<QuotaFailure | null> {
   const { maxQuestionsPerDay, maxQuestionsPerMonth } = limits;
 
-  // Both unlimited (enterprise): nothing to enforce, and no write to make.
+  // Both unlimited (Custom or paid BYOK): no quota write is needed.
   if (maxQuestionsPerDay === -1 && maxQuestionsPerMonth === -1) return null;
 
   const now = new Date();
@@ -158,8 +158,8 @@ export async function consumeQuestionQuota(
  * The quota has to be spent *before* the model is called — that is what makes
  * the check atomic and stops concurrent questions overshooting a limit — which
  * means a provider outage charges the customer for our failure. On a Starter
- * workspace of 30 questions a month, a bad afternoon at Groq could quietly eat
- * a third of what they paid for, and nothing in the product would ever tell
+ * workspace with a small daily and monthly allowance, a provider outage could
+ * quietly eat the available questions, and nothing in the product would tell
  * them why the number went down.
  *
  * Only for failures that produced no answer. A question that was answered and
