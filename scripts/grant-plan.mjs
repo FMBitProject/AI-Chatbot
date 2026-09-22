@@ -37,7 +37,12 @@
 // — a lapsed *paid* plan keeps full limits for GRACE_PERIOD_DAYS so a late bank
 // transfer cannot cut a customer off, but a pilot has no transfer to be late,
 // and seven days advertised has to be seven days served. At the end of the last
-// day the account is on starter limits and the only way on is to subscribe.
+// day the account is on starter limits — which, since Starter gained in-app AI
+// chat, means the workspace keeps chatting at the Starter allowance instead of
+// going dark. What the pilot actually takes away at the end is the volume plus
+// Slack, the public API and Google Drive import; subscribing is the only way
+// back to those. Do not describe the end of a pilot to a customer as "access
+// stops", because it no longer does.
 //
 // RENEWAL_WARNING_DAYS is also 7, so a 7-day pilot shows the renewal banner in
 // the customer's dashboard from day one. For a pilot that is the nudge you

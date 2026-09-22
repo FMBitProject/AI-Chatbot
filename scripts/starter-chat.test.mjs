@@ -15,6 +15,11 @@ try {
     assert.equal(subscription.plan, "starter");
     assert.ok(canUseAiChat(subscription.plan));
     assert.equal(canUseAiAnswers(subscription.plan), false);
+    // TODO: MINOR — assertion ini selalu lulus apa pun yang terjadi pada carve-out
+    // BYOK, karena resolvePlan memanggil getLimits(plan) TANPA hasOwnKeys: kedua
+    // sisi perbandingan adalah objek yang sama dengan alasan berbeda. Uji BYOK
+    // yang sesungguhnya sudah ada di scripts/pricing.test.mts; sederhanakan yang
+    // ini jadi getLimits("starter") saat dirapikan.
     assert.deepEqual(limits, getLimits("starter", true));
     // Concurrent questions compete for the same daily pool; only ten succeed.
     const daily = await Promise.all(Array.from({ length: 12 }, () => consumeQuestionQuota(id, limits)));

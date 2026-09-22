@@ -31,9 +31,11 @@ const FAQ = `# Jawaban baku untuk pertanyaan yang sering masuk
 
 **"Bagaimana cara mulai?"**
 Daftar sendiri di intellibaseai.com, pilih tab Perusahaan atau Individu sesuai
-kebutuhan. Paket Starter gratis, tanpa kartu kredit — cukup untuk mencoba dengan
-dokumen sungguhan. Jawaban AI aktif mulai paket berbayar; paket gratis bisa
-memakai pencarian dokumen.
+kebutuhan. Paket Starter gratis selamanya, tanpa kartu kredit, dan sudah termasuk
+Chat AI di aplikasi dengan jatah harian dan bulanan (angka pastinya ada di daftar
+fakta di bawah) — cukup untuk mencoba dengan dokumen sungguhan. Paket berbayar
+menambah jatah pertanyaan yang jauh lebih besar dan membuka integrasi Slack, API
+publik, serta impor Google Drive.
 
 **"Apa bedanya dengan ChatGPT?"**
 ChatGPT menjawab dari pengetahuan umumnya. IntelliBase menjawab dari dokumen yang

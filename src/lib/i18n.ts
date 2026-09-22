@@ -494,10 +494,17 @@ export const pricing = {
       { name: PLAN_LABELS.custom, desc: "Untuk grup RS, multi-cabang, atau industri lain" },
     ],
     features: [
+      // TODO: MINOR — daftar ini kehilangan "Pencarian dokumen" (tetap gratis untuk
+      // semua paket) dan empat item upsell lama (Notifikasi email, Role per
+      // departemen, Prioritas dukungan, Analytics untuk kartu Individu) saat
+      // ditata ulang. Kembalikan di bawah garis lima saat kartu harga dirapikan.
+      // TODO: MINOR — entri kuota gabungan memakai "pertanyaan / bulan" (spasi di
+      // sekitar garis miring) sementara idDaily menulis "pertanyaan/hari", dan
+      // tidak dibungkus cap() seperti entri tetangganya.
       // The free card checks exactly five entries. Combine the two question
       // caps in one entry so AI chat and every free benefit stay above the line;
       // only paid integrations belong below it, never chat or data isolation.
-      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Chat AI: jawaban otomatis lengkap dengan sumber", `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint · data terisolasi", "Integrasi Slack", "API publik", "Impor dokumen dari Google Drive", "Bisa pakai API key sendiri (BYOK)"],
+      [cap(idLimit(sta.maxEmployees, "karyawan")), cap(idLimit(sta.maxDocuments, "dokumen")), "Chat AI: jawaban otomatis lengkap dengan sumber", `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint · data terisolasi", "Integrasi Slack", "Impor dokumen dari Google Drive", "Analytics lengkap", "Bisa pakai API key sendiri (BYOK)"],
       [cap(idLimit(pro.maxEmployees, "karyawan")), cap(idLimit(pro.maxDocuments, "dokumen")), idDaily(proDaily), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 24 jam"],
       [cap(idLimit(ent.maxEmployees, "karyawan")), cap(idLimit(ent.maxDocuments, "dokumen")), idDaily(ent.maxQuestionsPerDay), "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Impor dokumen dari Google Drive", "Analytics lengkap + ekspor", "Notifikasi email", "Integrasi Slack", "Role per departemen", "Bisa pakai API key sendiri (BYOK)", "Respon dukungan < 8 jam, 24/7"],
       // TODO: MINOR — "Onboarding & pendampingan langsung" menjanjikan layanan
@@ -526,7 +533,7 @@ export const pricing = {
       { name: "Personal", desc: "Untuk kebutuhan pribadi sehari-hari" },
     ],
     individualFeatures: [
-      ["Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(sta.maxDocuments, "dokumen")), `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi · hanya Anda yang bisa membuka dokumen Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Bisa pakai API key sendiri (BYOK)", "API publik", "Impor dokumen dari Google Drive"],
+      ["Chat AI: jawaban otomatis lengkap dengan sumber", cap(idLimit(sta.maxDocuments, "dokumen")), `${idDaily(staDaily)} · ${idLimit(staMonthly, "pertanyaan / bulan")}`, "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi · hanya Anda yang bisa membuka dokumen Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Bisa pakai API key sendiri (BYOK)", "Impor dokumen dari Google Drive"],
       ["1 pengguna, hanya Anda", cap(idLimit(per.maxDocuments, "dokumen")), idPersonalQuota, "Chat AI berbasis RAG", "Upload PDF, DOCX, Excel & PowerPoint", "Folder pribadi untuk merapikan dokumen", "Tanya khusus satu folder", "Riwayat pertanyaan Anda", "Bisa pakai API key sendiri (BYOK)"],
     ],
     fairUseNote: "",
@@ -580,7 +587,7 @@ export const pricing = {
       { name: PLAN_LABELS.custom, desc: "For hospital groups, multi-site, or other industries" },
     ],
     features: [
-      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "AI chat: written answers with their sources", `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload · isolated data", "Slack integration", "Public API", "Import documents from Google Drive", "Bring your own API key (BYOK)"],
+      [enLimit(sta.maxEmployees, "employees"), enLimit(sta.maxDocuments, "documents"), "AI chat: written answers with their sources", `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload · isolated data", "Slack integration", "Import documents from Google Drive", "Full analytics", "Bring your own API key (BYOK)"],
       [enLimit(pro.maxEmployees, "employees"), enLimit(pro.maxDocuments, "documents"), enDaily(proDaily), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 24h"],
       [enLimit(ent.maxEmployees, "employees"), enLimit(ent.maxDocuments, "documents"), enDaily(ent.maxQuestionsPerDay), "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Import documents from Google Drive", "Full analytics + export", "Email notifications", "Slack integration", "Department roles", "Bring your own API key (BYOK)", "Support response < 8h, 24/7"],
       ["Unlimited employees", "Unlimited documents", "Unlimited questions", `Everything in ${PLAN_LABELS.enterprise}`, "Multi-site / multi-unit setup", "Bring your own API key (BYOK)", "Hands-on onboarding", "Agreement and SLA to fit"],
@@ -596,7 +603,7 @@ export const pricing = {
       { name: "Personal", desc: "For everyday personal use" },
     ],
     individualFeatures: [
-      ["AI chat: written answers with their sources", enLimit(sta.maxDocuments, "documents"), `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload", "Personal folders · only you can open your documents", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "Bring your own API key (BYOK)", "Public API", "Import documents from Google Drive"],
+      ["AI chat: written answers with their sources", enLimit(sta.maxDocuments, "documents"), `${enDaily(staDaily)} · ${enLimit(staMonthly, "questions / month")}`, "PDF, DOCX, Excel & PowerPoint upload", "Personal folders · only you can open your documents", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "Bring your own API key (BYOK)", "Import documents from Google Drive"],
       ["1 user, just you", enLimit(per.maxDocuments, "documents"), enPersonalQuota, "RAG-based AI Chat", "PDF, DOCX, Excel & PowerPoint upload", "Personal folders to keep documents tidy", "Ask within a single folder", "Your question history", "Bring your own API key (BYOK)"],
     ],
     fairUseNote: "",
