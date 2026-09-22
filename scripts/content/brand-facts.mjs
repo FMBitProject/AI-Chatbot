@@ -28,7 +28,7 @@ export function formatRupiah(amount) {
 }
 
 // --- plan limits: keep in sync with src/lib/plan-limits.ts ------------------
-const STARTER = { maxDocuments: 10, maxEmployees: 5, maxQuestionsPerMonth: 100 };
+const STARTER = { maxDocuments: 5, maxEmployees: 5, maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10 };
 // Individual accounts (shipped 2026-08-11): their own tab at signup, own
 // pricing tier, no employees to manage. maxQuestionsPerMonth is -1 (unlimited)
 // on Personal, capped per-day instead — see PLAN_LIMITS.personal.
@@ -124,9 +124,13 @@ yang sedang dibahas.
   spesifik dalam dokumen. Di Slack: nama dokumen sumbernya saja, tanpa tautan
   ke halaman — jangan disamakan.)
 - Mendukung PDF, DOCX, XLSX, PPTX.
-- Paket Starter gratis (akun Perusahaan): ${STARTER.maxEmployees} pengguna, ${STARTER.maxDocuments} dokumen, ${STARTER.maxQuestionsPerMonth} pertanyaan/bulan.
+- Paket Starter gratis selamanya (akun Perusahaan): ${STARTER.maxEmployees} pengguna, ${STARTER.maxDocuments} dokumen,
+  dan Chat AI di aplikasi ${STARTER.maxQuestionsPerDay} pertanyaan/hari serta ${STARTER.maxQuestionsPerMonth} pertanyaan/bulan.
+  Sebut KEDUA batas pertanyaan itu; batas harian yang lebih dulu terasa oleh pemakai.
+  Yang TIDAK didapat paket gratis: integrasi Slack, API publik, dan impor Google Drive.
 - Harga akun Perusahaan: ${priceLine}.
-- Akun Individu juga mulai gratis (paket Starter, pencarian dokumen), lalu
+- Akun Individu juga mulai gratis (paket Starter, sudah termasuk Chat AI dengan
+  batas yang sama seperti di atas), lalu
   paket Personal ${personalPriceLine} untuk jawaban AI tanpa batas bulanan
   (dibatasi ${PERSONAL.maxQuestionsPerDay}/hari), sampai ${PERSONAL.maxDocuments} dokumen. Personal HANYA
   untuk akun Individu — bukan pengganti Klinik/Rumah Sakit untuk tim.

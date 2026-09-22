@@ -335,7 +335,7 @@ const CONTENT = {
       },
       {
         q: "Bisa dicoba dulu tanpa bayar?",
-        a: "Bisa. Paket Starter gratis selamanya untuk 5 karyawan dan 10 dokumen, tanpa kartu kredit. Kalau ingin mencoba dengan dokumen asli perusahaan tapi ragu memulai sendiri, kirim email ke kami dan kami bantu menyiapkannya.",
+        a: `Bisa. Paket Starter gratis selamanya untuk ${PLAN_LIMITS.starter.maxEmployees} karyawan dan ${PLAN_LIMITS.starter.maxDocuments} dokumen, tanpa kartu kredit, dan sudah termasuk Chat AI di aplikasi: ${PLAN_LIMITS.starter.maxQuestionsPerDay} pertanyaan/hari, ${PLAN_LIMITS.starter.maxQuestionsPerMonth} pertanyaan/bulan. Kalau ingin mencoba dengan dokumen asli perusahaan tapi ragu memulai sendiri, kirim email ke kami dan kami bantu menyiapkannya.`,
       },
     ],
     founderTitle: "Siapa di balik IntelliBase",
@@ -453,7 +453,7 @@ const CONTENT = {
       },
       {
         q: "Can we try it without paying?",
-        a: "Yes. The Starter plan is free forever for 5 employees and 10 documents, no credit card. If you would rather try it with your real documents but do not want to set it up alone, email us and we will help you get started.",
+        a: `Yes. The Starter plan is free forever for ${PLAN_LIMITS.starter.maxEmployees} employees and ${PLAN_LIMITS.starter.maxDocuments} documents, no credit card, and it includes in-app AI chat: ${PLAN_LIMITS.starter.maxQuestionsPerDay} questions/day, ${PLAN_LIMITS.starter.maxQuestionsPerMonth} questions/month. If you would rather try it with your real documents but do not want to set it up alone, email us and we will help you get started.`,
       },
     ],
     founderTitle: "Who is behind IntelliBase",

@@ -161,6 +161,12 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   const [companyRow] = await db.select().from(companies).where(eq(companies.id, dbUser.companyId)).limit(1);
   const { company, subscription } = await resolvePlan(companyRow);
 
+  // TODO: MINOR — gerbang ini fail-closed terhadap plan id yang tidak dikenal
+  // isPaidPlan/canUseAiChat. Kalau nanti ada tier baru yang masuk PLAN_LIMITS dan
+  // schema tapi lupa ditambahkan di pricing.ts, pelanggan BERBAYAR di tier itu
+  // kehilangan chat sementara upload/kursi/dokumen tetap jalan — gejala yang
+  // sangat sulit didiagnosis. Ikat ketiga daftar itu lewat assertion di
+  // scripts/pricing.test.mts saat dirapikan.
   // Starter may chat within its quota. Keep this before the seat check,
   // per-user cap and consumeQuestionQuota: a refusal must not spend a question.
   // Check the stored plan too: resolvePlan normalizes missing/unknown plans to

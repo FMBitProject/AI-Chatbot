@@ -5,6 +5,12 @@
 // small to be worth "protecting" at the cost of solo-founder trials, and custom
 // is a negotiated contract rather than a self-serve tier, so both stay uncapped.
 //
+// TODO: MINOR — alasan "kolam starter terlalu kecil untuk dilindungi" ditulis
+// ketika starter belum punya Chat AI, jadi kolam itu tidak pernah terpakai.
+// Sekarang terpakai: satu karyawan bisa menghabiskan 10/hari milik lima orang,
+// dan empat sisanya menyimpulkan "chatnya tidak jalan". Pertimbangkan
+// maxQuestionsPerDayPerUser: 4 untuk starter saat ini dirapikan.
+//
 // `enterprise` is deliberately NOT unlimited. It is bought self-serve at a flat
 // monthly price, so an unbounded plan is an unbounded bill on our side: a large
 // hospital group could subscribe for the price of a mid-size clinic and index
@@ -36,8 +42,21 @@
 // one person on Personal should never do worse than the same person on a team
 // plan, which is what would send them to a plan sold for six times the price to
 // get seats they have nobody to fill.
+//
+// `starter.maxDocuments` is 5, not 10, and the reason changed with the tier.
+// While Starter had no AI answers the document count was the only thing the free
+// plan really offered, so a bigger number cost us storage and nothing else. Now
+// that every free workspace can ask questions, each indexed document is also a
+// permanent pgvector row and an embedding computed on our own Gemini key — and
+// the free tier's job is to prove the product on a handful of real documents,
+// not to hold a department's library for free. Five is enough to feel a grounded
+// answer with citations, and small enough that a company that likes it runs out.
+//
+// Lowering this deletes nothing: a workspace already above the ceiling keeps its
+// documents and simply cannot add more, because isUnderLimit is checked before an
+// insert and never after. That is the same freeze a lapsed paid plan gets.
 export const PLAN_LIMITS = {
-  starter:      { maxDocuments: 10,  maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
+  starter:      { maxDocuments: 5,   maxEmployees: 5,   maxQuestionsPerMonth: 100, maxQuestionsPerDay: 10,   maxQuestionsPerDayPerUser: -1 },
   personal:     { maxDocuments: 50,  maxEmployees: 1,   maxQuestionsPerMonth: -1,  maxQuestionsPerDay: 60,   maxQuestionsPerDayPerUser: -1 },
   professional: { maxDocuments: 300,  maxEmployees: 25,  maxQuestionsPerMonth: -1, maxQuestionsPerDay: 300,  maxQuestionsPerDayPerUser: 60 },
   enterprise:   { maxDocuments: 1000, maxEmployees: 150, maxQuestionsPerMonth: -1, maxQuestionsPerDay: 2000, maxQuestionsPerDayPerUser: 400 },

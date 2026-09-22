@@ -194,17 +194,21 @@ export default function ChatPage() {
         const langCode = responseLangRef.current;
         if (res.status === 429) {
           const data = await res.json().catch(() => ({ limit: 0, period: "daily" })) as { error: string; limit: number; period: "daily" | "monthly" | "daily-user" };
+          // The upgrade link belongs here, not only in the email address: since
+          // Starter chats, the person who hits this ceiling is usually a free
+          // user in the minute they are deciding whether to pay. Sending them to
+          // compose an email instead of to /pricing loses that minute.
           const quotaMsg = langCode === "en"
             ? data.period === "daily-user"
               ? `🚫 **Your personal daily limit is reached** (${data.limit} questions/day per person).\n\nThis keeps the company quota fair for your teammates — they can still ask questions. Your personal quota resets tomorrow.`
               : data.period === "daily"
-              ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
-              : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Contact the developer to upgrade your plan.\n\n📧 Contact: ${SUPPORT_EMAIL}`
+              ? `🚫 **Daily chat limit reached** (${data.limit} questions/day).\n\nYour quota resets tomorrow. Need more today? A paid plan raises the daily allowance and adds Slack, the public API and Google Drive import.\n\n[See plans](/pricing) · 📧 ${SUPPORT_EMAIL}`
+              : `🚫 **Monthly chat quota reached** (${data.limit} questions/month).\n\nYour quota resets next month. Need more now? A paid plan raises the allowance and adds Slack, the public API and Google Drive import.\n\n[See plans](/pricing) · 📧 ${SUPPORT_EMAIL}`
             : data.period === "daily-user"
               ? `🚫 **Batas harian pribadi Anda tercapai** (${data.limit} pertanyaan/hari per orang).\n\nBatas ini menjaga kuota perusahaan tetap adil — rekan tim Anda masih bisa bertanya. Kuota pribadi Anda reset besok.`
               : data.period === "daily"
-              ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda akan reset besok. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`
-              : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda akan reset bulan depan. Hubungi developer untuk upgrade paket.\n\n📧 Kontak: ${SUPPORT_EMAIL}`;
+              ? `🚫 **Batas chat harian tercapai** (${data.limit} pertanyaan/hari).\n\nKuota Anda reset besok. Butuh lebih banyak hari ini? Paket berbayar menaikkan jatah harian dan membuka integrasi Slack, API publik, serta impor Google Drive.\n\n[Lihat paket](/pricing) · 📧 ${SUPPORT_EMAIL}`
+              : `🚫 **Kuota chat bulanan telah habis** (${data.limit} pertanyaan/bulan).\n\nKuota Anda reset bulan depan. Butuh lebih banyak sekarang? Paket berbayar menaikkan jatah dan membuka integrasi Slack, API publik, serta impor Google Drive.\n\n[Lihat paket](/pricing) · 📧 ${SUPPORT_EMAIL}`;
           setMessages((prev) => prev.map((m) => m.id === assistantMsgId ? { ...m, content: quotaMsg } : m));
           return;
         }

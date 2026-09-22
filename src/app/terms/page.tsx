@@ -35,6 +35,9 @@ import { useLang } from "@/lib/language-context";
  *     so both languages describe the quotas actually enforced by the app.
  */
 
+// TODO: MINOR — pasal 2 (ID dan EN) masih menulis "4 MB" sebagai teks, padahal
+// MAX_UPLOAD_MB sudah diimpor dan dipakai di pasal 11. Jadikan template literal
+// agar satu angka tidak bisa basi sementara yang lain ikut berubah.
 const ID_SECTIONS: readonly LegalSection[] = [
   { title: "1. Penerimaan Syarat", body: "Dengan mendaftar dan menggunakan layanan IntelliBase AI, Anda menyetujui untuk terikat oleh Syarat dan Ketentuan ini beserta Kebijakan Privasi kami, yang keduanya merupakan satu kesatuan perjanjian. Jika Anda mendaftar atas nama sebuah organisasi, Anda menyatakan berwenang mengikat organisasi tersebut pada syarat ini. Layanan ini ditujukan untuk pengguna yang cakap secara hukum. Jika Anda tidak menyetujui syarat ini, harap tidak menggunakan layanan kami." },
   { title: "2. Deskripsi Layanan", body: "IntelliBase AI adalah platform SaaS (Software as a Service) berupa knowledge base internal berbasis AI. Tersedia dua jenis akun: akun Perusahaan (admin, karyawan, departemen) dan akun Individu (satu orang, satu ruang kerja). Layanan mencakup: unggah dokumen berformat PDF, DOCX, XLSX, dan PPTX dengan ukuran maksimum 4 MB per file; ekstraksi teks dari dokumen tersebut; pembuatan indeks pencarian vektor; pencarian dokumen; dan antarmuka chat AI yang menjawab dengan mengutip dokumen Anda. Impor dokumen dari Google Drive, integrasi Slack, dan API publik tersedia pada paket berbayar. **Paket Free Starter mencakup Chat AI di aplikasi untuk akun Perusahaan dan Individu, gratis selamanya dengan batas pertanyaan harian dan bulanan.**" },
