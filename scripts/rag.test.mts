@@ -6,7 +6,7 @@
 // Jalankan: npm run test:rag
 
 import { chunkText } from "../src/lib/chunker.ts";
-import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, offerableDetails, offerableDetailsBlock } from "../src/lib/rag-prompt.ts";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, MAX_OFFERABLE_BLOCK_CHARS, offerableDetails, offerableDetailsBlock } from "../src/lib/rag-prompt.ts";
 import {
   calculateRoi,
   ROI_DEFAULTS,
@@ -155,8 +155,9 @@ sama(RAG_TEMPERATURE, 0.2, "suhu TIDAK dinaikkan demi nada yang lebih hangat");
 
 console.log("\nMENU TAWARAN PENUTUP — offerableDetails");
 const kutipan = [{
-  text: "Gelang identitas berisi nama lengkap, tanggal lahir, dan nomor rekam medis. "
-    + "Gelang tambahan dipasang bila ada risiko khusus: merah untuk alergi, kuning untuk risiko jatuh.",
+  text: "Gelang identitas berisi nama lengkap. "
+    + "Gelang tambahan dipasang bila ada risiko khusus. "
+    + "Petugas memeriksa tanggal lahir pasien.",
 }];
 const menu = offerableDetails(kutipan);
 sama(menu.length > 0, true, "kalimat biasa menghasilkan menu");
@@ -168,12 +169,12 @@ sama(
 sama(
   menu.every((entri) => entri.split(" ").length <= 8),
   true,
-  "entri dipotong 8 kata: cukup untuk menamai topik, tidak cukup untuk jadi jawaban",
+  "hanya kalimat pendek sampai 8 kata yang masuk menu, tanpa pemotongan",
 );
 sama(
   menu.some((entri) => /gelang tambahan/i.test(entri)),
   true,
-  "klausa pembuka kalimat kedua ikut masuk — itu yang ditawarkan model sebagai lanjutan",
+  "kalimat pendek kedua ikut masuk utuh sebagai pilihan tawaran",
 );
 sama(offerableDetails(kutipan, 2).length, 2, "batas jumlah entri dihormati");
 sama(
@@ -199,6 +200,26 @@ sama(
   true,
   "aturan tawaran menutup dua sisi: di luar daftar dilarang, daftar kosong berarti tanpa tawaran",
 );
+
+for (const text of [
+  "Prosedur penanganan pasien DNR secara lengkap dan rinci tidak dibahas dalam dokumen ini.",
+  "Prosedur penanganan pasien DNR, tidak dibahas di sini.",
+  "Prosedur penanganan pasien DNR (belum tersedia).",
+  "This document does not cover the procedure.",
+  "This document doesn't cover the procedure.",
+]) {
+  sama(offerableDetails([{ text }]).length, 0, `negasi tidak dibuang untuk membuat tawaran: ${text}`);
+}
+const longPositive = "Petugas meminta pasien menyebutkan nama lengkap serta tanggal lahir sebelum tindakan dimulai.";
+sama(offerableDetails([{ text: longPositive }]).length, 0, "kalimat panjang dilewatkan, bukan dipotong");
+const qualified = "Petugas memverifikasi identitas pasien, sebelum tindakan.";
+sama(offerableDetails([{ text: qualified }])[0], qualified.slice(0, -1), "kualifikasi setelah koma tetap utuh");
+const hugeEntry = `Topik ${"x".repeat(MAX_OFFERABLE_BLOCK_CHARS)} tersedia`;
+sama(offerableDetailsBlock([hugeEntry]), "", "entri terlalu panjang tidak menghasilkan menu parsial");
+const boundedBlock = offerableDetailsBlock([hugeEntry, ...Array.from({ length: 30 }, (_, i) => `Topik ${i} memiliki rincian lengkap di dokumen`)]);
+sama(boundedBlock.length <= MAX_OFFERABLE_BLOCK_CHARS, true, "batas karakter mencakup header, entri, dan pemisah");
+sama(boundedBlock.includes("Topik 0 memiliki rincian lengkap di dokumen"), true, "entri panjang tidak menghalangi entri pendek berikutnya");
+sama(boundedBlock.split("\n").slice(1).every((line) => /^- Topik \d+ memiliki rincian lengkap di dokumen$/.test(line)), true, "tidak ada entri yang terpotong untuk memenuhi anggaran");
 
 console.log("\nPERTANYAAN LANJUTAN — follow-up");
 const sebelumnya = "gelang identitas berisi apa saja?";
@@ -241,6 +262,20 @@ sama(
   false,
   "'itu' di dalam 'institusi' tidak ikut tertangkap — penanda dikunci sebagai kata utuh",
 );
+
+for (const question of ["Berapa jatah cuti?", "Apa itu reimbursement?", "What is reimbursement?", "???", "...", "", "   "]) {
+  sama(isFollowUpQuestion(question, sebelumnya), false, `bukan follow-up hanya karena pendek: ${question}`);
+  sama(retrievalQueryFor(question, sebelumnya), question, "pertanyaan mandiri/kosong tidak membawa topik lama");
+}
+sama(isFollowUpQuestion("how long?", sebelumnya), true, "pertanyaan eliptis Inggris mempertahankan konteks");
+sama(isFollowUpQuestion("bagaimana   dengan pasien anak?", sebelumnya), true, "spasi berulang tidak memutus penanda rujukan");
+const chain = [sebelumnya, "kalau yang ungu?"];
+sama(retrievalQueryFor("kalau yang merah?", chain), `${sebelumnya}\nkalau yang ungu?\nkalau yang merah?`, "follow-up ketiga tetap membawa topik gelang");
+sama(retrievalQueryFor("berapa lama?", [...chain, "Berapa jatah cuti?"]), "Berapa jatah cuti?\nberapa lama?", "pergantian topik mereset konteks rangkaian");
+sama(retrievalQueryFor("berapa lama?", []), "berapa lama?", "riwayat kosong tidak membuat konteks palsu");
+sama(retrievalQueryFor("berapa lama?", ["", "   ", sebelumnya]), `${sebelumnya}\nberapa lama?`, "baris riwayat kosong diabaikan");
+sama(retrievalQueryFor("berapa lama?", undefined), "berapa lama?", "tanpa riwayat tetap pertanyaan asli");
+sama(retrievalQueryFor("berapa lama?", ["x".repeat(400), ...Array(20).fill("kalau yang ungu?")]).length <= 402 + "berapa lama?".length, true, "riwayat panjang tetap dibatasi dua potongan konteks");
 
 console.log("\nMODEL ROI — roi");
 const r = calculateRoi(ROI_DEFAULTS);

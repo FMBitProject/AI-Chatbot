@@ -81,14 +81,11 @@ export const ANSWER_STYLE = `VOICE AND SHAPE (this section changes how an answer
 - Keep the document's own words for the things that must not drift — terms, names, numbers, and every qualifier attached to a number — and use your own for the sentences that connect them.
 - The not-found message is the exception to all of the above. When the documents do not answer the question, send that exact sentence by itself: no opener naming a document, no apology in your own words, no offer to help further, nothing before it and nothing after it.`;
 
-// An invitation to keep going, for the channels where "going on" is a thing the
-// reader can actually do.
+// An invitation to keep going in app chat, which has stored conversation history.
 //
-// Not part of ANSWER_STYLE because it is wrong in two of the four places that
-// block is used: /api/v1/query answers an integration, which cannot take up an
-// offer and will paste the question straight into whatever it renders, and the
-// public demo is capped at 120 words and steers people towards its own sample
-// questions.
+// Not part of ANSWER_STYLE: /api/v1/query answers an integration, the public demo
+// answers standalone sample questions, and Slack does not replay prior turns.
+// None of those channels can resolve an acceptance such as "yes, explain more".
 //
 // The "only when the documents hold more" clause is what stops this from
 // reopening the hole the grounding rules close. An unbounded offer to elaborate
@@ -126,23 +123,28 @@ export const FOLLOW_UP_OFFER =
 // the list is empty and the instruction becomes "do not offer". No list, no
 // offer — never "no list, use your judgement".
 //
-// Extraction is deliberately dumb and has to stay that way. It reads the leading
-// clause of each sentence, which is where Indonesian and English both put the
-// subject, and it never paraphrases: every phrase in the list is a substring of
-// a document the customer uploaded. A cleverer extractor that summarised would
-// reintroduce the exact failure this replaces, one level further down.
+// Extraction keeps complete short sentences instead of truncating their leading
+// clauses: a discarded tail can contain "tidak dibahas" and reverse the meaning.
+// Long or explicitly negative sentences are omitted; offers are optional.
+// This remains a conservative text heuristic, not a semantic proof that a topic
+// is answerable. The full excerpts and grounding rules still govern the answer.
 
 /** Leading list markers ("1.", "-", "•") and citation markers ("[1]"). */
 const LEAD_NOISE = /^(?:\[\d+\]\s*)?(?:\d+[.)]\s*|[-*•]\s*)?/;
+const NEGATED_DETAIL = /\b(?:tidak|belum|bukan|jangan|not|never|no|unavailable|cannot)\b|\b\w+n['’]t\b/i;
+
+// Includes the menu header and separators. Chat reserves this exact amount
+// before choosing excerpts; a word-count cap alone cannot bound prompt size.
+export const MAX_OFFERABLE_BLOCK_CHARS = 1_000;
 
 /**
- * Short phrases, taken verbatim from the excerpts, that a follow-up offer may
+ * Complete short sentences/headings from the excerpts that a follow-up offer may
  * be about.
  *
  * Deduplicated case-insensitively and capped, because this goes into every
  * prompt: the list is a menu, not a second copy of the context. Markdown
  * headings come first when a document has them — they are what the author
- * themselves considered a topic — and leading clauses fill the rest.
+ * themselves considered a topic — and complete short sentences fill the rest.
  */
 export function offerableDetails(excerpts: { text: string }[], max = 8): string[] {
   const seen = new Set<string>();
@@ -152,14 +154,12 @@ export function offerableDetails(excerpts: { text: string }[], max = 8): string[
   const add = (into: string[], raw: string) => {
     const phrase = raw.replace(LEAD_NOISE, "").replace(/\s+/g, " ").trim().replace(/[.,;:]+$/, "");
     const words = phrase.split(" ").filter(Boolean);
-    if (words.length < 3) return;
-    // Eight words is long enough to name a topic and short enough that the
-    // model quotes it rather than re-writing it.
-    const capped = words.slice(0, 8).join(" ");
-    const key = capped.toLowerCase();
+    // Never remove a trailing qualifier or negation just to fit the menu.
+    if (words.length < 3 || words.length > 8 || NEGATED_DETAIL.test(phrase)) return;
+    const key = phrase.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
-    into.push(capped);
+    into.push(phrase);
   };
 
   for (const excerpt of excerpts) {
@@ -168,11 +168,11 @@ export function offerableDetails(excerpts: { text: string }[], max = 8): string[
       const heading = /^#{1,6}\s+(.*)$/.exec(line.trim());
       if (heading) add(headings, heading[1]);
     }
-    // Sentences, then the first clause of each: the part before the comma,
-    // colon or bracket that starts the detail.
+    // Preserve commas, colons and parentheses: the text after them can reverse
+    // what the opening clause appears to say.
+    // TODO: Heading diproses lagi sebagai kalimat dengan marker ##, sehingga duplikat dapat menghabiskan slot menu.
     for (const sentence of text.split(/(?<=[.!?])\s+|\n+/)) {
-      const lead = sentence.split(/[,:;(]/)[0];
-      if (lead.trim().length > 0) add(clauses, lead);
+      if (sentence.trim().length > 0) add(clauses, sentence);
     }
   }
 
@@ -188,8 +188,18 @@ export function offerableDetails(excerpts: { text: string }[], max = 8): string[
  */
 export function offerableDetailsBlock(details: string[]): string {
   if (details.length === 0) return "";
-  return "OFFERABLE DETAILS — where the excerpts above go on to say more. This list exists for ONE purpose: to "
+  const header = "OFFERABLE DETAILS — where the excerpts above go on to say more. This list exists for ONE purpose: to "
     + "choose the closing offer from. It is not extra context, it answers nothing, and no line of it may be copied "
-    + "into the body of the answer.\n"
-    + details.map((d) => `- ${d}`).join("\n");
+    + "into the body of the answer.\n";
+  const lines: string[] = [];
+  let length = header.length;
+  for (const detail of details) {
+    const line = `- ${detail}`;
+    const addedLength = line.length + (lines.length > 0 ? 1 : 0);
+    // Skip whole entries, never cut a sentence midway to make it fit.
+    if (length + addedLength > MAX_OFFERABLE_BLOCK_CHARS) continue;
+    lines.push(line);
+    length += addedLength;
+  }
+  return lines.length > 0 ? header + lines.join("\n") : "";
 }

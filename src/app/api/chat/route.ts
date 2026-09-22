@@ -18,7 +18,7 @@ import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate"
 import { getEmbedding } from "@/lib/embeddings";
 import { retrievalQueryFor } from "@/lib/follow-up";
 import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
-import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, offerableDetails, offerableDetailsBlock } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, MAX_OFFERABLE_BLOCK_CHARS, offerableDetails, offerableDetailsBlock } from "@/lib/rag-prompt";
 import { canUseAiChat } from "@/lib/pricing";
 import { getLimits } from "@/lib/plan-limits";
 import { withTenant } from "@/lib/db/tenant";
@@ -298,7 +298,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   //
   // Read here, above the quota and the embedding rather than just below the
   // prompt, because retrieval needs it now: retrievalQueryFor searches a
-  // follow-up question together with the one before it (see @/lib/follow-up),
+  // follow-up with its topic anchor and the latest question (see @/lib/follow-up),
   // and the embedding is computed a few lines down. Moving the ownership check
   // up with it is a bonus rather than a cost — a session id that is not yours
   // now 404s before it can spend one of your questions.
@@ -339,8 +339,8 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // Retrieval only. `question` itself is untouched: it is what gets stored,
   // what the model is asked, and what the grounding rules apply to. A wider
   // search finds better excerpts; it does not widen what may be answered.
-  const previousQuestion = [...priorTurns].reverse().find((m) => m.role === "user")?.content ?? null;
-  const searchText = retrievalQueryFor(question, previousQuestion);
+  const previousQuestions = priorTurns.filter((m) => m.role === "user").map((m) => m.content);
+  const searchText = retrievalQueryFor(question, previousQuestions);
 
   // Company-wide daily + monthly quota, shared with the public API and Slack.
   const quotaFailure = await consumeQuestionQuota(companyId, limits);
@@ -448,10 +448,32 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   const SAFETY = 0.95;               // tokenizer estimates are estimates
   const HISTORY_RESERVE_CHARS = 6_000; // replayed turns + this question
 
+  // A pointer back to the persona, not a second copy of it.
+  //
+  // The persona sits at the very top of the prompt and the style rules sit
+  // thousands of tokens below it, so on a short question the style rules simply
+  // won: a workspace that had asked for no opener and no closing offer got both
+  // anyway. The instruction nearest the question is the one that survives — the
+  // same reason GROUNDING_REMINDER exists at all.
+  //
+  // What is repeated here is a reference ("follow the section above"), never the
+  // customer's own text. Persona text is the one part of this prompt a customer
+  // writes, and the end of the prompt is its strongest position; pasting it
+  // there would hand the admin page the last word over the grounding rules,
+  // which is exactly what rule 9 spends a paragraph refusing.
+  const personaReminder = company?.aiPersonality
+    ? "Also remember the KEPRIBADIAN & GAYA section at the top: it is this customer's tone preference and it "
+      + "outranks the tone preferences in VOICE AND SHAPE — including whether to open with a greeting, whether to "
+      + "close with an offer, and how long an answer should be. It does not outrank rules 1-4 or the not-found message."
+    : "";
+
   const promptOverheadChars =
     SYSTEM_PROMPT.length + GROUNDING_REMINDER.length + docCatalog.length +
+    personaReminder.length + MAX_OFFERABLE_BLOCK_CHARS +
     (company?.aiPersonality?.length ?? 0) + (company?.aiName?.length ?? 0) +
     800; // language block + section headers, both small and fixed
+  // The menu is not built until excerpts are selected. Its bounded formatter
+  // includes its header in MAX_OFFERABLE_BLOCK_CHARS, reserved above.
 
   const inputBudgetChars =
     (TPM_LIMIT_TOKENS - OUTPUT_RESERVE_TOKENS) * SAFETY * CHARS_PER_TOKEN;
@@ -604,25 +626,6 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
 
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
-
-  // A pointer back to the persona, not a second copy of it.
-  //
-  // The persona sits at the very top of the prompt and the style rules sit
-  // thousands of tokens below it, so on a short question the style rules simply
-  // won: a workspace that had asked for no opener and no closing offer got both
-  // anyway. The instruction nearest the question is the one that survives — the
-  // same reason GROUNDING_REMINDER exists at all.
-  //
-  // What is repeated here is a reference ("follow the section above"), never the
-  // customer's own text. Persona text is the one part of this prompt a customer
-  // writes, and the end of the prompt is its strongest position; pasting it
-  // there would hand the admin page the last word over the grounding rules,
-  // which is exactly what rule 8 spends a paragraph refusing.
-  const personaReminder = company?.aiPersonality
-    ? "Also remember the KEPRIBADIAN & GAYA section at the top: it is this customer's tone preference and it "
-      + "outranks the tone preferences in VOICE AND SHAPE — including whether to open with a greeting, whether to "
-      + "close with an offer, and how long an answer should be. It does not outrank rules 1-4 or the not-found message."
-    : "";
 
   const langInstruction = responseLang === "en"
     ? `LANGUAGE RULE (ABSOLUTE — OVERRIDES ALL OTHER RULES):
