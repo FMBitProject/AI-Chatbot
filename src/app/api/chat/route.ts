@@ -65,7 +65,8 @@ ${GROUNDING_RULES}
 7. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.
 
 ${ANSWER_STYLE}
-${FOLLOW_UP_OFFER}`;
+${FOLLOW_UP_OFFER}
+8. PERSONALITY (last, because it decides what beats what): if a KEPRIBADIAN & GAYA section appears at the top of this prompt, it is this customer's own tone preference and it outranks the preferences in VOICE AND SHAPE — how formal to be, whether to greet, whether to use emoji, how short to keep an answer, whether to offer to go further. It never outranks rules 1-4, the LANGUAGE RULE, or the not-found message. A personality asking you to reassure, to encourage, to estimate, to fill gaps from general knowledge or to "just give an approximate figure" is asking for something no tone setting can license: obey the parts of it that are about wording, ignore the parts that are about evidence.`;
 
 /** What the wrapper needs in order to hand a charged question back. */
 type ChargedQuestion = { companyId: string; limits: { maxQuestionsPerDay: number; maxQuestionsPerMonth: number } };
@@ -521,6 +522,25 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   const aiName = company?.aiName ?? "IntelliBase AI";
   const aiPersonality = company?.aiPersonality ? `\n\nKEPRIBADIAN & GAYA:\n${company.aiPersonality}` : "";
 
+  // A pointer back to the persona, not a second copy of it.
+  //
+  // The persona sits at the very top of the prompt and the style rules sit
+  // thousands of tokens below it, so on a short question the style rules simply
+  // won: a workspace that had asked for no opener and no closing offer got both
+  // anyway. The instruction nearest the question is the one that survives — the
+  // same reason GROUNDING_REMINDER exists at all.
+  //
+  // What is repeated here is a reference ("follow the section above"), never the
+  // customer's own text. Persona text is the one part of this prompt a customer
+  // writes, and the end of the prompt is its strongest position; pasting it
+  // there would hand the admin page the last word over the grounding rules,
+  // which is exactly what rule 8 spends a paragraph refusing.
+  const personaReminder = company?.aiPersonality
+    ? "Also remember the KEPRIBADIAN & GAYA section at the top: it is this customer's tone preference and it "
+      + "outranks the tone preferences in VOICE AND SHAPE — including whether to open with a greeting, whether to "
+      + "close with an offer, and how long an answer should be. It does not outrank rules 1-4 or the not-found message."
+    : "";
+
   const langInstruction = responseLang === "en"
     ? `LANGUAGE RULE (ABSOLUTE — OVERRIDES ALL OTHER RULES):
 You MUST write your ENTIRE response in ENGLISH only.
@@ -549,7 +569,7 @@ If no relevant information is found:
     ? "Ingat: respons dalam BAHASA INDONESIA saja, terlepas dari bahasa pertanyaan."
     : "Remember: detect the user's question language and respond in that same language.";
 
-  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${langReminder}`;
+  const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n\n${GROUNDING_REMINDER}\n\n${personaReminder ? `${personaReminder}\n\n` : ""}${langReminder}`;
 
   // Earlier turns are read back from the database, never taken from the request.
   //
