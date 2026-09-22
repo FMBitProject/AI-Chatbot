@@ -17,6 +17,7 @@ import {
   ESTIMATE_NOTE,
 } from "../src/lib/roi.ts";
 import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "../src/lib/upload-limits.ts";
+import { isFollowUpQuestion, retrievalQueryFor } from "../src/lib/follow-up.ts";
 
 let gagal = 0;
 const laporkan = (ok: boolean, nama: string, catatan = "") => {
@@ -146,11 +147,53 @@ sama(
   "tawaran lanjutan dilarang menempel pada jawaban tidak-ditemukan",
 );
 sama(
-  /actually hold more/i.test(FOLLOW_UP_OFFER),
+  /visibly hold more/i.test(FOLLOW_UP_OFFER),
   true,
   "tawaran lanjutan hanya boleh untuk hal yang memang ada di kutipan — kalau tidak, jawabannya nanti dikarang",
 );
 sama(RAG_TEMPERATURE, 0.2, "suhu TIDAK dinaikkan demi nada yang lebih hangat");
+
+console.log("\nPERTANYAAN LANJUTAN — follow-up");
+const sebelumnya = "gelang identitas berisi apa saja?";
+sama(isFollowUpQuestion("kalau yang ungu?", sebelumnya), true, "pertanyaan 3 kata yang menggantung = lanjutan");
+sama(isFollowUpQuestion("berapa lama?", sebelumnya), true, "pertanyaan super pendek = lanjutan");
+sama(
+  isFollowUpQuestion("bagaimana dengan pasien anak untuk prosedur tersebut?", sebelumnya),
+  true,
+  "kata rujukan ('tersebut') pada pertanyaan pendek-sedang = lanjutan",
+);
+sama(
+  isFollowUpQuestion("Kalau karyawan mengundurkan diri, bagaimana prosedur offboarding dan berapa lama akses emailnya dicabut?", sebelumnya),
+  false,
+  "panjang dan berdiri sendiri, meski memuat 'kalau' — batas jumlah kata yang memisahkannya",
+);
+sama(
+  isFollowUpQuestion("apa isi SOP identifikasi pasien?", sebelumnya),
+  false,
+  "menyebut topiknya sendiri = bukan lanjutan",
+);
+sama(isFollowUpQuestion("kalau yang ungu?", null), false, "tidak ada pertanyaan sebelumnya = tidak ada yang bisa disandari");
+sama(isFollowUpQuestion("kalau yang ungu?", "   "), false, "pertanyaan sebelumnya kosong diperlakukan sama dengan tidak ada");
+sama(
+  retrievalQueryFor("kalau yang ungu?", sebelumnya),
+  `${sebelumnya}\nkalau yang ungu?`,
+  "yang dicari = pertanyaan sebelumnya + pertanyaan sekarang",
+);
+sama(
+  retrievalQueryFor("apa isi SOP identifikasi pasien?", sebelumnya),
+  "apa isi SOP identifikasi pasien?",
+  "pertanyaan mandiri dicari apa adanya — persis seperti sebelum fitur ini ada",
+);
+sama(
+  retrievalQueryFor("kalau yang ungu?", "x".repeat(400)).length <= 200 + "\nkalau yang ungu?".length,
+  true,
+  "pertanyaan sebelumnya dipotong 200 karakter supaya tidak menenggelamkan pertanyaan sekarang",
+);
+sama(
+  isFollowUpQuestion("apakah institusi ini memakai formulir standar?", sebelumnya),
+  false,
+  "'itu' di dalam 'institusi' tidak ikut tertangkap — penanda dikunci sebagai kata utuh",
+);
 
 console.log("\nMODEL ROI — roi");
 const r = calculateRoi(ROI_DEFAULTS);

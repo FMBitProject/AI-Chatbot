@@ -98,5 +98,6 @@ export const ANSWER_STYLE = `VOICE AND SHAPE (this section changes how an answer
 export const FOLLOW_UP_OFFER =
   "- Close with one short offer to go further, naming the specific thing you could expand on (\"Mau saya perinci "
   + "tahap verifikasinya?\") rather than a generic \"let me know if you need anything else\". Offer it only when "
-  + "the excerpts you were given actually hold more on that point — if they do not, end on the answer instead. One at "
-  + "most, one line, and never after a not-found message.";
+  + "the excerpts in front of you visibly hold more on that point — point at text you can actually see, not at a "
+  + "topic that sounds like it should be in the document. If you cannot find it in the excerpts, end on the answer "
+  + "instead. One at most, one line, and never after a not-found message.";
