@@ -43,6 +43,12 @@ const REFERENTIAL = new RegExp(
   "i",
 );
 
+// Length alone does not establish a reference: "Berapa jatah cuti?" names
+// its own topic. These complete elliptical forms do need the prior topic.
+const ELLIPTICAL = /^(?:berapa lama|berapa banyak|mengapa|kenapa|how long|how many|why)[?!.\s]*$/i;
+// "itu" in a definition introduces the named topic rather than referring back.
+const NAMED_DEFINITION = /^apa\s+itu\s+\p{L}/iu;
+
 /** Words, ignoring punctuation and repeated spaces. */
 function wordCount(text: string): number {
   const cleaned = text.replace(/[^\p{L}\p{N}\s]+/gu, " ").trim();
@@ -52,47 +58,56 @@ function wordCount(text: string): number {
 /**
  * Whether this question should be searched for together with the previous one.
  *
- * Two independent signals, either of which is enough:
- *
- * - Four words or fewer. A question that short is almost never self-contained
- *   ("kalau yang ungu?", "berapa lama?", "and the red one?") and the few that
- *   are ("apa itu DNR?") lose nothing by being searched alongside the question
- *   before them, because the topic is the same either way. Five was the first
- *   try and it was one too many: "apa isi SOP identifikasi pasien?" is exactly
- *   five words and names its own topic.
- * - A referential word, in a question still short enough to be leaning on
- *   something. "Bagaimana dengan pasien anak untuk prosedur tersebut?" is
- *   eight words and unanswerable alone; "Kalau karyawan mengundurkan diri,
- *   bagaimana prosedur offboarding dan berapa lama akses emailnya dicabut?"
- *   also contains "kalau" and needs nothing from the turn before it. The word
- *   cap is what separates the two, and it is the reason a referential word on
- *   its own is not enough.
+ * A recognized elliptical question or a referential word, in a question still
+ * short enough to be leaning on something. "Bagaimana dengan pasien anak untuk
+ * prosedur tersebut?" is unanswerable alone; "Kalau karyawan mengundurkan diri,
+ * bagaimana prosedur offboarding dan berapa lama akses emailnya dicabut?"
+ * also contains "kalau" and needs nothing from the turn before it. The word
+ * cap separates the two: a referential word on its own is not enough.
  *
  * Returns false when there is nothing to lean on, which is what makes the first
  * question of every session behave exactly as it does today.
  */
 export function isFollowUpQuestion(question: string, previousQuestion: string | null | undefined): boolean {
   if (!previousQuestion || previousQuestion.trim().length === 0) return false;
-  const q = question.trim();
+  const q = question.trim().replace(/\s+/g, " ");
   if (q.length === 0) return false;
   const words = wordCount(q);
-  return words <= 4 || (words <= 12 && REFERENTIAL.test(q));
+  if (words === 0 || NAMED_DEFINITION.test(q)) return false;
+  return words <= 12 && (REFERENTIAL.test(q) || ELLIPTICAL.test(q));
 }
 
 /**
- * The text to embed for retrieval — the question itself, or the question with
- * its predecessor attached.
+ * The text to embed for retrieval — the question itself, or a follow-up with
+ * its topic anchor and immediate predecessor attached.
  *
- * The previous question goes FIRST and the current one last, so that the
- * sentence the reader actually asked is the one closest to the end. It is also
- * truncated: a long previous question attached to a short current one would
- * dominate the embedding it is only supposed to disambiguate.
+ * User questions must be supplied oldest-first. Walk back only through the
+ * current follow-up chain: a newly named topic resets the anchor. Keep at most
+ * the anchor and latest question, each bounded to 200 characters, so long
+ * sessions cannot overwhelm the current question or pull in older topics.
+ * A single previous question is still accepted for callers without history.
  *
  * This affects retrieval ONLY. The prompt still receives the real question, and
  * the answer still has to come from the excerpts — searching with more context
  * finds better excerpts, it does not license a broader answer.
  */
-export function retrievalQueryFor(question: string, previousQuestion: string | null | undefined): string {
-  if (!isFollowUpQuestion(question, previousQuestion)) return question;
-  return `${previousQuestion!.trim().slice(0, 200)}\n${question.trim()}`;
+export function retrievalQueryFor(
+  question: string,
+  history: string | readonly string[] | null | undefined,
+): string {
+  const questions = (typeof history === "string" ? [history] : history ?? [])
+    .map((q) => q.trim())
+    .filter(Boolean);
+  const previousQuestion = questions.at(-1);
+  if (!previousQuestion || !isFollowUpQuestion(question, previousQuestion)) return question;
+
+  let anchorIndex = questions.length - 1;
+  while (anchorIndex > 0 && isFollowUpQuestion(questions[anchorIndex], questions[anchorIndex - 1])) {
+    anchorIndex--;
+  }
+  const context = [...new Set([
+    questions[anchorIndex].slice(0, 200),
+    previousQuestion.slice(0, 200),
+  ])];
+  return [...context, question.trim()].join("\n");
 }

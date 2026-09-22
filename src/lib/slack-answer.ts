@@ -3,7 +3,7 @@ import { getEmbedding } from "@/lib/embeddings";
 import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { generateWithFallback } from "@/lib/models";
-import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, offerableDetails, offerableDetailsBlock } from "@/lib/rag-prompt";
+import { ANSWER_STYLE, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE } from "@/lib/rag-prompt";
 import { escapeSlackText } from "@/lib/slack";
 
 // The exact sentence the model is told to send when the documents do not
@@ -47,7 +47,7 @@ ${GROUNDING_RULES}
 Respond in the same language as the user. If no relevant information is found, reply with exactly "${NOT_FOUND_ID}" for an Indonesian question or "${NOT_FOUND_EN}" for an English one, and nothing else.
 
 ${ANSWER_STYLE}
-${FOLLOW_UP_OFFER}
+- Each Slack request is independent: you receive no prior conversation. Do not offer a continuation or ask whether the user wants more detail. End with the answer; a new request must name its own topic.
 - Slack is the shortest channel this product answers in. Stay under roughly 150 words: the voice rules above decide how the answer reads, this line decides how much of it there is, and a friendlier tone is not a licence to write more.
 
 ${GROUNDING_REMINDER}`;
@@ -156,15 +156,10 @@ export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAns
     ? scored.map((c, i) => `[${i + 1}] ${c.documentName}\n${c.text}`).join("\n\n")
     : "Tidak ada dokumen tersedia.";
 
-  // Same closed list as the chat UI: a closing offer may only be about one of
-  // these, and no list means no offer. Slack needs it at least as much — its
-  // answers are the shortest, so the offer is a larger share of what is read.
-  const offerable = offerableDetailsBlock(offerableDetails(scored));
-
   const { text } = await generateWithFallback({
     label,
     keys,
-    system: `${SLACK_SYSTEM_PROMPT}\n\nKONTEKS:\n${context}${offerable ? `\n\n${offerable}` : ""}`,
+    system: `${SLACK_SYSTEM_PROMPT}\n\nKONTEKS:\n${context}`,
     temperature: RAG_TEMPERATURE,
     prompt: question,
   });
