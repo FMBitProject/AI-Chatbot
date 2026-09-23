@@ -11,10 +11,10 @@ const quote = (value) => `"${value.replaceAll('"', '""')}"`;
 // Build relevant tables from the real schema, including defaults and FKs.
 for (const table of [schema.companies, schema.users, schema.accounts, schema.sessions,
   schema.verifications, schema.twoFactors, schema.documents, schema.apiKeys,
-  schema.chatSessions, schema.chatMessages, schema.transactions]) {
+  schema.chatSessions, schema.chatMessages, schema.transactions, schema.documentIndexChunks, schema.indexingProviderSlots]) {
   const config = getTableConfig(table);
   const columns = config.columns.map((col) => {
-    let definition = `${quote(col.name)} ${col.getSQLType()}`;
+    let definition = `${quote(col.name)} ${col.getSQLType().startsWith("vector(") ? "text" : col.getSQLType()}`;
     if (col.primary) definition += " PRIMARY KEY";
     if (col.notNull) definition += " NOT NULL";
     if (col.isUnique) definition += " UNIQUE";
@@ -25,6 +25,7 @@ for (const table of [schema.companies, schema.users, schema.accounts, schema.ses
     }
     return definition;
   });
+  for (const key of config.primaryKeys) columns.push(`PRIMARY KEY (${key.columns.map(c => quote(c.name)).join(",")})`);
   for (const fk of config.foreignKeys) {
     const ref = fk.reference();
     columns.push(`FOREIGN KEY (${ref.columns.map(c => quote(c.name)).join(",")}) REFERENCES ${quote(getTableConfig(ref.foreignTable).name)} (${ref.foreignColumns.map(c => quote(c.name)).join(",")}) ON DELETE ${fk.onDelete ?? "no action"}`);

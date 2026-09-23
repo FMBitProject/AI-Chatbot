@@ -1,30 +1,17 @@
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { geminiKey, resolveByok } from "@/lib/byok";
 import { BATCH_CHAIN, generateWithFallback } from "@/lib/models";
-import { randomUUID } from "crypto";
+import { createHash } from "node:crypto";
+import { ProviderBusyError, withEmbeddingSlot } from "@/lib/indexing-provider";
 import { db } from "@/lib/db";
 import { withTenant } from "@/lib/db/tenant";
-import { companies, documents, documentChunks } from "@/lib/db/schema";
+import { companies, documents, documentChunks, documentIndexChunks } from "@/lib/db/schema";
 import { chunkParentDocument } from "@/lib/chunker";
 import { getEmbeddings, EmbeddingBudgetExceededError, isRateLimitError } from "@/lib/embeddings";
 import type { Company } from "@/lib/subscription";
 
-// Turning an uploaded document into searchable vectors, separated from the
-// request that received the file.
-//
-// Upload used to do both: receive the bytes *and* embed every chunk, inside one
-// serverless invocation capped at 300 seconds. That coupling is what made a
-// 500-document import unworkable. One slow or rate-limited document could run
-// the request past the cap, and a killed function runs neither its success path
-// nor its catch — so the row stayed "processing" forever, and the work already
-// paid for (parsing the file) was lost with it. The admin's only recourse was to
-// upload the same file again.
-//
-// Now upload only parses and stores the text (fast, deterministic, no third
-// party involved), and indexing happens here — driven by the admin's browser
-// while it is open, and by a daily cron for whatever is left. Because
-// `documents.raw_text` is already in the database, indexing is *resumable*: a
-// retry costs one embedding call, never another upload.
+// Upload stores extracted text. The standalone worker, browser and daily cron
+// share this queue; committed batches survive retries without re-embedding.
 
 // A document claimed for indexing but left in "processing" for longer than this
 // belongs to an invocation that died — a timeout, a deploy, a crash. Measured
@@ -40,15 +27,8 @@ import type { Company } from "@/lib/subscription";
 // where the document had no chunks at all and simply did not answer searches.
 const STUCK_AFTER_MS = 10 * 60 * 1000;
 
-// How long one indexing pass may keep working before returning.
-//
-// The budget is only checked *between* documents, so the real worst case is this
-// plus one whole document: up to ~120s inside getEmbeddings' retry budget plus a
-// summary call. 120 + 120 + ~30 fits inside the route's maxDuration = 300 with
-// room to spare; the previous 150 did not, and a pass cut off mid-document is
-// exactly what leaves a row stranded in "processing". Whatever is left stays
-// "queued" and the next pass picks it up — the queue is the progress record, so
-// stopping early costs nothing.
+// Checked between batches and passed to embedding/summary HTTP deadlines.
+// Database commits may finish after this work budget.
 export const INDEX_RUN_BUDGET_MS = 120 * 1000;
 
 // How long one pass's exclusive claim on a company's queue stays valid without
@@ -102,6 +82,7 @@ class IndexError extends Error {}
 // to "queued" with its text intact, while a rejected key or an unparseable file
 // means "this will never work" and the document is failed with a reason.
 class RetryableError extends Error {}
+class PassBudgetError extends Error {}
 
 // Raised when the document we are holding is no longer ours to write to: the
 // stuck sweep decided we were dead and a second pass re-claimed it, or the admin
@@ -298,198 +279,87 @@ async function queueStats(companyId: string): Promise<{ queued: number; stuck: n
 // connection for the whole wait, and Neon will eventually close it underneath
 // us. Claim, then work, then write — three short touches rather than one long
 // one.
-async function embedAndStore(companyId: string, doc: ClaimedDocument, company: Company): Promise<void> {
-  const childChunks = chunkParentDocument(doc.rawText);
-  const chunks = childChunks.map(chunk => chunk.text);
+// Bump this when chunking or embedding configuration changes.
+const INDEX_VERSION = "parent-v1:gemini-embedding-001:1536:retrieval-document";
+const BATCH_SIZE = 100;
 
-  // The text was checked for emptiness at upload, so an empty result here means
-  // the file had *some* text but not enough for a single chunk.
-  if (chunks.length === 0) {
-    throw new IndexError(
-      "Isi dokumen ini terlalu pendek untuk diindeks. Tambahkan isinya dulu, lalu upload lagi."
-    );
-  }
-
-  // Decrypted once, before the try, so that a key we cannot unwrap is not filed
-  // as an embedding failure. The two are different problems with different
-  // fixes — one is the provider being busy, the other is BYOK_SECRET_KEY being
-  // wrong — and the catch below exists to tell the admin which of those it was.
-  //
-  // Re-thrown as an IndexError so the reason reaches the admin: the outer handler
-  // only surfaces IndexError messages, and files anything else as "kesalahan tak
-  // terduga di server", which would send someone hunting through the document
-  // instead of through the environment.
+async function embedAndStore(companyId: string, doc: ClaimedDocument, company: Company, deadline: number): Promise<void> {
+  const chunks = chunkParentDocument(doc.rawText);
+  if (!chunks.length) throw new IndexError("Isi dokumen ini terlalu pendek untuk diindeks.");
+  const fingerprint = createHash("sha256").update(INDEX_VERSION).update("\0").update(doc.rawText).digest("hex");
+  const checkpointWhere = and(eq(documentIndexChunks.documentId, doc.id), eq(documentIndexChunks.fingerprint, fingerprint));
+  const saved = await withTenant(companyId, tx => tx
+    .select({ index: documentIndexChunks.chunkIndex }).from(documentIndexChunks).where(checkpointWhere));
+  const completed = new Set(saved.map(row => row.index));
   let ownGeminiKey: string | null;
   try {
     ownGeminiKey = await geminiKey(company);
-  } catch (error) {
-    throw new IndexError(error instanceof Error ? error.message : String(error));
+  } catch {
+    throw new IndexError("API key perusahaan tidak dapat dibuka. Periksa konfigurasi BYOK.");
   }
-
-  let embeddings: number[][];
-  try {
-    embeddings = await getEmbeddings(chunks, ownGeminiKey);
-  } catch (error) {
-    console.error(`[indexing] Embedding failed for ${doc.name}:`, error);
-    const ownKey = !!ownGeminiKey;
-    // Any 429 counts as rate limiting, not just the budget error: when the
-    // provider's retry-after is short, five attempts can be spent inside the
-    // budget and the raw 429 propagates instead. Both mean "too fast", and
-    // neither means "your key is wrong" — which is the one message that would
-    // send an admin to revoke a perfectly good key.
-    //
-    // Via isRateLimitError rather than a substring test on the message. The
-    // test used to be `message.includes("429")`, which Gemini's own 429 never
-    // satisfies — the status lives on the error object, not in its prose — so
-    // this branch was unreachable for the single most common failure on the
-    // free tier, and every rate-limited document was filed as broken instead
-    // of being handed back to the queue.
-    const isRateLimit =
-      error instanceof EmbeddingBudgetExceededError || isRateLimitError(error);
-    if (isRateLimit) {
-      // Back to the queue, untouched. The old pipeline failed the document here
-      // and made the admin upload the file again for what was a temporary
-      // "slow down" — during a bulk import, the one moment it is guaranteed to
-      // happen.
-      throw new RetryableError(
-        ownKey
-          ? "API key Gemini perusahaan Anda sedang kena rate limit."
-          : "Layanan embedding sedang penuh."
-      );
+  for (let offset = 0; offset < chunks.length; offset += BATCH_SIZE) {
+    const indices = Array.from({ length: Math.min(BATCH_SIZE, chunks.length - offset) }, (_, i) => offset + i)
+      .filter(i => !completed.has(i));
+    if (!indices.length) continue;
+    if (Date.now() >= deadline) throw new PassBudgetError();
+    let embeddings: number[][];
+    try {
+      embeddings = await withEmbeddingSlot(ownGeminiKey, () => getEmbeddings(
+        indices.map(i => chunks[i].text), ownGeminiKey, { budgetMs: deadline - Date.now() },
+      ));
+    } catch (error) {
+      if (error instanceof ProviderBusyError || isRateLimitError(error)) throw new RetryableError("Embedding sedang penuh.");
+      if (error instanceof EmbeddingBudgetExceededError) throw new PassBudgetError();
+      throw error;
     }
-    throw new IndexError(
-      ownKey
-        ? "Gagal membuat index AI — API key Gemini perusahaan Anda ditolak atau sudah tidak berlaku. " +
-          "Periksa key tersebut di tab Langganan, atau hapus key-nya untuk kembali memakai layanan bawaan."
-        : "Gagal membuat index AI untuk dokumen ini — layanan embedding sedang bermasalah " +
-          "atau kuotanya habis. Coba lagi beberapa menit lagi."
-    );
+    if (embeddings.length !== indices.length || embeddings.some(v => v.length !== 1536 || v.some(n => !Number.isFinite(n)))) {
+      throw new IndexError("Hasil embedding tidak lengkap atau tidak valid. Silakan indeks ulang.");
+    }
+    // Fence every batch against a superseded claim. A crash repeats at most
+    // the batch whose successful response has not yet committed.
+    await withTenant(companyId, async tx => {
+      const held = await tx.update(documents).set({ errorMessage: null }).where(stillOurs(doc)).returning({ id: documents.id });
+      if (!held.length) throw new ClaimLostError("Document claim was superseded");
+      await tx.delete(documentIndexChunks).where(and(eq(documentIndexChunks.documentId, doc.id), sql`${documentIndexChunks.fingerprint} <> ${fingerprint}`));
+      await tx.insert(documentIndexChunks).values(indices.map((i, j) => ({
+        documentId: doc.id, companyId, fingerprint, chunkIndex: i,
+        text: chunks[i].text, parentText: chunks[i].parentText,
+        parentIndex: chunks[i].parentIndex, embedding: embeddings[j],
+      }))).onConflictDoNothing();
+    });
   }
-
-  // The insert below pairs chunk i with embedding i. A short array would not
-  // error — `embedding` is nullable, so the missing tail would be stored as NULL
-  // and the document would be marked "success" while part of it stayed invisible
-  // to every search. Fail loudly instead; a silent half-indexed document is
-  // worse than a failed one the admin can retry.
-  if (embeddings.length !== chunks.length) {
-    console.error(
-      `[indexing] Embedding count mismatch for ${doc.name}: got ${embeddings.length} for ${chunks.length} chunks`
-    );
-    throw new IndexError(
-      "Index AI dokumen ini tidak lengkap terbentuk, jadi tidak disimpan supaya " +
-      "isinya tidak sebagian-sebagian saat dicari. Coba indeks ulang dokumen ini."
-    );
-  }
-
-  // Auto-generate the document summary. Uses the company's own Groq key when
-  // there is one, like every other generation call: this prompt carries the
-  // opening 2000 characters of the uploaded file, so it is document content
-  // leaving the server, not metadata.
-  //
-  // Key resolution stays INSIDE the try, not above it. It decrypts, so unlike
-  // the plain `company.groqApiKey ? createGroq(…) : groq` it replaced, it can
-  // fail — and failing one line above the try would have lost the whole document
-  // over an optional summary, after the embeddings had already been paid for.
-  // That is reachable without any Gemini key being involved: a company that
-  // configured only a Groq key gets `null` from geminiKey() above, embeds fine
-  // on the platform account, and then dies here.
-  const sampleText = chunks.slice(0, 3).join("\n\n").slice(0, 2000);
+  if (Date.now() >= deadline) throw new PassBudgetError();
   let summary: string | null = null;
   try {
-    const byok = await resolveByok(company);
-    if (!byok.ok) throw new Error(byok.message);
-    const { text } = await generateWithFallback({
-      label: "indexing",
-      keys: byok,
-      // BATCH_CHAIN, not the interactive one: this runs once per document and
-      // hundreds of times during a bulk import. Letting it climb to the Gemini
-      // rung would spend a shared daily free-tier allowance on summaries nobody
-      // is waiting for, and the person who paid for it would be an employee
-      // whose question hits a metered-out Groq that afternoon.
-      chain: BATCH_CHAIN,
-      // The one call in this function that is optional, so it is the one that
-      // least deserves to hold a pass open. Without a deadline a silent Groq
-      // would stall a document that is otherwise finished — its embeddings paid
-      // for, its chunks ready to write — for the sake of a summary nobody would
-      // miss. Failing here costs a bullet list; hanging here costs the document.
-      //
-      // Split across the chain, because the option is applied per attempt and
-      // the pass budget is sized on the summary's total. Trading a shorter first
-      // attempt for a bounded whole is the right way round here: the cost of
-      // giving up early is a bullet list nobody asked for, while the cost of
-      // overrunning is a document stranded mid-index in "processing".
-      timeout: Math.floor(SUMMARY_TIMEOUT_MS / BATCH_CHAIN.length),
-      prompt: `Buat ringkasan profesional dari dokumen berikut dalam 3-5 poin utama menggunakan Bahasa Indonesia. Format: bullet points singkat dan jelas. Dokumen: "${doc.name}"\n\nIsi:\n${sampleText}\n\nRingkasan (3-5 poin):`,
+    const keys = await resolveByok(company);
+    if (!keys.ok) throw new Error(keys.message);
+    const result = await generateWithFallback({
+      label: "indexing", keys, chain: BATCH_CHAIN,
+      timeout: Math.max(1, Math.floor(Math.min(SUMMARY_TIMEOUT_MS, deadline - Date.now()) / BATCH_CHAIN.length)),
+      prompt: `Buat ringkasan profesional dalam 3-5 poin singkat Bahasa Indonesia. Dokumen: "${doc.name}"\n\n${chunks.slice(0, 3).map(c => c.text).join("\n\n").slice(0, 2000)}`,
     });
-    summary = text.trim();
-  } catch (summaryError) {
-    // Swallowed — the summary is a nicety and must not fail an index that is
-    // otherwise complete. Logged, because with a company Groq key in play this
-    // can fail for every document of one tenant, and a bare `catch {}` made that
-    // indistinguishable from a model that simply had nothing to say.
-    console.error(`[indexing] Summary generation failed for ${doc.name}:`, summaryError);
+    summary = result.text.trim();
+  } catch {
+    console.warn(`[indexing] Optional summary skipped for document=${doc.id}`);
   }
-
-  // One transaction for the whole write, so a re-index never leaves a document
-  // with its old chunks deleted and its new ones missing. The delete is what
-  // makes indexing repeatable: without it, a second pass over the same document
-  // would double every chunk in retrieval.
-  await withTenant(companyId, async (tx) => {
-    // The document row is updated *first*, and only if `indexing_started_at` is
-    // still the value our claim wrote. Both halves of that matter.
-    //
-    // The condition is the fence. A claim is exclusive, but it is not permanent:
-    // sweepStuckDocuments returns a document to the queue after
-    // STUCK_AFTER_MS, and a second pass then claims it and overwrites
-    // `indexing_started_at`. Today that cannot bite, because the platform kills
-    // an invocation at maxDuration = 300s and the sweep only fires at 600s — an
-    // invariant held together by two constants in different files, one of which
-    // is not ours. Off Vercel there is no such kill, and neither the embedding
-    // call nor the summary call has a timeout, so a provider that hangs rather
-    // than refusing has no upper bound at all.
-    //
-    // It runs first so that a superseded worker finds out *before* it touches
-    // the chunk table. Nothing about the ordering is subtle — it is not a lock
-    // that saves us here. Postgres evaluates a WHERE before it locks a row, so a
-    // worker whose lease no longer matches never blocks and never waits: it gets
-    // zero rows back straight away, throws, and rolls back without having
-    // deleted or inserted a single chunk. (Measured, not assumed: the losing
-    // UPDATE returns immediately rather than blocking on the winner's open
-    // transaction.) The chunk table is where a mistake would be silent, so the
-    // rule is simply never to reach it without a valid claim.
-    const kept = await tx.update(documents)
-      .set({ status: "success", summary, errorMessage: null })
-      .where(stillOurs(doc))
-      .returning({ id: documents.id });
-
-    if (kept.length === 0) {
-      // Two ways to get here, and they are worth telling apart in the log. The
-      // row was re-claimed by another pass, or the admin deleted the document
-      // while it was being indexed — the second is not a fault at all, and
-      // reporting it as one sends someone looking for a race that never
-      // happened. One extra indexed lookup, on a path that should be rare.
-      const [survivor] = await tx.select({ id: documents.id })
-        .from(documents).where(eq(documents.id, doc.id));
-      throw new ClaimLostError(
-        survivor
-          ? `Document ${doc.id} was re-claimed by another pass while it was being indexed`
-          : `Document ${doc.id} was deleted while it was being indexed`
-      );
-    }
-
+  // Publish inside Postgres, avoiding a full embedding array and a giant
+  // parameterized INSERT in application memory. Rollback preserves old chunks.
+  await withTenant(companyId, async tx => {
+    const kept = await tx.update(documents).set({ status: "success", summary, errorMessage: null })
+      .where(stillOurs(doc)).returning({ id: documents.id });
+    if (!kept.length) throw new ClaimLostError("Document claim was superseded");
+    const [ready] = await tx.select({ count: sql<number>`count(*)::int` }).from(documentIndexChunks)
+      .where(and(checkpointWhere, sql`${documentIndexChunks.chunkIndex} >= 0 and ${documentIndexChunks.chunkIndex} < ${chunks.length}`));
+    if (ready.count !== chunks.length) throw new Error("Incomplete indexing checkpoint");
     await tx.delete(documentChunks).where(eq(documentChunks.documentId, doc.id));
-    await tx.insert(documentChunks).values(
-      chunks.map((text, i) => ({
-        id: randomUUID(),
-        documentId: doc.id,
-        companyId,
-        text,
-        embedding: embeddings[i],
-        chunkIndex: i,
-        parentText: childChunks[i].parentText,
-        parentIndex: childChunks[i].parentIndex,
-      }))
-    );
+    await tx.execute(sql`
+      insert into ${documentChunks} (id, document_id, company_id, text, embedding, chunk_index, parent_text, parent_index)
+      select gen_random_uuid()::text, document_id, company_id, text, embedding, chunk_index, parent_text, parent_index
+      from ${documentIndexChunks}
+      where document_id = ${doc.id} and fingerprint = ${fingerprint}
+        and chunk_index >= 0 and chunk_index < ${chunks.length}
+    `);
+    await tx.delete(documentIndexChunks).where(eq(documentIndexChunks.documentId, doc.id));
   });
 }
 
@@ -503,7 +373,7 @@ export async function runIndexingPass(
   company: Company,
   opts: { budgetMs?: number } = {},
 ): Promise<IndexPassResult> {
-  const budgetMs = opts.budgetMs ?? INDEX_RUN_BUDGET_MS;
+  const budgetMs = Math.max(0, Math.min(INDEX_RUN_BUDGET_MS, opts.budgetMs ?? INDEX_RUN_BUDGET_MS));
   const startedAt = Date.now();
   const companyId = company.id;
 
@@ -545,7 +415,7 @@ export async function runIndexingPass(
       if (!doc) break;
 
       try {
-        await embedAndStore(companyId, doc, company);
+        await embedAndStore(companyId, doc, company, startedAt + budgetMs);
         indexed++;
       } catch (error) {
         if (error instanceof ClaimLostError) {
@@ -556,18 +426,18 @@ export async function runIndexingPass(
           continue;
         }
 
-        if (error instanceof RetryableError) {
+        if (error instanceof RetryableError || error instanceof PassBudgetError) {
           // Put it back and stop the pass. Marching on to the next document
           // would just collect the same 429 for every remaining one, and burn
           // the whole budget doing it.
-          console.warn(`[indexing] Rate limited on ${doc.name}, requeued:`, error.message);
+          console.warn(`[indexing] Paused document=${doc.id}; saved batches will resume`);
           await withTenant(companyId, (tx) =>
             tx.update(documents).set({ status: "queued" }).where(stillOurs(doc)));
-          stop = "rate-limited";
+          stop = error instanceof PassBudgetError ? "budget" : "rate-limited";
           break;
         }
 
-        console.error(`[indexing] Error indexing ${doc.name}:`, error);
+        console.error(`[indexing] Error indexing document=${doc.id}:`, error);
         const errorMessage = error instanceof IndexError
           ? error.message
           : "Dokumen gagal diindeks karena kesalahan tak terduga di server.";

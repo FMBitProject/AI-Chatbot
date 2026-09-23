@@ -1,0 +1,21 @@
+[Unit]
+Description=IntelliBase document indexing worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=intellibase
+WorkingDirectory=/opt/intellibase
+EnvironmentFile=/etc/intellibase/worker.env
+ExecStart=/usr/bin/npm run indexing:worker
+Restart=always
+RestartSec=10
+# Let an in-flight pass save its batch and release leases on SIGTERM.
+TimeoutStopSec=180
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

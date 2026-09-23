@@ -169,6 +169,13 @@
       "when": 1789960214762,
       "tag": "0023_parent_child_chunks",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790132188428,
+      "tag": "0024_resumable_indexing",
+      "breakpoints": true
     }
   ]
 }

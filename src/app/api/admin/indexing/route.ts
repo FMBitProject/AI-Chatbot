@@ -6,7 +6,7 @@ import { readJsonObject, optionalString, LIMITS } from "@/lib/validate";
 import { withApiErrors } from "@/lib/api-error";
 
 // One pass may spend up to INDEX_RUN_BUDGET_MS working, and the document it is
-// on when the budget expires still has to finish. 300s leaves room for both.
+// current batch is checkpointed before returning. Extra time allows DB commits.
 export const maxDuration = 300;
 
 // Never served from a cache: the whole point of a call here is to change state.

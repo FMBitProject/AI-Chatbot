@@ -1,4 +1,3 @@
-import { documentAccessCondition } from "@/lib/document-access";
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
 import { billsOwnProvider, resolveByok } from "@/lib/byok";
@@ -12,12 +11,13 @@ import {
 } from "@/lib/models";
 import { requireUser } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
-import { chatSessions, chatMessages, documents, companies } from "@/lib/db/schema";
-import { eq, count, and, gte, inArray, asc, desc } from "drizzle-orm";
+import { chatSessions, chatMessages, companies } from "@/lib/db/schema";
+import { eq, count, and, gte, asc, desc } from "drizzle-orm";
 import { LIMITS, isOneOf, optionalString, readJsonObject } from "@/lib/validate";
 import { getEmbedding } from "@/lib/embeddings";
 import { retrievalQueryFor } from "@/lib/follow-up";
-import { activeDocumentIds, notExpired, retrieveChunks } from "@/lib/retrieval";
+import { retrieveChunks } from "@/lib/retrieval";
+import { documentCatalog, catalogPrompt } from "@/lib/document-catalog";
 import { ANSWER_STYLE, FOLLOW_UP_OFFER, GROUNDING_RULES, GROUNDING_REMINDER, RAG_TEMPERATURE, MAX_OFFERABLE_BLOCK_CHARS, offerableDetails, offerableDetailsBlock } from "@/lib/rag-prompt";
 import { canUseAiChat } from "@/lib/pricing";
 import { getLimits } from "@/lib/plan-limits";
@@ -63,7 +63,7 @@ MANDATORY RULES:
 ${GROUNDING_RULES}
 5. TERMINOLOGY: Always use the EXACT technical terms, abbreviations, and proper nouns as they appear in the source documents. Do NOT translate domain-specific or technical terms (e.g., if the document uses "Fair Market Value", "honorarium", "HCP Engagement", use those exact terms — do not substitute with informal translations).
 6. SPELLING & GRAMMAR: Use correct, professional spelling and grammar at all times. For Indonesian responses, strictly follow PUEBI (Pedoman Umum Ejaan Bahasa Indonesia). Common errors to avoid: "menspesifikasikan" NOT "menspecifikasikan", "persentase" NOT "prosentase", "jadwal" NOT "jadual".
-7. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG section lists the documents available in this knowledge base. It answers questions ABOUT the documents — how many there are, what they are called, whether one exists. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.
+7. DOCUMENT CATALOG: The KNOWLEDGE BASE CATALOG gives an accurate document count and a bounded sample of titles. The sample is not exhaustive: never infer that a document does not exist because its title is absent. Direct requests for the complete list to the document browser. It is a list of titles and nothing more: it never tells you what a document SAYS, so it can never be the basis for answering a question about content.
 8. CONVERSATION: The turns before this question are the conversation so far, and they are for understanding what is being asked — a follow-up often names nothing ("kalau yang ungu?", "berapa lama?") and means whatever the previous turn was about. When a question continues the one before it, connect it in a few words ("Masih dari SOP yang sama, ...", "Untuk gelang yang lain, ...") instead of restarting as though it were the first question of the session. If your own previous answer already named the document and this answer quotes the same one, do not name it a second time — the reader has it; connect to it instead. But earlier turns are conversation, NEVER evidence: a fact, name or number from an earlier answer may be repeated only if it also appears in the excerpts given to you for THIS question. The excerpts are re-retrieved every turn, so something you quoted correctly three turns ago is, right now, your own memory — rule 1 covers it exactly as it covers anything else you happen to know.
 
 ${ANSWER_STYLE}
@@ -370,39 +370,8 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     );
   }
 
-  // Document catalog + relevant chunks both read the RLS-protected documents /
-  // document_chunks tables, so they run together inside one tenant-scoped
-  // transaction (see withTenant).
-  const { catalogRows, rankedChunks } = await withTenant(companyId, async (tx) => {
-    // Every document the user can see (shared or their own department), so the
-    // AI can still answer "how many documents?"-style meta-questions even when
-    // no chunk is retrieved. Documents frozen by the plan limit are left out
-    // here too, so the catalog matches what can actually be answered from.
-    const activeIds = await activeDocumentIds(companyId, maxDocuments, tx);
-    // notExpired() for the same reason the retriever applies it: the catalog is
-    // what the model is told it can answer from, so listing a document the
-    // retriever will never return invites exactly the confident answer about a
-    // withdrawn document that an expiry date exists to prevent.
-    const catalogConditions = [eq(documents.companyId, companyId), notExpired()];
-    const accessCondition = documentAccessCondition(dbUser);
-    if (accessCondition) catalogConditions.push(accessCondition);
-    // The catalog has to be narrowed by the folder as well, for the same reason
-    // it is narrowed by expiry: it is the list the model is told it can answer
-    // from. Leave it whole while the retriever searches one folder and the model
-    // will happily name a document from another and be asked about it next.
-    if (folder) {
-      catalogConditions.push(eq(documents.department, folder));
-    }
-    if (activeIds !== null) {
-      catalogConditions.push(inArray(documents.id, activeIds));
-    }
-
-    const catalogRows = activeIds !== null && activeIds.length === 0
-      ? []
-      : await tx.select({ name: documents.name }).from(documents).where(and(...catalogConditions));
-
-    // Relevant chunks via the shared pgvector retriever (department-scoped, 0.5
-    // similarity threshold, ordered by the HNSW index in the database).
+  const { catalog, rankedChunks } = await withTenant(companyId, async (tx) => {
+    const catalog = await documentCatalog({ companyId, access: dbUser, folder, maxDocuments }, tx);
     const rankedChunks = await retrieveChunks({
       companyId,
       queryEmbedding,
@@ -413,13 +382,10 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
       maxDocuments,
     }, tx);
 
-    return { catalogRows, rankedChunks };
+    return { catalog, rankedChunks };
   });
 
-  const docCatalogNames = [...new Set(catalogRows.map((r) => r.name))].sort();
-  const docCatalog = docCatalogNames.length > 0
-    ? `KNOWLEDGE BASE CATALOG — ${docCatalogNames.length} document(s) available:\n${docCatalogNames.map((n, i) => `${i + 1}. ${n}`).join("\n")}`
-    : "KNOWLEDGE BASE CATALOG: No documents available.";
+  const docCatalog = catalogPrompt(catalog);
 
   // How much retrieved text may go into the prompt, measured rather than
   // guessed.
@@ -550,7 +516,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // Only bail out early when there are truly no documents at all in the knowledge base.
   // If there are documents but no relevant chunks (e.g. a meta-question like "how many docs?"),
   // continue to the AI so it can answer from the catalog.
-  if (scored.length === 0 && docCatalogNames.length === 0) {
+  if (scored.length === 0 && catalog.total === 0) {
     const effectiveLang = responseLang === "auto" ? detectLang(question) : (responseLang ?? "id");
     const noDocMsg = notFoundMessage(effectiveLang, company?.accountType === "individual");
 
