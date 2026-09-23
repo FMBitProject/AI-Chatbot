@@ -141,52 +141,38 @@ export class EmbeddingBudgetExceededError extends Error {
   }
 }
 
-// How long this whole function may take, sleeping and calling together.
-//
-// It used to bound only the *sleeping* between 429 retries, which sounds like
-// the same thing and is not. Sleep is the part we choose; the calls are the part
-// the provider chooses, and a document is many batches. Two minutes of permitted
-// sleep plus thirty unbounded requests has no upper limit at all, and the
-// arithmetic that keeps a pass inside its 300-second invocation was quietly
-// resting on requests being quick.
-//
-// Now the ceiling is real: an indexing pass spends at most this long on one
-// document's embeddings, plus a bounded summary call, and the pass budget can be
-// checked against numbers that mean something. Whatever is unfinished goes back
-// to the queue, which costs a retry rather than a failure.
+// Hard ceiling for calls plus retry sleeps. Callers can pass a shorter budget
+// to fit the remaining worker pass; each HTTP deadline uses the remaining time.
 const CALL_BUDGET_MS = 120_000;
 
-export async function getEmbeddings(texts: string[], apiKey?: string | null): Promise<number[][]> {
+export async function getEmbeddings(texts: string[], apiKey?: string | null, opts: { budgetMs?: number } = {}): Promise<number[][]> {
   const google = getGoogle(apiKey);
   const BATCH_SIZE = 100;
   const results: number[][] = [];
   const startedAt = Date.now();
+  const budgetMs = Math.max(1, Math.min(CALL_BUDGET_MS, opts.budgetMs ?? CALL_BUDGET_MS));
   const spent = () => Date.now() - startedAt;
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE).map((t) => t.replace(/\n/g, " "));
 
-    // Checked between batches, where stopping is clean. Everything embedded so
-    // far is discarded with the call — the document goes back to the queue and
-    // starts over — so this is a real cost, not a free bail-out, and the budget
-    // is set high enough that reaching it means something is wrong rather than
-    // slow.
-    if (spent() > CALL_BUDGET_MS) {
+    // Indexing passes one batch at a time and checkpoints it before continuing.
+    if (spent() >= budgetMs) {
       throw new EmbeddingBudgetExceededError(
-        `Embedding ran past its ${Math.round(CALL_BUDGET_MS / 1000)}s budget (chunk ${i} of ${texts.length})`,
+        `Embedding ran past its ${Math.round(budgetMs / 1000)}s budget (chunk ${i} of ${texts.length})`,
       );
     }
 
     let lastErr: unknown;
     for (let attempt = 0; attempt < 5; attempt++) {
+      if (spent() >= budgetMs) throw new EmbeddingBudgetExceededError("Embedding time budget exhausted");
       try {
         const { embeddings } = await embedMany({
           model: google.embedding("gemini-embedding-001"),
           values: batch,
           maxRetries: 0, // we handle retries ourselves
-          // Per attempt, so a retry gets its own full deadline rather than
-          // inheriting the exhausted one from the attempt before it.
-          abortSignal: AbortSignal.timeout(BATCH_TIMEOUT_MS),
+          // A retry cannot exceed the remaining total budget.
+          abortSignal: AbortSignal.timeout(Math.max(1, Math.min(BATCH_TIMEOUT_MS, budgetMs - spent()))),
           providerOptions: {
             google: { outputDimensionality: EMBEDDING_DIMENSIONS, taskType: "RETRIEVAL_DOCUMENT" },
           },
@@ -212,9 +198,9 @@ export async function getEmbeddings(texts: string[], apiKey?: string | null): Pr
         const delay = parseRetryDelay(err) * 1000;
         // Checked before sleeping, not after: a sleep that would overrun the
         // budget is one we should never start.
-        if (spent() + delay > CALL_BUDGET_MS) {
+        if (spent() + delay >= budgetMs) {
           throw new EmbeddingBudgetExceededError(
-            `Embedding rate-limited past its ${Math.round(CALL_BUDGET_MS / 1000)}s budget (chunk ${i} of ${texts.length})`,
+            `Embedding rate-limited past its ${Math.round(budgetMs / 1000)}s budget (chunk ${i} of ${texts.length})`,
           );
         }
         await new Promise((r) => setTimeout(r, delay));

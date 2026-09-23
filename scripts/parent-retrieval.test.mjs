@@ -96,7 +96,7 @@ const providerMocks = {
    export async function getEmbeddings(texts) {
      globalThis.parentIndexTest.inputs = texts;
      if (globalThis.parentIndexTest.fail) throw new Error('simulated provider outage');
-     return texts.map(() => [1, 0]);
+     return texts.map(() => Array(1536).fill(0.01));
    }`,
  "@/lib/byok": `export const geminiKey = async () => null;
    export const resolveByok = async () => ({ok: true});`,
@@ -120,6 +120,7 @@ for (const [i, row] of stored.entries()) {
  assert.equal(row.parent_text, chunks[i].parentText);
  assert.equal(row.parent_index, chunks[i].parentIndex);
 }
+await pg.exec("delete from indexing_provider_slots");
 providerState.fail = true;
 await pg.query("update documents set status='queued' where id='allowed'");
 const failedPass = await runIndexingPass(company);

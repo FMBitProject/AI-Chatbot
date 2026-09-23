@@ -83,8 +83,10 @@ export const companies = pgTable("companies", {
   // releasing: a killed invocation leaves the lease behind, and only its expiry
   // frees the queue again.
   indexingLeaseUntil: timestamp("indexing_lease_until"),
+  indexingCheckedAt: timestamp("indexing_checked_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [
+  index("companies_indexing_checked_idx").on(t.indexingCheckedAt.asc().nullsFirst(), t.id),
   // Company names stay unique; personal names do not.
   //
   // The rule this replaces was a plain UNIQUE over the whole column, which is
@@ -306,6 +308,27 @@ export const documents = pgTable("documents", {
   // second index would be maintained on every status write the indexer makes.
   index("documents_company_created_idx").on(t.companyId, t.createdAt, t.id),
 ]);
+
+// Unpublished checkpoints. Retrieval only reads document_chunks; publishing is
+// atomic. The fingerprint invalidates batches after text or chunker changes.
+export const documentIndexChunks = pgTable("document_index_chunks", {
+  documentId: text("document_id").references(() => documents.id, { onDelete: "cascade" }).notNull(),
+  companyId: text("company_id").references(() => companies.id).notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  text: text("text").notNull(),
+  parentText: text("parent_text").notNull(),
+  parentIndex: integer("parent_index").notNull(),
+  embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+}, (t) => [primaryKey({ columns: [t.documentId, t.chunkIndex] })]);
+
+// Operational coordination: hashes only, never raw API keys or document data.
+export const indexingProviderSlots = pgTable("indexing_provider_slots", {
+  keyHash: text("key_hash").primaryKey(),
+  token: text("token").notNull(),
+  leaseUntil: timestamp("lease_until").notNull(),
+  nextAllowedAt: timestamp("next_allowed_at").notNull(),
+});
 
 export const documentChunks = pgTable("document_chunks", {
   id: text("id").primaryKey(),
