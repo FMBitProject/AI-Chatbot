@@ -1,4 +1,4 @@
-# Resumable indexing and scale checks
+a# Resumable indexing and scale checks
 
 Upload stores raw text, then the indexer writes batches of at most 100 child
 embeddings to `document_index_chunks`. This staging table has forced tenant RLS
