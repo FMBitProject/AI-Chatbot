@@ -1,3 +1,4 @@
+import { isPrivacyBlocked, PrivacyBlockedError } from "@/lib/privacy-policy";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { apiKeys } from "@/lib/db/schema";
@@ -89,7 +90,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   const byok = await resolveByok(company);
   if (!byok.ok) {
     console.error(`[v1/query] BYOK key unreadable for company ${apiKey.companyId}: ${byok.message}`);
-    return failure(req, 503, "BYOK_KEY_UNREADABLE", byok.message);
+    return failure(req, 503, byok.code ?? "BYOK_KEY_UNREADABLE", byok.message);
   }
 
   // A caller on its own provider keys has no question caps to enforce here (see
@@ -121,10 +122,10 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
   // note further down congratulates itself on avoiding.
   let stage: "embedding" | "retrieval" | "generation" = "embedding";
   let answer: { text: string; model: { id: string } };
-  let scored: { id: string; text: string; documentName: string }[];
+  let scored: { documentId: string; id: string; text: string; documentName: string }[];
 
   try {
-    const queryEmbedding = await getEmbedding(question, byok.gemini);
+    const queryEmbedding = await getEmbedding(question, byok.gemini, byok.privacy);
 
     stage = "retrieval";
     scored = (await withTenant(apiKey.companyId, (tx) => retrieveChunks({
@@ -148,6 +149,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
     // called by scripts and integrations, which retry badly or not at all, so a
     // one-minute Groq refusal used to surface as a 500 in someone else's system.
     stage = "generation";
+    if (byok.privacy) byok.privacy.documentIds = scored.map(c => c.documentId);
     answer = await generateWithFallback({
       label: "v1/query",
       keys: byok,
@@ -184,6 +186,8 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       throw new AppError("Document retrieval failed", "INTERNAL_ERROR", 500, { cause: error, lang: language });
     }
 
+    if (isPrivacyBlocked(error)) return failure(req, 409, "PRIVACY_BLOCKED", new PrivacyBlockedError().message);
+
     // Named for the embedding step because there is only one provider it can be;
     // left unnamed for generation because generateWithFallback rethrows the last
     // error unchanged without saying which link in the chain raised it, and
@@ -193,7 +197,7 @@ export const POST = withApiErrors("v1/query", async (req: Request) => {
       stage === "embedding" ? "gemini" : undefined,
       // The language the caller asked for in the request body. Without it an
       // integration that sent {"language":"en"} was refused in Indonesian.
-      { cause: error, lang: language },
+      { lang: language },
     );
   }
 

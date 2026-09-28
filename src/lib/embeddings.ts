@@ -1,9 +1,12 @@
+import { privacyFetch } from "./privacy";
+import type { PrivacyContext } from "./privacy-policy";
 import { embed, embedMany } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 
-function getGoogle(apiKey?: string | null) {
+function getGoogle(apiKey?: string | null, privacy?: PrivacyContext) {
   return createGoogleGenerativeAI({
     apiKey: apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    fetch: privacy ? privacyFetch(privacy, "google") : undefined,
     baseURL: "https://generativelanguage.googleapis.com/v1beta",
   });
 }
@@ -37,8 +40,8 @@ export function toVectorLiteral(v: number[]): string {
 // Embed a search query. taskType RETRIEVAL_QUERY tells Gemini this is the
 // question side of an asymmetric search, which improves match quality against
 // document-side embeddings.
-export async function getEmbedding(text: string, apiKey?: string | null): Promise<number[]> {
-  const google = getGoogle(apiKey);
+export async function getEmbedding(text: string, apiKey?: string | null, privacy?: PrivacyContext): Promise<number[]> {
+  const google = getGoogle(apiKey, privacy ? { ...privacy, purpose: privacy.purpose === "connection_test" ? "connection_test" : "query_embedding" } : undefined);
   const { embedding } = await embed({
     model: google.embedding("gemini-embedding-001"),
     value: text.replace(/\n/g, " "),
@@ -145,8 +148,8 @@ export class EmbeddingBudgetExceededError extends Error {
 // to fit the remaining worker pass; each HTTP deadline uses the remaining time.
 const CALL_BUDGET_MS = 120_000;
 
-export async function getEmbeddings(texts: string[], apiKey?: string | null, opts: { budgetMs?: number } = {}): Promise<number[][]> {
-  const google = getGoogle(apiKey);
+export async function getEmbeddings(texts: string[], apiKey?: string | null, opts: { budgetMs?: number; privacy?: PrivacyContext } = {}): Promise<number[][]> {
+  const google = getGoogle(apiKey, opts.privacy ? { ...opts.privacy, purpose: "document_embedding" } : undefined);
   const BATCH_SIZE = 100;
   const results: number[][] = [];
   const startedAt = Date.now();

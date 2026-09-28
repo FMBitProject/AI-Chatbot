@@ -1,3 +1,4 @@
+import { loadPrivacy } from "@/lib/privacy";
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { requireAdmin } from "@/lib/auth-guard";
@@ -37,7 +38,9 @@ export const POST = withApiErrors("admin/ai-providers/test", async (req: NextReq
   const stored = settings.providers.find(p => p.provider === input.provider);
   const key = input.apiKey ?? (stored ? decryptSecret(stored.encryptedKey, providerSecretContext(company.id, input.provider)) : null);
   if (!key) throw new ValidationError("Pasang API key terlebih dahulu.");
-  const keys: ProviderKeys = { groq: null, gemini: null, ownOnly: true,
+  const privacy = { ...await loadPrivacy(company.id), purpose: "connection_test" as const };
+  if (!privacy.allowedProviders.includes(input.provider)) return NextResponse.json({ error: { code: "PRIVACY_BLOCKED", message: "Provider diblokir oleh pengaturan privasi." } }, { status: 403 });
+  const keys: ProviderKeys = { privacy, groq: null, gemini: null, ownOnly: true,
     [input.provider === "google" ? "gemini" : input.provider]: key };
   try {
     // No customer documents, no platform credentials, no fallback during a test.
@@ -46,7 +49,7 @@ export const POST = withApiErrors("admin/ai-providers/test", async (req: NextReq
         prompt: "Reply with OK.", maxOutputTokens: 256, maxRetries: 0, abortSignal: AbortSignal.timeout(15_000) });
       if (!result.text.trim()) throw new Error("Empty test answer");
     }
-    if (input.provider === "google" && purpose !== "generation") await getEmbedding("Connection test", key);
+    if (input.provider === "google" && purpose !== "generation") await getEmbedding("Connection test", key, privacy);
   } catch {
     // SDK errors can contain request bodies/credentials. Never echo or log them.
     return NextResponse.json({ error: { code: "UPSTREAM_ERROR", message: "Tes gagal. Periksa key, akses model, saldo, dan batas pemakaian provider." } }, { status: 502 });

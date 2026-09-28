@@ -1,3 +1,4 @@
+import { isPrivacyBlocked } from "@/lib/privacy-policy";
 import { NextRequest } from "next/server";
 import { streamText, generateText } from "ai";
 import { billsOwnProvider, resolveByok } from "@/lib/byok";
@@ -203,7 +204,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   if (!byok.ok) {
     console.error(`[chat] BYOK key unreadable for company ${companyId}: ${byok.message}`);
     return new Response(
-      JSON.stringify({ error: "BYOK_KEY_UNREADABLE", message: byok.message }),
+      JSON.stringify({ error: byok.code ?? "BYOK_KEY_UNREADABLE", message: byok.message }),
       { status: 503 }
     );
   }
@@ -315,17 +316,26 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // answer before the question it answered. Sorting role ascending puts
   // "assistant" ahead of "user" in this descending scan, which is what the
   // reverse below turns into question-then-answer.
+  const historyDocumentIds = new Set<string>();
   const priorTurns = sessionId
     ? (await withTenant(companyId, (tx) => tx
-        .select({ role: chatMessages.role, content: chatMessages.content })
+        .select({ role: chatMessages.role, content: chatMessages.content, citationsJson: chatMessages.citationsJson })
         .from(chatMessages)
-        .where(eq(chatMessages.sessionId, sessionId))
+        .where(and(eq(chatMessages.sessionId, sessionId), eq(chatMessages.privacyRevision, byok.privacy?.revision ?? 0)))
         .orderBy(desc(chatMessages.createdAt), asc(chatMessages.role), desc(chatMessages.id))
         .limit(LIMITS.history)))
         .reverse()
         // Stored content is bounded on the way in, but rows written before that
         // was true are not, and one of them is enough to blow the context.
-        .map((m) => ({ role: m.role, content: m.content.slice(0, LIMITS.message) }))
+        .map((m) => {
+          try {
+            const sources = JSON.parse(m.citationsJson ?? "[]");
+            if (Array.isArray(sources)) for (const source of sources) {
+              if (typeof source?.documentId === "string") historyDocumentIds.add(source.documentId);
+            }
+          } catch { /* Legacy citations may not carry source IDs. Epoch invalidation still applies. */ }
+          return { role: m.role, content: m.content.slice(0, LIMITS.message) };
+        })
     : [];
 
   // What retrieval searches for, which is not always what the reader typed.
@@ -355,9 +365,10 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
   // function understands; the wrapper covers the ones it does not.
   onCharged({ companyId, limits });
 
+  if (byok.privacy) byok.privacy.documentIds = [...historyDocumentIds];
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(searchText, byok.gemini);
+    queryEmbedding = await getEmbedding(searchText, byok.gemini, byok.privacy);
   } catch (err) {
     // The question was charged one line above and no answer will come of it, so
     // it goes back. Nothing about a Gemini outage is the reader's doing, and a
@@ -365,7 +376,7 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
     await refundQuestionQuota(companyId, limits, "chat");
     const is429 = err instanceof Error && err.message.includes("429");
     return new Response(
-      JSON.stringify({ error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" }),
+      JSON.stringify({ error: isPrivacyBlocked(err) ? "PRIVACY_BLOCKED" : is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" }),
       { status: 503 }
     );
   }
@@ -522,8 +533,8 @@ async function handleChat(req: NextRequest, onCharged: (c: ChargedQuestion) => v
 
     const noDocMsgId = randomUUID();
     await withTenant(companyId, async (tx) => {
-      await tx.insert(chatMessages).values({ id: randomUUID(), sessionId: resolvedSessionId, role: "user", content: question });
-      await tx.insert(chatMessages).values({ id: noDocMsgId, sessionId: resolvedSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
+      await tx.insert(chatMessages).values({ privacyRevision: byok.privacy?.revision ?? 0, id: randomUUID(), sessionId: resolvedSessionId, role: "user", content: question });
+      await tx.insert(chatMessages).values({ privacyRevision: byok.privacy?.revision ?? 0, id: noDocMsgId, sessionId: resolvedSessionId, role: "assistant", content: noDocMsg, citationsJson: "[]" });
     });
 
     // The question goes back. No model was asked anything here — the reply is a
@@ -624,14 +635,14 @@ If no relevant information is found:
   const systemPromptWithContext = `You are ${aiName}, an internal AI assistant.${aiPersonality}\n\n${SYSTEM_PROMPT}\n\n${langInstruction}\n\n---\n${docCatalog}\n\n---\nINTERNAL DOCUMENT CONTEXT (relevant excerpts):\n${contextText}\n---\n${offerable ? `\n${offerable}\n---\n` : ""}\n${GROUNDING_REMINDER}\n\n${personaReminder ? `${personaReminder}\n\n` : ""}${langReminder}`;
 
   const userMsgId = randomUUID();
-  await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
+  await withTenant(companyId, (tx) => tx.insert(chatMessages).values({ privacyRevision: byok.privacy?.revision ?? 0,
     id: userMsgId,
     sessionId: resolvedSessionId,
     role: "user",
     content: question,
   }));
 
-  const citations = scored.map((c) => ({ id: c.id, text: c.text, documentName: c.documentName }));
+  const citations = scored.map((c) => ({ id: c.id, documentId: c.documentId, text: c.text, documentName: c.documentName }));
   const assistantMsgId = randomUUID();
 
   const langDemo =
@@ -659,6 +670,7 @@ If no relevant information is found:
   // Both providers' keys, resolved once. The chain below can end on a different
   // provider than it started on, so a single Groq client is no longer enough.
   const providerKeys = byok;
+  if (providerKeys.privacy) providerKeys.privacy.documentIds = [...new Set([...scored.map(c => c.documentId), ...(catalog.ids ?? []), ...historyDocumentIds])];
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -749,7 +761,7 @@ If no relevant information is found:
             break;
           }
           lastError = attemptError;
-          console.error(`[chat] ${link.id} failed after emitting ${attemptText.length} chars:`, attemptError);
+          console.error(`[chat] ${link.id} failed after emitting ${attemptText.length} chars`);
           break;
         }
 
@@ -757,7 +769,6 @@ If no relevant information is found:
         const canFallBack = attempt < chain.length - 1 && isRateLimitFailure(attemptError);
         console.error(
           `[chat] ${link.id} produced nothing${canFallBack ? ", falling back" : ""}:`,
-          attemptError,
         );
         if (!canFallBack) break;
       }
@@ -797,7 +808,7 @@ If no relevant information is found:
       // is already in the reader's hands by now; losing the history row is bad
       // and losing the rest of the response on top of it is worse.
       try {
-        await withTenant(companyId, (tx) => tx.insert(chatMessages).values({
+        await withTenant(companyId, (tx) => tx.insert(chatMessages).values({ privacyRevision: byok.privacy?.revision ?? 0,
           id: assistantMsgId,
           sessionId: resolvedSessionId,
           role: "assistant",
@@ -817,7 +828,7 @@ If no relevant information is found:
           // provider we know is currently letting us through. No fallback of its
           // own: this is a nicety wrapped in a silent catch, and it must not
           // spend a second provider's quota on the way to being discarded.
-          model: modelFor(answeredBy ?? chain[0], providerKeys),
+          model: modelFor(answeredBy ?? chain[0], { ...providerKeys, privacy: providerKeys.privacy ? { ...providerKeys.privacy, purpose: "suggestions" } : undefined }),
           prompt: `Based on this Q&A, generate exactly 3 short follow-up questions a user might ask next. Return ONLY a JSON array of 3 strings, no explanation. Write questions in ${suggestLang}.
 
 Question: ${question}

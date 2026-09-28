@@ -1,4 +1,5 @@
 "use client";
+import { CLASSIFICATIONS, type DocumentClassification } from "@/lib/privacy-policy";
 import { useState, useRef, useMemo, Fragment } from "react";
 import { admin as adminT } from "@/lib/i18n";
 import type { Lang } from "@/lib/i18n";
@@ -14,7 +15,8 @@ import { cn } from "@/lib/utils";
 export interface Document {
   id: string;
   name: string;
-  status: "queued" | "processing" | "success" | "failed";
+  classification?: DocumentClassification;
+  status: "queued" | "processing" | "success" | "failed" | "blocked";
   errorMessage?: string | null;
   summary?: string | null;
   // The folder this document is filed under, or null for unfiled. Named after
@@ -56,9 +58,10 @@ export interface IndexProgress {
 
 interface DocumentsTabProps {
   documents: Document[];
-  onUpload: (files: File[], folder: string | null, onProgress: (done: number) => void) => Promise<UploadOutcome[]>;
+  onUpload: (files: File[], folder: string | null, onProgress: (done: number) => void, classification: DocumentClassification) => Promise<UploadOutcome[]>;
   onIndex: (onProgress: (progress: IndexProgress) => void) => Promise<void>;
   onReindex: (documentId: string) => Promise<void>;
+  onSetClassification: (id: string, classification: DocumentClassification) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   // Moves a document between folders; null unfiles it.
   onSetFolder: (id: string, folder: string | null) => Promise<void>;
@@ -67,7 +70,7 @@ interface DocumentsTabProps {
   // /api/admin/google-drive/import. Its absence is what hides the button,
   // not a disabled prop, so there is nothing to wire up for plans that can't
   // use it.
-  onImportFromDrive?: (accessToken: string, files: DrivePickedFile[], folder: string | null) => Promise<DriveImportOutcome[]>;
+  onImportFromDrive?: (accessToken: string, files: DrivePickedFile[], folder: string | null, classification: DocumentClassification) => Promise<DriveImportOutcome[]>;
   // Folders are shown for individual accounts only. The column behind them means
   // something else for a company — which department may read the document — and
   // handing an admin a "folder" control that quietly changes who can see a file
@@ -77,15 +80,20 @@ interface DocumentsTabProps {
 }
 
 const STATUS_MAP = {
+  blocked: { variant: "secondary" as const },
   queued: { variant: "secondary" as const },
   processing: { variant: "warning" as const },
   success: { variant: "success" as const },
   failed: { variant: "destructive" as const },
 };
 
-export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, onSetFolder, onImportFromDrive, showFolders = false, lang = "id" }: DocumentsTabProps) {
+export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete, onSetClassification, onSetFolder, onImportFromDrive, showFolders = false, lang = "id" }: DocumentsTabProps) {
   const T = adminT[lang];
+  const [classifyingId, setClassifyingId] = useState<string | null>(null);
+  const [classification, setClassification] = useState<DocumentClassification>("internal");
+  const classificationLabels = lang === "en" ? { normal: "Normal", internal: "Internal", confidential: "Confidential" } : { normal: "Biasa", internal: "Internal", confidential: "Rahasia" };
   const STATUS_LABELS = {
+    blocked: lang === "en" ? "Stored · AI blocked" : "Tersimpan · AI diblokir",
     queued: T.statusQueued,
     success: T.statusSuccess,
     processing: T.statusProcessing,
@@ -111,6 +119,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   // button can send the very same bytes without asking the admin to find them
   // in the file picker again.
   const [failedFiles, setFailedFiles] = useState<UploadOutcome[]>([]);
+  const [failedClassification, setFailedClassification] = useState<DocumentClassification>("internal");
   const [failedFolder, setFailedFolder] = useState<string | null>(null);
   const [isImportingDrive, setIsImportingDrive] = useState(false);
   const [driveFailed, setDriveFailed] = useState<DriveImportOutcome[]>([]);
@@ -156,20 +165,21 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     return documents.filter((d) => d.department === effectiveFolder);
   }, [documents, effectiveFolder, showFolders]);
 
-  async function handleUpload(files: File[], folder = showFolders ? uploadFolder.trim() || null : null) {
+  async function handleUpload(files: File[], folder = showFolders ? uploadFolder.trim() || null : null, batchClassification = classification) {
     setIsUploading(true);
     setFailedFiles([]);
     setProgress({ label: `${T.uploadProgress} 0 / ${files.length}`, percent: 0 });
     // Keep the original destination with the retry batch, even if the field
     // changes before a failed file is retried (including an unfiled upload).
     setFailedFolder(folder);
+    setFailedClassification(batchClassification);
     try {
       const outcomes = await onUpload(files, folder, (done) => {
         setProgress({
           label: `${T.uploadProgress} ${done} / ${files.length}`,
           percent: Math.round((done / files.length) * 100),
         });
-      });
+      }, batchClassification);
 
       const failed = outcomes.filter((o) => o.error);
       setFailedFiles(failed);
@@ -213,7 +223,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
     setProgress({ label: `${T.driveImportProgress} (${files.length})`, percent: null });
     const folder = showFolders ? uploadFolder.trim() || null : null;
     try {
-      const outcomes = await onImportFromDrive(accessToken, files, folder);
+      const outcomes = await onImportFromDrive(accessToken, files, folder, classification);
       const failed = outcomes.filter((o) => o.error);
       setDriveFailed(failed);
       const stored = outcomes.length - failed.length;
@@ -301,7 +311,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
 
   async function handleRetryFailedFiles() {
     const files = failedFiles.map((o) => o.file);
-    if (files.length > 0) await handleUpload(files, failedFolder);
+    if (files.length > 0) await handleUpload(files, failedFolder, failedClassification);
   }
 
   async function handleReindex(id: string) {
@@ -319,6 +329,13 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
   }
 
   const queuedCount = documents.filter((d) => d.status === "queued").length;
+
+  async function handleClassification(id: string, value: DocumentClassification) {
+    setClassifyingId(id);
+    try { await onSetClassification(id, value); }
+    catch (error) { toast({ variant: "destructive", title: error instanceof Error ? error.message : "Error" }); }
+    finally { setClassifyingId(null); }
+  }
 
   async function handleMove(id: string, folder: string | null) {
     setMovingId(id);
@@ -350,6 +367,13 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
       <div>
         <h2 className="text-lg font-semibold mb-1">{T.uploadTitle}</h2>
         <p className="text-sm text-gray-500 mb-4">{showFolders ? T.uploadDescIndividual : T.uploadDesc}</p>
+        <div className="space-y-2">
+          <label htmlFor="upload-classification" className="text-sm font-medium">{lang === "en" ? "Document classification" : "Klasifikasi dokumen"}</label>
+          <select id="upload-classification" className="block rounded border p-2 text-sm" value={classification} disabled={isUploading || isImportingDrive} onChange={e => setClassification(e.target.value as DocumentClassification)}>
+            {CLASSIFICATIONS.map(c => <option key={c} value={c}>{classificationLabels[c]}</option>)}
+          </select>
+          <p className="text-xs text-gray-500">{lang === "en" ? "Confidential documents are stored without external AI processing. Deleting or reclassifying a document excludes all earlier chat history from AI context; readable history and provider logs are not deleted." : "Dokumen rahasia disimpan tanpa pemrosesan AI eksternal. Menghapus atau mengubah klasifikasi mengecualikan seluruh riwayat chat sebelumnya dari konteks AI; riwayat yang bisa dibaca dan log provider tidak ikut dihapus."}</p>
+        </div>
         {showFolders && (
           // Above the dropzone, not inside it: the dropzone unmounts its own
           // controls the moment an upload starts (see the note on the progress
@@ -534,6 +558,9 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-gray-400 shrink-0" />
                             <span>{doc.name}</span>
+                            <select aria-label={lang === "en" ? "Classification" : "Klasifikasi"} className="rounded border p-1 text-xs" value={doc.classification ?? "internal"} disabled={classifyingId !== null} onChange={e => { void handleClassification(doc.id, e.target.value as DocumentClassification); }}>
+                              {CLASSIFICATIONS.map(c => <option key={c} value={c}>{classificationLabels[c]}</option>)}
+                            </select>
                             {doc.summary && (
                               <button
                                 onClick={() => setExpandedSummary(isExpanded ? null : doc.id)}
@@ -589,9 +616,9 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                           </Button>
                         </TableCell>
                       </TableRow>
-                      {doc.status === "failed" && doc.errorMessage && (
+                      {(doc.status === "failed" || doc.status === "blocked") && doc.errorMessage && (
                         <TableRow>
-                          <TableCell colSpan={showFolders ? 5 : 4} className="bg-red-50 border-t-0">
+                          <TableCell colSpan={showFolders ? 5 : 4} className={doc.status === "blocked" ? "bg-gray-50 border-t-0" : "bg-red-50 border-t-0"}>
                             <div className="flex items-start gap-2 py-1">
                               <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
                               <div className="text-sm text-red-700">{doc.errorMessage}</div>
@@ -599,7 +626,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                                   whose text was never stored: the server answers
                                   for which of those can be retried, and it is the
                                   only place that knows. */}
-                              <Button
+                              {doc.classification !== "confidential" && <Button
                                 variant="outline"
                                 size="sm"
                                 className="ml-auto shrink-0 gap-1.5"
@@ -608,7 +635,7 @@ export function DocumentsTab({ documents, onUpload, onIndex, onReindex, onDelete
                               >
                                 <RefreshCw className="h-3.5 w-3.5" />
                                 {T.reindexBtn}
-                              </Button>
+                              </Button>}
                             </div>
                           </TableCell>
                         </TableRow>

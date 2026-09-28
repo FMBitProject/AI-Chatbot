@@ -181,8 +181,8 @@ export async function POST(req: NextRequest) {
         });
 
         await say(formatSlackAnswer(answer));
-      } catch (err) {
-        console.error(`[slack/events] Failed to answer company ${companyId}:`, err);
+      } catch {
+        console.error(`[slack/events] Failed to answer company ${companyId}`);
         // A charged question that produced no answer goes back. Guarded on
         // `charged` because this catch also covers everything above the charge.
         if (charged) await refundQuestionQuota(companyId, charged, "slack/events");

@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
-import { documents } from "@/lib/db/schema";
+import { advancePrivacy } from "@/lib/privacy";
+import { classificationInput } from "@/lib/privacy-policy";
+import { companies, documentChunks, documentIndexChunks, documents } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { LIMITS, optionalString, readJsonObject } from "@/lib/validate";
 
 /**
- * Moves one document into a folder, or out of every folder.
- *
- * Only `documents.department` is writable here, and deliberately so: this
- * endpoint exists because a document filed in the wrong place is the most
- * ordinary mistake there is, and re-uploading a 40-page PDF to fix a label is
- * not a repair. Everything else on the row is either derived (status,
- * errorMessage, summary) or the document itself (rawText).
- *
- * Nothing needs re-indexing afterwards. The folder lives on the document, and
- * the retriever joins to it — the chunks and their embeddings are untouched, so
- * the move takes effect on the next question.
- *
- * Three inputs, three meanings: a string files it, `null` unfiles it, and an
- * absent field is a request with nothing in it (400) rather than a silent
- * no-op — the same distinction /api/admin/company draws for the BYOK keys.
+ * Folder changes preserve the index. Classification changes clear derived
+ * content and revoke earlier AI context, including legacy conversation history.
+ * Raw document text is never writable through this endpoint.
  */
 export async function PATCH(
   req: NextRequest,
@@ -34,6 +24,28 @@ export async function PATCH(
   const body = await readJsonObject(req);
   if (!body) return NextResponse.json({ error: "Body harus berupa JSON yang valid." }, { status: 400 });
 
+  if ("classification" in body && Object.keys(body).some(key => key !== "classification")) {
+    return NextResponse.json({ error: "Ubah klasifikasi secara terpisah dari pengaturan lain." }, { status: 400 });
+  }
+  if ("classification" in body) {
+    const classification = classificationInput(body.classification);
+    if (!classification || body.classification == null) return NextResponse.json({ error: "Klasifikasi tidak valid." }, { status: 400 });
+    const updated = await withTenant(companyId, async tx => {
+      await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).for("update");
+      const [doc] = await tx.select().from(documents).where(and(eq(documents.id, id), eq(documents.companyId, companyId))).for("update");
+      if (!doc) return null;
+      if (doc.classification === classification) return { id, classification };
+      await tx.delete(documentChunks).where(eq(documentChunks.documentId, id));
+      await tx.delete(documentIndexChunks).where(eq(documentIndexChunks.documentId, id));
+      await tx.update(documents).set({ classification, summary: null, indexingStartedAt: null,
+        status: classification === "confidential" ? "blocked" : !doc.rawText ? "failed" : "queued",
+        errorMessage: classification === "confidential" ? "Dokumen rahasia disimpan tanpa dikirim ke AI eksternal." : null,
+      }).where(eq(documents.id, id));
+      await advancePrivacy(tx, companyId, "classification_changed", [id]);
+      return { id, classification };
+    });
+    return updated ? NextResponse.json(updated) : NextResponse.json({ error: "Dokumen tidak ditemukan." }, { status: 404 });
+  }
   if (!("folder" in body)) {
     return NextResponse.json({ error: "Tidak ada perubahan." }, { status: 400 });
   }
@@ -92,8 +104,13 @@ export async function DELETE(
   // documents is RLS-protected; the delete runs in a tenant-scoped transaction.
   // The explicit companyId predicate is defence-in-depth on top of the policy.
   // document_chunks cascade-deletes via its FK (RI actions bypass RLS).
-  await withTenant(companyId, (tx) =>
-    tx.delete(documents).where(and(eq(documents.id, id), eq(documents.companyId, companyId))));
-
-  return NextResponse.json({ ok: true });
+  const deleted = await withTenant(companyId, async tx => {
+    await tx.select({ id: companies.id }).from(companies).where(eq(companies.id, companyId)).for("update");
+    const rows = await tx.delete(documents).where(and(eq(documents.id, id), eq(documents.companyId, companyId))).returning({ id: documents.id });
+    if (!rows.length) return false;
+    await advancePrivacy(tx, companyId, "document_deleted", [id]);
+    return true;
+  });
+  if (!deleted) return NextResponse.json({ error: "Dokumen tidak ditemukan." }, { status: 404 });
+  return NextResponse.json({ ok: true, historyExcludedFromAi: true, providerDeletion: "not_requested" });
 }

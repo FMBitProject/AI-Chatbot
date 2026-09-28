@@ -1,3 +1,4 @@
+import { isPrivacyBlocked } from "@/lib/privacy-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth-guard";
 import { getEmbedding } from "@/lib/embeddings";
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
   const byok = await resolveByok(company);
   if (!byok.ok) {
     console.error(`[search] BYOK key unreadable for company ${companyId}: ${byok.message}`);
-    return NextResponse.json({ error: "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
+    return NextResponse.json({ error: byok.code ?? "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
   }
 
   // Same shape of failure as chat, so it gets the same shape of answer: an
@@ -53,12 +54,12 @@ export async function GET(req: NextRequest) {
   // while /api/chat has always returned a typed reason for the identical call.
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(q, byok.gemini);
+    queryEmbedding = await getEmbedding(q, byok.gemini, byok.privacy);
   } catch (err) {
-    console.error("[search] Embedding failed:", err);
+    console.error("[search] Embedding failed");
     const is429 = err instanceof Error && err.message.includes("429");
     return NextResponse.json(
-      { error: is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" },
+      { error: isPrivacyBlocked(err) ? "PRIVACY_BLOCKED" : is429 ? "AI_RATE_LIMIT" : "AI_ERROR", provider: "gemini" },
       { status: 503 },
     );
   }

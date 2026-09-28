@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Loader2, QrCode, RefreshCw } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { PrivacyCard } from "./PrivacyCard";
 import { AiProvidersCard } from "./AiProvidersCard";
 import Link from "next/link";
 import { PLAN_LABELS as SHARED_PLAN_LABELS } from "@/lib/pricing";
@@ -290,6 +291,7 @@ export function SubscriptionTab({ isIndividual = false, lang = "id" }: { isIndiv
         </CardContent>
       </Card>
 
+      <PrivacyCard lang={lang} />
       <AiProvidersCard canEdit={canEditKeys} lang={lang} />
 
       <div>

@@ -96,6 +96,22 @@ state.before = null;
 await pg.exec("update documents set status='success' where id='large'");
 console.log("PASS superseded worker cannot checkpoint or publish");
 
+// Late provider replies cannot resurrect a deleted or newly confidential row.
+for (const operation of ["delete", "classify"]) {
+ await db.insert(documents).values({id:"in-flight",name:"In flight",companyId:"a",status:"queued",rawText:"Sensitive text. ".repeat(30)});
+ await clearSlots();
+ state.before = () => operation === "delete"
+   ? pg.exec("delete from documents where id='in-flight'")
+   : pg.exec("update documents set classification='confidential',status='blocked',indexing_started_at=null where id='in-flight'");
+ const result=await runIndexingPass(company);
+ assert.equal(result.indexed,0);
+ assert.equal(Number((await pg.query("select count(*) n from document_index_chunks where document_id='in-flight'")).rows[0].n),0);
+ assert.equal(Number((await pg.query("select count(*) n from document_chunks where document_id='in-flight'")).rows[0].n),0);
+ state.before=null;
+ await pg.exec("delete from documents where id='in-flight'");
+}
+console.log("PASS late indexing replies cannot resurrect deleted or confidential documents");
+
 // Distributed mutual exclusion and persisted cooldown, independent of tenant.
 await clearSlots();
 await withEmbeddingSlot("same-provider-key", async () => {

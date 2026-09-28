@@ -1,6 +1,7 @@
 "use client";
 import { fetchPages } from "@/lib/fetch-pages";
 import { readApiError } from "@/lib/errors";
+import type { DocumentClassification } from "@/lib/privacy-policy";
 import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { DocumentsTab, type Document, type IndexProgress, type UploadOutcome, type DriveImportOutcome } from "@/components/admin/DocumentsTab";
@@ -254,13 +255,14 @@ export default function AdminPage() {
   // even attempted — with nothing on screen to say where it stopped. A batch is
   // now only finished when every file has an answer, and a failure is data the
   // caller can act on rather than an exception that discards the rest.
-  async function handleUpload(files: File[], folder: string | null, onProgress: (done: number) => void): Promise<UploadOutcome[]> {
+  async function handleUpload(files: File[], folder: string | null, onProgress: (done: number) => void, classification: DocumentClassification): Promise<UploadOutcome[]> {
     const outcomes: UploadOutcome[] = [];
 
     for (const [index, file] of files.entries()) {
       try {
         const formData = new FormData();
         formData.append("files", file);
+        formData.append("classification", classification);
         // Sent with every file because each one is its own request — this loop
         // is what keeps a 500-document import inside Vercel's body limit.
         if (folder) formData.append("folder", folder);
@@ -307,12 +309,13 @@ export default function AdminPage() {
     accessToken: string,
     files: DrivePickedFile[],
     folder: string | null,
+    classification: DocumentClassification,
   ): Promise<DriveImportOutcome[]> {
     try {
       const res = await fetch("/api/admin/google-drive/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken, files, folder }),
+        body: JSON.stringify({ accessToken, files, folder, classification }),
       });
       // driveFileId only exists on this endpoint's response — it is not part
       // of the general Document shape (manual-upload documents have no Drive
@@ -428,6 +431,13 @@ export default function AdminPage() {
     if (!res.ok) {
       throw new Error((await readApiError(res, lang)).message);
     }
+    await loadDocuments();
+  }
+
+  async function handleSetClassification(id: string, classification: DocumentClassification) {
+    const res = await fetch(`/api/admin/documents/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classification }) });
+    if (!res.ok) throw new Error("Klasifikasi gagal disimpan.");
+    documentsRevision.current++;
     await loadDocuments();
   }
 
@@ -584,6 +594,7 @@ export default function AdminPage() {
                     onIndex={handleIndex}
                     onReindex={handleReindex}
                     onDelete={handleDelete}
+                    onSetClassification={handleSetClassification}
                     onSetFolder={handleSetFolder}
                     onImportFromDrive={!isIndividual && DRIVE_IMPORT_PLANS.includes(plan) ? handleGoogleDriveImport : undefined}
                     showFolders={isIndividual}

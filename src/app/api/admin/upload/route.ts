@@ -1,3 +1,4 @@
+import { classificationInput } from "@/lib/privacy-policy";
 import { NextRequest, NextResponse } from "next/server";
 
 // Parsing only — no third-party call happens in this request any more, so the
@@ -60,12 +61,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: folderResult.error }, { status: 400 });
   }
   const { folder } = folderResult;
+  const classification = classificationInput(formData.get("classification"));
+  if (!classification) return NextResponse.json({ error: "Klasifikasi dokumen tidak valid." }, { status: 400 });
 
   if (!files.length) {
     return NextResponse.json({ error: "Tidak ada file yang dikirim." }, { status: 400 });
   }
 
-  const results: { id: string; name: string; status: string; department: string | null; errorMessage?: string; createdAt: string }[] = [];
+  const results: { id: string; name: string; status: string; department: string | null; classification?: string; errorMessage?: string; createdAt: string }[] = [];
   const limitMessage = `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`;
   let limitReached = false;
 
@@ -145,6 +148,7 @@ export async function POST(req: NextRequest) {
         docId,
         name: safeName,
         department: folder,
+        classification,
         rawText,
       });
 
@@ -155,7 +159,7 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      results.push({ id: docId, name: file.name, status: "queued", department: folder, createdAt });
+      results.push({ id: docId, name: file.name, status: classification === "confidential" ? "blocked" : "queued", department: folder, createdAt, classification, errorMessage: classification === "confidential" ? "Dokumen rahasia disimpan tanpa dikirim ke AI eksternal." : undefined });
 
     } catch (error) {
       console.error(`[upload] Error processing ${file.name}:`, error);
@@ -175,6 +179,7 @@ export async function POST(req: NextRequest) {
           docId,
           name: safeName,
           department: folder,
+          classification,
           errorMessage,
         });
         if (!stored) {

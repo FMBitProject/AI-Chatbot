@@ -23,6 +23,7 @@ export const GET = withApiErrors("admin/documents", async (req: NextRequest) => 
       id: documents.id,
       name: documents.name,
       status: documents.status,
+      classification: documents.classification,
       errorMessage: documents.errorMessage,
       summary: documents.summary,
       department: documents.department,
