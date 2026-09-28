@@ -48,7 +48,7 @@
     "indexing:worker": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/indexing-worker.mts",
     "test:indexing": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/security-test-hook.mjs scripts/indexing.test.mjs && node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/embedding-budget.test.mjs",
     "rag:benchmark": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/ts-resolve-hook.mjs scripts/rag-benchmark.mts",
-    "test:privacy": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/byok-test-hook.mjs scripts/privacy.test.mjs"
+    "test:privacy": "node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/byok-test-hook.mjs scripts/privacy.test.mjs && node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/byok-test-hook.mjs scripts/search-privacy.test.mjs && node --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/tenant-timeout.test.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.118",

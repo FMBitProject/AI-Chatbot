@@ -1,4 +1,4 @@
-import { PrivacyBlockedError } from "./privacy-policy";
+import { PrivacyBlockedError, isPrivacyBlocked } from "./privacy-policy";
 import { loadPrivacy } from "./privacy";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { geminiKey, resolveByok } from "@/lib/byok";
@@ -66,7 +66,7 @@ const SUMMARY_TIMEOUT_MS = 30 * 1000;
 //
 // "busy" means another pass already holds this company's lease; the caller
 // should not retry in a loop, because the work is already being done.
-export type PassStop = "drained" | "budget" | "rate-limited" | "busy";
+export type PassStop = "drained" | "budget" | "rate-limited" | "busy" | "privacy-blocked";
 
 export interface IndexPassResult {
   indexed: number;
@@ -298,6 +298,7 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   const completed = new Set(saved.map(row => row.index));
   let ownGeminiKey: string | null;
   try {
+    // TODO: Reuse the already-loaded privacy policy instead of loading it again in geminiKey.
     ownGeminiKey = await geminiKey(company);
   } catch (error) {
     if (error instanceof PrivacyBlockedError) throw error;
@@ -430,6 +431,13 @@ export async function runIndexingPass(
           // thing that would actually cause harm. Move on to the next document.
           console.warn(`[indexing] ${error.message}`);
           continue;
+        }
+
+        if (isPrivacyBlocked(error)) {
+          await withTenant(companyId, tx => tx.update(documents)
+            .set({ status: "queued", indexingStartedAt: null, errorMessage: null }).where(stillOurs(doc)));
+          stop = "privacy-blocked";
+          break;
         }
 
         if (error instanceof RetryableError || error instanceof PassBudgetError) {
