@@ -133,7 +133,7 @@ export function formatSlackAnswer(answer: SlackAnswer): string {
 export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAnswer> {
   const { question, companyId, access, maxDocuments, keys, label } = opts;
 
-  const queryEmbedding = await getEmbedding(question, keys.gemini);
+  const queryEmbedding = await getEmbedding(question, keys.gemini, keys.privacy);
   const scored = (await withTenant(companyId, (tx) => retrieveChunks({
     companyId,
     queryEmbedding,
@@ -143,6 +143,8 @@ export async function answerForSlack(opts: SlackAnswerOptions): Promise<SlackAns
     limit: MAX_SLACK_CHUNKS,
     maxContextChars: 6000,
   }, tx))).slice(0, MAX_SLACK_CHUNKS);
+
+  if (keys.privacy) keys.privacy.documentIds = scored.map(c => c.documentId);
 
   // Each excerpt carries its document title, which it did not before.
   //

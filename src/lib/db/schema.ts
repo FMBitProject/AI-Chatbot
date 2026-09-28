@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, integer, vector, index, uniqueIndex, primaryKey } from "drizzle-orm/pg-core";
+import type { DocumentClassification } from "../privacy-policy";
 import type { AiProvider } from "../ai-providers";
 import { sql } from "drizzle-orm";
 
@@ -102,6 +103,23 @@ export const companies = pgTable("companies", {
 
 // Additive tables: deploy their migration before code; legacy columns remain
 // readable until each workspace explicitly saves its new configuration.
+export const companyPrivacy = pgTable("company_privacy", {
+  companyId: text("company_id").primaryKey().references(() => companies.id, { onDelete: "cascade" }),
+  allowedProviders: text("allowed_providers").array().notNull().default(sql`ARRAY['groq','google','openai','anthropic']::text[]`),
+  revision: integer("revision").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const privacyEvents = pgTable("privacy_events", {
+  id: text("id").primaryKey(),
+  companyId: text("company_id").notNull().references(() => companies.id, { onDelete: "cascade" }),
+  action: text("action").notNull(),
+  provider: text("provider"),
+  purpose: text("purpose"),
+  documentIds: text("document_ids").array().notNull().default(sql`ARRAY[]::text[]`),
+  revision: integer("revision").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, t => [index("privacy_events_company_created_idx").on(t.companyId, t.createdAt)]);
+
 export const companyAiSettings = pgTable("company_ai_settings", {
   companyId: text("company_id").primaryKey().references(() => companies.id, { onDelete: "cascade" }),
   primaryProvider: text("primary_provider").$type<AiProvider>(),
@@ -271,10 +289,11 @@ export const documents = pgTable("documents", {
   //
   // Plain text, no enum or check constraint, so adding "queued" needed no
   // migration. See src/lib/indexing.ts for the state machine.
-  status: text("status").$type<"queued" | "processing" | "success" | "failed">().default("queued").notNull(),
+  status: text("status").$type<"queued" | "processing" | "success" | "failed" | "blocked">().default("queued").notNull(),
   // Why a "failed" document failed, phrased for the admin who uploaded it.
   // Null for every other status.
   errorMessage: text("error_message"),
+  classification: text("classification").$type<DocumentClassification>().notNull().default("internal"),
   summary: text("summary"),
   // Full extracted text, kept so a document can be re-chunked later without
   // re-uploading the original file.
@@ -444,6 +463,7 @@ export const chatMessages = pgTable("chat_messages", {
   role: text("role").$type<"user" | "assistant">().notNull(),
   content: text("content").notNull(),
   citationsJson: text("citations_json"),
+  privacyRevision: integer("privacy_revision").notNull().default(0),
   feedback: text("feedback").$type<"up" | "down">(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => [

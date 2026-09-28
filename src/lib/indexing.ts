@@ -1,3 +1,5 @@
+import { PrivacyBlockedError } from "./privacy-policy";
+import { loadPrivacy } from "./privacy";
 import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { geminiKey, resolveByok } from "@/lib/byok";
 import { BATCH_CHAIN, generateWithFallback } from "@/lib/models";
@@ -121,6 +123,7 @@ interface ClaimedDocument {
 function stillOurs(doc: ClaimedDocument) {
   return and(
     eq(documents.id, doc.id),
+    sql`${documents.classification} <> 'confidential'`,
     sql`${documents.indexingStartedAt}::text = ${doc.lease}`,
   );
 }
@@ -235,6 +238,7 @@ async function claimNextDocument(companyId: string): Promise<ClaimedDocument | n
         select id from ${documents}
         where company_id = ${companyId}
           and status = 'queued'
+          and classification <> 'confidential'
           and raw_text is not null
         order by indexing_started_at asc nulls first, created_at asc, id asc
         limit 1
@@ -284,6 +288,7 @@ const INDEX_VERSION = "parent-v1:gemini-embedding-001:1536:retrieval-document";
 const BATCH_SIZE = 100;
 
 async function embedAndStore(companyId: string, doc: ClaimedDocument, company: Company, deadline: number): Promise<void> {
+  const privacy = { ...await loadPrivacy(companyId), documentIds: [doc.id] };
   const chunks = chunkParentDocument(doc.rawText);
   if (!chunks.length) throw new IndexError("Isi dokumen ini terlalu pendek untuk diindeks.");
   const fingerprint = createHash("sha256").update(INDEX_VERSION).update("\0").update(doc.rawText).digest("hex");
@@ -294,7 +299,8 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
   let ownGeminiKey: string | null;
   try {
     ownGeminiKey = await geminiKey(company);
-  } catch {
+  } catch (error) {
+    if (error instanceof PrivacyBlockedError) throw error;
     throw new IndexError("API key perusahaan tidak dapat dibuka. Periksa konfigurasi BYOK.");
   }
   for (let offset = 0; offset < chunks.length; offset += BATCH_SIZE) {
@@ -305,7 +311,7 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
     let embeddings: number[][];
     try {
       embeddings = await withEmbeddingSlot(ownGeminiKey, () => getEmbeddings(
-        indices.map(i => chunks[i].text), ownGeminiKey, { budgetMs: deadline - Date.now() },
+        indices.map(i => chunks[i].text), ownGeminiKey, { budgetMs: deadline - Date.now(), privacy },
       ));
     } catch (error) {
       if (error instanceof ProviderBusyError || isRateLimitError(error)) throw new RetryableError("Embedding sedang penuh.");
@@ -334,7 +340,7 @@ async function embedAndStore(companyId: string, doc: ClaimedDocument, company: C
     const keys = await resolveByok(company);
     if (!keys.ok) throw new Error(keys.message);
     const result = await generateWithFallback({
-      label: "indexing", keys, chain: BATCH_CHAIN,
+      label: "indexing", keys: { ...keys, privacy: { ...privacy, purpose: "summary" } }, chain: BATCH_CHAIN,
       timeout: Math.max(1, Math.floor(Math.min(SUMMARY_TIMEOUT_MS, deadline - Date.now()) / BATCH_CHAIN.length)),
       prompt: `Buat ringkasan profesional dalam 3-5 poin singkat Bahasa Indonesia. Dokumen: "${doc.name}"\n\n${chunks.slice(0, 3).map(c => c.text).join("\n\n").slice(0, 2000)}`,
     });
@@ -437,8 +443,8 @@ export async function runIndexingPass(
           break;
         }
 
-        console.error(`[indexing] Error indexing document=${doc.id}:`, error);
-        const errorMessage = error instanceof IndexError
+        console.error(`[indexing] Error indexing document=${doc.id}`);
+        const errorMessage = error instanceof IndexError || error instanceof PrivacyBlockedError
           ? error.message
           : "Dokumen gagal diindeks karena kesalahan tak terduga di server.";
         try {
@@ -484,6 +490,7 @@ export async function requeueDocument(companyId: string, documentId: string): Pr
       .set({ status: "queued", errorMessage: null, indexingStartedAt: null })
       .where(and(
         eq(documents.id, documentId),
+        sql`${documents.classification} <> 'confidential'`,
         eq(documents.companyId, companyId),
         eq(documents.status, "failed"),
         sql`${documents.rawText} is not null`,

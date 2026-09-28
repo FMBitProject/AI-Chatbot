@@ -1,3 +1,6 @@
+import { createGroq } from "@ai-sdk/groq";
+import { privacyFetch } from "./privacy";
+import { isPrivacyBlocked, type PrivacyContext } from "./privacy-policy";
 import { generateText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -109,6 +112,7 @@ export const BATCH_CHAIN: readonly ChainLink[] = INTERACTIVE_CHAIN.filter(
 export type ProviderKeys = {
   groq: string | null; gemini: string | null;
   openai?: string | null; anthropic?: string | null;
+  privacy?: PrivacyContext;
   ownOnly?: boolean;
   chain?: ChainLink[];
 };
@@ -122,9 +126,10 @@ export type ProviderKeys = {
  * the platform key otherwise, exactly as the embedding path already does for
  * the same company.
  */
-function googleClientForKey(key: string | null) {
+function googleClientForKey(key: string | null, guardedFetch?: typeof fetch) {
   return createGoogleGenerativeAI({
     apiKey: key || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    fetch: guardedFetch,
   });
 }
 
@@ -140,6 +145,7 @@ function keyFor(provider: ModelProvider, keys: ProviderKeys): string | null {
  * separately and never adds Google to the company's answer chain by itself.
  */
 function isConfigured(link: ChainLink, keys: ProviderKeys): boolean {
+  if (keys.privacy && !keys.privacy.allowedProviders.includes(link.provider)) return false;
   if (keys.ownOnly || keys.groq || keys.gemini || keys.openai || keys.anthropic) return !!keyFor(link.provider, keys);
   if (link.provider === "google") {
     return !!process.env.GOOGLE_GENERATIVE_AI_API_KEY;
@@ -163,12 +169,13 @@ export function usableChain(chain: readonly ChainLink[], keys: ProviderKeys): re
 /** The SDK model handle for one link, on the right account. */
 export function modelFor(link: ChainLink, keys: ProviderKeys): LanguageModel {
   const key = keyFor(link.provider, keys);
+  const guardedFetch = keys.privacy ? privacyFetch(keys.privacy, link.provider) : undefined;
   if (!isConfigured(link, keys)) throw new Error("Selected AI provider has no configured key.");
   switch (link.provider) {
-    case "groq": return groqClientForKey(key)(link.id);
-    case "google": return googleClientForKey(key)(link.id);
-    case "openai": return createOpenAI({ apiKey: key! }).chat(link.id);
-    case "anthropic": return createAnthropic({ apiKey: key! })(link.id);
+    case "groq": return guardedFetch ? createGroq({ apiKey: key || process.env.GROQ_API_KEY, fetch: guardedFetch })(link.id) : groqClientForKey(key)(link.id);
+    case "google": return googleClientForKey(key, guardedFetch)(link.id);
+    case "openai": return createOpenAI({ apiKey: key!, fetch: guardedFetch }).chat(link.id);
+    case "anthropic": return createAnthropic({ apiKey: key!, fetch: guardedFetch })(link.id);
   }
 }
 
@@ -207,7 +214,7 @@ export function isRateLimitFailure(err: unknown): boolean {
  * sent to the right one.
  */
 export function describeAiFailure(err: unknown, provider: ModelProvider = "groq"): { error: string; provider: string } {
-  return { error: isRateLimitFailure(err) ? "AI_RATE_LIMIT" : "AI_ERROR", provider };
+  return { error: isPrivacyBlocked(err) ? "PRIVACY_BLOCKED" : isRateLimitFailure(err) ? "AI_RATE_LIMIT" : "AI_ERROR", provider };
 }
 
 export type FallbackOptions = {
@@ -266,7 +273,7 @@ export async function generateWithFallback(
     } catch (err) {
       lastError = err;
       const canFallBack = attempt < links.length - 1 && isRateLimitFailure(err);
-      console.error(`[${label}] ${link.id} failed${canFallBack ? ", falling back" : ""}:`, err);
+      console.error(`[${label}] ${link.id} failed${canFallBack ? ", falling back" : ""}`);
       if (!canFallBack) throw err;
     }
   }

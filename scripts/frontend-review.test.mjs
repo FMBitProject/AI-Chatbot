@@ -162,26 +162,32 @@ const offline = async () => { throw new TypeError("simulated offline"); };
 for (const originalFolder of ["Riset", null]) {
   const file = { name: "notes.pdf" };
   const destinations = [];
+  const classifications = [];
   let attempt = 0;
   const ctx = handlers("src/components/admin/DocumentsTab.tsx", ["handleUpload", "handleRetryFailedFiles"], {
     showFolders: true, uploadFolder: originalFolder ?? "", failedFiles: [], failedFolder: null,
+    classification: "confidential", failedClassification: "internal",
+    setFailedClassification(value) { ctx.failedClassification = value; },
     T: {}, toast() {}, runIndexing: async () => {},
     setIsUploading() {}, setProgress() {},
     setFailedFolder(value) { ctx.failedFolder = value; },
     setFailedFiles(value) { ctx.failedFiles = value; },
     setActiveFolder(value) { ctx.activeFolder = value; },
-    onUpload: async (_files, folder) => {
+    onUpload: async (_files, folder, _progress, classification) => {
       destinations.push(folder);
+      classifications.push(classification);
       return ++attempt === 1 ? [{ file, error: "offline" }] : [{ file }];
     },
   });
   await ctx.handleUpload([file]);
   ctx.uploadFolder = "Folder baru";
+  ctx.classification = "normal";
   await ctx.handleRetryFailedFiles();
   assert.deepEqual(destinations, [originalFolder, originalFolder]);
   assert.equal(ctx.activeFolder, originalFolder ?? "");
   await ctx.handleUpload([file]);
   assert.equal(destinations[2], "Folder baru");
+  assert.deepEqual(classifications, ["confidential", "confidential", "normal"]);
   assert.equal(ctx.activeFolder, "Folder baru");
 }
 

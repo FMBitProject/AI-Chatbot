@@ -176,6 +176,13 @@
       "when": 1790132188428,
       "tag": "0024_resumable_indexing",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790566381604,
+      "tag": "0025_privacy_controls",
+      "breakpoints": true
     }
   ]
 }

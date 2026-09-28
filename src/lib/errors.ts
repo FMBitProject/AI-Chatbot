@@ -52,6 +52,7 @@ export type ErrorCode =
   | "QUOTA_EXCEEDED"
   | "SEAT_FROZEN"
   | "AI_REQUIRES_PAID_PLAN"
+  | "PRIVACY_BLOCKED"
   | "BYOK_KEY_UNREADABLE"
   | "AI_RATE_LIMIT"
   | "AI_ERROR"
@@ -349,6 +350,10 @@ const USER_MESSAGES: Record<ErrorCode, { id: string; en: string }> = {
   AI_REQUIRES_PAID_PLAN: {
     id: "Fitur AI ini memerlukan paket berbayar. Chat AI di aplikasi tersedia pada Starter dengan jatah terbatas.",
     en: "This AI feature requires a paid plan. In-app AI chat is available on Starter with limited allowances.",
+  },
+  PRIVACY_BLOCKED: {
+    id: "Pemrosesan diblokir oleh pengaturan privasi atau dokumen telah berubah. Muat ulang atau hubungi admin.",
+    en: "Processing is blocked by privacy settings or documents have changed. Reload or contact your admin.",
   },
   BYOK_KEY_UNREADABLE: {
     id: "Kunci API tersimpan tidak dapat dibaca. Hubungi dukungan.",

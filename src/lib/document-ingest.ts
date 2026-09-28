@@ -1,3 +1,4 @@
+import type { DocumentClassification } from "./privacy-policy";
 // Shared between the manual upload route and the Google Drive import route —
 // both need the exact same document-cap enforcement, and duplicating it is
 // exactly the kind of thing that drifts out of sync later (see the comment on
@@ -45,6 +46,7 @@ export async function queueDocument(params: {
   maxDocuments: number;
   docId: string;
   name: string;
+  classification?: DocumentClassification;
   department: string | null;
   rawText: string;
 }): Promise<boolean> {
@@ -65,7 +67,9 @@ export async function queueDocument(params: {
       name,
       companyId,
       department,
-      status: "queued",
+      classification: params.classification ?? "internal",
+      status: params.classification === "confidential" ? "blocked" : "queued",
+      errorMessage: params.classification === "confidential" ? "Dokumen rahasia disimpan tanpa dikirim ke AI eksternal." : null,
       rawText,
     });
     return true;
@@ -79,6 +83,7 @@ export async function recordDocumentFailure(params: {
   maxDocuments: number;
   docId: string;
   name: string;
+  classification?: DocumentClassification;
   department: string | null;
   errorMessage: string;
 }): Promise<boolean> {
@@ -99,6 +104,7 @@ export async function recordDocumentFailure(params: {
       name,
       companyId,
       department,
+      classification: params.classification ?? "internal",
       status: "failed",
       errorMessage,
     });

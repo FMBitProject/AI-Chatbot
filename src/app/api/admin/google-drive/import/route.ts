@@ -1,3 +1,4 @@
+import { classificationInput } from "@/lib/privacy-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { requireCompanyAdmin } from "@/lib/auth-guard";
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     accessToken?: string;
     files?: { id?: string }[];
     folder?: string | null;
+    classification?: unknown;
   } | null;
 
   const accessToken = body?.accessToken;
@@ -63,6 +65,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: folderResult.error }, { status: 400 });
   }
   const { folder } = folderResult;
+  const classification = classificationInput(body?.classification);
+  if (!classification) return NextResponse.json({ error: "Klasifikasi dokumen tidak valid." }, { status: 400 });
 
   // Bounds one request to the same rough scale as a manual multi-file drop —
   // this route is one all-or-nothing HTTP request for the whole batch
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
   // loop's order and the client's `files` order could ever diverge; matching
   // by name would break on two picked files sharing a name. The Drive file
   // id is the one value both sides already agree is unique.
-  const results: { id: string; driveFileId: string; name: string; status: string; department: string | null; errorMessage?: string; createdAt: string }[] = [];
+  const results: { id: string; driveFileId: string; name: string; status: string; department: string | null; classification?: string; errorMessage?: string; createdAt: string }[] = [];
   const limitMessage = `Batas dokumen paket ${subscription.plan} sudah tercapai (${limits.maxDocuments} dokumen). Upgrade paket untuk menambah lebih banyak.`;
   let limitReached = false;
 
@@ -126,6 +130,7 @@ export async function POST(req: NextRequest) {
         docId,
         name: safeName,
         department: folder,
+        classification,
         rawText,
       });
 
@@ -134,7 +139,7 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      results.push({ id: docId, driveFileId: fileRef.id, name: meta.name, status: "queued", department: folder, createdAt });
+      results.push({ id: docId, driveFileId: fileRef.id, name: meta.name, status: classification === "confidential" ? "blocked" : "queued", department: folder, createdAt, classification, errorMessage: classification === "confidential" ? "Dokumen rahasia disimpan tanpa dikirim ke AI eksternal." : undefined });
     } catch (error) {
       console.error(`[google-drive/import] Error processing ${fileRef.id}:`, error);
       const errorMessage = error instanceof DocumentError
@@ -147,6 +152,7 @@ export async function POST(req: NextRequest) {
           docId,
           name: displayName.replace(/[^\w.\- ]/g, "").trim() || "upload",
           department: folder,
+          classification,
           errorMessage,
         });
         if (!stored) {

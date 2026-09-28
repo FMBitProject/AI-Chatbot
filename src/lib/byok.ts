@@ -1,3 +1,6 @@
+import { loadPrivacy } from "./privacy";
+import { PrivacyBlockedError } from "./privacy-policy";
+import { INTERACTIVE_CHAIN, usableChain } from "./models";
 import { groq, createGroq } from "@ai-sdk/groq";
 import { decryptSecret, encryptSecret } from "@/lib/secret-box";
 import type { Company } from "@/lib/subscription";
@@ -70,6 +73,8 @@ export function providerKey(company: Company | undefined, field: ByokField): str
 /** Shorthand for the embedding path, which only ever wants the Gemini key. */
 export async function geminiKey(company: Company | undefined): Promise<string | null> {
   if (!company) return null;
+  const privacy = await loadPrivacy(company.id);
+  if (!privacy.allowedProviders.includes("google")) throw new PrivacyBlockedError();
   const { loadAiSettings } = await import("./ai-settings-store");
   const settings = await loadAiSettings(company.id);
   if (!settings.primary) return null;
@@ -96,7 +101,7 @@ export function groqClientForKey(key: string | null) {
 
 export type ByokResolution =
   | ({ ok: true } & ProviderKeys)
-  | { ok: false; message: string };
+  | { ok: false; message: string; code?: "PRIVACY_BLOCKED" };
 
 /**
  * Both keys at once, as a value rather than a throw.
@@ -181,10 +186,14 @@ export async function usesOwnKeys(companyId: string): Promise<boolean> {
 
 export async function resolveByok(company: Company | undefined): Promise<ByokResolution> {
   try {
-    if (!company) return { ok: true, groq: null, gemini: null };
+    if (!company) return { ok: false, message: "Workspace tidak ditemukan." };
     const { loadAiSettings } = await import("./ai-settings-store");
-    return { ok: true, ...resolveStoredByok(company.id, await loadAiSettings(company.id)) };
-  } catch {
+    const privacy = await loadPrivacy(company.id);
+    const keys = { ...resolveStoredByok(company.id, await loadAiSettings(company.id)), privacy };
+    if (!privacy.allowedProviders.includes("google") || usableChain(INTERACTIVE_CHAIN, keys).length === 0) throw new PrivacyBlockedError();
+    return { ok: true, ...keys };
+  } catch (error) {
+    if (error instanceof PrivacyBlockedError) return { ok: false, message: error.message, code: "PRIVACY_BLOCKED" };
     return { ok: false, message: "Konfigurasi BYOK tidak dapat dibaca. Periksa key dan pengaturan provider di halaman admin." };
   }
 }

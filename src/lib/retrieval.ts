@@ -142,6 +142,7 @@ export async function retrieveChunks(opts: {
   const distance = cosineDistance(documentChunks.embedding, queryEmbedding);
 
   const conditions = [
+    sql`${documents.classification} <> 'confidential'`,
     eq(documentChunks.companyId, companyId),
     isNotNull(documentChunks.embedding),
     notExpired(),

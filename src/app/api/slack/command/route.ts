@@ -180,8 +180,8 @@ export async function POST(req: NextRequest) {
         responseUrl,
         `*Pertanyaan:* ${escapeSlackText(text)}\n\n*Jawaban:*\n${formatSlackAnswer(answer)}`,
       );
-    } catch (err) {
-      console.error("[slack/command] Failed to answer:", err);
+    } catch {
+      console.error("[slack/command] Failed to answer");
       // A charged question that produced no answer goes back. Guarded on
       // `charged` because this catch also covers everything above the charge.
       if (charged) await refundQuestionQuota(charged.companyId, charged.limits, "slack/command");
