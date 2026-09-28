@@ -84,8 +84,13 @@ assert.equal(calls,1);
 globalThis.fetch = async (_url, init) => {
   calls++;
   const body=JSON.parse(init.body);
-  await PUT(request('PUT',{allowedProviders:[],revision:current.revision}));
-  return Response.json({embeddings:body.requests.map(()=>({values:Array(1536).fill(0)}))});
+  const response = Response.json({embeddings:body.requests.map(()=>({values:Array(1536).fill(0)}))});
+  const readText = response.text.bind(response);
+  response.text = async () => {
+    await PUT(request('PUT',{allowedProviders:[],revision:current.revision}));
+    return readText();
+  };
+  return response;
 };
 await assert.rejects(getEmbeddings(Array(101).fill('private SOP text'),'fake-key',{privacy:{...current,documentIds:['old']}}));
 assert.equal(calls,2,'only first batch dispatched');
@@ -110,11 +115,31 @@ assert.equal((await PATCH(request('PATCH',{classification:'invalid'}),params('ch
 assert.equal((await PATCH(request('PATCH',{classification:'normal'}),params('foreign'))).status,404);
 
 // A failure while recording deletion must roll back the deletion and revision.
+for (const rawText of [null, '', '   ']) {
+  await pg.query("insert into documents(id,name,company_id,status,raw_text,summary) values ('legacy-source','Legacy','a','success',$1,'saved summary')", [rawText]);
+  await pg.exec("insert into document_chunks values ('legacy-chunk','legacy-source','a','only surviving source')");
+  const revision = (await loadPrivacy('a')).revision;
+  assert.equal((await PATCH(request('PATCH',{classification:'confidential'}),params('legacy-source'))).status,409);
+  assert.equal((await loadPrivacy('a')).revision,revision);
+  assert.equal((await pg.query("select text from document_chunks where document_id='legacy-source'")).rows[0].text,'only surviving source');
+  const response = await PATCH(request('PATCH',{classification:'normal'}),params('legacy-source'));
+  assert.equal(response.status,200);
+  const saved = await response.json();
+  assert.equal(saved.status,'success');
+  assert.equal(saved.summary,'saved summary');
+  assert.equal(saved.classification,'normal');
+  assert.ok(!('rawText' in saved));
+  assert.equal((await pg.query("select count(*)::int n from document_chunks where document_id='legacy-source'")).rows[0].n,1);
+  await pg.exec("delete from documents where id='legacy-source'");
+}
+const restored = await PATCH(request('PATCH',{classification:'internal'}),params('change'));
+assert.deepEqual(await restored.json(),{id:'change',classification:'internal',status:'queued',summary:null,errorMessage:null});
+
 await pg.exec(`CREATE FUNCTION reject_privacy_event() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'simulated audit failure'; END $$;
  CREATE TRIGGER reject_privacy_event BEFORE INSERT ON privacy_events FOR EACH ROW EXECUTE FUNCTION reject_privacy_event();`);
 const beforeFailure=await loadPrivacy('a');
-await assert.rejects(DELETE(request('DELETE'),params('change')));
+assert.equal((await DELETE(request('DELETE'),params('change'))).status,500);
 assert.equal((await pg.query("select count(*)::int n from documents where id='change'")).rows[0].n,1);
 assert.equal((await loadPrivacy('a')).revision,beforeFailure.revision);
 const other=await loadPrivacy('b');
@@ -134,6 +159,31 @@ await pg.exec('RESET ROLE');
 assert.equal((await GET(request('GET'))).status,200);
 
 // Denied fallback cannot be silently substituted with another provider.
+// A mutation cannot acknowledge revocation while a validated dispatch is
+// waiting for headers. PGlite serializes transactions; production additionally
+// uses shared/exclusive advisory locks across independent connections.
+let headers;
+let dispatched;
+const dispatchStarted = new Promise(resolve => { dispatched = resolve; });
+globalThis.fetch = async () => {
+  dispatched();
+  await new Promise(resolve => { headers = resolve; });
+  return Response.json({ ok: true });
+};
+const otherContext = await loadPrivacy('b');
+const pendingDispatch = privacyFetch(otherContext,'groq')('https://provider.invalid');
+await dispatchStarted;
+authState.companyId='b';
+let acknowledged = false;
+const revocation = PUT(request('PUT',{allowedProviders:[],revision:otherContext.revision})).then(response => { acknowledged=true; return response; });
+await new Promise(resolve => setTimeout(resolve,20));
+assert.equal(acknowledged,false);
+headers();
+await pendingDispatch;
+assert.equal((await revocation).status,200);
+await assert.rejects(privacyFetch(otherContext,'groq')('https://provider.invalid'),PrivacyBlockedError);
+authState.companyId='a';
+
 current=await loadPrivacy('a');
 await assert.rejects(generateWithFallback({keys:{groq:'g',gemini:'k',privacy:current},prompt:'private SOP text',label:'privacy-test'}));
 assert.equal(calls,2);

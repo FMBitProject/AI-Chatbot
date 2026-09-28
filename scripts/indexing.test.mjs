@@ -113,6 +113,20 @@ for (const operation of ["delete", "classify"]) {
 console.log("PASS late indexing replies cannot resurrect deleted or confidential documents");
 
 // Distributed mutual exclusion and persisted cooldown, independent of tenant.
+await db.insert(documents).values({id:'privacy-paused',name:'Paused',companyId:'a',status:'queued',rawText:'recoverable SOP '.repeat(40)});
+const { PrivacyBlockedError } = await import('../src/lib/privacy-policy.ts');
+state.before = () => { throw new PrivacyBlockedError(); };
+await clearSlots();
+const paused = await runIndexingPass(company);
+assert.equal(paused.stop,'privacy-blocked');
+assert.equal(paused.failed,0);
+assert.equal((await pg.query("select status from documents where id='privacy-paused'")).rows[0].status,'queued');
+state.before=null;
+await clearSlots();
+assert.equal((await runIndexingPass(company)).indexed,1);
+await pg.exec("delete from documents where id='privacy-paused'");
+console.log('PASS privacy pause preserves queued work and resumes after policy recovery');
+
 await clearSlots();
 await withEmbeddingSlot("same-provider-key", async () => {
  await assert.rejects(withEmbeddingSlot("same-provider-key",async()=>1),ProviderBusyError);

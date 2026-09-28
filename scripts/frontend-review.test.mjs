@@ -30,6 +30,22 @@ function handlers(path, names, globals) {
 const event = { preventDefault() {} };
 const offline = async () => { throw new TypeError("simulated offline"); };
 
+// A successful mutation is authoritative even when the following refresh fails.
+{
+  let documents = [{ id: 'doc', classification: 'confidential', status: 'blocked', summary: null }];
+  const revision = { current: 0 };
+  const ctx = handlers('src/app/admin/page.tsx', ['handleSetClassification'], {
+    fetch: async () => ({ ok: true, json: async () => ({ id: 'doc', classification: 'internal', status: 'queued', summary: null, errorMessage: null }) }),
+    documentsRevision: revision,
+    setDocuments: update => { documents = update(documents); },
+    loadDocuments: async () => null,
+  });
+  await ctx.handleSetClassification('doc','internal');
+  assert.equal(documents[0].classification,'internal');
+  assert.equal(documents[0].status,'queued');
+  assert.equal(revision.current,1);
+}
+
 // Search: stale responses must not overwrite newer results or clear their loading state.
 {
   const state = {};

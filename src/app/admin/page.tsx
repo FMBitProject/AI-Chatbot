@@ -393,6 +393,9 @@ export default function AdminPage() {
       onProgress({ remaining: result.remaining, done });
 
       if (result.remaining === 0) return;
+      if (result.stop === "privacy-blocked") {
+        throw new Error("Indexing dijeda oleh pengaturan privasi. Dokumen tetap dalam antrean; izinkan provider lalu jalankan indexing kembali.");
+      }
 
       if (result.stop === "busy") {
         // Another pass holds this company's queue — a second tab, or the cron
@@ -436,8 +439,10 @@ export default function AdminPage() {
 
   async function handleSetClassification(id: string, classification: DocumentClassification) {
     const res = await fetch(`/api/admin/documents/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classification }) });
-    if (!res.ok) throw new Error("Klasifikasi gagal disimpan.");
+    if (!res.ok) throw new Error((await readApiError(res, lang)).message);
+    const updated = await res.json() as Pick<Document, "id" | "classification" | "status" | "summary" | "errorMessage">;
     documentsRevision.current++;
+    setDocuments(prev => prev.map(doc => doc.id === id ? { ...doc, ...updated } : doc));
     await loadDocuments();
   }
 

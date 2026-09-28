@@ -6,7 +6,8 @@ import { retrieveChunks } from "@/lib/retrieval";
 import { withTenant } from "@/lib/db/tenant";
 import { isSeatActive, resolvePlanById, SEAT_FROZEN_MESSAGE } from "@/lib/subscription";
 import { LIMITS } from "@/lib/validate";
-import { resolveByok } from "@/lib/byok";
+import { geminiKey } from "@/lib/byok";
+import { loadPrivacy } from "@/lib/privacy";
 
 export async function GET(req: NextRequest) {
   const guard = await requireUser(req);
@@ -43,10 +44,15 @@ export async function GET(req: NextRequest) {
   // unreadable stored key as a Google outage sends the admin to the wrong place.
   // No quota is consumed on this route, so unlike chat that is the only thing at
   // stake here.
-  const byok = await resolveByok(company);
-  if (!byok.ok) {
-    console.error(`[search] BYOK key unreadable for company ${companyId}: ${byok.message}`);
-    return NextResponse.json({ error: byok.code ?? "BYOK_KEY_UNREADABLE", message: byok.message }, { status: 503 });
+  let embeddingKey: string | null;
+  let privacy: Awaited<ReturnType<typeof loadPrivacy>>;
+  try {
+    privacy = await loadPrivacy(companyId, req.signal);
+    embeddingKey = await geminiKey(company);
+  } catch (error) {
+    console.error(`[search] Embedding configuration unavailable for company ${companyId}`);
+    return NextResponse.json({ error: isPrivacyBlocked(error) ? "PRIVACY_BLOCKED" : "BYOK_KEY_UNREADABLE",
+      message: isPrivacyBlocked(error) ? "Provider embedding diblokir pengaturan privasi." : "Konfigurasi embedding tidak dapat dibaca. Coba kembali atau hubungi admin." }, { status: 503 });
   }
 
   // Same shape of failure as chat, so it gets the same shape of answer: an
@@ -54,7 +60,7 @@ export async function GET(req: NextRequest) {
   // while /api/chat has always returned a typed reason for the identical call.
   let queryEmbedding: number[];
   try {
-    queryEmbedding = await getEmbedding(q, byok.gemini, byok.privacy);
+    queryEmbedding = await getEmbedding(q, embeddingKey, privacy);
   } catch (err) {
     console.error("[search] Embedding failed");
     const is429 = err instanceof Error && err.message.includes("429");

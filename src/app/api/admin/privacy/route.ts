@@ -3,7 +3,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-guard";
 import { withTenant } from "@/lib/db/tenant";
 import { companies, privacyEvents } from "@/lib/db/schema";
-import { readPrivacy, advancePrivacy } from "@/lib/privacy";
+import { readPrivacy, advancePrivacy, lockPrivacyMutation } from "@/lib/privacy";
 import { allowedProvidersInput } from "@/lib/privacy-policy";
 import { readJsonObject } from "@/lib/validate";
 import { withApiErrors } from "@/lib/api-error";
@@ -29,11 +29,12 @@ export const PUT = withApiErrors("admin/privacy", async (req: NextRequest) => {
   }
   const companyId = guard.user.companyId;
   const result = await withTenant(companyId, async tx => {
+    await lockPrivacyMutation(tx, companyId);
     await tx.select({ id: companies.id }).from(companies).where(and(eq(companies.id, companyId))).for("update");
     const current = await readPrivacy(tx, companyId);
     if (current.revision !== body!.revision) return null;
     await advancePrivacy(tx, companyId, "policy_changed", [], allowed);
     return readPrivacy(tx, companyId);
-  });
+  }, { signal: req.signal, timeoutMs: 20_000 });
   return result ? NextResponse.json(result) : NextResponse.json({ error: "Pengaturan berubah. Muat ulang sebelum menyimpan." }, { status: 409 });
 });
