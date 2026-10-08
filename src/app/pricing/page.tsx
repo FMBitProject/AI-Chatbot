@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
+import { PlanPromotion } from "@/components/PlanPromotion";
 import { getPlanPrice, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
+import { usePriceNow } from "@/lib/price-clock";
 import { consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -77,24 +79,15 @@ export default function PricingPage() {
   // "undefined". Partial because the two tiers without a list price — starter
   // and custom — are supposed to be missing.
   //
-  // There is one price per plan now. The struck-through "before" price and the
-  // promo banner that used to sit above these cards are gone with the promo
-  // itself (see getPlanPrice) — on a page a hospital reads, a permanent discount
-  // mostly invites the reader to ask what the number becomes if they push.
-  //
-  // Read through getPlanPrice(), not from NORMAL_PRICES directly, and that is
-  // not a stylistic preference: getPlanPrice is the function /api/payment/create
-  // charges from. Today the two are the same value, so reading the table
-  // directly is harmless — but it is harmless only for as long as nobody puts a
-  // dated promo back into getPlanPrice, at which point this page would quote the
-  // full price while the checkout billed the discounted one. The landing teaser
-  // and the ROI calculator already read the function; this page was the one
-  // surface still reading around it.
+  // Evaluated at the server's request time (usePriceNow), never the device
+  // clock: the checkout only knows the server's, and a visitor whose clock is
+  // off would otherwise read one price here and be billed another.
   type PlanKey = (typeof PLAN_KEYS)[number];
+  const priceNow = usePriceNow();
   const PRICES: Partial<Record<PlanKey, string>> = {
-    personal: formatRupiah(getPlanPrice("personal"), lang),
-    professional: formatRupiah(getPlanPrice("professional"), lang),
-    enterprise: formatRupiah(getPlanPrice("enterprise"), lang),
+    personal: formatRupiah(getPlanPrice("personal", priceNow), lang),
+    professional: formatRupiah(getPlanPrice("professional", priceNow), lang),
+    enterprise: formatRupiah(getPlanPrice("enterprise", priceNow), lang),
   };
   // The pilot badge belongs ONLY on a card whose call to action is a
   // conversation, and this is a correctness rule rather than a layout choice.
@@ -163,11 +156,32 @@ export default function PricingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json() as { token?: string; orderId?: string; message?: string };
+      const data = await res.json() as { token?: string; orderId?: string; amount?: number; message?: string };
       if (!res.ok || !data.token) {
         setLoadingPlan(null);
         alert(data.message ?? "Gagal memulai pembayaran. Silakan coba lagi.");
         return;
+      }
+
+      // The page shows the price from when it loaded; the checkout bills the
+      // price of this moment, or the one an earlier open order was opened at.
+      // They differ when the tab was left open across the promo deadline, or
+      // when an order opened before the deadline is handed back after it. Say
+      // so before Snap opens instead of letting the popup show a figure the
+      // card never did. A confirm, not a reload: after a reload the reused
+      // order would still differ from the new card, and the visitor would loop.
+      const shownAmount = getPlanPrice(plan, priceNow);
+      if (typeof data.amount === "number" && data.amount !== shownAmount) {
+        const proceed = window.confirm(
+          lang === "en"
+            ? `The amount to pay is ${formatRupiah(data.amount, "en")}, not the ${formatRupiah(shownAmount, "en")} shown on this page, because the price changed since the page loaded. Continue to payment?`
+            : `Total yang akan ditagih ${formatRupiah(data.amount, "id")}, bukan ${formatRupiah(shownAmount, "id")} seperti di halaman ini, karena harga berubah sejak halaman dibuka. Lanjutkan pembayaran?`,
+        );
+        if (!proceed) {
+          setLoadingPlan(null);
+          window.location.reload();
+          return;
+        }
       }
 
       // Load Midtrans Snap script dynamically
@@ -243,7 +257,7 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* The pilot offer, which replaced the launch promo banner. Only on the
+      {/* The pilot offer. Only on the
           company tab: the individual tier is not sold this way. The second half
           of the line is not decoration — it is what keeps a page-wide banner
           from reading as "every plan here comes with a free week", including the
@@ -350,6 +364,7 @@ export default function PricingPage() {
                   )}
                 </div>
                 <p className="text-stone-500 text-sm mb-3">{plan.desc}</p>
+                {isPurchasablePlan(key) && <PlanPromotion plan={key} lang={lang} />}
                 {/* The amount and its unit stack instead of sitting side by
                     side. Beside each other they competed for a ~210px line, and
                     both lost: "Rp 200.000" split after "Rp", and on the Custom

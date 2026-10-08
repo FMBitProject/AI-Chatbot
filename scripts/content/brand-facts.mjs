@@ -14,11 +14,36 @@
 // hand whenever pricing.ts changes, because a stale figure does not fail — it
 // generates a post advertising a price we do not charge.
 //
-// This used to re-implement a promo window as well. The promo is gone; the
-// prices below are simply the prices.
+// The promo window is copied too, for the same reason. Keep PROMO_END_EXCLUSIVE
+// and PROMO_DISCOUNTS identical to pricing.ts, or a post will advertise a
+// discount the checkout no longer gives (or miss one it does).
+// TODO: MINOR — salinan harga dan jendela promo ini tidak dijaga tes. File ini
+// tanpa import, jadi scripts/pricing.test.mts bisa mengimpornya dan memastikan
+// currentPrices(kapan) === getPlanPrice(paket, kapan) di setiap tanggal uji.
 const NORMAL_PRICES = { personal: 119000, professional: 1500000, enterprise: 4500000 };
+// Includes all of 31 December 2026 in WIB (UTC+7).
+const PROMO_END_EXCLUSIVE = "2027-01-01T00:00:00+07:00";
+const PROMO_DISCOUNTS = { personal: 0, professional: 30, enterprise: 50 };
 
-export function currentPrices() {
+// TODO: MINOR — paket baru di NORMAL_PRICES tanpa entri di PROMO_DISCOUNTS
+// menghasilkan diskon undefined, lalu harga NaN ("RpNaN" di prompt). Pakai
+// `PROMO_DISCOUNTS[plan] ?? 0`; .mjs tidak punya pengaman Record seperti pricing.ts.
+export function currentDiscounts(now = new Date()) {
+  const active = now.getTime() < Date.parse(PROMO_END_EXCLUSIVE);
+  return Object.fromEntries(
+    Object.keys(NORMAL_PRICES).map((plan) => [plan, active ? PROMO_DISCOUNTS[plan] : 0]),
+  );
+}
+
+// What the checkout charges on `now`. Same rounding as getPlanPrice().
+export function currentPrices(now = new Date()) {
+  const d = currentDiscounts(now);
+  return Object.fromEntries(
+    Object.entries(NORMAL_PRICES).map(([plan, price]) => [plan, Math.round(price * (100 - d[plan]) / 100)]),
+  );
+}
+
+export function normalPrices() {
   return { ...NORMAL_PRICES };
 }
 
@@ -95,12 +120,19 @@ const DRIVE_LINE =
 // Everything below is voice-neutral: what the product is, what may be claimed,
 // what must be disclosed, what is forbidden. Nothing here says who is speaking
 // or how long the text should be.
-// TODO: MINOR — `now` sudah jadi parameter mati: currentPrices() tidak lagi
-// menerima tanggal sejak promo dihapus. Hapus dari rantainya, atau kembalikan
-// kalau promo berjangka dipasang lagi.
 export function buildProductFacts(now = new Date()) {
   const p = currentPrices(now);
-  const priceLine = `Klinik ${formatRupiah(p.professional)}/bulan (${PROFESSIONAL.maxEmployees} pengguna, ${PROFESSIONAL.maxDocuments} dokumen) dan Rumah Sakit ${formatRupiah(p.enterprise)}/bulan (${ENTERPRISE.maxEmployees} pengguna, ${ENTERPRISE.maxDocuments} dokumen)`;
+  const d = currentDiscounts(now);
+  // During the promo the figure to quote is the discounted one, with the normal
+  // price and the deadline beside it: a discount without its end date reads as
+  // the permanent price, and a post outlives the promo on the timeline.
+  // TODO: MINOR — "31 Desember 2026" ditulis literal (tanpa "WIB") dan tidak
+  // diturunkan dari PROMO_END_EXCLUSIVE; ikut basi kalau promo diperpanjang.
+  const tierPrice = (plan) =>
+    d[plan]
+      ? `${formatRupiah(p[plan])}/bulan (promo diskon ${d[plan]}% dari harga normal ${formatRupiah(NORMAL_PRICES[plan])}, berlaku sampai 31 Desember 2026)`
+      : `${formatRupiah(p[plan])}/bulan`;
+  const priceLine = `Klinik ${tierPrice("professional")} (${PROFESSIONAL.maxEmployees} pengguna, ${PROFESSIONAL.maxDocuments} dokumen) dan Rumah Sakit ${tierPrice("enterprise")} (${ENTERPRISE.maxEmployees} pengguna, ${ENTERPRISE.maxDocuments} dokumen)`;
   const personalPriceLine = `${formatRupiah(p.personal)}/bulan`;
 
   return `# Produk

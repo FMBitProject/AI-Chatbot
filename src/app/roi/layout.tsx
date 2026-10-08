@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PriceClockProvider } from "@/lib/price-clock";
+import { requestPriceTime } from "@/lib/price-clock-server";
 
 // Client component; see the note in ../pricing/layout.tsx for why the metadata
 // lives here.
@@ -15,6 +17,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/roi" },
 };
 
-export default function RoiLayout({ children }: { children: React.ReactNode }) {
-  return children;
+export default async function RoiLayout({ children }: { children: React.ReactNode }) {
+  // One server timestamp for every price on the page, read per request; see
+  // price-clock.tsx.
+  const now = await requestPriceTime();
+  return <PriceClockProvider now={now}>{children}</PriceClockProvider>;
 }

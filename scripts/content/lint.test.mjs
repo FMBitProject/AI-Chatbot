@@ -1,6 +1,11 @@
 // Regression test untuk rule `plan-enumeration` (M1), dijalankan lewat lintText
 // yang asli — bukan regex yang disalin ulang, supaya yang diuji benar-benar
 // jalur kode yang dipakai generate.mjs.
+//
+// TODO: MINOR — belum ada kasus untuk rule `stale-price` di jendela promo:
+// harga promo + normal lolos selama promo, angka promo ditolak mulai
+// 2027-01-01T00:00:00+07:00, dan titik di akhir kalimat ("Rp1.500.000.") bukan
+// bagian dari angka. Sejauh ini hanya diuji manual.
 import { lintText, splitProblems } from "./lint.mjs";
 
 const HARUS_BLOKIR = [

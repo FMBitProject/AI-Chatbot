@@ -22,6 +22,8 @@ import {
   computeRenewedExpiry,
   getEffectiveSubscription,
   getPlanPrice,
+  getPlanDiscount,
+  isOrderPriceHonoured,
   isPlanAllowedFor,
   isSubscriptionActive,
   planRank,
@@ -214,7 +216,7 @@ console.log("\nPENURUNAN PAKET — planRankInForce");
     "starter dengan tanggal di depan → tetap tidak aktif, starter bukan paket berbayar");
 }
 
-console.log("\nHARGA — satu harga, tanpa promo");
+console.log("\nHARGA — promo sampai 31 Desember 2026 WIB");
 {
   // Angka persis, bukan sekadar "lebih besar dari nol". Ini nominal yang
   // benar-benar dikirim ke Midtrans sebagai gross_amount, jadi kesalahan ketik
@@ -224,18 +226,41 @@ console.log("\nHARGA — satu harga, tanpa promo");
   sama(NORMAL_PRICES.enterprise, 4_500_000, "Enterprise (plan id `enterprise`) Rp 4,5jt");
   sama(NORMAL_PRICES.personal, 119_000, "Personal Rp 119rb");
 
-  // Promo sudah dihapus. getPlanPrice masih menerima tanggal supaya promo
-  // berjangka bisa dipasang lagi tanpa menyentuh pemanggilnya, tetapi hari ini
-  // tanggal tidak boleh mengubah apa pun — termasuk tanggal yang dulu menjadi
-  // batas promo, yang persis kondisi paling mungkin tersisa setengah jalan.
-  const dulu = new Date("2026-01-01T00:00:00Z");
-  const bekasBatasPromo = new Date("2026-12-31T17:00:00Z");
-  const nanti = new Date("2030-01-01T00:00:00Z");
+  const selamaPromo = new Date("2026-10-08T12:00:00+07:00");
+  const akhirPromo = new Date("2026-12-31T23:59:59.999+07:00");
+  const setelahPromo = new Date("2027-01-01T00:00:00+07:00");
+  for (const kapan of [selamaPromo, akhirPromo]) {
+    sama(getPlanPrice("professional", kapan), 1_050_000, "Pro diskon 30% termasuk akhir hari terakhir WIB");
+    sama(getPlanPrice("enterprise", kapan), 2_250_000, "Enterprise diskon 50% termasuk akhir hari terakhir WIB");
+    sama(getPlanDiscount("professional", kapan), 30, "Label diskon Pro 30%");
+    sama(getPlanDiscount("enterprise", kapan), 50, "Label diskon Enterprise 50%");
+    sama(getPlanPrice("personal", kapan), 119_000, "Personal tidak ikut promo");
+    sama(getPlanDiscount("personal", kapan), 0, "Personal tanpa label diskon");
+  }
   for (const paket of ["personal", "professional", "enterprise"] as const) {
-    for (const [kapan, nama] of [[dulu, "dulu"], [bekasBatasPromo, "bekas batas promo"], [nanti, "nanti"]] as const) {
-      sama(getPlanPrice(paket, kapan), NORMAL_PRICES[paket], `${paket} harganya sama ${nama}`);
+    for (const kapan of [setelahPromo, new Date("2030-01-01T00:00:00Z")]) {
+      sama(getPlanPrice(paket, kapan), NORMAL_PRICES[paket], paket + " kembali normal setelah promo");
+      sama(getPlanDiscount(paket, kapan), 0, paket + " label promo berakhir");
     }
   }
+
+  // Order dipakai ulang berdasarkan harga SAAT DIBUAT, bukan harga hari ini.
+  // Kasus nyatanya: VA promo dibuka 23.40 malam tahun baru, diklik ulang 00.10.
+  // Dulu VA itu dibatalkan di Midtrans di tengah transfer pelanggan.
+  sama(isOrderPriceHonoured("enterprise", "2250000", akhirPromo), true,
+    "order promo yang dibuka sebelum batas tetap sah setelah batas lewat");
+  sama(isOrderPriceHonoured("enterprise", "4500000", setelahPromo), true,
+    "order harga normal setelah promo sah");
+  sama(isOrderPriceHonoured("enterprise", "2250000", setelahPromo), false,
+    "angka promo pada order yang dibuat setelah batas = basi");
+  sama(isOrderPriceHonoured("enterprise", "4500000", selamaPromo), false,
+    "harga normal pada order selama promo = bukan harga yang berlaku saat dibuat");
+  // Harga lama dari sebelum repricing (Rp500rb) tidak bisa direproduksi dari
+  // tanggal mana pun, jadi pengaman harga basi yang lama tetap utuh.
+  sama(isOrderPriceHonoured("enterprise", "500000", new Date("2026-09-01T00:00:00+07:00")), false,
+    "nominal dari tabel harga lama tetap ditolak");
+  sama(isOrderPriceHonoured("professional", "1050000", new Date("invalid")), false,
+    "tanggal order rusak → tidak dianggap promo (gagal tertutup)");
 
   // Tangga harganya harus naik, dan harga per kursinya harus TURUN. Yang kedua
   // itu alasan seluruh perubahan harga ini ada: paket yang lebih mahal wajib

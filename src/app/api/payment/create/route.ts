@@ -14,7 +14,7 @@ import {
 import { checkoutOrderFields, isUniqueViolation, recordCheckout } from "@/lib/payment-checkout";
 import { settlePaidOrder } from "@/lib/payment";
 import { alertOps } from "@/lib/alerts";
-import { getPlanPrice, PLAN_NAMES, isPlanAllowedFor, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
+import { getPlanPrice, PLAN_NAMES, isOrderPriceHonoured, isPlanAllowedFor, isPurchasablePlan, planRank, planRankInForce } from "@/lib/pricing";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { randomUUID } from "crypto";
 
@@ -258,11 +258,16 @@ export async function POST(req: NextRequest) {
     // already closes the old order at Midtrans before opening a new one — so the
     // stale virtual account stops being payable rather than living alongside the
     // new one.
-    const currentAmount = String(getPlanPrice(plan));
+    //
+    // "Different price" is judged against the price in force when the order was
+    // opened, not today's (isOrderPriceHonoured). That is what keeps a promo
+    // order opened before the deadline payable after it: it is handed back with
+    // its promo amount instead of being cancelled at Midtrans under a customer
+    // who may be mid-transfer. A permanent price change still fails the check.
     const reusable = checked.find(
       (c) =>
         c.order.plan === plan &&
-        c.order.amount === currentAmount &&
+        isOrderPriceHonoured(plan, c.order.amount, c.order.createdAt) &&
         c.order.snapToken !== null &&
         c.order.withinReuseWindow &&
         (!c.status.ok || !closedTransactionStatus(c.status.data.transaction_status)),
@@ -273,7 +278,9 @@ export async function POST(req: NextRequest) {
       // way to pay, so there is nothing new to protect them from, and cancelling
       // an order they may be about to pay would be worse than leaving it.
       console.log(`[payment/create] Reusing pending order: company=${dbUser.companyId} order=${reusable.order.orderId}`);
-      return NextResponse.json({ token: reusable.order.snapToken, orderId: reusable.order.orderId, reused: true });
+      // `amount` is what this token bills, so the page can tell the customer
+      // when it differs from the price on the card (see handlePay on /pricing).
+      return NextResponse.json({ token: reusable.order.snapToken, orderId: reusable.order.orderId, amount: Number(reusable.order.amount), reused: true });
     }
 
     // Nothing to hand back, so a new order is about to be minted — and this is
@@ -414,9 +421,11 @@ export async function POST(req: NextRequest) {
     }
     if (recorded.result === "pending") {
       const winner = recorded.order;
-      if (winner.plan === plan && winner.amount === String(amount) && winner.snapToken
+      // Same price rule as the reuse path above, so the two paths cannot
+      // disagree about which open order is still good to hand back.
+      if (winner.plan === plan && isOrderPriceHonoured(plan, winner.amount, winner.createdAt) && winner.snapToken
         && winner.withinReuseWindow) {
-        return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, reused: true });
+        return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, amount: Number(winner.amount), reused: true });
       }
       return NextResponse.json({ error: "pending_checkout", message: "Pesanan pembayaran lain masih terbuka. Muat ulang halaman dan periksa pesanan tersebut sebelum melanjutkan.", orderId: winner.orderId }, { status: 409 });
     }
@@ -446,10 +455,10 @@ export async function POST(req: NextRequest) {
       ))
       .limit(1);
 
-    if (winner?.snapToken && winner.amount === String(amount)
+    if (winner?.snapToken && isOrderPriceHonoured(plan, winner.amount, winner.createdAt)
       && winner.withinReuseWindow) {
       console.log(`[payment/create] Lost the race for a pending order; reusing company=${dbUser.companyId} order=${winner.orderId}`);
-      return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, reused: true });
+      return NextResponse.json({ token: winner.snapToken, orderId: winner.orderId, amount: Number(winner.amount), reused: true });
     }
 
     if (winner && !winner.snapToken) {
@@ -474,5 +483,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ token: snapResponse.token, orderId });
+  return NextResponse.json({ token: snapResponse.token, orderId, amount });
 }
