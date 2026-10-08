@@ -13,7 +13,7 @@
 // Programmatic: import { lintText, lintPack } from "./lint.mjs"
 
 import { readFileSync } from "fs";
-import { currentPrices, formatRupiah } from "./brand-facts.mjs";
+import { currentDiscounts, currentPrices, formatRupiah, normalPrices } from "./brand-facts.mjs";
 
 // Words that flip a match from "making the claim" to "refusing to make it".
 // The founder voice deliberately says things like "kami tidak mencantumkan
@@ -175,22 +175,20 @@ function shorthands(amount) {
 // Any Rupiah figure in the copy has to be a price we actually charge today.
 // Catches a price in the generated copy drifting from src/lib/pricing.ts.
 //
-// TODO: MINOR — `now` is a dead parameter. currentPrices() stopped taking a date
-// when the promo was removed, so this argument no longer influences anything.
-// Drop it from the chain (or restore it if a dated promo comes back).
+// During the promo the normal price is allowed too, but only then: it is the
+// "before" figure a promo post needs. Once the promo ends only today's price
+// passes, so a leftover promo figure fails as stale.
 function checkPrices(text, now) {
   const p = currentPrices(now);
-  const allowed = new Set([
-    formatRupiah(p.personal),
-    formatRupiah(p.professional),
-    formatRupiah(p.enterprise),
-    ...shorthands(p.personal),
-    ...shorthands(p.professional),
-    ...shorthands(p.enterprise),
-  ]);
+  const d = currentDiscounts(now);
+  const n = normalPrices();
+  const quoted = Object.keys(p).flatMap((plan) => (d[plan] ? [p[plan], n[plan]] : [p[plan]]));
+  const allowed = new Set(quoted.flatMap((amount) => [formatRupiah(amount), ...shorthands(amount)]));
   const found = text.match(/Rp\s?[\d.,]+\s*(rb|ribu|jt|juta)?/gi) ?? [];
   return found
-    .map((raw) => raw.replace(/\s+/g, ""))
+    // The trailing [.,] is punctuation, not a digit group: "...Rp1.500.000." ends
+    // a sentence, and without the trim a correct price fails as stale.
+    .map((raw) => raw.replace(/\s+/g, "").replace(/[.,]+$/, ""))
     .filter((normalized) => !allowed.has(normalized))
     .map((normalized) => ({
       id: "stale-price",

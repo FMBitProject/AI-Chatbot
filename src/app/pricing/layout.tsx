@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 
 // The page itself is a client component (it reads the language context and the
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/pricing" },
 };
 
-export default function PricingLayout({ children }: { children: React.ReactNode }) {
+export default async function PricingLayout({ children }: { children: React.ReactNode }) {
+  // Evaluate dated prices per request instead of freezing them at build time.
+  await connection();
   return children;
 }

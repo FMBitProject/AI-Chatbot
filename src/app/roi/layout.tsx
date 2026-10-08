@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import type { Metadata } from "next";
 
 // Client component; see the note in ../pricing/layout.tsx for why the metadata
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
   alternates: { canonical: "/roi" },
 };
 
-export default function RoiLayout({ children }: { children: React.ReactNode }) {
+export default async function RoiLayout({ children }: { children: React.ReactNode }) {
+  // Evaluate dated prices per request instead of freezing them at build time.
+  await connection();
   return children;
 }

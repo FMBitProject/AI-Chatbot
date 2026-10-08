@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { useEffect } from "react";
 import { authClient } from "@/lib/auth-client";
 import { SiteFooter } from "@/components/SiteFooter";
+import { PlanPromotion } from "@/components/PlanPromotion";
 import { getPlanPrice, formatRupiah, isPurchasablePlan, type PurchasablePlan } from "@/lib/pricing";
 import { consultationMailto, whatsappUrl } from "@/lib/contact";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -77,19 +78,6 @@ export default function PricingPage() {
   // "undefined". Partial because the two tiers without a list price — starter
   // and custom — are supposed to be missing.
   //
-  // There is one price per plan now. The struck-through "before" price and the
-  // promo banner that used to sit above these cards are gone with the promo
-  // itself (see getPlanPrice) — on a page a hospital reads, a permanent discount
-  // mostly invites the reader to ask what the number becomes if they push.
-  //
-  // Read through getPlanPrice(), not from NORMAL_PRICES directly, and that is
-  // not a stylistic preference: getPlanPrice is the function /api/payment/create
-  // charges from. Today the two are the same value, so reading the table
-  // directly is harmless — but it is harmless only for as long as nobody puts a
-  // dated promo back into getPlanPrice, at which point this page would quote the
-  // full price while the checkout billed the discounted one. The landing teaser
-  // and the ROI calculator already read the function; this page was the one
-  // surface still reading around it.
   type PlanKey = (typeof PLAN_KEYS)[number];
   const PRICES: Partial<Record<PlanKey, string>> = {
     personal: formatRupiah(getPlanPrice("personal"), lang),
@@ -243,7 +231,7 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* The pilot offer, which replaced the launch promo banner. Only on the
+      {/* The pilot offer. Only on the
           company tab: the individual tier is not sold this way. The second half
           of the line is not decoration — it is what keeps a page-wide banner
           from reading as "every plan here comes with a free week", including the
@@ -350,6 +338,7 @@ export default function PricingPage() {
                   )}
                 </div>
                 <p className="text-stone-500 text-sm mb-3">{plan.desc}</p>
+                {isPurchasablePlan(key) && <PlanPromotion plan={key} lang={lang} />}
                 {/* The amount and its unit stack instead of sitting side by
                     side. Beside each other they competed for a ~210px line, and
                     both lost: "Rp 200.000" split after "Rp", and on the Custom

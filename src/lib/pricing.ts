@@ -1,8 +1,7 @@
 // Single source of truth for plan pricing.
 //
 // One price per plan, read by both the checkout charge and every price shown on
-// the site, so the two can never disagree. There is no promo: see getPlanPrice
-// for why the launch discount was removed rather than re-dated.
+// the site. Dated discounts are applied by getPlanPrice for display and checkout.
 
 // Two different questions, and conflating them is a live bug rather than a
 // style choice:
@@ -351,20 +350,25 @@ export function computeRenewedExpiry(
   return addOneMonth(base);
 }
 
-// The authoritative price a customer is charged for a plan right now.
-//
-// There used to be a launch promo here, and with it a second price table, an
-// end date, and a struck-through price on every card. It is gone: the prices
-// above are the real ones, so a discount off a list price nobody ever paid is
-// theatre, and on a page aimed at hospitals it invites the buyer to wonder what
-// the number would be if they pushed. One price, stated plainly.
-//
-// Still takes `now`, unused, so that reintroducing a real dated promo is a
-// change to this function alone rather than to all of its callers.
+// Includes all of 31 December 2026 in WIB (UTC+7).
+export const PROMO_END_EXCLUSIVE = "2027-01-01T00:00:00+07:00";
+export const PROMO_DEADLINE_LABEL = {
+  id: "Promo sampai 31 Desember 2026, 23.59 WIB",
+  en: "Offer ends 31 December 2026, 23:59 WIB (UTC+7)",
+};
+const PROMO_DISCOUNTS: Record<PurchasablePlan, number> = {
+  personal: 0,
+  professional: 30,
+  enterprise: 50,
+};
+
+export function getPlanDiscount(plan: PurchasablePlan, now: Date = new Date()): number {
+  return now.getTime() < Date.parse(PROMO_END_EXCLUSIVE) ? PROMO_DISCOUNTS[plan] : 0;
+}
+
+// Authoritative amount for both new checkouts and displayed monthly prices.
 export function getPlanPrice(plan: PurchasablePlan, now: Date = new Date()): number {
-  // TODO: MINOR — `void now` hanya untuk meredam lint atas parameter tak terpakai.
-  void now;
-  return NORMAL_PRICES[plan];
+  return Math.round(NORMAL_PRICES[plan] * (100 - getPlanDiscount(plan, now)) / 100);
 }
 
 // "Rp 299.000" (id) / "Rp 299,000" (en)

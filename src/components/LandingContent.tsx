@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
+import { PlanPromotion } from "@/components/PlanPromotion";
 import { getPlanPrice, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
@@ -864,6 +865,7 @@ export function LandingContent() {
                       the thing worth introducing a second brand colour for. */}
                   {pilot && <span className="text-[0.7rem] font-semibold tracking-wide text-teal-800 bg-teal-700/10 px-2 py-0.5 rounded-full mb-2 inline-block">{T.pricePilotBadge}</span>}
                   <p className="font-semibold text-stone-900">{p.name}</p>
+                  {planKey && <PlanPromotion plan={planKey} lang={lang} />}
                   <p className="text-teal-800 font-semibold text-sm">{priceText}</p>
                   <p className="text-stone-500 text-xs mt-1">{p.desc}</p>
                 </div>

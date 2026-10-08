@@ -1,3 +1,4 @@
+import { connection } from "next/server";
 import { LandingContent } from "@/components/LandingContent";
 import type { Metadata } from "next";
 
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
   // site_name, locale, and the image resolved from opengraph-image.tsx.
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Evaluate dated prices per request instead of freezing them at build time.
+  await connection();
   return <LandingContent />;
 }
