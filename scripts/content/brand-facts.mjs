@@ -17,11 +17,17 @@
 // The promo window is copied too, for the same reason. Keep PROMO_END_EXCLUSIVE
 // and PROMO_DISCOUNTS identical to pricing.ts, or a post will advertise a
 // discount the checkout no longer gives (or miss one it does).
+// TODO: MINOR — salinan harga dan jendela promo ini tidak dijaga tes. File ini
+// tanpa import, jadi scripts/pricing.test.mts bisa mengimpornya dan memastikan
+// currentPrices(kapan) === getPlanPrice(paket, kapan) di setiap tanggal uji.
 const NORMAL_PRICES = { personal: 119000, professional: 1500000, enterprise: 4500000 };
 // Includes all of 31 December 2026 in WIB (UTC+7).
 const PROMO_END_EXCLUSIVE = "2027-01-01T00:00:00+07:00";
 const PROMO_DISCOUNTS = { personal: 0, professional: 30, enterprise: 50 };
 
+// TODO: MINOR — paket baru di NORMAL_PRICES tanpa entri di PROMO_DISCOUNTS
+// menghasilkan diskon undefined, lalu harga NaN ("RpNaN" di prompt). Pakai
+// `PROMO_DISCOUNTS[plan] ?? 0`; .mjs tidak punya pengaman Record seperti pricing.ts.
 export function currentDiscounts(now = new Date()) {
   const active = now.getTime() < Date.parse(PROMO_END_EXCLUSIVE);
   return Object.fromEntries(
@@ -120,6 +126,8 @@ export function buildProductFacts(now = new Date()) {
   // During the promo the figure to quote is the discounted one, with the normal
   // price and the deadline beside it: a discount without its end date reads as
   // the permanent price, and a post outlives the promo on the timeline.
+  // TODO: MINOR — "31 Desember 2026" ditulis literal (tanpa "WIB") dan tidak
+  // diturunkan dari PROMO_END_EXCLUSIVE; ikut basi kalau promo diperpanjang.
   const tierPrice = (plan) =>
     d[plan]
       ? `${formatRupiah(p[plan])}/bulan (promo diskon ${d[plan]}% dari harga normal ${formatRupiah(NORMAL_PRICES[plan])}, berlaku sampai 31 Desember 2026)`

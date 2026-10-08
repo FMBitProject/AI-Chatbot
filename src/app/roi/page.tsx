@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { useLang } from "@/lib/language-context";
 import { getPlanPrice, formatRupiah, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
+import { usePriceNow } from "@/lib/price-clock";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { consultationMailto } from "@/lib/contact";
 import {
@@ -464,8 +465,10 @@ export default function ROIPage() {
 
   // Override the static plan prices with the current effective price (promo
   // until Dec 2026, then normal) so the ROI math and labels stay in sync.
+  // Server request time, not the device clock; see price-clock.tsx.
+  const priceNow = usePriceNow();
   const plans = T.plans.map((p) => {
-    const price = getPlanPrice(p.key as PurchasablePlan);
+    const price = getPlanPrice(p.key as PurchasablePlan, priceNow);
     return {
       ...p,
       price,

@@ -1,5 +1,6 @@
-import { connection } from "next/server";
 import { LandingContent } from "@/components/LandingContent";
+import { PriceClockProvider } from "@/lib/price-clock";
+import { requestPriceTime } from "@/lib/price-clock-server";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -16,8 +17,17 @@ export const metadata: Metadata = {
   // site_name, locale, and the image resolved from opengraph-image.tsx.
 };
 
+// TODO: MINOR — requestPriceTime() (connection()) membuat homepage (halaman paling ramai, termasuk
+// trafik iklan) dirender per request, padahal harga hanya berubah sekali di batas
+// promo. `export const revalidate = 300` (ISR) sudah cukup: harga paling lama
+// basi 5 menit, dan checkout tetap menagih memakai jam server.
 export default async function HomePage() {
-  // Evaluate dated prices per request instead of freezing them at build time.
-  await connection();
-  return <LandingContent />;
+  // One server timestamp for every price on the page, read per request; see
+  // price-clock.tsx.
+  const now = await requestPriceTime();
+  return (
+    <PriceClockProvider now={now}>
+      <LandingContent />
+    </PriceClockProvider>
+  );
 }

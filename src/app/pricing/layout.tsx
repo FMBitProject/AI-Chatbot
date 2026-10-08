@@ -1,5 +1,6 @@
-import { connection } from "next/server";
 import type { Metadata } from "next";
+import { PriceClockProvider } from "@/lib/price-clock";
+import { requestPriceTime } from "@/lib/price-clock-server";
 
 // The page itself is a client component (it reads the language context and the
 // live promo window), and a client component cannot export `metadata` — so the
@@ -21,7 +22,8 @@ export const metadata: Metadata = {
 };
 
 export default async function PricingLayout({ children }: { children: React.ReactNode }) {
-  // Evaluate dated prices per request instead of freezing them at build time.
-  await connection();
-  return children;
+  // One server timestamp for every price on the page, read per request; see
+  // price-clock.tsx.
+  const now = await requestPriceTime();
+  return <PriceClockProvider now={now}>{children}</PriceClockProvider>;
 }

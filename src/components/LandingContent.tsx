@@ -7,7 +7,8 @@ import { LogoFull } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useLang } from "@/lib/language-context";
 import { PlanPromotion } from "@/components/PlanPromotion";
-import { getPlanPrice, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
+import { formatRupiah, getPlanPrice, PLAN_LABELS, type PurchasablePlan } from "@/lib/pricing";
+import { usePriceNow } from "@/lib/price-clock";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { ROI_DEFAULTS, calculateRoi, ESTIMATE_NOTE, RECOVERED_SHARE_LABEL } from "@/lib/roi";
 import { OTHER_INDUSTRIES } from "@/lib/industries";
@@ -499,6 +500,8 @@ function formatRp(v: number) {
 export function LandingContent() {
   const { lang } = useLang();
   const T = CONTENT[lang];
+  // Server request time for the price teaser, not the device clock; see price-clock.tsx.
+  const priceNow = usePriceNow();
 
   const [teaserEmployees, setTeaserEmployees] = useState(ROI_DEFAULTS.employees);
   // Same arithmetic and same assumptions as /roi, with headcount as the only
@@ -853,10 +856,16 @@ export function LandingContent() {
               // with the copy, which would silently leave both paid cards
               // falling through to the `null` branch and printing an empty
               // price.
+              //
+              // The exact figure (formatRupiah), not the one-decimal formatRp the
+              // ROI numbers use: the promo prices do not round to one decimal,
+              // and formatRp printed Rp1.050.000 as "Rp 1.1 jt" and Rp2.250.000
+              // as "Rp 2.3 jt", above what the checkout bills and right beside
+              // the struck-through normal price PlanPromotion writes out in full.
               const planKey = p.planKey;
               const pilot = p.pilot ?? false;
               const priceText = planKey
-                ? `${formatRp(getPlanPrice(planKey))}${lang === "id" ? "/bln" : "/mo"}`
+                ? `${formatRupiah(getPlanPrice(planKey, priceNow), lang)}${lang === "id" ? "/bln" : "/mo"}`
                 : p.price;
               return (
                 <div key={p.name} className={`rounded-xl border p-5 text-left ${pilot ? "border-teal-200 bg-teal-50/60" : "border-hairline"}`}>

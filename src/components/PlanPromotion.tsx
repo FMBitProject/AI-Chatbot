@@ -1,7 +1,11 @@
+"use client";
+
 import { formatRupiah, getPlanDiscount, NORMAL_PRICES, PROMO_DEADLINE_LABEL, type PurchasablePlan } from "@/lib/pricing";
+import { usePriceNow } from "@/lib/price-clock";
 
 export function PlanPromotion({ plan, lang }: { plan: PurchasablePlan; lang: "id" | "en" }) {
-  const discount = getPlanDiscount(plan);
+  // Server time, not the device clock, so the badge agrees with the checkout.
+  const discount = getPlanDiscount(plan, usePriceNow());
   if (!discount) return null;
 
   return (

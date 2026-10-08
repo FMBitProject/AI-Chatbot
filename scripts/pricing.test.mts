@@ -23,6 +23,7 @@ import {
   getEffectiveSubscription,
   getPlanPrice,
   getPlanDiscount,
+  isOrderPriceHonoured,
   isPlanAllowedFor,
   isSubscriptionActive,
   planRank,
@@ -242,6 +243,24 @@ console.log("\nHARGA — promo sampai 31 Desember 2026 WIB");
       sama(getPlanDiscount(paket, kapan), 0, paket + " label promo berakhir");
     }
   }
+
+  // Order dipakai ulang berdasarkan harga SAAT DIBUAT, bukan harga hari ini.
+  // Kasus nyatanya: VA promo dibuka 23.40 malam tahun baru, diklik ulang 00.10.
+  // Dulu VA itu dibatalkan di Midtrans di tengah transfer pelanggan.
+  sama(isOrderPriceHonoured("enterprise", "2250000", akhirPromo), true,
+    "order promo yang dibuka sebelum batas tetap sah setelah batas lewat");
+  sama(isOrderPriceHonoured("enterprise", "4500000", setelahPromo), true,
+    "order harga normal setelah promo sah");
+  sama(isOrderPriceHonoured("enterprise", "2250000", setelahPromo), false,
+    "angka promo pada order yang dibuat setelah batas = basi");
+  sama(isOrderPriceHonoured("enterprise", "4500000", selamaPromo), false,
+    "harga normal pada order selama promo = bukan harga yang berlaku saat dibuat");
+  // Harga lama dari sebelum repricing (Rp500rb) tidak bisa direproduksi dari
+  // tanggal mana pun, jadi pengaman harga basi yang lama tetap utuh.
+  sama(isOrderPriceHonoured("enterprise", "500000", new Date("2026-09-01T00:00:00+07:00")), false,
+    "nominal dari tabel harga lama tetap ditolak");
+  sama(isOrderPriceHonoured("professional", "1050000", new Date("invalid")), false,
+    "tanggal order rusak → tidak dianggap promo (gagal tertutup)");
 
   // Tangga harganya harus naik, dan harga per kursinya harus TURUN. Yang kedua
   // itu alasan seluruh perubahan harga ini ada: paket yang lebih mahal wajib

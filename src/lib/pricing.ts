@@ -352,6 +352,10 @@ export function computeRenewedExpiry(
 
 // Includes all of 31 December 2026 in WIB (UTC+7).
 export const PROMO_END_EXCLUSIVE = "2027-01-01T00:00:00+07:00";
+// TODO: MINOR — tanggal promo ditulis ulang sebagai teks di sini, di
+// scripts/content/brand-facts.mjs (buildProductFacts) dan di pasal 8
+// src/app/terms/page.tsx. Memperpanjang promo lewat PROMO_END_EXCLUSIVE saja
+// meninggalkan ketiga label itu tetap "31 Desember 2026".
 export const PROMO_DEADLINE_LABEL = {
   id: "Promo sampai 31 Desember 2026, 23.59 WIB",
   en: "Offer ends 31 December 2026, 23:59 WIB (UTC+7)",
@@ -369,6 +373,25 @@ export function getPlanDiscount(plan: PurchasablePlan, now: Date = new Date()): 
 // Authoritative amount for both new checkouts and displayed monthly prices.
 export function getPlanPrice(plan: PurchasablePlan, now: Date = new Date()): number {
   return Math.round(NORMAL_PRICES[plan] * (100 - getPlanDiscount(plan, now)) / 100);
+}
+
+// Whether an open order still bills a price checkout may hand back.
+//
+// Judged against the price in force when the order was *opened*, not against
+// today's. The two differ only across a promo deadline, and there the old order
+// is the right one to keep: a customer who opened a promo checkout at 23.40 on
+// 31 December may already have the virtual account number written down at the
+// bank, and a click at 00.10 used to cancel that number at Midtrans and replace
+// it with one for the full price. Their transfer then fails against a VA that
+// no longer exists.
+//
+// A permanent list-price change still fails this check, which is the case the
+// amount comparison was added for: getPlanPrice reads today's NORMAL_PRICES for
+// any date, so the old figure is not reproducible and the order is not reused.
+// The reuse window (24 hours, see checkoutOrderFields) caps how long after the
+// deadline a promo order can still be handed back.
+export function isOrderPriceHonoured(plan: PurchasablePlan, amount: string, orderedAt: Date): boolean {
+  return amount === String(getPlanPrice(plan, orderedAt));
 }
 
 // "Rp 299.000" (id) / "Rp 299,000" (en)

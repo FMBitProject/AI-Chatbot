@@ -178,6 +178,10 @@ function shorthands(amount) {
 // During the promo the normal price is allowed too, but only then: it is the
 // "before" figure a promo post needs. Once the promo ends only today's price
 // passes, so a leftover promo figure fails as stale.
+//
+// TODO: MINOR — selama promo, harga normal juga lolos walau berdiri sendiri
+// ("Klinik Rp1.500.000/bulan" tanpa menyebut promo). Izinkan harga normal hanya
+// kalau teks yang sama memuat harga promo atau kata promo/diskon.
 function checkPrices(text, now) {
   const p = currentPrices(now);
   const d = currentDiscounts(now);
