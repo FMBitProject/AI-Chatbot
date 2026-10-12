@@ -11,8 +11,9 @@ export async function cancelSnapSession(token: string): Promise<boolean> {
     const res = await fetch(`${base}/snap/v1/transactions/${encodeURIComponent(token)}/cancel`, {
       method: "POST",
       headers: {
-        // This endpoint documents the raw server key, unlike Core API Basic auth.
-        Authorization: requireServerKey(),
+        // Midtrans backend APIs use HTTP Basic with the server key as username
+        // and an empty password: base64(`${serverKey}:`).
+        Authorization: `Basic ${Buffer.from(`${requireServerKey()}:`).toString("base64")}`,
         "Content-Type": "application/json",
         Accept: "application/json",
       },
