@@ -190,7 +190,7 @@ globalThis.fetch = async (url, options) => {
   if (path.endsWith("/cancel")) {
     assert.equal(path, `/snap/v1/transactions/${stalePriceOrder.snapToken}/cancel`);
     assert.equal(options.method, "POST");
-    assert.equal(options.headers.Authorization, "test-only");
+    assert.equal(options.headers.Authorization, `Basic ${Buffer.from("test-only:").toString("base64")}`);
     assert.equal(options.cache, "no-store");
     assert.ok(options.signal instanceof AbortSignal);
     return Response.json({ canceled_at: new Date().toISOString() });
