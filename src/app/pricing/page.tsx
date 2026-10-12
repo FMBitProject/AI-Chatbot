@@ -172,6 +172,7 @@ export default function PricingPage() {
       // order would still differ from the new card, and the visitor would loop.
       const shownAmount = getPlanPrice(plan, priceNow);
       if (typeof data.amount === "number" && data.amount !== shownAmount) {
+        // TODO: MINOR — bedakan pesan harga berubah dengan penggunaan ulang pesanan promo lama yang harganya masih dihormati.
         const proceed = window.confirm(
           lang === "en"
             ? `The amount to pay is ${formatRupiah(data.amount, "en")}, not the ${formatRupiah(shownAmount, "en")} shown on this page, because the price changed since the page loaded. Continue to payment?`

@@ -8,6 +8,8 @@ import { settlePaidOrder } from "../src/lib/payment.ts";
 import { POST as verify } from "../src/app/api/payment/verify/route.ts";
 import { POST as webhook } from "../src/app/api/payment/webhook/route.ts";
 import { POST as create } from "../src/app/api/payment/create/route.ts";
+import { cancelSnapSession } from "../src/lib/midtrans-snap-cancel.ts";
+import { getPlanPrice, isOrderPriceHonoured } from "../src/lib/pricing.ts";
 
 await pg.exec("CREATE UNIQUE INDEX pending_plan ON transactions(company_id, plan) WHERE status = 'pending'");
 const companyId = randomUUID();
@@ -145,4 +147,102 @@ const recovered = await create(new Request("https://test.invalid/api/payment/cre
 assert.equal(recovered.status, 200);
 assert.equal((await recovered.json()).token, "recovered-tokenless");
 console.log("PASS tokenless historical pending order does not wedge checkout");
+
+// A price change must not strand an unopened Snap token for seven days.
+// Use the pre-promo list price during the promo, an obsolete price afterwards.
+await db.update(transactions).set({ status: "expired" }).where(eq(transactions.status, "pending"));
+const stalePriceOrder = order();
+stalePriceOrder.amount = getPlanPrice("professional") === 1_050_000 ? "1500000" : "500000";
+await db.insert(transactions).values(stalePriceOrder);
+const checkoutRequest = () => new Request("https://test.invalid/api/payment/create", {
+  method: "POST", body: JSON.stringify({ plan: "professional" }),
+});
+const pendingRow = async () => (await db.select().from(transactions)
+  .where(eq(transactions.id, stalePriceOrder.id)))[0];
+
+for (const failure of ["in-progress", "not-found", "unauthorized", "server-error", "malformed", "network"]) {
+  let newTokens = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/status")) return Response.json({}, { status: 404 });
+    if (String(url).endsWith("/cancel")) {
+      if (failure === "network") throw new Error("Simulated offline provider");
+      if (failure === "malformed") return Response.json({});
+      if (failure === "unauthorized") return Response.json({}, { status: 401 });
+      if (failure === "server-error") return Response.json({ error_messages: ["token already canceled"] }, { status: 503 });
+      return Response.json({ error_messages: [failure === "in-progress" ? "Transaction is on progress" : "token not found"] }, { status: 400 });
+    }
+    newTokens++;
+    throw new Error("Must not expose a replacement before cancellation");
+  };
+  const response = await create(checkoutRequest());
+  assert.equal(response.status, 409, failure);
+  assert.equal((await response.json()).error, "pending_checkout", failure);
+  assert.equal((await pendingRow()).status, "pending", failure);
+  assert.equal(newTokens, 0, failure);
+}
+console.log("PASS failed or uncertain Snap cancellation preserves the old order and blocks replacement");
+
+const calls = [];
+globalThis.fetch = async (url, options) => {
+  const path = new URL(String(url)).pathname;
+  calls.push(path);
+  if (path.endsWith("/status")) return Response.json({}, { status: 404 });
+  if (path.endsWith("/cancel")) {
+    assert.equal(path, `/snap/v1/transactions/${stalePriceOrder.snapToken}/cancel`);
+    assert.equal(options.method, "POST");
+    assert.equal(options.headers.Authorization, "test-only");
+    assert.equal(options.cache, "no-store");
+    assert.ok(options.signal instanceof AbortSignal);
+    return Response.json({ canceled_at: new Date().toISOString() });
+  }
+  assert.equal((await pendingRow()).status, "expired");
+  assert.equal(JSON.parse(options.body).transaction_details.gross_amount, getPlanPrice("professional"));
+  return Response.json({ token: "promo-replacement", redirect_url: "https://test.invalid/snap" });
+};
+const replacement = await create(checkoutRequest());
+assert.equal(replacement.status, 200);
+assert.equal((await replacement.json()).token, "promo-replacement");
+assert.deepEqual(calls, [
+  `/v2/${stalePriceOrder.orderId}/status`,
+  `/snap/v1/transactions/${stalePriceOrder.snapToken}/cancel`,
+  "/snap/v1/transactions",
+]);
+console.log("PASS unopened stale-price checkout is revoked before a new checkout is issued");
+
+// A cancellation response can be lost before the database is updated.
+globalThis.fetch = async () => Response.json({ error_messages: ["token already canceled"] }, { status: 400 });
+assert.equal(await cancelSnapSession("already-cancelled"), true);
+console.log("PASS already-cancelled Snap session can be safely retried");
+
+// Cross the promo deadline inside the actual provider call. The real insert
+// must retain the price timestamp, rather than relying on its database default.
+await db.update(transactions).set({ status: "expired" }).where(eq(transactions.status, "pending"));
+const RealDate = Date;
+const pricedAt = new RealDate("2026-12-31T23:59:59+07:00");
+const returnedAt = new RealDate("2027-01-01T00:00:01+07:00");
+let clock = pricedAt.getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [clock])); }
+  static now() { return clock; }
+};
+try {
+  globalThis.fetch = async (url, options) => {
+    assert.ok(String(url).endsWith("/transactions"));
+    assert.equal(JSON.parse(options.body).transaction_details.gross_amount, 1_050_000);
+    clock = returnedAt.getTime();
+    return Response.json({ token: "deadline-token", redirect_url: "https://test.invalid/snap" });
+  };
+  const response = await create(checkoutRequest());
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.amount, 1_050_000);
+  const [saved] = await db.select().from(transactions).where(eq(transactions.orderId, body.orderId));
+  assert.equal(saved.createdAt.toISOString(), pricedAt.toISOString());
+  assert.equal(isOrderPriceHonoured("professional", saved.amount, saved.createdAt), true);
+  assert.equal(getPlanPrice("professional"), 1_500_000);
+  assert.equal(isOrderPriceHonoured("professional", saved.amount, returnedAt), false);
+} finally {
+  globalThis.Date = RealDate;
+}
+console.log("PASS checkout spanning the promo deadline persists the instant its price was quoted");
 await pg.close();
