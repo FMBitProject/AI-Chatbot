@@ -11,6 +11,7 @@ import {
   fetchMidtransStatus,
   isSettledStatus,
 } from "@/lib/midtrans";
+import { cancelSnapSession } from "@/lib/midtrans-snap-cancel";
 import { checkoutOrderFields, isUniqueViolation, recordCheckout } from "@/lib/payment-checkout";
 import { settlePaidOrder } from "@/lib/payment";
 import { alertOps } from "@/lib/alerts";
@@ -315,7 +316,13 @@ export async function POST(req: NextRequest) {
 
       if (!c.status.ok && c.status.notFound && c.order.snapToken
         && c.order.tokenMayBeActive) {
-        return NextResponse.json({ error: "pending_checkout", message: "Masih ada halaman pembayaran aktif. Selesaikan pesanan tersebut atau tunggu hingga kedaluwarsa sebelum membuat pesanan baru.", orderId: c.order.orderId }, { status: 409 });
+        // A pre-promo checkout may have no Core API transaction yet. Revoke
+        // its Snap session before replacing its old price; a 404 alone cannot
+        // establish that the customer has lost the ability to pay that token.
+        const stalePrice = samePlan && !isOrderPriceHonoured(plan, c.order.amount, c.order.createdAt);
+        if (!stalePrice || !await cancelSnapSession(c.order.snapToken)) {
+          return NextResponse.json({ error: "pending_checkout", message: "Masih ada halaman pembayaran aktif. Selesaikan pesanan tersebut atau tunggu hingga kedaluwarsa sebelum membuat pesanan baru.", orderId: c.order.orderId }, { status: 409 });
+        }
       }
 
       if (c.status.ok) {
@@ -345,8 +352,8 @@ export async function POST(req: NextRequest) {
           );
         }
       }
-      // A 404 is safe to close only after the token lifetime has ended (or
-      // when no token was issued). Younger pages were refused above.
+      // A 404 is safe to close after token expiry, when no token was issued,
+      // or when Snap has explicitly confirmed session cancellation above.
 
       // "expired" rather than "failed": nothing was rejected, the payment window
       // was simply abandoned. It is also the status the reconciliation sweep
@@ -366,9 +373,12 @@ export async function POST(req: NextRequest) {
   // unique both here (schema) and at Midtrans. The random suffix is what makes
   // it an id — the timestamp stays only because it makes an order readable at a
   // glance in the Midtrans dashboard.
-  const orderId = `IB-${plan.toUpperCase()}-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  // Persist the same instant used to quote the price. Midtrans may answer
+  // after the promo deadline, so the database insertion time is too late.
+  const pricedAt = new Date();
+  const orderId = `IB-${plan.toUpperCase()}-${pricedAt.getTime()}-${randomUUID().slice(0, 8)}`;
   // Price is resolved server-side (promo-aware) so the client can never dictate it.
-  const amount = getPlanPrice(plan);
+  const amount = getPlanPrice(plan, pricedAt);
 
   const parameter = {
     transaction_details: {
@@ -415,6 +425,7 @@ export async function POST(req: NextRequest) {
       amount: String(amount),
       status: "pending",
       snapToken: snapResponse.token,
+      createdAt: pricedAt,
     });
     if (recorded.result === "downgrade") {
       return NextResponse.json({ error: "downgrade_not_allowed", message: "Langganan Anda berubah. Muat ulang halaman untuk melihat paket aktif." }, { status: 409 });
