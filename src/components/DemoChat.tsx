@@ -149,12 +149,6 @@ export function DemoChat() {
     setQuestion("");
     setTurns((prev) => [...prev, { question: trimmed, answer: "", citations: [] }]);
     const update = (patch: Partial<Turn>) => setTurns((prev) => prev.map((turn, i) => i === prev.length - 1 ? { ...turn, ...patch } : turn));
-    event("demo_question_sent", { question_number: sent + 1 });
-    // TODO: MINOR — both events fire before the request, so a rate-limited or
-    // failed question still counts as sent. Move them together, or not at all.
-    // The count only. The question itself is what a hospital visitor typed
-    // about their own work, and it must never become an ad-platform parameter.
-    trackMeta("trackCustom", "demo_question_sent", { question_number: sent + 1 });
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const res = await fetch("/api/demo/chat", {
@@ -168,6 +162,15 @@ export function DemoChat() {
         throw new Error(body.error || strings.unreachable);
       }
       setSent((n) => n + 1);
+      // Reported here, after the server accepted the question, and not before
+      // the fetch: a rate-limited or failed request is not a question the
+      // visitor got to ask, and counting it would credit the demo with usage
+      // that never happened. Same spot as setSent, so GA, Meta and the
+      // `questions_sent` on the demo CTA all count the same thing.
+      event("demo_question_sent", { question_number: sent + 1 });
+      // The count only. The question itself is what a hospital visitor typed
+      // about their own work, and it must never become an ad-platform parameter.
+      trackMeta("trackCustom", "demo_question_sent", { question_number: sent + 1 });
       reader = res.body?.getReader();
       if (!reader) throw new Error(strings.dropped);
       const decoder = new TextDecoder();

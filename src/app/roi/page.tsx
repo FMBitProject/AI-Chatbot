@@ -501,11 +501,10 @@ export default function ROIPage() {
       salaryPerMonth !== ROI_DEFAULTS.salaryPerMonth ||
       workingDays !== ROI_DEFAULTS.workingDays;
     if (!touched) return;
-    // TODO: MINOR — the ref latches even when trackMeta sent nothing (no consent
-    // yet), so a visitor who moves a slider and then presses Terima is never
-    // reported. Have trackMeta return whether it sent, and latch only on true.
-    roiReported.current = true;
-    trackMeta("trackCustom", "roi_calculator_used");
+    // Latched only when the event really went out. A visitor who moves a
+    // slider before pressing Terima sent nothing; the next slider they move
+    // after accepting is the one that gets reported.
+    if (trackMeta("trackCustom", "roi_calculator_used")) roiReported.current = true;
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
 
   const results = useMemo(

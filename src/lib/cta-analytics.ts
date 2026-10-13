@@ -50,14 +50,11 @@ export function trackCta(
     track("cta_click", { action, location, ...extra });
     if (hasAnalyticsConsent()) {
       sendGAEvent("event", "cta_click", { action, location, ...extra });
-      // Meta Pixel (see MetaPixel.tsx) is behind the same consent check, and
-      // optional-called because it only exists once the vendor script has
-      // loaded. trackCustom, not track: "cta_click" is not one of Meta's
-      // standard events, and passing a non-standard name to track() makes it
-      // unusable as a campaign optimisation goal in Ads Manager.
-      // TODO: MINOR — this Meta block repeats trackMeta's consent/opt-out gate
-      // by hand; route it through trackMeta so the rule lives in one place.
-      window.fbq?.("trackCustom", "cta_click", { action, location, ...extra });
+      // Meta Pixel goes through trackMeta, so its consent and opt-out rule
+      // lives in one place. trackCustom, not track: "cta_click" is not one of
+      // Meta's standard events, and passing a non-standard name to track()
+      // makes it unusable as a campaign optimisation goal in Ads Manager.
+      trackMeta("trackCustom", "cta_click", { action, location, ...extra });
       // Asking for the 15-minute demo is the conversion the ads exist to buy,
       // so it also goes out as Meta's standard Lead, the event Ads Manager can
       // optimise a campaign towards. cta_click above stays as the per-placement
@@ -67,15 +64,13 @@ export function trackCta(
       // nav button, then the hero one, then the floating one; the Pixel does not
       // deduplicate without an eventID, so each tap would be a separate Lead and
       // Ads Manager would optimise towards, and report a cost per lead from, a
-      // number several times the real one. The flag is only set once fbq exists,
-      // so a click that never reached Meta does not use up the session's Lead.
-      if (
-        action === "demo_whatsapp" &&
-        window.fbq &&
-        sessionStorage.getItem(LEAD_SENT_KEY) !== "1"
-      ) {
-        sessionStorage.setItem(LEAD_SENT_KEY, "1");
-        window.fbq("track", "Lead", { content_name: "demo_whatsapp", location });
+      // number several times the real one. The flag is only set when trackMeta
+      // reports the event actually went out, so a click that never reached
+      // Meta does not use up the session's Lead.
+      if (action === "demo_whatsapp" && sessionStorage.getItem(LEAD_SENT_KEY) !== "1") {
+        if (trackMeta("track", "Lead", { content_name: "demo_whatsapp", location })) {
+          sessionStorage.setItem(LEAD_SENT_KEY, "1");
+        }
       }
     }
   } catch {
@@ -91,20 +86,29 @@ export function trackCta(
  * Params are counts and fixed labels only. Never pass what the visitor typed
  * (their email, their demo question): the privacy policy promises Meta gets the
  * page and the button, not the content, and event params reach Meta verbatim.
+ *
+ * Returns whether the event actually went to Meta, for callers that report
+ * something only once and must not mark it done when nothing was sent.
  */
 export function trackMeta(
   kind: "track" | "trackCustom",
   name: string,
   params: Record<string, string | number> = {},
-): void {
+): boolean {
   try {
-    if (isAnalyticsOptedOut()) return;
-    if (!hasAnalyticsConsent()) return;
-    // TODO: MINOR — fbq only exists once <MetaPixel /> has re-rendered after
-    // Terima, so an event fired in the same tick as the accept is silently
-    // dropped. Rare and harmless; document rather than pre-stub fbq.
-    window.fbq?.(kind, name, params);
+    if (isAnalyticsOptedOut()) return false;
+    if (!hasAnalyticsConsent()) return false;
+    // fbq only exists once <MetaPixel /> has re-rendered after Terima, so an
+    // event fired in the same tick as the accept is dropped, and reported as
+    // not sent. Deliberately not fixed by defining a queueing fbq stub up
+    // front: that would put a Meta-shaped object on the page before consent,
+    // and blur the one boundary this whole file exists to hold. Callers that
+    // need to know (the once-only Lead, the ROI latch) use the return value.
+    if (!window.fbq) return false;
+    window.fbq(kind, name, params);
+    return true;
   } catch {
     /* Same rule as trackCta: analytics never interrupts the page. */
+    return false;
   }
 }

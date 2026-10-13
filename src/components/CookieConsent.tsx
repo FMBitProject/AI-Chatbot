@@ -20,19 +20,20 @@ import { COOKIE_CONSENT_KEY } from "@/lib/analytics-optout";
 // wide, every character past roughly 62 buys a third line and ~17px of bar.
 // "Anda" / "your" was carrying no legal or plain-language weight and cost
 // exactly that.
-// TODO: MINOR — next to a Tolak button, "cookie untuk login, analitik, dan
-// iklan" reads as if declining also drops the login cookie, which is required
-// and stays. Something like "Cookie analitik & iklan aktif hanya jika Anda
-// setuju." says what the choice actually controls.
+//
+// The sentence names what Terima / Tolak actually control: analytics (GA4)
+// and ads (Meta Pixel). The login cookie is required and stays either way, so
+// it is left out; listing it beside a Tolak button read as if declining would
+// sign the visitor out. No longer than the text it replaced.
 const CONTENT = {
   id: {
-    text: "Kami memakai cookie untuk login, analitik, dan iklan.",
+    text: "Cookie analitik & iklan hanya aktif jika disetujui.",
     more: "Selengkapnya",
     accept: "Terima",
     decline: "Tolak",
   },
   en: {
-    text: "We use cookies for sign-in, analytics and ads.",
+    text: "Analytics and ad cookies run only if you accept.",
     more: "Learn more",
     accept: "Accept",
     decline: "Decline",
