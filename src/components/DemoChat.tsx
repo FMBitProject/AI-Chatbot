@@ -10,7 +10,7 @@ import ReactMarkdown from "react-markdown";
 import { sendGAEvent } from "@next/third-parties/google";
 import { ArrowUp, FileText, LoaderCircle, MessageSquare } from "lucide-react";
 import { demoWhatsappUrl } from "@/lib/cta";
-import { trackCta } from "@/lib/cta-analytics";
+import { trackCta, trackMeta } from "@/lib/cta-analytics";
 import { useLang } from "@/lib/language-context";
 import { isAnalyticsOptedOut } from "@/lib/analytics-optout";
 import { DEMO_MAX_QUESTION, DEMO_QUESTIONS, type DemoCitation, type DemoFrame } from "@/lib/demo/shared";
@@ -150,6 +150,9 @@ export function DemoChat() {
     setTurns((prev) => [...prev, { question: trimmed, answer: "", citations: [] }]);
     const update = (patch: Partial<Turn>) => setTurns((prev) => prev.map((turn, i) => i === prev.length - 1 ? { ...turn, ...patch } : turn));
     event("demo_question_sent", { question_number: sent + 1 });
+    // The count only. The question itself is what a hospital visitor typed
+    // about their own work, and it must never become an ad-platform parameter.
+    trackMeta("trackCustom", "demo_question_sent", { question_number: sent + 1 });
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
       const res = await fetch("/api/demo/chat", {
