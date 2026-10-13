@@ -501,8 +501,10 @@ export default function ROIPage() {
       salaryPerMonth !== ROI_DEFAULTS.salaryPerMonth ||
       workingDays !== ROI_DEFAULTS.workingDays;
     if (!touched) return;
-    roiReported.current = true;
-    trackMeta("trackCustom", "roi_calculator_used");
+    // Latched only when the event really went out. A visitor who moves a
+    // slider before pressing Terima sent nothing; the next slider they move
+    // after accepting is the one that gets reported.
+    if (trackMeta("trackCustom", "roi_calculator_used")) roiReported.current = true;
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
 
   const results = useMemo(
