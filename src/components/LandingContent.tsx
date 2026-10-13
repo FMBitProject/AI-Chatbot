@@ -20,7 +20,7 @@ import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 import { DemoChat } from "@/components/DemoChat";
 import { CtaGroup } from "@/components/CtaGroup";
 import { demoWhatsappUrl } from "@/lib/cta";
-import { trackCta } from "@/lib/cta-analytics";
+import { trackCta, trackMeta } from "@/lib/cta-analytics";
 
 const STA = PLAN_LIMITS.starter;
 const PRO = PLAN_LIMITS.professional;
@@ -190,6 +190,8 @@ function LeadForm() {
         signal: timeout,
       });
       setStatus(res.ok ? "done" : "error");
+      // Only the fact that a lead arrived goes to Meta, never the email itself.
+      if (res.ok) trackMeta("track", "Lead", { content_name: "email_form" });
     } catch {
       setStatus("error");
     } finally {

@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { LogoHomeLink } from "@/components/Logo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -10,6 +10,7 @@ import { getPlanPrice, formatRupiah, PLAN_LABELS, type PurchasablePlan } from "@
 import { usePriceNow } from "@/lib/price-clock";
 import { PLAN_LIMITS } from "@/lib/plan-limits";
 import { consultationMailto } from "@/lib/contact";
+import { trackMeta } from "@/lib/cta-analytics";
 import {
   ROI_DEFAULTS,
   calculateRoi,
@@ -485,6 +486,24 @@ export default function ROIPage() {
   const [minutesPerSearch, setMinutesPerSearch] = useState(ROI_DEFAULTS.minutesPerSearch);
   const [salaryPerMonth, setSalaryPerMonth] = useState(ROI_DEFAULTS.salaryPerMonth);
   const [workingDays, setWorkingDays] = useState(ROI_DEFAULTS.workingDays);
+
+  // One roi_calculator_used per page view, on the first slider that moves off
+  // its default. A visit alone is already a PageView; moving a slider is the
+  // visitor actually running their own numbers. The numbers stay here: only
+  // the fact of use goes to Meta.
+  const roiReported = useRef(false);
+  useEffect(() => {
+    if (roiReported.current) return;
+    const touched =
+      employees !== ROI_DEFAULTS.employees ||
+      questionsPerDay !== ROI_DEFAULTS.questionsPerDay ||
+      minutesPerSearch !== ROI_DEFAULTS.minutesPerSearch ||
+      salaryPerMonth !== ROI_DEFAULTS.salaryPerMonth ||
+      workingDays !== ROI_DEFAULTS.workingDays;
+    if (!touched) return;
+    roiReported.current = true;
+    trackMeta("trackCustom", "roi_calculator_used");
+  }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
 
   const results = useMemo(
     () => calculateRoi({ employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays }),

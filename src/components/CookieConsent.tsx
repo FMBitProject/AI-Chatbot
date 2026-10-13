@@ -21,13 +21,13 @@ import { useLang } from "@/lib/language-context";
 // exactly that.
 const CONTENT = {
   id: {
-    text: "Kami memakai cookie untuk autentikasi dan preferensi.",
+    text: "Kami memakai cookie untuk login, analitik, dan iklan.",
     more: "Selengkapnya",
     accept: "Terima",
     decline: "Tolak",
   },
   en: {
-    text: "We use cookies for authentication and preferences.",
+    text: "We use cookies for sign-in, analytics and ads.",
     more: "Learn more",
     accept: "Accept",
     decline: "Decline",

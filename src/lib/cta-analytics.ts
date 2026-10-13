@@ -56,8 +56,38 @@ export function trackCta(
       // standard events, and passing a non-standard name to track() makes it
       // unusable as a campaign optimisation goal in Ads Manager.
       window.fbq?.("trackCustom", "cta_click", { action, location, ...extra });
+      // Asking for the 15-minute demo is the conversion the ads exist to buy,
+      // so it also goes out as Meta's standard Lead, the event Ads Manager can
+      // optimise a campaign towards. cta_click above stays as the per-placement
+      // breakdown; `location` carries that breakdown onto Lead as well.
+      if (action === "demo_whatsapp") {
+        window.fbq?.("track", "Lead", { content_name: "demo_whatsapp", location });
+      }
     }
   } catch {
     /* Analytics must never interrupt a click that is about to navigate. */
+  }
+}
+
+/**
+ * A Meta Pixel event that is not a CTA click: the email lead form, demo chat
+ * usage, the ROI calculator. Same consent and opt-out gate as trackCta, and the
+ * same promise never to throw.
+ *
+ * Params are counts and fixed labels only. Never pass what the visitor typed
+ * (their email, their demo question): the privacy policy promises Meta gets the
+ * page and the button, not the content, and event params reach Meta verbatim.
+ */
+export function trackMeta(
+  kind: "track" | "trackCustom",
+  name: string,
+  params: Record<string, string | number> = {},
+): void {
+  try {
+    if (isAnalyticsOptedOut()) return;
+    if (localStorage.getItem("cookie-consent") !== "accepted") return;
+    window.fbq?.(kind, name, params);
+  } catch {
+    /* Same rule as trackCta: analytics never interrupts the page. */
   }
 }
