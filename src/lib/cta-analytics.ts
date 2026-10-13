@@ -2,8 +2,11 @@
 
 import { track } from "@vercel/analytics";
 import { sendGAEvent } from "@next/third-parties/google";
-import { isAnalyticsOptedOut } from "./analytics-optout";
+import { hasAnalyticsConsent, isAnalyticsOptedOut } from "./analytics-optout";
 import type { CtaLocation } from "./cta";
+
+// sessionStorage flag: this tab has already reported its demo Lead to Meta.
+const LEAD_SENT_KEY = "meta-lead-sent";
 
 /** Which of the three levels in the CTA hierarchy was clicked. */
 export type CtaAction =
@@ -45,23 +48,34 @@ export function trackCta(
   try {
     if (isAnalyticsOptedOut()) return;
     track("cta_click", { action, location, ...extra });
-    // TODO: MINOR — "cookie-consent" is written as a literal in three files
-    // (here, CookieConsent.tsx, DemoChat.tsx). Give it a shared constant next to
-    // ANALYTICS_OPT_OUT_KEY.
-    if (localStorage.getItem("cookie-consent") === "accepted") {
+    if (hasAnalyticsConsent()) {
       sendGAEvent("event", "cta_click", { action, location, ...extra });
       // Meta Pixel (see MetaPixel.tsx) is behind the same consent check, and
       // optional-called because it only exists once the vendor script has
       // loaded. trackCustom, not track: "cta_click" is not one of Meta's
       // standard events, and passing a non-standard name to track() makes it
       // unusable as a campaign optimisation goal in Ads Manager.
+      // TODO: MINOR — this Meta block repeats trackMeta's consent/opt-out gate
+      // by hand; route it through trackMeta so the rule lives in one place.
       window.fbq?.("trackCustom", "cta_click", { action, location, ...extra });
       // Asking for the 15-minute demo is the conversion the ads exist to buy,
       // so it also goes out as Meta's standard Lead, the event Ads Manager can
       // optimise a campaign towards. cta_click above stays as the per-placement
       // breakdown; `location` carries that breakdown onto Lead as well.
-      if (action === "demo_whatsapp") {
-        window.fbq?.("track", "Lead", { content_name: "demo_whatsapp", location });
+      //
+      // At most once per browser session. The same visitor commonly taps the
+      // nav button, then the hero one, then the floating one; the Pixel does not
+      // deduplicate without an eventID, so each tap would be a separate Lead and
+      // Ads Manager would optimise towards, and report a cost per lead from, a
+      // number several times the real one. The flag is only set once fbq exists,
+      // so a click that never reached Meta does not use up the session's Lead.
+      if (
+        action === "demo_whatsapp" &&
+        window.fbq &&
+        sessionStorage.getItem(LEAD_SENT_KEY) !== "1"
+      ) {
+        sessionStorage.setItem(LEAD_SENT_KEY, "1");
+        window.fbq("track", "Lead", { content_name: "demo_whatsapp", location });
       }
     }
   } catch {
@@ -85,7 +99,10 @@ export function trackMeta(
 ): void {
   try {
     if (isAnalyticsOptedOut()) return;
-    if (localStorage.getItem("cookie-consent") !== "accepted") return;
+    if (!hasAnalyticsConsent()) return;
+    // TODO: MINOR — fbq only exists once <MetaPixel /> has re-rendered after
+    // Terima, so an event fired in the same tick as the accept is silently
+    // dropped. Rare and harmless; document rather than pre-stub fbq.
     window.fbq?.(kind, name, params);
   } catch {
     /* Same rule as trackCta: analytics never interrupts the page. */

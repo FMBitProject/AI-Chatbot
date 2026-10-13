@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useLang } from "@/lib/language-context";
+import { COOKIE_CONSENT_KEY } from "@/lib/analytics-optout";
 
 // One line, and short enough to stay one line. This was a padded block spanning
 // the full width with an icon, a two-clause sentence and two buttons, which on a
@@ -19,6 +20,10 @@ import { useLang } from "@/lib/language-context";
 // wide, every character past roughly 62 buys a third line and ~17px of bar.
 // "Anda" / "your" was carrying no legal or plain-language weight and cost
 // exactly that.
+// TODO: MINOR — next to a Tolak button, "cookie untuk login, analitik, dan
+// iklan" reads as if declining also drops the login cookie, which is required
+// and stays. Something like "Cookie analitik & iklan aktif hanya jika Anda
+// setuju." says what the choice actually controls.
 const CONTENT = {
   id: {
     text: "Kami memakai cookie untuk login, analitik, dan iklan.",
@@ -72,7 +77,9 @@ export function CookieConsent() {
   useEffect(() => {
     let hasConsent = false;
     try {
-      hasConsent = !!localStorage.getItem("cookie-consent");
+      // Under the versioned key, so a visitor who only answered the old
+      // banner (which never mentioned analytics or ads) is asked again.
+      hasConsent = !!localStorage.getItem(COOKIE_CONSENT_KEY);
     } catch {
       // Storage can be disabled; the banner must still be dismissible.
     }
@@ -146,7 +153,7 @@ export function CookieConsent() {
 
   function saveConsent(value: "accepted" | "declined") {
     try {
-      localStorage.setItem("cookie-consent", value);
+      localStorage.setItem(COOKIE_CONSENT_KEY, value);
       window.dispatchEvent(new Event("cookie-consent-changed"));
     } catch {
       // Without persisted consent, analytics stays disabled.

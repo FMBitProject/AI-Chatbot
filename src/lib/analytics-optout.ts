@@ -16,3 +16,21 @@ export function isAnalyticsOptedOut(): boolean {
     return false;
   }
 }
+
+// The cookie banner's answer: "accepted" | "declined", absent until answered.
+// Versioned, because the key IS the question. Until 2026-10-13 the banner said
+// cookies were for "autentikasi dan preferensi" and never mentioned analytics or
+// ads, so an "accepted" stored under the old "cookie-consent" key was agreement
+// to something else. Bumping the key re-asks everyone once; bump it again
+// whenever the banner starts asking for something new.
+export const COOKIE_CONSENT_KEY = "cookie-consent-v2";
+
+/** True only when the visitor pressed Terima on the current banner. */
+export function hasAnalyticsConsent(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return localStorage.getItem(COOKIE_CONSENT_KEY) === "accepted";
+  } catch {
+    return false;
+  }
+}

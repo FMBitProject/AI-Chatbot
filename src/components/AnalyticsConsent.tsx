@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { GoogleAnalytics } from "@next/third-parties/google";
-import { isAnalyticsOptedOut } from "@/lib/analytics-optout";
+import { hasAnalyticsConsent, isAnalyticsOptedOut } from "@/lib/analytics-optout";
 
 // Loads Google Analytics 4 only after the visitor accepts cookies via
 // <CookieConsent />, and never on a browser that opted out at
 // /analytics-optout (that page reloads on toggle, because an already-injected
 // gtag keeps reporting even if this component stops rendering it).
-// The consent value lives in localStorage["cookie-consent"];
+// The consent value lives in localStorage[COOKIE_CONSENT_KEY];
 // CookieConsent dispatches a "cookie-consent-changed" event on accept so GA can
 // start within the same session without a page reload (App Router navigations
 // don't remount this component). The "storage" listener covers accept in
@@ -22,7 +22,7 @@ export function AnalyticsConsent() {
     const check = () => {
       try {
         setEnabled(
-          localStorage.getItem("cookie-consent") === "accepted" &&
+          hasAnalyticsConsent() &&
             !isAnalyticsOptedOut()
         );
       } catch {

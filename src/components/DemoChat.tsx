@@ -12,7 +12,7 @@ import { ArrowUp, FileText, LoaderCircle, MessageSquare } from "lucide-react";
 import { demoWhatsappUrl } from "@/lib/cta";
 import { trackCta, trackMeta } from "@/lib/cta-analytics";
 import { useLang } from "@/lib/language-context";
-import { isAnalyticsOptedOut } from "@/lib/analytics-optout";
+import { hasAnalyticsConsent, isAnalyticsOptedOut } from "@/lib/analytics-optout";
 import { DEMO_MAX_QUESTION, DEMO_QUESTIONS, type DemoCitation, type DemoFrame } from "@/lib/demo/shared";
 
 // Every string this section renders, in both languages.
@@ -98,7 +98,7 @@ const CONTENT = {
 // agar cuma ada satu jalan melapor.
 function event(name: string, fields: Record<string, string | number> = {}) {
   try {
-    if (!isAnalyticsOptedOut() && localStorage.getItem("cookie-consent") === "accepted") {
+    if (!isAnalyticsOptedOut() && hasAnalyticsConsent()) {
       sendGAEvent("event", name, { location: "homepage_demo", ...fields });
     }
   } catch { /* Analytics must not interrupt chat or navigation. */ }
@@ -150,6 +150,8 @@ export function DemoChat() {
     setTurns((prev) => [...prev, { question: trimmed, answer: "", citations: [] }]);
     const update = (patch: Partial<Turn>) => setTurns((prev) => prev.map((turn, i) => i === prev.length - 1 ? { ...turn, ...patch } : turn));
     event("demo_question_sent", { question_number: sent + 1 });
+    // TODO: MINOR — both events fire before the request, so a rate-limited or
+    // failed question still counts as sent. Move them together, or not at all.
     // The count only. The question itself is what a hospital visitor typed
     // about their own work, and it must never become an ad-platform parameter.
     trackMeta("trackCustom", "demo_question_sent", { question_number: sent + 1 });

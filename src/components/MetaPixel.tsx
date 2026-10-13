@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Script from "next/script";
-import { isAnalyticsOptedOut } from "@/lib/analytics-optout";
+import { hasAnalyticsConsent, isAnalyticsOptedOut } from "@/lib/analytics-optout";
 
 // Meta (Facebook) Pixel, for attributing signups back to the Meta Ads that are
 // running now. Gated exactly like <AnalyticsConsent />: nothing loads until the
@@ -34,7 +34,7 @@ export function MetaPixel() {
     const check = () => {
       try {
         setEnabled(
-          localStorage.getItem("cookie-consent") === "accepted" &&
+          hasAnalyticsConsent() &&
             !isAnalyticsOptedOut()
         );
       } catch {

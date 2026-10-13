@@ -501,6 +501,9 @@ export default function ROIPage() {
       salaryPerMonth !== ROI_DEFAULTS.salaryPerMonth ||
       workingDays !== ROI_DEFAULTS.workingDays;
     if (!touched) return;
+    // TODO: MINOR — the ref latches even when trackMeta sent nothing (no consent
+    // yet), so a visitor who moves a slider and then presses Terima is never
+    // reported. Have trackMeta return whether it sent, and latch only on true.
     roiReported.current = true;
     trackMeta("trackCustom", "roi_calculator_used");
   }, [employees, questionsPerDay, minutesPerSearch, salaryPerMonth, workingDays]);
