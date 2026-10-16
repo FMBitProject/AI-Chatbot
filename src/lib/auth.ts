@@ -93,9 +93,21 @@ export const auth = betterAuth({
   },
   emailVerification: {
     sendOnSignUp: true,
+    // Without this, signing in to an unverified account only answers
+    // EMAIL_NOT_VERIFIED and sends nothing — so anyone whose signup mail was
+    // lost (spam, expired 24h link) hit a wall at login unless they spotted
+    // the resend button. better-auth only reaches this after the password
+    // has been checked, so it cannot be used to mail arbitrary addresses.
+    sendOnSignIn: true,
     autoSignInAfterVerification: true,
-    sendVerificationEmail: async ({ user, url }) => {
-      await sendMail({
+    sendVerificationEmail: async ({ user, url }, request) => {
+      // On the sign-in path better-auth awaits this and then throws
+      // EMAIL_NOT_VERIFIED. If delivery failed and we rethrew, the client
+      // would get a generic 500 instead of that code and never be shown the
+      // resend button — the one way forward. Log it and let sign-in answer
+      // normally. Every other caller (signup, resend) still sees the failure.
+      const onSignIn = request ? new URL(request.url).pathname.endsWith("/sign-in/email") : false;
+      const send = sendMail({
         to: user.email,
         subject: "Verify your email / Verifikasi email — IntelliBase AI",
         html: authEmail({
@@ -112,6 +124,8 @@ export const auth = betterAuth({
           },
         }),
       });
+      if (!onSignIn) return send;
+      await send.catch((error) => console.error("[auth] sign-in verification mail failed:", error));
     },
   },
   user: {

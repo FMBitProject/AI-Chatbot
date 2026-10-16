@@ -48,7 +48,12 @@ export default function LoginPage() {
     setLoading(true);
     setNeedsVerification(false);
     try {
-      const { data, error } = await authClient.signIn.email({ email: form.email, password: form.password });
+      const { data, error } = await authClient.signIn.email({
+        email: form.email, password: form.password,
+        // Only used when the account is unverified: the server mails a fresh
+        // verification link on this attempt, and this is where it lands.
+        callbackURL: "/admin",
+      });
       // 2FA: onTwoFactorRedirect handles redirect automatically, so data will be null — don't show error
       if (error && error.code !== "SECOND_FACTOR_REQUIRED") {
         if (error.code === "EMAIL_NOT_VERIFIED") setNeedsVerification(true);
@@ -136,8 +141,8 @@ export default function LoginPage() {
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center space-y-2">
                 <p className="text-sm text-amber-900">
                   {lang === "en"
-                    ? "This account still needs email verification before you can sign in."
-                    : "Akun ini perlu verifikasi email dulu sebelum bisa masuk."}
+                    ? "This account still needs email verification. We just sent a new verification link to your email (check spam too)."
+                    : "Akun ini perlu verifikasi email dulu. Kami baru saja mengirim link verifikasi baru ke email Anda (cek juga folder spam)."}
                 </p>
                 <Button variant="outline" size="sm" onClick={resendVerification} disabled={resending || !form.email}>
                   {resending && <Loader2 className="h-4 w-4 animate-spin" />}
