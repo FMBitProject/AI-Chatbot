@@ -17,6 +17,7 @@ import {
   PayloadTooLargeError,
   getUserMessage,
   readApiError,
+  describeErrorChain,
 } from "../src/lib/errors.ts";
 import { INTERACTIVE_CHAIN, BATCH_CHAIN, usableChain, isRateLimitFailure, describeAiFailure } from "../src/lib/models.ts";
 import { t, admin, pricing } from "../src/lib/i18n.ts";
@@ -236,6 +237,21 @@ sama(
   "industri utama TIDAK muncul lagi di baris 'industri lain' maupun /industri (duplikat = bug bagi pembaca, duplicate content bagi crawler)",
 );
 sama(OTHER_INDUSTRIES.length, INDUSTRIES.length - 1, "utama + sisanya = seluruh daftar, tak ada yang hilang");
+
+console.log("\nRANTAI CAUSE DI ALERT — describeErrorChain");
+// Bentuk persis insiden 2026-10-17: Drizzle membungkus, Postgres di `cause`.
+const pgError = Object.assign(new Error('column "classification" does not exist'), { name: "error", code: "42703" });
+const drizzleError = new Error("Failed query: select ... from \"documents\"", { cause: pgError });
+const rantai = describeErrorChain(drizzleError);
+sama(rantai.includes('column "classification" does not exist'), true, "pesan Postgres di cause ikut masuk alert");
+sama(rantai.includes("[42703]"), true, "SQLSTATE ikut disebut");
+sama(rantai.startsWith("Error: Failed query"), true, "pesan pembungkus tetap di depan");
+sama(describeErrorChain(new Error("boom")), "Error: boom", "tanpa cause = sama seperti format lama");
+sama(describeErrorChain("teks mentah"), "teks mentah", "bukan Error → String()");
+const siklus: Error & { cause?: unknown } = new Error("a");
+siklus.cause = siklus;
+sama(describeErrorChain(siklus).split("caused by").length, 4, "cause melingkar berhenti di batas kedalaman, tidak loop");
+sama(describeErrorChain(new Error("x", { cause: { detail: 1 } })).endsWith("[object Object]"), true, "cause non-Error tidak melempar");
 
 console.log(gagal === 0 ? "\n✓ semua kasus lulus" : `\n✗ ${gagal} kasus GAGAL`);
 process.exit(gagal === 0 ? 0 : 1);
