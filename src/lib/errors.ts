@@ -397,6 +397,35 @@ export function getUserMessage(code: string, lang: Lang = "id"): string {
   return entry[lang];
 }
 
+/**
+ * One line naming an error and everything it wraps, for an ops alert.
+ *
+ * Drizzle wraps every database failure as "Failed query: <sql>" and puts what
+ * Postgres actually said on `cause`. An alert carrying only `message` reads as
+ * if the SQL were wrong; the 2026-10-17 admin/documents alert hid
+ * `column "classification" does not exist` (an unapplied migration) that way.
+ * Postgres errors also carry a SQLSTATE `code` (42703, 23505, ...), which
+ * names the failure class more precisely than the text does.
+ *
+ * Messages only, never stacks. Depth is bounded because `cause` is an ordinary
+ * property and nothing stops a cycle.
+ */
+export function describeErrorChain(error: unknown, maxDepth = 4): string {
+  const parts: string[] = [];
+  let current: unknown = error;
+  for (let depth = 0; depth < maxDepth && current !== undefined && current !== null; depth++) {
+    if (current instanceof Error) {
+      const code = (current as { code?: unknown }).code;
+      parts.push(`${current.name}${typeof code === "string" ? ` [${code}]` : ""}: ${current.message}`);
+      current = current.cause;
+    } else {
+      parts.push(String(current));
+      break;
+    }
+  }
+  return parts.join(" ← caused by: ");
+}
+
 /* ── Reading an error on the client ───────────────────────────────────────── */
 
 /** What a client gets back from `readApiError`, whatever shape the route sent. */

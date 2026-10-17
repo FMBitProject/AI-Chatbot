@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { alertOps } from "./alerts";
-import { AppError, RateLimitError, getUserMessage, type ErrorEnvelope } from "./errors";
+import { AppError, RateLimitError, describeErrorChain, getUserMessage, type ErrorEnvelope } from "./errors";
 import type { Lang } from "./i18n";
 
 /** How long an unexpected-error alert for one route stays quiet after a send. */
@@ -75,7 +75,7 @@ export async function handleApiError(
     subject: `Unhandled error in ${label}`,
     details: {
       route: label,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      error: describeErrorChain(error),
     },
     windowMs: ALERT_WINDOW_MS,
   });
