@@ -44,9 +44,21 @@ export async function POST(req: Request) {
   // Next's dev server can expose its bind address (0.0.0.0) in req.url.
   // Host is the browser's destination; unlike forwarded-host it is not a
   // caller-provided routing hint. Vercel validates destination hosts upstream.
-  const destination = new URL(req.url);
-  if (req.headers.get("host")) destination.host = req.headers.get("host")!;
-  if (origin && origin !== destination.origin) return Response.json({ error: ERRORS.id.forbiddenOrigin }, { status: 403 });
+  //
+  // Hosts are compared, not full origins. Behind a TLS-terminating proxy (the
+  // self-hosted VPS: Caddy -> node on :3000) req.url is http://0.0.0.0:3000/...,
+  // so its scheme is http while the browser's is https — and URL's host setter
+  // keeps the old port when the new host has none, which turned
+  // "new.example.com" into "http://new.example.com:3000". Every same-site
+  // request was refused.
+  const destinationHost = req.headers.get("host") ?? new URL(req.url).host;
+  let originHost: string | null = null;
+  try {
+    originHost = origin ? new URL(origin).host : null;
+  } catch {
+    originHost = "";
+  }
+  if (origin && originHost !== destinationHost) return Response.json({ error: ERRORS.id.forbiddenOrigin }, { status: 403 });
   if (process.env.DEMO_CHAT_ENABLED === "false") return unavailable();
   // Read once: readDemoBody consumes the request stream, so the language and the
   // question have to come out of the same parse rather than two reads.
