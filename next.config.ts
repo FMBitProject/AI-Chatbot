@@ -87,6 +87,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Self-hosting (Dockerfile): `next build` also emits .next/standalone — a
+  // minimal server.js plus only the traced node_modules — so the image does
+  // not ship the full dependency tree.
+  //
+  // Off on Vercel, and it must stay off there: Vercel's build adapter reads
+  // .next/next-server.js.nft.json in onBuildComplete, standalone mode does not
+  // write that file, and the build fails with ENOENT after compiling cleanly.
+  // VERCEL is set by the platform during its builds and never by the Dockerfile.
+  output: process.env.VERCEL ? undefined : "standalone",
   allowedDevOrigins: [
     "3000-firebase-ai-chatbot-1780037291743.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev",
   ],

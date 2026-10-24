@@ -116,7 +116,10 @@ export default function RootLayout({
           <AnalyticsConsent />
           <MetaPixel />
         </LanguageProvider>
-        <VercelAnalytics />
+        {/* Its script is served from /_vercel/insights, which exists only on
+            Vercel; self-hosted it would 404 on every page view. VERCEL is set
+            by the platform at build and run time, and never by the Dockerfile. */}
+        {process.env.VERCEL && <VercelAnalytics />}
       </body>
     </html>
   );
