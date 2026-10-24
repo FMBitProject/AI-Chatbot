@@ -13,6 +13,13 @@ PR merged to main
   → the VPS pulls the image and restarts the container
 ```
 
+The last step is automatic: on the VPS, `~/intellibase/auto-update.sh` runs
+from cron every 5 minutes, pulls `:latest`, and redeploys only when the image
+differs from the running one. Expect a merge to be live on the VPS about
+5 minutes after the workflow finishes. To hold a build (after a rollback with
+`IMAGE_TAG=sha-xxxxxxx ./deploy.sh`), create `~/intellibase/TAHAN`; delete it to
+resume. Updates are logged to `~/intellibase/auto-update.log`.
+
 The image is never built on the VPS: `next build` peaks at 2-3 GB of RAM.
 The running server (`.next/standalone/server.js`) needs roughly 200-500 MB.
 
