@@ -87,6 +87,10 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Self-hosting (Dockerfile): `next build` also emits .next/standalone — a
+  // minimal server.js plus only the traced node_modules — so the image does
+  // not ship the full dependency tree. Vercel builds ignore this output.
+  output: "standalone",
   allowedDevOrigins: [
     "3000-firebase-ai-chatbot-1780037291743.cluster-fdkw7vjj7bgguspe3fbbc25tra.cloudworkstations.dev",
   ],

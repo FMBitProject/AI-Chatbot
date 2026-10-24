@@ -1,0 +1,15 @@
+# Keep the build context small and, above all, free of secrets: an .env file
+# copied into a build stage can survive in the image's layer history even if a
+# later stage never copies it.
+.env*
+!.env.example
+!.env.local.example
+.git
+.github
+.vercel
+.next
+node_modules
+coverage
+npm-debug.log*
+.DS_Store
+*.pem

@@ -1,0 +1,112 @@
+name: Docker image (self-hosting)
+
+# Builds the production image described in Dockerfile and, on main, publishes
+# it to GitHub Container Registry so the VPS only ever pulls a finished image
+# (see docs/self-hosting.md). Building on the server is what this avoids:
+# `next build` peaks at 2-3 GB of RAM.
+#
+# Pull requests: build only, nothing is pushed — a PR that breaks the
+# self-hosted build fails here instead of after merge.
+# main: build, then push ghcr.io/<owner>/ai-chatbot:sha-<commit> and :latest.
+#
+# This workflow does not deploy. Vercel keeps deploying main exactly as before;
+# nothing here touches it.
+#
+# Required repo variables (Settings > Secrets and variables > Actions >
+# Variables — variables, not secrets: every NEXT_PUBLIC_* value is shipped to
+# every browser anyway, and secrets would be masked out of the build logs that
+# are needed to debug a wrong value):
+#   NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_MIDTRANS_CLIENT_KEY, NEXT_PUBLIC_MIDTRANS_ENV
+# Optional (feature is simply off when unset, same as on Vercel):
+#   NEXT_PUBLIC_GA_ID, NEXT_PUBLIC_META_PIXEL_ID, NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY,
+#   NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID, NEXT_PUBLIC_SUPPORT_EMAIL,
+#   NEXT_PUBLIC_SUPPORT_WHATSAPP
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # A missing NEXT_PUBLIC_* value does not fail `next build` — it bakes an
+      # empty string into the bundle and the page breaks in the browser (an
+      # empty Midtrans client key means checkout silently never opens). So the
+      # image that would actually be deployed refuses to build without them.
+      - name: Check required build variables
+        if: github.event_name != 'pull_request'
+        env:
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${{ vars.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY }}
+          NEXT_PUBLIC_MIDTRANS_ENV: ${{ vars.NEXT_PUBLIC_MIDTRANS_ENV }}
+        run: |
+          missing=0
+          for name in NEXT_PUBLIC_APP_URL NEXT_PUBLIC_MIDTRANS_CLIENT_KEY NEXT_PUBLIC_MIDTRANS_ENV; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repo variable $name is not set"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Registry paths must be lowercase; the org name is not.
+      - name: Image name
+        id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ai-chatbot" >> "$GITHUB_OUTPUT"
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build (and push on main)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ vars.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=${{ vars.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY }}
+            NEXT_PUBLIC_MIDTRANS_ENV=${{ vars.NEXT_PUBLIC_MIDTRANS_ENV }}
+            NEXT_PUBLIC_GA_ID=${{ vars.NEXT_PUBLIC_GA_ID }}
+            NEXT_PUBLIC_META_PIXEL_ID=${{ vars.NEXT_PUBLIC_META_PIXEL_ID }}
+            NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY=${{ vars.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY }}
+            NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID=${{ vars.NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID }}
+            NEXT_PUBLIC_SUPPORT_EMAIL=${{ vars.NEXT_PUBLIC_SUPPORT_EMAIL }}
+            NEXT_PUBLIC_SUPPORT_WHATSAPP=${{ vars.NEXT_PUBLIC_SUPPORT_WHATSAPP }}
