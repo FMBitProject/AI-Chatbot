@@ -57,3 +57,13 @@ the image was built with.
 - **Vercel Web Analytics** is rendered only when `VERCEL` is set; GA4 and the
   Meta Pixel are unaffected.
 - **No preview deployments.** PRs still get a build check from the workflow.
+- **Gemini refuses the VPS's address** with "User location is not supported
+  for the API use." — indexing, document search, the Gemini fallback model
+  and the demo chat all depend on it. Calls go through a Cloudflare Worker
+  relay instead (`google-relay` on the owner's Cloudflare account): set
+  `GOOGLE_AI_BASE_URL=https://<worker>.workers.dev/v1beta` and
+  `GOOGLE_AI_RELAY_KEY` (must equal the Worker's `RELAY_KEY` secret). The
+  Worker forwards requests to generativelanguage.googleapis.com unchanged and
+  refuses any without the key. Every Gemini key, BYOK customers' included,
+  passes through it, so it must not log request headers. Leave both unset on
+  Vercel.
