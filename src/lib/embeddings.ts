@@ -2,12 +2,13 @@ import { privacyFetch } from "./privacy";
 import type { PrivacyContext } from "./privacy-policy";
 import { embed, embedMany } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { googleAiEndpoint } from "./google-ai-endpoint";
 
 function getGoogle(apiKey?: string | null, privacy?: PrivacyContext) {
   return createGoogleGenerativeAI({
     apiKey: apiKey || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     fetch: privacy ? privacyFetch(privacy, "google") : undefined,
-    baseURL: "https://generativelanguage.googleapis.com/v1beta",
+    ...googleAiEndpoint(),
   });
 }
 

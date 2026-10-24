@@ -3,6 +3,7 @@ import { privacyFetch } from "./privacy";
 import { isPrivacyBlocked, type PrivacyContext } from "./privacy-policy";
 import { generateText, type LanguageModel } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { googleAiEndpoint } from "./google-ai-endpoint";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { AiProvider } from "./ai-providers";
@@ -130,6 +131,7 @@ function googleClientForKey(key: string | null, guardedFetch?: typeof fetch) {
   return createGoogleGenerativeAI({
     apiKey: key || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
     fetch: guardedFetch,
+    ...googleAiEndpoint(),
   });
 }
 
