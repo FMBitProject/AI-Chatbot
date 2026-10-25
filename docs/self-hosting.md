@@ -39,13 +39,12 @@ the image was built with.
 
 ## What behaves differently from Vercel
 
-- **Cron.** `vercel.json` crons run only on Vercel. On the VPS,
-  `/api/cron/reconcile-payments` (02:00 UTC) and `/api/cron/index-documents`
-  (03:00 UTC) must be called by the host's scheduler with
-  `Authorization: Bearer $CRON_SECRET`. Exactly one of the two platforms may
-  run them at a time: switch the scheduler over in the same change that moves
-  DNS, and remove `crons` from `vercel.json` once Vercel no longer serves
-  production.
+- **Cron.** Production is self-hosted, so `vercel.json` no longer declares
+  crons. The VPS scheduler calls `/api/cron/reconcile-payments` (02:00 UTC)
+  and `/api/cron/index-documents` (03:00 UTC) with
+  `Authorization: Bearer $CRON_SECRET`. Exactly one platform may run them at a
+  time; if production ever moves back to Vercel, restore the `crons` block in
+  the same change that stops the VPS scheduler.
 - **`maxDuration` is ignored.** A long-lived Node server has no per-request
   ceiling. The route-level values stay for as long as Vercel is in use.
 - **`after()`** is supported by `next start` / `server.js`. Pending callbacks
