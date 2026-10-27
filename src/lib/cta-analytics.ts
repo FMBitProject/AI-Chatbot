@@ -1,6 +1,5 @@
 "use client";
 
-import { track } from "@vercel/analytics";
 import { sendGAEvent } from "@next/third-parties/google";
 import { hasAnalyticsConsent, isAnalyticsOptedOut } from "./analytics-optout";
 import type { CtaLocation } from "./cta";
@@ -18,16 +17,15 @@ export type CtaAction =
 /**
  * Report a CTA click to both analytics backends, once, from one place.
  *
- * Three backends because the site already runs two and they answer different
- * questions: Vercel Web Analytics is per-route and needs no cookie banner, GA4
- * is where the rest of the funnel lives. Reporting from one helper is what stops
+ * Three backends because they answer different questions: Umami is per-route
+ * and needs no cookie banner, GA4 is where the rest of the funnel lives. Reporting from one helper is what stops
  * a new button being wired to one of them and not the other.
  *
  * Consent and opt-out are checked here rather than at each call site:
  *   - GA4 only fires when the visitor accepted the cookie banner, matching what
  *     <AnalyticsConsent /> does for page views.
- *   - Vercel's custom events pass through the same beforeSend as everything else
- *     (see <VercelAnalytics />), so the /analytics-optout switch already covers
+ *   - Umami's custom events pass through the same beforeSend as everything else
+ *     (see <UmamiAnalytics />), so the /analytics-optout switch already covers
  *     them. It is checked again here anyway, because a dropped event is cheaper
  *     than one that escapes if that wiring ever changes.
  *
@@ -47,7 +45,9 @@ export function trackCta(
 ): void {
   try {
     if (isAnalyticsOptedOut()) return;
-    track("cta_click", { action, location, ...extra });
+    // Cookieless (see <UmamiAnalytics />), so not behind the banner. Absent
+    // when the script is blocked or not loaded yet; the click still counts in GA4.
+    window.umami?.track("cta_click", { action, location, ...extra });
     if (hasAnalyticsConsent()) {
       sendGAEvent("event", "cta_click", { action, location, ...extra });
       // Meta Pixel goes through trackMeta, so its consent and opt-out rule

@@ -60,8 +60,11 @@ the image was built with.
 - **Auth origins.** `VERCEL_URL` / `VERCEL_BRANCH_URL` are unset, so
   `trustedOrigins` is just `BETTER_AUTH_URL`. A staging host needs its own
   `BETTER_AUTH_URL`.
-- **Vercel Web Analytics** is rendered only when `VERCEL` is set; GA4 and the
-  Meta Pixel are unaffected.
+- **Analytics.** Vercel Web Analytics only works on Vercel, so the cookieless
+  counter is Umami, self-hosted at `https://stats.intellibaseai.com`
+  (`~/umami` on the VPS). The page loads it only when the build variable
+  `NEXT_PUBLIC_UMAMI_WEBSITE_ID` is set, and counts only
+  `www.intellibaseai.com`. GA4 and the Meta Pixel are unaffected.
 - **No preview deployments.** PRs still get a build check from the workflow.
 - **Gemini refuses the VPS's address** with "User location is not supported
   for the API use." — indexing, document search, the Gemini fallback model

@@ -6,7 +6,7 @@ import { CookieConsent } from "@/components/CookieConsent";
 import { WhatsAppButton } from "@/components/WhatsAppButton";
 import { AnalyticsConsent } from "@/components/AnalyticsConsent";
 import { MetaPixel } from "@/components/MetaPixel";
-import { VercelAnalytics } from "@/components/VercelAnalytics";
+import { UmamiAnalytics } from "@/components/UmamiAnalytics";
 import { siteOrigin } from "@/lib/site-url";
 
 // One family for the whole site, headings included. A variable font, so the
@@ -116,10 +116,7 @@ export default function RootLayout({
           <AnalyticsConsent />
           <MetaPixel />
         </LanguageProvider>
-        {/* Its script is served from /_vercel/insights, which exists only on
-            Vercel; self-hosted it would 404 on every page view. VERCEL is set
-            by the platform at build and run time, and never by the Dockerfile. */}
-        {process.env.VERCEL && <VercelAnalytics />}
+        <UmamiAnalytics />
       </body>
     </html>
   );
