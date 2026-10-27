@@ -39,8 +39,8 @@ export type CtaLocation =
  *
  * The placement is not lost, only moved: every CTA still reports it through
  * `trackCta`. Read that function before concluding this costs attribution,
- * because the obvious assumption is wrong — Vercel Web Analytics is cookieless
- * and `track()` there fires whether or not the cookie banner has been answered,
+ * because the obvious assumption is wrong — Umami is cookieless and its
+ * `track()` fires whether or not the cookie banner has been answered,
  * so the placement of a click arrives for essentially every visitor. Only the
  * GA4 half waits for consent. What genuinely loses attribution is a visitor who
  * blocks analytics outright or has used /analytics-optout, and that visitor was
