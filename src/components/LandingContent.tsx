@@ -15,7 +15,7 @@ import { OTHER_INDUSTRIES } from "@/lib/industries";
 import { SUPPORT_EMAIL, FOUNDER } from "@/lib/contact";
 import { SocialLinks } from "@/components/SocialLinks";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { ArrowRight, Users, FileText, MessageSquare } from "lucide-react";
+import { ArrowRight, Users, FileText, MessageSquare, Play } from "lucide-react";
 import { AnimatedMarqueeHero } from "@/components/ui/hero-3";
 import { DemoChat } from "@/components/DemoChat";
 import { CtaGroup } from "@/components/CtaGroup";
@@ -280,6 +280,9 @@ const CONTENT = {
       "Perawat orientasi dan staf rotasi menanyakan hal yang sama ke orang yang sama: alur pelaporan insiden, restriksi formularium, prosedur rujukan.",
     ],
     problemMore: "Lihat jenis dokumen dan contoh pertanyaan di rumah sakit",
+    videoTitle: "Lihat IntelliBase AI Bekerja",
+    videoDesc: "Video singkat tentang cara kerja IntelliBase AI.",
+    videoPlay: "Putar video demo",
     // "Cocok untuk", not "dipakai oleh": there are no customers in these
     // industries to point at yet. The industry names come from OTHER_INDUSTRIES.
     industryRowLead: "Bukan rumah sakit? IntelliBase juga cocok untuk",
@@ -409,6 +412,9 @@ const CONTENT = {
       "Orientation nurses and rotating staff ask the same people the same things: incident reporting, formulary restrictions, referral procedures.",
     ],
     problemMore: "See hospital document types and example questions",
+    videoTitle: "See IntelliBase AI at Work",
+    videoDesc: "A short video on how IntelliBase AI works.",
+    videoPlay: "Play demo video",
     industryRowLead: "Not a hospital? IntelliBase also fits",
     industryRowMore: "See other industries",
     howTitle: "How IntelliBase Works",
@@ -488,6 +494,67 @@ const CONTENT = {
 
 // "A, B, C, dan D". Written out rather than Intl.ListFormat so the prerendered
 // HTML and the hydrated client cannot disagree about locale data.
+// https://youtube.com/shorts/5TLEBTh0AV0 — product demo. It is a YouTube Short,
+// so the picture is vertical (9:16). It must stay public for the embed and its
+// thumbnail to resolve.
+const DEMO_VIDEO_ID = "5TLEBTh0AV0";
+
+// The player mounts only after a click, so a plain visit costs one thumbnail
+// instead of the ~1MB the YouTube embed pulls in, and no YouTube cookie is set
+// before the visitor chooses to play (nocookie host). The thumbnail of a Short
+// is a 16:9 frame with the vertical picture centred, so object-cover on a 9:16
+// box crops away exactly the side bars. maxresdefault is missing for some
+// uploads; hqdefault always exists.
+function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; playLabel: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [thumbFallback, setThumbFallback] = useState(false);
+  const thumb = `https://i.ytimg.com/vi/${DEMO_VIDEO_ID}/${thumbFallback ? "hqdefault" : "maxresdefault"}.jpg`;
+
+  return (
+    <section className="py-12 px-6">
+      <div className="max-w-5xl mx-auto grid gap-8 md:grid-cols-12 md:gap-14 md:items-center">
+        <div className="md:col-span-7">
+          <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{title}</h2>
+          <p className="text-stone-500 max-w-[46ch]">{desc}</p>
+        </div>
+        <div className="md:col-span-5 flex md:justify-end">
+          <div className="relative aspect-[9/16] w-full max-w-[18rem] rounded-xl overflow-hidden border border-hairline bg-stone-900">
+            {playing ? (
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
+                title={title}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="absolute inset-0 h-full w-full"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPlaying(true)}
+                aria-label={playLabel}
+                className="group absolute inset-0 h-full w-full cursor-pointer"
+              >
+                <Image
+                  src={thumb}
+                  alt=""
+                  fill
+                  sizes="288px"
+                  className="object-cover"
+                  onError={() => setThumbFallback(true)}
+                />
+                <span className="absolute inset-0 bg-black/25 transition-colors group-hover:bg-black/10" />
+                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-16 w-16 items-center justify-center rounded-full bg-teal-700 transition-transform group-hover:scale-105">
+                  <Play className="h-7 w-7 text-white fill-white translate-x-0.5" aria-hidden="true" />
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function joinNames(names: string[], lang: string) {
   if (names.length < 2) return names.join("");
   return names.slice(0, -1).join(", ") + (lang === "id" ? ", dan " : ", and ") + names[names.length - 1];
@@ -663,18 +730,9 @@ export function LandingContent() {
         </div>
       </section>
 
-      {/* The "Lihat IntelliBase AI Bekerja" video stood here, and it was the
-          same promise made twice. It offered to *show* the product working, six
-          sections below a demo where the visitor already asked it a question and
-          read the answer with the source document attached. A recording cannot
-          beat that, and asking someone who has just used the thing to now watch
-          a film about it spends the one scroll where their attention is highest.
-
-          Deleted rather than merged: there was nothing in it the live demo does
-          not already do better. The video itself still exists on YouTube, so
-          bringing it back is a revert, not a reshoot — but its CSP grant
-          (youtube-nocookie in frame-src) and the i.ytimg.com remote-image
-          pattern went with it, and both have to come back too. */}
+      {/* Demo video: a vertical YouTube Short. Its CSP grant (frame-src) and the
+          i.ytimg.com remotePattern live in next.config.ts. */}
+      <DemoVideo title={T.videoTitle} desc={T.videoDesc} playLabel={T.videoPlay} />
 
       {/* Stats */}
       {/* Was a saturated teal slab. The page's own surface is warm paper, and
