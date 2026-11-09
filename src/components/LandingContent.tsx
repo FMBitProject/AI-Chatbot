@@ -511,14 +511,14 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
   const thumb = `https://i.ytimg.com/vi/${DEMO_VIDEO_ID}/${thumbFallback ? "hqdefault" : "maxresdefault"}.jpg`;
 
   return (
-    <section className="py-12 px-6">
-      <div className="max-w-5xl mx-auto grid gap-8 md:grid-cols-12 md:gap-14 md:items-center">
-        <div className="md:col-span-7">
+    <section className="py-16 px-6">
+      <div className="max-w-5xl mx-auto grid gap-10 md:grid-cols-12 md:gap-12 md:items-center">
+        <div className="md:col-span-5">
           <h2 className="text-2xl md:text-3xl font-semibold tracking-[-0.015em] text-stone-900 mb-3">{title}</h2>
           <p className="text-stone-500 max-w-[46ch]">{desc}</p>
         </div>
-        <div className="md:col-span-5 flex md:justify-end">
-          <div className="relative aspect-[9/16] w-full max-w-[18rem] rounded-xl overflow-hidden border border-hairline bg-stone-900">
+        <div className="md:col-span-7 flex justify-center">
+          <div className="relative aspect-[9/16] w-full max-w-[24rem] rounded-xl overflow-hidden border border-hairline bg-stone-900">
             {playing ? (
               <iframe
                 src={`https://www.youtube-nocookie.com/embed/${DEMO_VIDEO_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1`}
@@ -538,7 +538,7 @@ function DemoVideo({ title, desc, playLabel }: { title: string; desc: string; pl
                   src={thumb}
                   alt=""
                   fill
-                  sizes="288px"
+                  sizes="(max-width: 768px) 100vw, 384px"
                   className="object-cover"
                   onError={() => setThumbFallback(true)}
                 />
